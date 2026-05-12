@@ -40,3 +40,88 @@ button {
 button:disabled {
   cursor: not-allowed;
 }
+
+.role-intro-backdrop {
+  animation: role-intro-fade 420ms ease-out both;
+}
+
+.role-card-scene {
+  height: 360px;
+  perspective: 1200px;
+  width: 250px;
+}
+
+.role-card-3d {
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  width: 100%;
+  animation: role-card-deal 1450ms cubic-bezier(0.2, 0.78, 0.18, 1) both;
+}
+
+.role-card-face {
+  backface-visibility: hidden;
+  inset: 0;
+  position: absolute;
+}
+
+.role-card-front {
+  transform: rotateY(180deg);
+}
+
+.phase-curtain {
+  animation: phase-curtain-pass 1250ms ease-in-out both;
+}
+
+@keyframes role-intro-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes role-card-deal {
+  0% {
+    opacity: 0;
+    transform: translateY(80px) scale(0.78) rotateZ(-5deg) rotateY(0deg);
+  }
+  28% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotateZ(0deg) rotateY(0deg);
+  }
+  52% {
+    transform: translateY(0) scale(1.03) rotateZ(0deg) rotateY(0deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotateZ(0deg) rotateY(180deg);
+  }
+}
+
+@keyframes phase-curtain-pass {
+  0% {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  72% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@media (max-width: 640px) {
+  .role-card-scene {
+    height: 300px;
+    width: 208px;
+  }
+}

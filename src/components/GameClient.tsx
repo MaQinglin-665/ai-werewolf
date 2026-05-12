@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { DEATH_LABELS, ROLE_LABELS } from "@/game/labels";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
 
@@ -53,6 +53,9 @@ export function GameClient() {
   const [game, setGame] = useState<HumanGameView | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [roleIntroGameId, setRoleIntroGameId] = useState<string | null>(null);
+  const [phaseCurtain, setPhaseCurtain] = useState<PhaseCurtainCue | null>(null);
+  const lastCurtainKeyRef = useRef<string | null>(null);
   const recentGameIds = useSyncExternalStore(subscribeRecentGameIds, readRecentGameIds, getRecentGameIdsServerSnapshot);
 
   const rememberGame = useCallback((gameId: string) => {
@@ -71,6 +74,7 @@ export function GameClient() {
         if (!response.ok) throw new Error("对局不存在或已被清理。");
         const view = (await response.json()) as HumanGameView;
         rememberGame(view.id);
+        setRoleIntroGameId(null);
         setGame(view);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "读取对局失败。");
@@ -89,6 +93,7 @@ export function GameClient() {
       if (!response.ok) throw new Error("创建对局失败。");
       const view = (await response.json()) as HumanGameView;
       rememberGame(view.id);
+      setRoleIntroGameId(view.id);
       setGame(view);
     } catch {
       setError("创建对局失败。");
@@ -120,7 +125,7 @@ export function GameClient() {
   }, [game]);
 
   useEffect(() => {
-    if (!game || loading || error || game.result) return;
+    if (!game || loading || error || game.result || roleIntroGameId === game.id) return;
 
     const action = game.availableActions[0];
     const isAutoStep = game.availableActions.length === 1 && action?.type === "continue";
@@ -131,7 +136,20 @@ export function GameClient() {
     }, getAutoAdvanceDelay(game, action));
 
     return () => window.clearTimeout(timer);
-  }, [error, game, loading, submitCommand]);
+  }, [error, game, loading, roleIntroGameId, submitCommand]);
+
+  useEffect(() => {
+    if (!game || roleIntroGameId === game.id) return;
+
+    const curtainKey = `${game.id}:${game.day}:${game.phase}`;
+    if (lastCurtainKeyRef.current === curtainKey) return;
+    lastCurtainKeyRef.current = curtainKey;
+
+    const cue = getPhaseCurtainCue(game);
+    setPhaseCurtain(cue);
+    const timer = window.setTimeout(() => setPhaseCurtain(null), cue.durationMs);
+    return () => window.clearTimeout(timer);
+  }, [game, roleIntroGameId]);
 
   const latestEvents = useMemo(() => game?.publicEvents.slice(-18).reverse() ?? [], [game]);
 
@@ -180,6 +198,11 @@ export function GameClient() {
           </div>
         )}
       </div>
+
+      {game && roleIntroGameId === game.id && (
+        <RoleIntroOverlay game={game} onEnter={() => setRoleIntroGameId(null)} />
+      )}
+      {phaseCurtain && <PhaseCurtain cue={phaseCurtain} />}
     </main>
   );
 }
@@ -291,6 +314,236 @@ function LandingPanel({
       </div>
     </section>
   );
+}
+
+type RoleIntro = {
+  title: string;
+  camp: string;
+  goal: string;
+  ability: string;
+  tip: string;
+};
+
+type PhaseCurtainCue = {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  tone: "night" | "day" | "vote" | "danger" | "end";
+  durationMs: number;
+};
+
+const ROLE_INTROS: Record<HumanGameView["myRole"], RoleIntro> = {
+  WEREWOLF: {
+    title: "狼人",
+    camp: "狼人阵营",
+    goal: "让所有平民出局，或让所有神职出局。",
+    ability: "每晚参与选择一名玩家作为刀口。白天需要隐藏身份、制造好人焦点。",
+    tip: "不要过早暴露狼队视角，发言时尽量用公开信息包装你的怀疑。",
+  },
+  VILLAGER: {
+    title: "平民",
+    camp: "好人阵营",
+    goal: "找出并放逐所有狼人。",
+    ability: "没有夜晚技能，只能依靠发言、投票和死亡信息推理。",
+    tip: "你是闭眼视角，重点观察谁在回避逻辑、谁在强行带节奏。",
+  },
+  SEER: {
+    title: "预言家",
+    camp: "好人阵营",
+    goal: "通过查验帮助好人找出狼人。",
+    ability: "每晚可以查验一名玩家，得知其阵营为狼人或好人。",
+    tip: "查验结果是你的核心信息。什么时候报、怎么归票，会直接影响局势。",
+  },
+  WITCH: {
+    title: "女巫",
+    camp: "好人阵营",
+    goal: "利用药品保护关键好人，并找机会毒杀狼人。",
+    ability: "拥有一瓶解药和一瓶毒药。每晚最多使用一瓶药。",
+    tip: "药品很珍贵。先听发言，再决定是否公开自己的判断。",
+  },
+  HUNTER: {
+    title: "猎人",
+    camp: "好人阵营",
+    goal: "用发言和最后一枪帮助好人扩大优势。",
+    ability: "被狼人击杀或白天放逐时，可以开枪带走一名玩家；被毒死不能开枪。",
+    tip: "你有威慑力，但不必一开始亮身份。把枪口留给最值得怀疑的人。",
+  },
+};
+
+function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnter: () => void }) {
+  const intro = ROLE_INTROS[game.myRole];
+  const teammates = game.wolfTeammates.map((seat) => seat.name).join("、");
+
+  return (
+    <div className="role-intro-backdrop fixed inset-0 z-50 grid place-items-center bg-black/86 px-4 py-6 backdrop-blur-md">
+      <section className="grid w-full max-w-5xl gap-6 rounded-[30px] border border-[#f1c76e]/30 bg-[#120c0a]/95 p-4 shadow-2xl shadow-black/70 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid place-items-center rounded-[24px] border border-[#f1c76e]/18 bg-black/28 p-6">
+          <div className="role-card-scene">
+            <div className="role-card-3d">
+              <div
+                className="role-card-face role-card-back rounded-[18px] border border-[#f1c76e]/40 bg-cover bg-center shadow-2xl"
+                style={{ backgroundImage: `url(${ROLE_CARD_IMAGES.HIDDEN})` }}
+              />
+              <div
+                className="role-card-face role-card-front rounded-[18px] border border-[#f1c76e]/55 bg-cover bg-center shadow-2xl"
+                style={{ backgroundImage: `url(${ROLE_CARD_IMAGES[game.myRole]})` }}
+              />
+            </div>
+          </div>
+          <div className="mt-5 text-center">
+            <div className="text-xs uppercase tracking-[0.28em] text-[#ad9c7d]">Your Role</div>
+            <div className="mt-2 text-3xl font-semibold text-[#f1d796]">{intro.title}</div>
+          </div>
+        </div>
+
+        <div className="flex min-w-0 flex-col justify-between gap-6">
+          <div>
+            <div className="inline-flex rounded-full border border-[#f1c76e]/25 bg-[#f1c76e]/10 px-3 py-1 text-xs text-[#f1d796]">
+              身份已发放
+            </div>
+            <h2 className="mt-4 text-3xl font-semibold leading-tight text-[#f7ead5] sm:text-4xl">
+              你是 {intro.title}
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#dcc9a7]">
+              记住你的身份和胜利目标。确认后进入牌桌，系统会以主持人节奏自动推进到你需要行动的时刻。
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <RoleIntroItem label="阵营" value={intro.camp} />
+            <RoleIntroItem label="胜利目标" value={intro.goal} />
+            <RoleIntroItem label="能力" value={intro.ability} />
+            <RoleIntroItem label="发言建议" value={intro.tip} />
+            {teammates && <RoleIntroItem label="狼队友" value={teammates} />}
+          </div>
+
+          <button
+            onClick={onEnter}
+            className="min-h-12 rounded-full bg-[#b74332] px-6 py-3 text-sm font-semibold text-white shadow-xl shadow-black/35 transition hover:bg-[#cf513d]"
+          >
+            确认身份，进入游戏
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function RoleIntroItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[#f1c76e]/16 bg-black/24 px-4 py-3">
+      <div className="mb-1 text-xs text-[#ad9c7d]">{label}</div>
+      <div className="text-sm leading-6 text-[#f7ead5]">{value}</div>
+    </div>
+  );
+}
+
+function PhaseCurtain({ cue }: { cue: PhaseCurtainCue }) {
+  return (
+    <div className="phase-curtain pointer-events-none fixed inset-0 z-40 grid place-items-center bg-black/48 px-4 backdrop-blur-[2px]">
+      <div className={`${phaseCurtainToneClass(cue.tone)} min-w-0 rounded-[28px] border px-8 py-7 text-center shadow-2xl shadow-black/55`}>
+        <div className="text-xs uppercase tracking-[0.3em] text-white/52">{cue.eyebrow}</div>
+        <div className="mt-3 text-4xl font-semibold text-white sm:text-5xl">{cue.title}</div>
+        <div className="mt-3 text-sm leading-6 text-white/70">{cue.subtitle}</div>
+      </div>
+    </div>
+  );
+}
+
+function getPhaseCurtainCue(game: HumanGameView): PhaseCurtainCue {
+  switch (game.phase) {
+    case "NIGHT_WOLVES":
+      return {
+        eyebrow: `第 ${game.day} 夜`,
+        title: "天黑请闭眼",
+        subtitle: "狼人请睁眼，选择今晚的刀口。",
+        tone: "night",
+        durationMs: 1300,
+      };
+    case "NIGHT_SEER":
+      return {
+        eyebrow: `第 ${game.day} 夜`,
+        title: "预言家请睁眼",
+        subtitle: "选择一名玩家查验身份。",
+        tone: "night",
+        durationMs: 1200,
+      };
+    case "NIGHT_WITCH":
+      return {
+        eyebrow: `第 ${game.day} 夜`,
+        title: "女巫请睁眼",
+        subtitle: "确认刀口，决定是否使用药品。",
+        tone: "night",
+        durationMs: 1200,
+      };
+    case "DAY_ANNOUNCEMENT":
+      return {
+        eyebrow: `第 ${game.day} 天`,
+        title: "天亮了",
+        subtitle: "主持人公布昨夜情况。",
+        tone: "day",
+        durationMs: 1300,
+      };
+    case "DAY_SPEECH":
+      return {
+        eyebrow: `第 ${game.day} 天`,
+        title: "开始发言",
+        subtitle: "存活玩家按座位顺序依次发言。",
+        tone: "day",
+        durationMs: 1100,
+      };
+    case "DAY_VOTE":
+      return {
+        eyebrow: `第 ${game.day} 天`,
+        title: "开始投票",
+        subtitle: "投票过程保密，结束后统一开票。",
+        tone: "vote",
+        durationMs: 1100,
+      };
+    case "EXILE_RESOLUTION":
+      return {
+        eyebrow: `第 ${game.day} 天`,
+        title: "公布票数",
+        subtitle: "结算今日放逐结果。",
+        tone: "vote",
+        durationMs: 1200,
+      };
+    case "HUNTER_SHOT":
+      return {
+        eyebrow: "猎人阶段",
+        title: "猎人请行动",
+        subtitle: "选择是否发动最后一枪。",
+        tone: "danger",
+        durationMs: 1100,
+      };
+    case "GAME_OVER":
+      return {
+        eyebrow: "终局",
+        title: "游戏结束",
+        subtitle: game.result?.reason ?? "查看复盘了解关键节点。",
+        tone: "end",
+        durationMs: 1400,
+      };
+    default:
+      return {
+        eyebrow: "准备",
+        title: "准备开局",
+        subtitle: "正在生成本局身份。",
+        tone: "day",
+        durationMs: 900,
+      };
+  }
+}
+
+function phaseCurtainToneClass(tone: PhaseCurtainCue["tone"]): string {
+  const tones = {
+    night: "border-[#6d93d4]/38 bg-[#0b1428]/92",
+    day: "border-[#f1c76e]/34 bg-[#26170c]/92",
+    vote: "border-[#e46d55]/36 bg-[#32100d]/92",
+    danger: "border-[#ff9a6b]/40 bg-[#35180e]/94",
+    end: "border-[#77d898]/36 bg-[#0f2418]/94",
+  };
+  return tones[tone];
 }
 
 function PhaseRhythm({ game }: { game: HumanGameView }) {
