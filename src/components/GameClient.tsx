@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { DEATH_LABELS, ROLE_LABELS } from "@/game/labels";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
 
@@ -39,6 +39,15 @@ type CommandPayload =
   | { type: "vote"; targetSeatId: number }
   | { type: "hunterShoot"; targetSeatId?: number }
   | { type: "continue" };
+
+function getAutoAdvanceDelay(game: HumanGameView, action: AvailableHumanAction): number {
+  if (action.type !== "continue") return 0;
+  if (game.phase === "DAY_SPEECH") return 2600;
+  if (game.phase === "DAY_VOTE") return 900;
+  if (game.phase === "DAY_ANNOUNCEMENT" || game.phase === "EXILE_RESOLUTION") return 1600;
+  if (game.phase.startsWith("NIGHT")) return 1300;
+  return 1200;
+}
 
 export function GameClient() {
   const [game, setGame] = useState<HumanGameView | null>(null);
@@ -88,7 +97,7 @@ export function GameClient() {
     }
   }, [rememberGame]);
 
-  async function submitCommand(payload: CommandPayload) {
+  const submitCommand = useCallback(async (payload: CommandPayload) => {
     if (!game) return;
     setLoading(true);
     setError(null);
@@ -108,7 +117,21 @@ export function GameClient() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [game]);
+
+  useEffect(() => {
+    if (!game || loading || error || game.result) return;
+
+    const action = game.availableActions[0];
+    const isAutoStep = game.availableActions.length === 1 && action?.type === "continue";
+    if (!isAutoStep) return;
+
+    const timer = window.setTimeout(() => {
+      void submitCommand({ type: "continue" });
+    }, getAutoAdvanceDelay(game, action));
+
+    return () => window.clearTimeout(timer);
+  }, [error, game, loading, submitCommand]);
 
   const latestEvents = useMemo(() => game?.publicEvents.slice(-18).reverse() ?? [], [game]);
 
@@ -1140,13 +1163,43 @@ function ActionPanel({
   const meta = getActionMeta(game.availableActions[0]);
   const isContinueOnly = game.availableActions.every((action) => action.type === "continue");
 
+  if (isContinueOnly && game.availableActions[0]?.type === "continue") {
+    const action = game.availableActions[0];
+    return (
+      <section className="sticky bottom-3 z-20 rounded-[24px] border border-[#f1c76e]/24 bg-[#130d0b]/88 p-4 shadow-2xl shadow-black/40 backdrop-blur-md">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="mb-2 inline-flex rounded-full bg-[#f1c76e]/10 px-3 py-1 text-xs text-[#f1d796]">{game.phaseLabel}</div>
+            <h2 className="text-lg font-semibold text-[#f7ead5]">{meta.title}</h2>
+            <p className="mt-1 text-sm text-[#dcc9a7]">{meta.description}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#77d898]/25 bg-[#14311f]/55 px-3 py-2 text-xs text-[#a8f0b6]">
+              <span className="h-2 w-2 rounded-full bg-[#77d898]" />
+              自动播放中
+            </span>
+            <button
+              disabled={loading}
+              onClick={() => onSubmit({ type: "continue" })}
+              className="rounded-full border border-[#f1c76e]/25 px-4 py-2 text-xs font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10 disabled:opacity-60"
+            >
+              {loading ? "播放中" : `立即跳过：${action.label}`}
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="sticky bottom-3 z-20 rounded-[24px] border border-[#f1c76e]/30 bg-[#130d0b]/92 p-4 shadow-2xl shadow-black/45 backdrop-blur-md">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="mb-2 inline-flex rounded-full bg-[#f1c76e]/10 px-3 py-1 text-xs text-[#f1d796]">{game.phaseLabel}</div>
           <h2 className="text-xl font-semibold text-[#f7ead5]">{meta.title}</h2>
-          <p className="mt-1 text-sm text-[#dcc9a7]">{meta.description}</p>
+          <p className="mt-1 text-sm text-[#dcc9a7]">
+            {isContinueOnly ? `${meta.description} 系统会自动播放下一步。` : meta.description}
+          </p>
         </div>
         <span className="rounded-full border border-[#f1c76e]/25 px-3 py-1 text-xs text-[#ad9c7d]">
           {isContinueOnly ? "观看流程" : "轮到你行动"}
@@ -1200,7 +1253,7 @@ function ActionControl({
         onClick={() => onSubmit({ type: "continue" })}
         className="rounded-full bg-[#b74332] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#cf513d] disabled:opacity-60"
       >
-        {action.label}
+        {loading ? "播放中" : `立即播放：${action.label}`}
       </button>
     );
   }

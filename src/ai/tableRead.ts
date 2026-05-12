@@ -36,8 +36,9 @@ export function buildAiTableRead(view: AgentView): AiTableRead {
     const votedFor = votesByVoter.get(seat.seatId)?.target;
     const votesReceived = votesByTarget.get(seat.seatId)?.length ?? 0;
     const pressure: string[] = [];
-    let suspicion = 45;
-    let trust = 45;
+    const publicVariance = ((seat.seatId * 7 + view.mySeatId * 3 + view.day * 5) % 15) - 4;
+    let suspicion = 45 + publicVariance;
+    let trust = 48 - Math.floor(publicVariance / 2);
 
     if (isSelf) {
       suspicion = 0;
@@ -66,6 +67,21 @@ export function buildAiTableRead(view: AgentView): AiTableRead {
     if (!lastSpeech && view.day > 1 && !isSelf) {
       suspicion += 6;
       pressure.push("发言信息偏少");
+    }
+
+    if (lastSpeech && !isSelf) {
+      if (lastSpeech.message.length < 42) {
+        suspicion += 5;
+        pressure.push("发言偏短，过程不足");
+      }
+      if (/不急|先听|过一轮|不站死/.test(lastSpeech.message)) {
+        suspicion += 3;
+        pressure.push("站边偏保守，需要补判断");
+      }
+      if (/查杀|金水|预言家|女巫|猎人/.test(lastSpeech.message)) {
+        trust += 3;
+        pressure.push("发言里给过身份相关信息");
+      }
     }
 
     if (votedFor?.seatId === view.mySeatId) {

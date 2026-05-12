@@ -119,8 +119,21 @@ describe("game engine", () => {
 
     const view = buildHumanView(state);
 
-    expect(view.currentActorSeatId).toBe(1);
+    expect(view.currentActorSeatId).toBeUndefined();
     expect(view.availableActions[0]?.type).toBe("continue");
+  });
+
+  it("does not reveal AI night role actor seat in the human view", () => {
+    const state = createGame({ seed: 32 });
+    state.phase = "NIGHT_SEER";
+    state.humanSeatId = state.seats.find((seat) => seat.role !== "SEER")!.seatId;
+    state.seats = state.seats.map((seat) => ({ ...seat, isAi: seat.seatId !== state.humanSeatId }));
+
+    const view = buildHumanView(state);
+
+    expect(view.currentActorSeatId).toBeUndefined();
+    expect(view.availableActions[0]?.type).toBe("continue");
+    expect(view.availableActions[0]).toMatchObject({ label: "预言家行动中" });
   });
 
   it("evaluates slaughter-side win conditions", () => {

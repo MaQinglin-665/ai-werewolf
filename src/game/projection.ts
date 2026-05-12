@@ -50,7 +50,7 @@ export function buildHumanView(state: GameState): HumanGameView {
       .filter((event) => event.visibility === "private" && event.actorSeatId === human.seatId)
       .map(toEventView),
     availableActions: getAvailableActionsForHuman(state),
-    currentActorSeatId: requirement.type === "human" || requirement.type === "ai" ? requirement.actorSeatId : undefined,
+    currentActorSeatId: visibleCurrentActorSeatId(state, requirement),
     currentSpeakerSeatId: getCurrentSpeakerSeatId(state),
     wolfTeammates:
       human.role === "WEREWOLF"
@@ -297,13 +297,13 @@ function buildContinueAction(state: GameState): AvailableHumanAction {
     if (state.phase === "DAY_VOTE") {
       return {
         type: "continue",
-        label: `等待 ${actor.name} 投票`,
+        label: "等待其他玩家投票",
         description: "投票过程保密，结束后只公布被投票数。",
       };
     }
     return {
       type: "continue",
-      label: `${actor.name} 行动`,
+      label: hiddenRoleActionLabel(state.phase),
       description: phaseNarration(state.phase),
     };
   }
@@ -313,6 +313,33 @@ function buildContinueAction(state: GameState): AvailableHumanAction {
     label: continueLabel(state.phase),
     description: phaseNarration(state.phase),
   };
+}
+
+function visibleCurrentActorSeatId(state: GameState, requirement: ReturnType<typeof getTurnRequirement>): number | undefined {
+  if (requirement.type === "human") {
+    return requirement.actorSeatId;
+  }
+
+  if (requirement.type === "ai" && state.phase === "DAY_SPEECH") {
+    return requirement.actorSeatId;
+  }
+
+  return undefined;
+}
+
+function hiddenRoleActionLabel(phase: Phase): string {
+  switch (phase) {
+    case "NIGHT_WOLVES":
+      return "狼人行动中";
+    case "NIGHT_SEER":
+      return "预言家行动中";
+    case "NIGHT_WITCH":
+      return "女巫行动中";
+    case "HUNTER_SHOT":
+      return "猎人行动中";
+    default:
+      return "流程推进中";
+  }
 }
 
 function continueLabel(phase: Phase): string {
