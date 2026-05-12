@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { advanceWithMockAi } from "@/ai/mockAgent";
-import { buildHumanView } from "./projection";
+import { advanceWithMockAi, createMockCommand } from "@/ai/mockAgent";
+import { buildAiTableRead, createSpeechPlan, createVotePlan } from "@/ai/tableRead";
+import { buildAgentView, buildHumanView } from "./projection";
 import { buildGameReview } from "./review";
 import { applyCommand, applySystemStep, createGame, evaluateWinCondition, getSeat } from "./engine";
 
@@ -138,6 +139,75 @@ describe("game engine", () => {
     expect(review.roleReveal).toHaveLength(9);
     expect(review.keyEvents.at(-1)?.message).toContain("获胜");
     expect(review.nightRounds.length).toBeGreaterThan(0);
+    expect(review.turningPoints.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("keeps good AI table reads from hidden role information", () => {
+    const state = createGame({ seed: 21 });
+    const goodAi = state.seats.find((seat) => seat.isAi && seat.role === "VILLAGER")!;
+    const hiddenWolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    const view = buildAgentView(state, goodAi.seatId);
+    const read = buildAiTableRead(view);
+
+    expect(view.privateKnowledge.wolfTeammates).toBeUndefined();
+    expect(read.knownWolfSeatIds).toHaveLength(0);
+    expect(read.seats.find((seat) => seat.seatId === hiddenWolf.seatId)?.isKnownWolf).toBe(false);
+  });
+
+  it("only gives wolf AI teammate private knowledge", () => {
+    const state = createGame({ seed: 22 });
+    const wolfAi = state.seats.find((seat) => seat.isAi && seat.role === "WEREWOLF")!;
+    const view = buildAgentView(state, wolfAi.seatId);
+    const read = buildAiTableRead(view);
+
+    expect(view.privateKnowledge.wolfTeammates).toHaveLength(2);
+    expect(read.wolfTeammateSeatIds).toHaveLength(2);
+    expect(read.knownWolfSeatIds).toHaveLength(0);
+  });
+
+  it("lets seer AI claim and vote a checked wolf first", () => {
+    const state = createGame({ seed: 23 });
+    const seer = state.seats.find((seat) => seat.isAi && seat.role === "SEER")!;
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    state.phase = "DAY_VOTE";
+    state.seerChecks.push({
+      day: 1,
+      seerSeatId: seer.seatId,
+      targetSeatId: wolf.seatId,
+      result: "WEREWOLF",
+    });
+
+    const view = buildAgentView(state, seer.seatId);
+    const speechPlan = createSpeechPlan(view);
+    const votePlan = createVotePlan(view);
+
+    expect(speechPlan.kind).toBe("claim-check");
+    expect(speechPlan.stance).toContain("查验狼");
+    expect(votePlan.target.seatId).toBe(wolf.seatId);
+  });
+
+  it("keeps wolf AI from voting teammates in normal voting", () => {
+    const state = createGame({ seed: 24 });
+    const wolf = state.seats.find((seat) => seat.isAi && seat.role === "WEREWOLF")!;
+    const teammateIds = state.seats
+      .filter((seat) => seat.role === "WEREWOLF" && seat.seatId !== wolf.seatId)
+      .map((seat) => seat.seatId);
+    state.phase = "DAY_VOTE";
+
+    const plan = createVotePlan(buildAgentView(state, wolf.seatId));
+    expect(teammateIds).not.toContain(plan.target.seatId);
+  });
+
+  it("stores AI vote reasons without wolf teammate leakage", () => {
+    let state = createGame({ seed: 25 });
+    const wolf = state.seats.find((seat) => seat.isAi && seat.role === "WEREWOLF")!;
+    state.phase = "DAY_VOTE";
+    const command = createMockCommand(buildAgentView(state, wolf.seatId));
+    state = applyCommand(state, command);
+    const voteEvent = state.events.find((event) => event.type === "VOTE_CAST")!;
+
+    expect(voteEvent.payload.reason).toBeTruthy();
+    expect(String(voteEvent.payload.reason)).not.toMatch(/队友|狼队友|WEREWOLF/);
   });
 
   it("finishes 1000 mock games without illegal states or loops", async () => {
@@ -145,21 +215,27 @@ describe("game engine", () => {
       goodWins: 0,
       werewolfWins: 0,
       totalDays: 0,
+      fallbackCount: 0,
+      tiedVotes: 0,
     };
 
     for (let seed = 0; seed < 1000; seed += 1) {
-      const { state } = await advanceWithMockAi(createGame({ seed }), {
+      const { state, aiLogs } = await advanceWithMockAi(createGame({ seed }), {
         ignoreHuman: true,
         maxSteps: 500,
       });
       expect(state.phase).toBe("GAME_OVER");
       expect(state.result).toBeDefined();
       stats.totalDays += state.day;
+      stats.fallbackCount += aiLogs.filter((log) => log.isFallback).length;
+      stats.tiedVotes += state.events.filter((event) => event.type === "VOTE_TIED").length;
       if (state.result?.winner === "GOOD") stats.goodWins += 1;
       if (state.result?.winner === "WEREWOLVES") stats.werewolfWins += 1;
     }
 
     expect(stats.goodWins + stats.werewolfWins).toBe(1000);
     expect(stats.totalDays / 1000).toBeGreaterThan(0);
+    expect(stats.fallbackCount).toBe(0);
+    expect(stats.tiedVotes).toBeGreaterThanOrEqual(0);
   });
 });
