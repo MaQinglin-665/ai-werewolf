@@ -377,20 +377,19 @@ function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnter: () 
   return (
     <div className="role-intro-backdrop fixed inset-0 z-50 grid place-items-center bg-black/86 px-4 py-6 backdrop-blur-md">
       <section className="grid w-full max-w-5xl gap-6 rounded-[30px] border border-[#f1c76e]/30 bg-[#120c0a]/95 p-4 shadow-2xl shadow-black/70 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="grid place-items-center rounded-[24px] border border-[#f1c76e]/18 bg-black/28 p-6">
-          <div className="role-card-scene">
-            <div className="role-card-3d">
-              <div
-                className="role-card-face role-card-back rounded-[18px] border border-[#f1c76e]/40 bg-cover bg-center shadow-2xl"
-                style={{ backgroundImage: `url(${ROLE_CARD_IMAGES.HIDDEN})` }}
-              />
-              <div
-                className="role-card-face role-card-front rounded-[18px] border border-[#f1c76e]/55 bg-cover bg-center shadow-2xl"
-                style={{ backgroundImage: `url(${ROLE_CARD_IMAGES[game.myRole]})` }}
-              />
-            </div>
+        <div className="flex min-h-[500px] flex-col items-center justify-start rounded-[24px] border border-[#f1c76e]/18 bg-black/28 p-5 sm:p-6">
+          <div className="role-card-scene mt-1">
+            <div
+              className="role-card-shadow-card rounded-[18px] border border-[#f1c76e]/22 bg-cover bg-center"
+              style={{ backgroundImage: `url(${ROLE_CARD_IMAGES.HIDDEN})` }}
+            />
+            <div
+              className="role-card-reveal rounded-[18px] border border-[#f1c76e]/60 bg-cover bg-center shadow-2xl"
+              style={{ backgroundImage: `url(${ROLE_CARD_IMAGES[game.myRole]})` }}
+              aria-label={`${intro.title}身份牌`}
+            />
           </div>
-          <div className="mt-5 text-center">
+          <div className="mt-6 text-center">
             <div className="text-xs uppercase tracking-[0.28em] text-[#ad9c7d]">Your Role</div>
             <div className="mt-2 text-3xl font-semibold text-[#f1d796]">{intro.title}</div>
           </div>
