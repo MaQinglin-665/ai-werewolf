@@ -139,6 +139,7 @@ export function GameClient() {
         ) : (
           <div className="grid flex-1 gap-4">
             <PhaseRhythm game={game} />
+            <HostStage game={game} />
             <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_420px]">
               <div className="grid gap-4">
                 <SeatBoard game={game} />
@@ -312,6 +313,312 @@ function PhaseRhythm({ game }: { game: HumanGameView }) {
   );
 }
 
+type HostCue = {
+  badge: string;
+  title: string;
+  line: string;
+  detail: string;
+  tone: "night" | "day" | "vote" | "danger" | "end";
+};
+
+function HostStage({ game }: { game: HumanGameView }) {
+  const cue = getHostCue(game);
+  const action = game.availableActions[0];
+  const currentActor = game.currentActorSeatId
+    ? game.seats.find((seat) => seat.seatId === game.currentActorSeatId)
+    : undefined;
+
+  return (
+    <section className={`${hostToneClass(cue.tone)} overflow-hidden rounded-[26px] border p-4 shadow-2xl shadow-black/35 backdrop-blur-md`}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] lg:items-center">
+        <div className="min-w-0">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-white/15 bg-black/24 px-3 py-1 text-xs font-semibold text-white/82">
+              主持人
+            </span>
+            <span className="rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs text-white/70">
+              {cue.badge}
+            </span>
+            {currentActor && (
+              <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1 text-xs text-white/72">
+                当前：{currentActor.seatId}号 {currentActor.name}
+              </span>
+            )}
+          </div>
+          <h2 className="text-2xl font-semibold text-white sm:text-3xl">{cue.title}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-white/78">{cue.line}</p>
+          <p className="mt-1 text-xs leading-5 text-white/56">{cue.detail}</p>
+        </div>
+
+        <div className="rounded-2xl border border-white/12 bg-black/20 p-3">
+          <HostStageDetail game={game} action={action} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HostStageDetail({ game, action }: { game: HumanGameView; action?: AvailableHumanAction }) {
+  if (game.phase.startsWith("NIGHT")) {
+    return <NightRoleTrack phase={game.phase} />;
+  }
+
+  if (game.phase === "DAY_SPEECH") {
+    return <SpeechOrderStrip game={game} />;
+  }
+
+  if (game.phase === "DAY_VOTE") {
+    return <VotePrivacyStrip game={game} action={action} />;
+  }
+
+  if (game.phase === "EXILE_RESOLUTION") {
+    return <VoteRevealStrip game={game} />;
+  }
+
+  if (game.phase === "DAY_ANNOUNCEMENT") {
+    const latestAnnouncement = [...game.publicEvents]
+      .reverse()
+      .find((event) => event.day === game.day && event.phase === "DAY_ANNOUNCEMENT");
+    return (
+      <div className="grid gap-2 text-sm leading-6 text-white/75">
+        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Dawn Report</div>
+        <div>{latestAnnouncement?.message ?? "等待公布昨夜死亡情况。"}</div>
+      </div>
+    );
+  }
+
+  if (game.phase === "HUNTER_SHOT") {
+    return (
+      <div className="grid gap-2 text-sm leading-6 text-white/75">
+        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Hunter Window</div>
+        <div>猎人进入最后行动窗口，结算完成后继续进入白天或终局。</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-2 text-sm leading-6 text-white/75">
+      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Result</div>
+      <div>{game.result ? `${game.result.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜：${game.result.reason}` : "流程继续推进。"}</div>
+    </div>
+  );
+}
+
+function NightRoleTrack({ phase }: { phase: HumanGameView["phase"] }) {
+  const steps = [
+    { phase: "NIGHT_WOLVES", label: "狼人睁眼", detail: "选择今晚刀口" },
+    { phase: "NIGHT_SEER", label: "预言家睁眼", detail: "查验一名玩家" },
+    { phase: "NIGHT_WITCH", label: "女巫睁眼", detail: "决定是否用药" },
+  ] as const;
+  const currentIndex = steps.findIndex((step) => step.phase === phase);
+
+  return (
+    <div className="grid gap-3">
+      {steps.map((step, index) => {
+        const status = index < currentIndex ? "done" : index === currentIndex ? "current" : "upcoming";
+        return (
+          <div
+            key={step.phase}
+            className={[
+              "flex items-center justify-between gap-3 rounded-2xl border px-3 py-2",
+              status === "done"
+                ? "border-[#77d898]/25 bg-[#153421]/50 text-[#c9f6d0]"
+                : status === "current"
+                  ? "border-[#7da8e3]/40 bg-[#132942]/70 text-[#d8e6f7]"
+                  : "border-white/10 bg-black/18 text-white/45",
+            ].join(" ")}
+          >
+            <div>
+              <div className="text-sm font-semibold">{step.label}</div>
+              <div className="mt-0.5 text-xs opacity-70">{step.detail}</div>
+            </div>
+            <span className="text-xs">{status === "done" ? "已完成" : status === "current" ? "进行中" : "等待"}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SpeechOrderStrip({ game }: { game: HumanGameView }) {
+  const spokenSeatIds = new Set(
+    game.publicEvents
+      .filter((event) => event.day === game.day && event.phase === "DAY_SPEECH" && typeof event.actorSeatId === "number")
+      .map((event) => event.actorSeatId),
+  );
+  const aliveSeats = game.seats.filter((seat) => seat.alive);
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-3 text-xs text-white/58">
+        <span>本轮发言顺序</span>
+        <span>
+          已发言 {spokenSeatIds.size}/{aliveSeats.length}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {aliveSeats.map((seat) => {
+          const isCurrent = game.currentSpeakerSeatId === seat.seatId;
+          const hasSpoken = spokenSeatIds.has(seat.seatId);
+          return (
+            <span
+              key={seat.seatId}
+              className={[
+                "rounded-full border px-3 py-1 text-xs",
+                isCurrent
+                  ? "border-[#f1c76e]/55 bg-[#4a2d12]/80 text-[#f1d796]"
+                  : hasSpoken
+                    ? "border-[#77d898]/25 bg-[#153421]/55 text-[#a8f0b6]"
+                    : "border-white/10 bg-black/20 text-white/50",
+              ].join(" ")}
+            >
+              {seat.seatId}号{seat.isHuman ? " 你" : ""}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function VotePrivacyStrip({ game, action }: { game: HumanGameView; action?: AvailableHumanAction }) {
+  const currentActor = game.currentActorSeatId
+    ? game.seats.find((seat) => seat.seatId === game.currentActorSeatId)
+    : undefined;
+  const isHumanVote = action?.type === "vote";
+
+  return (
+    <div className="grid gap-3 text-sm leading-6 text-white/75">
+      <div className="rounded-2xl border border-[#e46d55]/25 bg-[#351210]/45 px-3 py-2">
+        投票期间不会公开任何人的投票对象，也不会显示实时票数。
+      </div>
+      <div className="flex flex-wrap gap-2 text-xs">
+        <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1 text-white/65">
+          {isHumanVote ? "轮到你投票" : currentActor ? `等待 ${currentActor.name} 投票` : "等待投票"}
+        </span>
+        <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1 text-white/65">结束后统一开票</span>
+      </div>
+    </div>
+  );
+}
+
+function VoteRevealStrip({ game }: { game: HumanGameView }) {
+  const tally = game.tableSummary.voteSnapshot.tally;
+  return (
+    <div className="grid gap-2">
+      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Final Tally</div>
+      {tally.length === 0 ? (
+        <div className="text-sm text-white/65">等待公开投票结果。</div>
+      ) : (
+        tally.map((item) => (
+          <div key={item.target.seatId} className="flex items-center justify-between gap-3 rounded-2xl border border-[#e46d55]/20 bg-black/20 px-3 py-2 text-sm text-[#ffd8cf]">
+            <span>
+              {item.target.seatId}号 {item.target.name}
+            </span>
+            <strong>{item.count} 票</strong>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function getHostCue(game: HumanGameView): HostCue {
+  switch (game.phase) {
+    case "NIGHT_WOLVES":
+      return {
+        badge: `第 ${game.day} 夜`,
+        title: "天黑请闭眼",
+        line: "狼人请睁眼，选择今晚的击杀目标。其他身份暂时闭眼等待。",
+        detail: "如果轮到 AI，点击继续会播放下一步；如果你是狼人，则直接选择刀口。",
+        tone: "night",
+      };
+    case "NIGHT_SEER":
+      return {
+        badge: `第 ${game.day} 夜`,
+        title: "预言家请睁眼",
+        line: "预言家选择一名玩家查验身份，查验结果只进入预言家的私密信息。",
+        detail: "这一阶段不会公开查验对象和结果。",
+        tone: "night",
+      };
+    case "NIGHT_WITCH":
+      return {
+        badge: `第 ${game.day} 夜`,
+        title: "女巫请睁眼",
+        line: "女巫确认昨夜刀口，并决定是否使用解药或毒药。",
+        detail: "每晚最多使用一瓶药，药品用完后不会再次出现对应操作。",
+        tone: "night",
+      };
+    case "DAY_ANNOUNCEMENT":
+      return {
+        badge: `第 ${game.day} 天`,
+        title: "天亮了",
+        line: "主持人公布昨夜死亡情况，随后进入白天发言。",
+        detail: "死亡信息公开，身份仍然只在终局复盘揭晓。",
+        tone: "day",
+      };
+    case "DAY_SPEECH":
+      return {
+        badge: `第 ${game.day} 天`,
+        title: "按座位顺序发言",
+        line: "所有存活玩家依次发言。发言结束后才进入投票。",
+        detail: "AI 只读取公开信息和自己的私密信息，不能看到完整身份表。",
+        tone: "day",
+      };
+    case "DAY_VOTE":
+      return {
+        badge: `第 ${game.day} 天`,
+        title: "开始投票",
+        line: "所有存活玩家投票放逐一名玩家。投票结束前，票型和投票对象全部保密。",
+        detail: "结束后只公布每名候选人的得票数，再结算放逐或平票。",
+        tone: "vote",
+      };
+    case "EXILE_RESOLUTION":
+      return {
+        badge: `第 ${game.day} 天`,
+        title: "公布投票结果",
+        line: "主持人公开最终票数，并结算今日放逐结果。",
+        detail: "这里不会展示个人投票理由，避免复盘之外的信息影响过程体验。",
+        tone: "vote",
+      };
+    case "HUNTER_SHOT":
+      return {
+        badge: `第 ${game.day} 天`,
+        title: "猎人行动窗口",
+        line: "猎人出局后可以选择是否开枪带走一名玩家。",
+        detail: "如果猎人被女巫毒死，则不会触发开枪。",
+        tone: "danger",
+      };
+    case "GAME_OVER":
+      return {
+        badge: "终局",
+        title: "游戏结束",
+        line: game.result ? `${game.result.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜。` : "对局已经结束。",
+        detail: game.result?.reason ?? "可以查看复盘了解关键节点。",
+        tone: "end",
+      };
+    default:
+      return {
+        badge: "准备",
+        title: "准备开局",
+        line: "正在创建本局座位和身份。",
+        detail: "规则引擎会先生成事件，再投影出当前玩家视角。",
+        tone: "day",
+      };
+  }
+}
+
+function hostToneClass(tone: HostCue["tone"]): string {
+  const tones = {
+    night: "border-[#6d93d4]/28 bg-[#0c1424]/82",
+    day: "border-[#f1c76e]/26 bg-[#1c150e]/82",
+    vote: "border-[#e46d55]/28 bg-[#2a1110]/84",
+    danger: "border-[#ff9a6b]/30 bg-[#30140d]/86",
+    end: "border-[#77d898]/28 bg-[#0f2118]/84",
+  };
+  return tones[tone];
+}
+
 function SeatBoard({ game }: { game: HumanGameView }) {
   const aliveCount = game.seats.filter((seat) => seat.alive).length;
   const deadCount = game.seats.length - aliveCount;
@@ -373,6 +680,8 @@ function SeatToken({
   orbitClassName: string;
 }) {
   const isCurrent = game.currentActorSeatId === seat.seatId;
+  const isSpeaking = game.currentSpeakerSeatId === seat.seatId;
+  const currentLabel = isSpeaking ? "发言中" : isCurrent ? "行动中" : undefined;
   const cardImage = ROLE_CARD_IMAGES[seat.role ?? "HIDDEN"];
   const isKnown = Boolean(seat.role);
 
@@ -382,7 +691,7 @@ function SeatToken({
         "group min-w-0 rounded-2xl border bg-[#180f0c]/88 p-2 shadow-xl shadow-black/35 backdrop-blur-md transition",
         "lg:absolute lg:w-[150px]",
         seat.alive ? "border-[#f1c76e]/28" : "border-[#8b4a3d]/55 opacity-75",
-        isCurrent ? "ring-2 ring-[#f1d796]" : "",
+        isSpeaking ? "ring-2 ring-[#77d898]" : isCurrent ? "ring-2 ring-[#f1d796]" : "",
         seat.isHuman ? "bg-[#25130f]/92" : "",
         orbitClassName,
       ].join(" ")}
@@ -408,6 +717,7 @@ function SeatToken({
             <span className={seat.alive ? "text-[#9fe0a4]" : "text-[#ffb1a4]"}>{seat.alive ? "存活" : "出局"}</span>
             {seat.roleLabel && <span className="text-[#f1d796]">{seat.roleLabel}</span>}
             {seat.deathReason && <span className="text-[#c8b99a]">{DEATH_LABELS[seat.deathReason]}</span>}
+            {currentLabel && <span className="text-[#f1d796]">{currentLabel}</span>}
           </div>
         </div>
       </div>
@@ -694,7 +1004,11 @@ function VoteTable({ game }: { game: HumanGameView }) {
       <div className="flex items-center justify-between border-b border-[#e46d55]/15 px-4 py-3">
         <h2 className="text-sm font-semibold text-[#ffd8cf]">投票台</h2>
         <span className="text-xs text-[#d9a099]">
-          {snapshot.leaders.length > 0 ? `焦点：${snapshot.leaders.map((seat) => seat.name).join("、")}` : "暂无票型"}
+          {game.phase === "DAY_VOTE"
+            ? "投票保密"
+            : snapshot.leaders.length > 0
+              ? `焦点：${snapshot.leaders.map((seat) => seat.name).join("、")}`
+              : "暂无票型"}
         </span>
       </div>
 
@@ -824,6 +1138,7 @@ function ActionPanel({
   }
 
   const meta = getActionMeta(game.availableActions[0]);
+  const isContinueOnly = game.availableActions.every((action) => action.type === "continue");
 
   return (
     <section className="sticky bottom-3 z-20 rounded-[24px] border border-[#f1c76e]/30 bg-[#130d0b]/92 p-4 shadow-2xl shadow-black/45 backdrop-blur-md">
@@ -833,7 +1148,9 @@ function ActionPanel({
           <h2 className="text-xl font-semibold text-[#f7ead5]">{meta.title}</h2>
           <p className="mt-1 text-sm text-[#dcc9a7]">{meta.description}</p>
         </div>
-        <span className="rounded-full border border-[#f1c76e]/25 px-3 py-1 text-xs text-[#ad9c7d]">轮到你行动</span>
+        <span className="rounded-full border border-[#f1c76e]/25 px-3 py-1 text-xs text-[#ad9c7d]">
+          {isContinueOnly ? "观看流程" : "轮到你行动"}
+        </span>
       </div>
       <div className="grid gap-3">
         {game.availableActions.map((action) => (
