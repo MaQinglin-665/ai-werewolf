@@ -8,12 +8,18 @@ import type {
   GameEvent,
   GameState,
   HumanGameView,
+  Phase,
+  PublicSpeechItem,
+  PublicVoteItem,
+  PublicVoteSnapshot,
 } from "./types";
 
 export function buildHumanView(state: GameState): HumanGameView {
   const human = getSeat(state, state.humanSeatId);
   const requirement = getTurnRequirement(state);
   const gameOver = Boolean(state.result);
+
+  const publicSummary = buildPublicSummary(state);
 
   return {
     id: state.id,
@@ -58,6 +64,15 @@ export function buildHumanView(state: GameState): HumanGameView {
     seerChecks: state.seerChecks.filter((check) => check.seerSeatId === human.seatId),
     witch: state.witch,
     votes: state.votes,
+    tableSummary: {
+      recentSpeeches: publicSummary.recentSpeeches,
+      voteSnapshot: publicSummary.voteSnapshot,
+      aiReasonHighlights: publicSummary.recentVotes
+        .filter((vote) => Boolean(vote.reason))
+        .slice(-5)
+        .map((vote) => `${vote.voter.name}：${vote.reason}`),
+      phaseSteps: buildPhaseSteps(state.phase),
+    },
     result: state.result,
     review: gameOver ? buildGameReview(state) : undefined,
   };
@@ -100,20 +115,119 @@ export function buildAgentView(state: GameState, seatId: number): AgentView {
 }
 
 function buildPublicSummary(state: GameState): AgentView["publicSummary"] {
+  const recentSpeeches = buildRecentSpeeches(state);
+  const recentVotes = buildRecentVotes(state);
+  const recentDeaths = state.events
+    .filter((event) => event.type === "DAY_STARTED" || event.type === "PLAYER_EXILED" || event.type === "HUNTER_SHOT")
+    .slice(-6)
+    .map((event) => event.message);
+
   return {
-    recentSpeeches: state.events
-      .filter((event) => event.type === "SPEECH_CREATED")
-      .slice(-6)
-      .map((event) => event.message),
-    recentVotes: state.events
-      .filter((event) => event.type === "VOTE_CAST")
-      .slice(-8)
-      .map((event) => event.message),
-    recentDeaths: state.events
-      .filter((event) => event.type === "DAY_STARTED" || event.type === "PLAYER_EXILED" || event.type === "HUNTER_SHOT")
-      .slice(-6)
-      .map((event) => event.message),
+    recentSpeeches,
+    recentVotes,
+    voteSnapshot: buildVoteSnapshot(state, recentVotes),
+    recentDeaths,
+    deathSummary: recentDeaths,
   };
+}
+
+function buildRecentSpeeches(state: GameState): PublicSpeechItem[] {
+  return state.events
+    .filter((event) => event.type === "SPEECH_CREATED")
+    .slice(-6)
+    .map((event) => {
+      const speakerSeatId = readNumber(event.payload, "seatId") ?? event.actorSeatId;
+      const speaker = speakerSeatId ? toTarget(getSeat(state, speakerSeatId)) : undefined;
+      return {
+        seq: event.seq,
+        day: event.day,
+        speaker,
+        message: readString(event.payload, "message") ?? event.message,
+      };
+    });
+}
+
+function buildRecentVotes(state: GameState): PublicVoteItem[] {
+  return state.events
+    .filter((event) => event.type === "VOTE_CAST")
+    .slice(-12)
+    .map((event): PublicVoteItem | undefined => {
+      const voterSeatId = readNumber(event.payload, "voterSeatId") ?? event.actorSeatId;
+      const targetSeatId = readNumber(event.payload, "targetSeatId");
+      if (!voterSeatId || !targetSeatId) return undefined;
+      const reason = readString(event.payload, "reason");
+      return {
+        seq: event.seq,
+        day: event.day,
+        voter: toTarget(getSeat(state, voterSeatId)),
+        target: toTarget(getSeat(state, targetSeatId)),
+        ...(reason ? { reason } : {}),
+      };
+    })
+    .filter((vote): vote is PublicVoteItem => Boolean(vote));
+}
+
+function buildVoteSnapshot(state: GameState, recentVotes: PublicVoteItem[]): PublicVoteSnapshot {
+  const currentVotes: PublicVoteItem[] = Object.entries(state.votes).map(([voterSeatId, targetSeatId]) => {
+    const matchingEvent = [...state.events].reverse().find((event) => {
+      return (
+        event.type === "VOTE_CAST" &&
+        event.day === state.day &&
+        readNumber(event.payload, "voterSeatId") === Number(voterSeatId) &&
+        readNumber(event.payload, "targetSeatId") === targetSeatId
+      );
+    });
+    const reason = matchingEvent ? readString(matchingEvent.payload, "reason") : undefined;
+    return {
+      seq: matchingEvent?.seq ?? 0,
+      day: state.day,
+      voter: toTarget(getSeat(state, Number(voterSeatId))),
+      target: toTarget(getSeat(state, targetSeatId)),
+      ...(reason ? { reason } : {}),
+    };
+  });
+
+  const votes = currentVotes.length > 0 ? currentVotes : latestVoteRound(recentVotes);
+  const counts = new Map<number, { target: ActionTarget; count: number }>();
+  for (const vote of votes) {
+    const current = counts.get(vote.target.seatId) ?? { target: vote.target, count: 0 };
+    current.count += 1;
+    counts.set(vote.target.seatId, current);
+  }
+
+  const tally = [...counts.values()].sort((a, b) => b.count - a.count || a.target.seatId - b.target.seatId);
+  const topCount = tally[0]?.count ?? 0;
+
+  return {
+    votes,
+    tally,
+    leaders: tally.filter((item) => item.count === topCount && topCount > 0).map((item) => item.target),
+  };
+}
+
+function latestVoteRound(votes: PublicVoteItem[]): PublicVoteItem[] {
+  const latestDay = votes.at(-1)?.day;
+  return latestDay ? votes.filter((vote) => vote.day === latestDay) : [];
+}
+
+function buildPhaseSteps(phase: Phase): HumanGameView["tableSummary"]["phaseSteps"] {
+  const steps: Array<{ key: Phase; label: string; phases: Phase[] }> = [
+    { key: "NIGHT_WOLVES", label: "夜晚", phases: ["NIGHT_WOLVES", "NIGHT_SEER", "NIGHT_WITCH"] },
+    { key: "DAY_SPEECH", label: "发言", phases: ["DAY_ANNOUNCEMENT", "DAY_SPEECH"] },
+    { key: "DAY_VOTE", label: "投票", phases: ["DAY_VOTE"] },
+    { key: "EXILE_RESOLUTION", label: "放逐", phases: ["EXILE_RESOLUTION", "HUNTER_SHOT"] },
+    { key: "GAME_OVER", label: "复盘", phases: ["GAME_OVER"] },
+  ];
+  const currentIndex = Math.max(
+    0,
+    steps.findIndex((step) => step.phases.includes(phase)),
+  );
+
+  return steps.map((step, index) => ({
+    key: step.key,
+    label: step.label,
+    status: index < currentIndex ? "done" : index === currentIndex ? "current" : "upcoming",
+  }));
 }
 
 export function getAvailableActionsForSeat(state: GameState, seatId: number): AvailableHumanAction[] {
@@ -205,4 +319,14 @@ function toTarget(seat: { seatId: number; name: string }): ActionTarget {
     seatId: seat.seatId,
     name: seat.name,
   };
+}
+
+function readNumber(payload: Record<string, unknown>, key: string): number | undefined {
+  const value = payload[key];
+  return typeof value === "number" ? value : undefined;
+}
+
+function readString(payload: Record<string, unknown>, key: string): string | undefined {
+  const value = payload[key];
+  return typeof value === "string" ? value : undefined;
 }

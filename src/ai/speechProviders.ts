@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AgentView } from "@/game/types";
+import { createSpeechPlan } from "./tableRead";
 import type { AiSpeechProvider, AiSpeechResult } from "./types";
 
 const SpeechSchema = z.object({
@@ -8,9 +9,9 @@ const SpeechSchema = z.object({
 
 export const mockSpeechProvider: AiSpeechProvider = {
   providerId: "mock-speech",
-  async generateSpeech(view) {
+  async generateSpeech(view, plan = createSpeechPlan(view)) {
     return {
-      speech: createMockSpeech(view),
+      speech: createMockSpeech(view, plan),
       provider: "mock-speech",
       isFallback: false,
     };
@@ -27,12 +28,12 @@ export function createConfiguredSpeechProvider(): AiSpeechProvider {
 
 export const openAiSpeechProvider: AiSpeechProvider = {
   providerId: "openai-speech",
-  async generateSpeech(view) {
+  async generateSpeech(view, plan = createSpeechPlan(view)) {
     try {
-      const rawOutput = await callOpenAiSpeech(view);
+      const rawOutput = await callOpenAiSpeech(view, plan);
       const parsed = SpeechSchema.safeParse(JSON.parse(rawOutput));
       if (!parsed.success) {
-        return fallbackSpeech(view, "LLM 输出格式不合法。", rawOutput);
+        return fallbackSpeech(view, plan, "LLM 输出格式不合法。", rawOutput);
       }
 
       return {
@@ -42,29 +43,28 @@ export const openAiSpeechProvider: AiSpeechProvider = {
         isFallback: false,
       };
     } catch (error) {
-      return fallbackSpeech(view, error instanceof Error ? error.message : "LLM 发言失败。");
+      return fallbackSpeech(view, plan, error instanceof Error ? error.message : "LLM 发言失败。");
     }
   },
 };
 
-function createMockSpeech(view: AgentView): string {
+function createMockSpeech(view: AgentView, plan = createSpeechPlan(view)): string {
   const persona = view.persona?.label ?? "稳健型";
   const lastDeath = view.publicSummary.recentDeaths.at(-1);
   const lastVote = view.publicSummary.recentVotes.at(-1);
-  const pressureTarget = view.aliveSeats.find((seat) => seat.seatId !== view.mySeatId);
-  const targetName = pressureTarget?.name ?? "场上玩家";
+  const targetName = plan.target?.name ?? view.aliveSeats.find((seat) => seat.seatId !== view.mySeatId)?.name ?? "场上玩家";
+  const voteText = lastVote ? `${lastVote.voter.name} 投给 ${lastVote.target.name}` : undefined;
 
   if (view.myRole === "SEER") {
     const latestCheck = view.privateKnowledge.seerChecks?.at(-1);
     if (latestCheck) {
-      return `我是预言家，昨晚查验 ${latestCheck.targetSeatId}号 是${latestCheck.result === "WEREWOLF" ? "狼人" : "好人"}。我会结合票型继续盘，不建议今天散票。`;
+      return `${plan.stance}。${plan.talkingPoints.join("，")}。`;
     }
     return `我是${persona}视角，先听完发言再归票。我会重点看谁在回避昨晚信息。`;
   }
 
   if (view.myRole === "WEREWOLF") {
-    const teammateText = view.privateKnowledge.wolfTeammates?.map((seat) => seat.name).join("、");
-    return `我这里先不急着认死身份。${lastVote ? `上一轮票型里 ${lastVote} 这个动作值得复盘。` : ""} ${targetName} 的逻辑需要再压一轮。${teammateText ? "" : ""}`.trim();
+    return `我这里先不急着认死身份。${voteText ? `上一轮票型里 ${voteText} 值得复盘。` : ""}${targetName} 的逻辑需要再压一轮。`.trim();
   }
 
   if (view.myRole === "WITCH") {
@@ -75,10 +75,10 @@ function createMockSpeech(view: AgentView): string {
     return `我底牌不虚，但不会乱拍身份。${targetName} 如果继续只给结论不给过程，我会把票压过去。`;
   }
 
-  return `我是闭眼好人，${persona}打法。${lastVote ? `我会重点复盘 ${lastVote}。` : `我先看 ${targetName} 的发言是否前后一致。`}`;
+  return `我是闭眼好人，${persona}打法。${voteText ? `我会重点复盘 ${voteText}。` : `我先看 ${targetName} 的发言是否前后一致。`}`;
 }
 
-async function callOpenAiSpeech(view: AgentView): Promise<string> {
+async function callOpenAiSpeech(view: AgentView, plan = createSpeechPlan(view)): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
 
@@ -107,6 +107,7 @@ async function callOpenAiSpeech(view: AgentView): Promise<string> {
               publicEvents: view.publicEvents.slice(-18),
               publicSummary: view.publicSummary,
               privateKnowledge: view.privateKnowledge,
+              speechPlan: plan,
               instruction: "生成一段不超过120字的白天公开发言。",
             }),
           },
@@ -157,9 +158,9 @@ function extractResponseText(data: unknown): string {
   throw new Error("OpenAI 响应中没有文本。");
 }
 
-function fallbackSpeech(view: AgentView, error: string, rawOutput?: unknown): AiSpeechResult {
+function fallbackSpeech(view: AgentView, plan: ReturnType<typeof createSpeechPlan>, error: string, rawOutput?: unknown): AiSpeechResult {
   return {
-    speech: createMockSpeech(view),
+    speech: createMockSpeech(view, plan),
     provider: "openai-speech",
     rawOutput,
     isFallback: true,

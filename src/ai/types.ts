@@ -1,4 +1,4 @@
-import type { AgentView, Command, GameState, Phase } from "@/game/types";
+import type { AgentView, Command, GameState, Phase, SpeechPlan, VotePlan } from "@/game/types";
 
 export type AiDecisionLog = {
   gameId: string;
@@ -7,6 +7,8 @@ export type AiDecisionLog = {
   provider: string;
   prompt: AgentView;
   output: Command;
+  votePlan?: VotePlan;
+  speechPlan?: SpeechPlan;
   rawOutput?: unknown;
   isFallback: boolean;
   error?: string;
@@ -27,5 +29,5 @@ export type AiActionProvider = {
 
 export type AiSpeechProvider = {
   providerId: string;
-  generateSpeech(view: AgentView): Promise<AiSpeechResult>;
+  generateSpeech(view: AgentView, plan?: SpeechPlan): Promise<AiSpeechResult>;
 };

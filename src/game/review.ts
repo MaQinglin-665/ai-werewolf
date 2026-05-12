@@ -29,6 +29,7 @@ export function buildGameReview(state: GameState): GameReview {
     dayRounds: days.map((day) => buildDayRound(state, day)).filter(hasDayContent),
     deathTimeline: buildDeathTimeline(state),
     keyEvents: buildKeyEvents(state),
+    turningPoints: [],
     result: state.result,
   };
 }
