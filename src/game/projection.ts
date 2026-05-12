@@ -49,10 +49,7 @@ export function buildHumanView(state: GameState): HumanGameView {
     privateEvents: state.events
       .filter((event) => event.visibility === "private" && event.actorSeatId === human.seatId)
       .map(toEventView),
-    availableActions:
-      requirement.type === "human" && requirement.actorSeatId === human.seatId
-        ? getAvailableActionsForSeat(state, human.seatId)
-        : [],
+    availableActions: getAvailableActionsForHuman(state),
     currentActorSeatId: requirement.type === "human" || requirement.type === "ai" ? requirement.actorSeatId : undefined,
     currentSpeakerSeatId: getCurrentSpeakerSeatId(state),
     wolfTeammates:
@@ -63,14 +60,11 @@ export function buildHumanView(state: GameState): HumanGameView {
         : [],
     seerChecks: state.seerChecks.filter((check) => check.seerSeatId === human.seatId),
     witch: state.witch,
-    votes: state.votes,
+    votes: state.phase === "DAY_VOTE" ? {} : state.votes,
     tableSummary: {
       recentSpeeches: publicSummary.recentSpeeches,
       voteSnapshot: publicSummary.voteSnapshot,
-      aiReasonHighlights: publicSummary.recentVotes
-        .filter((vote) => Boolean(vote.reason))
-        .slice(-5)
-        .map((vote) => `${vote.voter.name}：${vote.reason}`),
+      aiReasonHighlights: [],
       phaseSteps: buildPhaseSteps(state.phase),
     },
     result: state.result,
@@ -116,7 +110,7 @@ export function buildAgentView(state: GameState, seatId: number): AgentView {
 
 function buildPublicSummary(state: GameState): AgentView["publicSummary"] {
   const recentSpeeches = buildRecentSpeeches(state);
-  const recentVotes = buildRecentVotes(state);
+  const recentVotes = buildRecentVotes();
   const recentDeaths = state.events
     .filter((event) => event.type === "DAY_STARTED" || event.type === "PLAYER_EXILED" || event.type === "HUNTER_SHOT")
     .slice(-6)
@@ -125,7 +119,7 @@ function buildPublicSummary(state: GameState): AgentView["publicSummary"] {
   return {
     recentSpeeches,
     recentVotes,
-    voteSnapshot: buildVoteSnapshot(state, recentVotes),
+    voteSnapshot: buildVoteSnapshot(state),
     recentDeaths,
     deathSummary: recentDeaths,
   };
@@ -147,67 +141,43 @@ function buildRecentSpeeches(state: GameState): PublicSpeechItem[] {
     });
 }
 
-function buildRecentVotes(state: GameState): PublicVoteItem[] {
-  return state.events
-    .filter((event) => event.type === "VOTE_CAST")
-    .slice(-12)
-    .map((event): PublicVoteItem | undefined => {
-      const voterSeatId = readNumber(event.payload, "voterSeatId") ?? event.actorSeatId;
-      const targetSeatId = readNumber(event.payload, "targetSeatId");
-      if (!voterSeatId || !targetSeatId) return undefined;
-      const reason = readString(event.payload, "reason");
-      return {
-        seq: event.seq,
-        day: event.day,
-        voter: toTarget(getSeat(state, voterSeatId)),
-        target: toTarget(getSeat(state, targetSeatId)),
-        ...(reason ? { reason } : {}),
-      };
-    })
-    .filter((vote): vote is PublicVoteItem => Boolean(vote));
+function buildRecentVotes(): PublicVoteItem[] {
+  return [];
 }
 
-function buildVoteSnapshot(state: GameState, recentVotes: PublicVoteItem[]): PublicVoteSnapshot {
-  const currentVotes: PublicVoteItem[] = Object.entries(state.votes).map(([voterSeatId, targetSeatId]) => {
-    const matchingEvent = [...state.events].reverse().find((event) => {
-      return (
-        event.type === "VOTE_CAST" &&
-        event.day === state.day &&
-        readNumber(event.payload, "voterSeatId") === Number(voterSeatId) &&
-        readNumber(event.payload, "targetSeatId") === targetSeatId
-      );
-    });
-    const reason = matchingEvent ? readString(matchingEvent.payload, "reason") : undefined;
+function buildVoteSnapshot(state: GameState): PublicVoteSnapshot {
+  if (state.phase === "DAY_VOTE") {
     return {
-      seq: matchingEvent?.seq ?? 0,
-      day: state.day,
-      voter: toTarget(getSeat(state, Number(voterSeatId))),
-      target: toTarget(getSeat(state, targetSeatId)),
-      ...(reason ? { reason } : {}),
+      votes: [],
+      tally: [],
+      leaders: [],
+      revealed: false,
     };
-  });
-
-  const votes = currentVotes.length > 0 ? currentVotes : latestVoteRound(recentVotes);
-  const counts = new Map<number, { target: ActionTarget; count: number }>();
-  for (const vote of votes) {
-    const current = counts.get(vote.target.seatId) ?? { target: vote.target, count: 0 };
-    current.count += 1;
-    counts.set(vote.target.seatId, current);
   }
 
-  const tally = [...counts.values()].sort((a, b) => b.count - a.count || a.target.seatId - b.target.seatId);
+  const revealEvent = [...state.events].reverse().find((event) => event.type === "VOTE_REVEALED");
+  const rawTally = Array.isArray(revealEvent?.payload.tally) ? revealEvent.payload.tally : [];
+  const tally = rawTally
+    .map((item) => {
+      if (!item || typeof item !== "object") return undefined;
+      const targetSeatId = "targetSeatId" in item && typeof item.targetSeatId === "number" ? item.targetSeatId : undefined;
+      const count = "votes" in item && typeof item.votes === "number" ? item.votes : undefined;
+      if (!targetSeatId || count === undefined) return undefined;
+      return {
+        target: toTarget(getSeat(state, targetSeatId)),
+        count,
+      };
+    })
+    .filter((item): item is { target: ActionTarget; count: number } => Boolean(item))
+    .sort((a, b) => b.count - a.count || a.target.seatId - b.target.seatId);
   const topCount = tally[0]?.count ?? 0;
 
   return {
-    votes,
+    votes: [],
     tally,
     leaders: tally.filter((item) => item.count === topCount && topCount > 0).map((item) => item.target),
+    revealed: Boolean(revealEvent),
   };
-}
-
-function latestVoteRound(votes: PublicVoteItem[]): PublicVoteItem[] {
-  const latestDay = votes.at(-1)?.day;
-  return latestDay ? votes.filter((vote) => vote.day === latestDay) : [];
 }
 
 function buildPhaseSteps(phase: Phase): HumanGameView["tableSummary"]["phaseSteps"] {
@@ -297,6 +267,87 @@ export function getAvailableActionsForSeat(state: GameState, seatId: number): Av
       ];
     default:
       return [];
+  }
+}
+
+function getAvailableActionsForHuman(state: GameState): AvailableHumanAction[] {
+  if (state.result) {
+    return [];
+  }
+
+  const requirement = getTurnRequirement(state);
+  if (requirement.type === "human" && requirement.actorSeatId === state.humanSeatId) {
+    return getAvailableActionsForSeat(state, state.humanSeatId);
+  }
+
+  return [buildContinueAction(state)];
+}
+
+function buildContinueAction(state: GameState): AvailableHumanAction {
+  const requirement = getTurnRequirement(state);
+  if (requirement.type === "ai") {
+    const actor = getSeat(state, requirement.actorSeatId);
+    if (state.phase === "DAY_SPEECH") {
+      return {
+        type: "continue",
+        label: `听 ${actor.name} 发言`,
+        description: "按真实房间节奏播放下一位玩家发言。",
+      };
+    }
+    if (state.phase === "DAY_VOTE") {
+      return {
+        type: "continue",
+        label: `等待 ${actor.name} 投票`,
+        description: "投票过程保密，结束后只公布被投票数。",
+      };
+    }
+    return {
+      type: "continue",
+      label: `${actor.name} 行动`,
+      description: phaseNarration(state.phase),
+    };
+  }
+
+  return {
+    type: "continue",
+    label: continueLabel(state.phase),
+    description: phaseNarration(state.phase),
+  };
+}
+
+function continueLabel(phase: Phase): string {
+  switch (phase) {
+    case "DAY_ANNOUNCEMENT":
+      return "天亮了";
+    case "EXILE_RESOLUTION":
+      return "公布投票结果";
+    case "HUNTER_SHOT":
+      return "结算猎人阶段";
+    default:
+      return "继续流程";
+  }
+}
+
+function phaseNarration(phase: Phase): string {
+  switch (phase) {
+    case "NIGHT_WOLVES":
+      return "天黑请闭眼，狼人请睁眼并选择击杀目标。";
+    case "NIGHT_SEER":
+      return "预言家请睁眼，选择一名玩家查验身份。";
+    case "NIGHT_WITCH":
+      return "女巫请睁眼，选择是否使用解药或毒药。";
+    case "DAY_ANNOUNCEMENT":
+      return "天亮了，公布昨夜死亡情况。";
+    case "DAY_SPEECH":
+      return "白天发言阶段，玩家按座位依次发言。";
+    case "DAY_VOTE":
+      return "投票阶段正在进行，所有投票在结束前保密。";
+    case "EXILE_RESOLUTION":
+      return "所有人投票结束，公开被投票数并结算放逐。";
+    case "HUNTER_SHOT":
+      return "猎人出局后进入开枪窗口。";
+    default:
+      return "继续推进当前流程。";
   }
 }
 

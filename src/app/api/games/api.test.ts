@@ -36,11 +36,35 @@ describe("game api routes", () => {
     expect(response.status).toBe(400);
   });
 
+  it("advances one visible AI or system step with continue", async () => {
+    const createResponse = await createGame();
+    const initialView = (await createResponse.json()) as HumanGameView;
+    const continueAction = initialView.availableActions.find((action) => action.type === "continue");
+
+    if (!continueAction) {
+      expect(initialView.availableActions.length).toBeGreaterThan(0);
+      return;
+    }
+
+    const response = await submitCommand(
+      new Request(`http://localhost/api/games/${initialView.id}/commands`, {
+        method: "POST",
+        body: JSON.stringify({ type: "continue" }),
+      }),
+      { params: Promise.resolve({ gameId: initialView.id }) },
+    );
+    const nextView = (await response.json()) as HumanGameView;
+
+    expect(response.status).toBe(200);
+    expect(nextView.id).toBe(initialView.id);
+    expect(nextView.publicEvents.length).toBeGreaterThanOrEqual(initialView.publicEvents.length);
+  });
+
   it("returns endgame review turning points through the API", async () => {
     const createResponse = await createGame();
     let view = (await createResponse.json()) as HumanGameView;
 
-    for (let step = 0; step < 50 && !view.result; step += 1) {
+    for (let step = 0; step < 200 && !view.result; step += 1) {
       const action = view.availableActions[0];
       expect(action).toBeDefined();
       const response = await submitCommand(
@@ -77,5 +101,7 @@ function commandFromAction(action: AvailableHumanAction): Record<string, unknown
       return action.targets[0]
         ? { type: "hunterShoot", targetSeatId: action.targets[0].seatId }
         : { type: "hunterShoot" };
+    case "continue":
+      return { type: "continue" };
   }
 }

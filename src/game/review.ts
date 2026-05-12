@@ -77,25 +77,32 @@ function buildDayRound(state: GameState, day: number): ReviewDayRound {
   return {
     day,
     speechCount: events.filter((event) => event.type === "SPEECH_CREATED").length,
-    votes: events
-      .filter((event) => event.type === "VOTE_CAST")
-      .map((event) => {
-        const voterSeatId = readNumber(event, "voterSeatId") ?? event.actorSeatId;
-        const targetSeatId = readNumber(event, "targetSeatId");
-        if (!voterSeatId || !targetSeatId) return undefined;
-        const reason = readString(event, "reason");
-        return {
-          voter: toReviewSeat(getSeat(state, voterSeatId)),
-          target: toReviewSeat(getSeat(state, targetSeatId)),
-          ...(reason ? { reason } : {}),
-        };
-      })
-      .filter((vote): vote is NonNullable<typeof vote> => Boolean(vote)),
+    votes: [],
+    voteTally: buildReviewVoteTally(state, events.find((event) => event.type === "VOTE_REVEALED")),
     exiled: seatFromPayload(state, events.find((event) => event.type === "PLAYER_EXILED"), "seatId"),
     tiedSeatIds: Array.isArray(tiedEvent?.payload.tiedSeatIds)
       ? tiedEvent.payload.tiedSeatIds.filter((seatId): seatId is number => typeof seatId === "number")
       : [],
   };
+}
+
+function buildReviewVoteTally(
+  state: GameState,
+  event: GameEvent | undefined,
+): ReviewDayRound["voteTally"] {
+  const rawTally = Array.isArray(event?.payload.tally) ? event.payload.tally : [];
+  return rawTally
+    .map((item) => {
+      if (!item || typeof item !== "object") return undefined;
+      const targetSeatId = "targetSeatId" in item && typeof item.targetSeatId === "number" ? item.targetSeatId : undefined;
+      const count = "votes" in item && typeof item.votes === "number" ? item.votes : undefined;
+      if (!targetSeatId || count === undefined) return undefined;
+      return {
+        target: toReviewSeat(getSeat(state, targetSeatId)),
+        count,
+      };
+    })
+    .filter((item): item is ReviewDayRound["voteTally"][number] => Boolean(item));
 }
 
 function buildTurningPoints(state: GameState): ReviewTurningPoint[] {
@@ -198,6 +205,7 @@ function buildDeathTimeline(state: GameState): ReviewDeath[] {
 function buildKeyEvents(state: GameState): ReviewKeyEvent[] {
   const keyTypes = new Set([
     "DAY_STARTED",
+    "VOTE_REVEALED",
     "PLAYER_EXILED",
     "VOTE_TIED",
     "HUNTER_SHOT",
@@ -223,7 +231,13 @@ function hasNightContent(round: ReviewNightRound): boolean {
 }
 
 function hasDayContent(round: ReviewDayRound): boolean {
-  return round.speechCount > 0 || round.votes.length > 0 || Boolean(round.exiled) || round.tiedSeatIds.length > 0;
+  return (
+    round.speechCount > 0 ||
+    round.votes.length > 0 ||
+    round.voteTally.length > 0 ||
+    Boolean(round.exiled) ||
+    round.tiedSeatIds.length > 0
+  );
 }
 
 function seatFromPayload(state: GameState, event: GameEvent | undefined, key: string): ReviewSeat | undefined {
@@ -234,11 +248,6 @@ function seatFromPayload(state: GameState, event: GameEvent | undefined, key: st
 function readNumber(event: GameEvent, key: string): number | undefined {
   const value = event.payload[key];
   return typeof value === "number" ? value : undefined;
-}
-
-function readString(event: GameEvent, key: string): string | undefined {
-  const value = event.payload[key];
-  return typeof value === "string" ? value : undefined;
 }
 
 function readDeathReason(value: unknown): DeathReason | undefined {

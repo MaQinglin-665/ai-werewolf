@@ -86,7 +86,7 @@ export function createGame(options: CreateGameOptions = {}): GameState {
     );
   }
 
-  state = appendEvent(state, "NIGHT_STARTED", "public", "第1夜开始。", {
+  state = appendEvent(state, "NIGHT_STARTED", "public", "天黑请闭眼。第1夜开始，狼人请行动。", {
     day: 1,
   });
 
@@ -390,8 +390,8 @@ function applyVote(state: GameState, actorSeatId: number, targetSeatId: number, 
   state = appendEvent(
     state,
     "VOTE_CAST",
-    "public",
-    `${actor.name} 投票给 ${target.name}。${cleanReason(reason) ? `理由：${cleanReason(reason)}` : ""}`,
+    "private",
+    `${actor.name} 已完成投票。`,
     { voterSeatId: actor.seatId, targetSeatId: target.seatId, ...reasonPayload(reason) },
     actor.seatId,
   );
@@ -486,6 +486,7 @@ function resolveVote(state: GameState): GameState {
 
   const [topSeatId, topVotes] = ranked[0];
   const tied = ranked.filter(([, votes]) => votes === topVotes);
+  state = revealVoteTally(state, ranked);
   if (tied.length > 1) {
     state = appendEvent(
       state,
@@ -544,9 +545,24 @@ function startNextNight(state: GameState): GameState {
   settled.speechQueue = [];
   settled.speechIndex = 0;
   return touch(
-    appendEvent(settled, "NIGHT_STARTED", "public", `第${settled.day}夜开始。`, {
+    appendEvent(settled, "NIGHT_STARTED", "public", `天黑请闭眼。第${settled.day}夜开始，狼人请行动。`, {
       day: settled.day,
     }),
+  );
+}
+
+function revealVoteTally(state: GameState, ranked: Array<[number, number]>): GameState {
+  const tally = ranked.map(([seatId, votes]) => ({
+    targetSeatId: seatId,
+    targetName: getSeat(state, seatId).name,
+    votes,
+  }));
+  return appendEvent(
+    state,
+    "VOTE_REVEALED",
+    "public",
+    `投票结束：${tally.map((item) => `${item.targetName} ${item.votes}票`).join("，")}。`,
+    { tally },
   );
 }
 

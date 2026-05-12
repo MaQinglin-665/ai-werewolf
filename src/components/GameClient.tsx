@@ -37,7 +37,8 @@ type CommandPayload =
   | { type: "witchAction"; mode: "save" | "poison" | "skip"; targetSeatId?: number }
   | { type: "speak"; message: string }
   | { type: "vote"; targetSeatId: number }
-  | { type: "hunterShoot"; targetSeatId?: number };
+  | { type: "hunterShoot"; targetSeatId?: number }
+  | { type: "continue" };
 
 export function GameClient() {
   const [game, setGame] = useState<HumanGameView | null>(null);
@@ -566,19 +567,12 @@ function ReviewDayRounds({ game }: { game: HumanGameView }) {
           <div key={round.day} className="rounded-2xl border border-[#8fd29a]/25 bg-[#0f2118]/60 p-3 text-sm leading-6 text-[#dff4df]">
             <strong>第 {round.day} 天</strong>
             <div>发言数：{round.speechCount}</div>
-            <div>投票：{round.votes.length > 0 ? round.votes.map((vote) => `${vote.voter.name}->${vote.target.name}`).join("，") : "无"}</div>
-            {round.votes.some((vote) => vote.reason) && (
-              <div className="mt-2 grid gap-1 text-xs text-[#bfe7c6]">
-                {round.votes
-                  .filter((vote) => vote.reason)
-                  .slice(0, 4)
-                  .map((vote) => (
-                    <div key={`${round.day}-${vote.voter.seatId}-${vote.target.seatId}`}>
-                      {vote.voter.name}：{vote.reason}
-                    </div>
-                  ))}
-              </div>
-            )}
+            <div>
+              票数：
+              {round.voteTally.length > 0
+                ? round.voteTally.map((item) => `${item.target.name} ${item.count}票`).join("，")
+                : "无"}
+            </div>
             <div>
               结果：
               {round.exiled
@@ -719,10 +713,10 @@ function VoteTable({ game }: { game: HumanGameView }) {
         )}
 
         <div>
-          <div className="mb-2 text-xs text-[#d9a099]">当前票型</div>
+          <div className="mb-2 text-xs text-[#d9a099]">{snapshot.revealed ? "最近公开票数" : "投票状态"}</div>
           {snapshot.tally.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[#e46d55]/20 px-3 py-5 text-center text-sm text-[#d9a099]">
-              还没有公开投票
+              {game.phase === "DAY_VOTE" ? "投票进行中，票数暂不公开" : "还没有公开票数"}
             </div>
           ) : (
             <div className="grid gap-2">
@@ -748,7 +742,7 @@ function VoteTable({ game }: { game: HumanGameView }) {
 
         {game.tableSummary.aiReasonHighlights.length > 0 && (
           <div>
-            <div className="mb-2 text-xs text-[#d9a099]">AI 投票理由</div>
+            <div className="mb-2 text-xs text-[#d9a099]">局势提示</div>
             <div className="grid gap-2">
               {game.tableSummary.aiReasonHighlights.map((reason) => (
                 <div key={reason} className="rounded-2xl bg-black/22 px-3 py-2 text-xs leading-5 text-[#ffd8cf]">
@@ -882,6 +876,18 @@ function ActionControl({
     );
   }
 
+  if (action.type === "continue") {
+    return (
+      <button
+        disabled={loading}
+        onClick={() => onSubmit({ type: "continue" })}
+        className="rounded-full bg-[#b74332] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#cf513d] disabled:opacity-60"
+      >
+        {action.label}
+      </button>
+    );
+  }
+
   if (action.type === "witchAction") {
     return (
       <div className="flex flex-wrap gap-2">
@@ -1011,6 +1017,8 @@ function getActionMeta(action: AvailableHumanAction) {
       return { title: "投票放逐", description: "选择一名存活玩家投票，所有人投完后进入结算。" };
     case "hunterShoot":
       return { title: "猎人开枪", description: "你可以带走一名存活玩家，也可以选择不开枪。" };
+    case "continue":
+      return { title: action.label, description: action.description };
   }
 }
 

@@ -63,6 +63,51 @@ export async function advanceWithMockAi(
   throw new Error("自动推进超过步数上限，可能存在状态机死循环。");
 }
 
+export async function advanceOneAiStep(
+  initialState: GameState,
+  options: { speechProvider?: AiSpeechProvider } = {},
+): Promise<{ state: GameState; aiLogs: AiDecisionLog[] }> {
+  const requirement = getTurnRequirement(initialState);
+  const speechProvider = options.speechProvider ?? mockSpeechProvider;
+
+  if (requirement.type === "none" || requirement.type === "human") {
+    return { state: initialState, aiLogs: [] };
+  }
+
+  if (requirement.type === "system") {
+    return { state: applySystemStep(initialState), aiLogs: [] };
+  }
+
+  const prompt = buildAgentView(initialState, requirement.actorSeatId);
+  const tableRead = buildAiTableRead(prompt);
+  const speechPlan = initialState.phase === "DAY_SPEECH" ? createSpeechPlan(prompt, tableRead) : undefined;
+  const votePlan = initialState.phase === "DAY_VOTE" ? createVotePlan(prompt, tableRead) : undefined;
+  const speechResult = speechPlan ? await speechProvider.generateSpeech(prompt, speechPlan) : undefined;
+  const output: Command = speechPlan
+    ? { type: "speak", actorSeatId: requirement.actorSeatId, message: speechResult?.speech ?? "", reason: speechPlan.stance }
+    : createMockCommand(prompt, tableRead, votePlan);
+  const state = applyCommand(initialState, output);
+
+  return {
+    state,
+    aiLogs: [
+      {
+        gameId: state.id,
+        seatNumber: requirement.actorSeatId,
+        phase: requirement.phase,
+        provider: speechResult?.provider ?? mockActionProvider.providerId,
+        prompt,
+        output,
+        votePlan,
+        speechPlan,
+        rawOutput: speechResult?.rawOutput,
+        isFallback: speechResult?.isFallback ?? false,
+        error: speechResult?.error,
+      },
+    ],
+  };
+}
+
 export function createConfiguredAiOptions(): { speechProvider: AiSpeechProvider } {
   return {
     speechProvider: createConfiguredSpeechProvider(),

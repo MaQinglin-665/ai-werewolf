@@ -1,5 +1,5 @@
 import { HumanCommandInputSchema, toHumanCommand } from "@/game/commandSchemas";
-import { getGameView, submitHumanCommand } from "@/server/gameService";
+import { continueGame, getGameView, submitHumanCommand } from "@/server/gameService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +14,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
   }
 
   try {
+    if (parsed.data.type === "continue") {
+      const nextView = await continueGame(gameId);
+      return Response.json(nextView);
+    }
+
     const view = await getGameView(gameId);
     if (!view) {
       return Response.json({ error: "对局不存在。" }, { status: 404 });

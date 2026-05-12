@@ -89,6 +89,40 @@ describe("game engine", () => {
     expect(state.events.some((event) => event.type === "VOTE_TIED")).toBe(true);
   });
 
+  it("keeps votes private until resolution reveals only tally", () => {
+    let state = createGame({ seed: 30 });
+    state.phase = "DAY_VOTE";
+    state = applyCommand(state, { type: "vote", actorSeatId: 1, targetSeatId: 2, reason: "测试理由" });
+    const voteEvent = state.events.find((event) => event.type === "VOTE_CAST")!;
+
+    expect(voteEvent.visibility).toBe("private");
+    expect(buildHumanView(state).tableSummary.voteSnapshot.tally).toHaveLength(0);
+
+    state.votes = {
+      "1": 2,
+      "2": 3,
+      "3": 2,
+    };
+    state.phase = "EXILE_RESOLUTION";
+    state = applySystemStep(state);
+    const revealEvent = state.events.find((event) => event.type === "VOTE_REVEALED")!;
+
+    expect(revealEvent.visibility).toBe("public");
+    expect(JSON.stringify(revealEvent.payload)).not.toContain("测试理由");
+  });
+
+  it("shows continue instead of human actions before the human turn", () => {
+    const state = createGame({ seed: 31 });
+    state.phase = "DAY_VOTE";
+    state.humanSeatId = 3;
+    state.seats = state.seats.map((seat) => ({ ...seat, isAi: seat.seatId !== 3 }));
+
+    const view = buildHumanView(state);
+
+    expect(view.currentActorSeatId).toBe(1);
+    expect(view.availableActions[0]?.type).toBe("continue");
+  });
+
   it("evaluates slaughter-side win conditions", () => {
     const state = createGame({ seed: 9 });
     for (const seat of state.seats) {

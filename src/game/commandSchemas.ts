@@ -3,6 +3,9 @@ import type { Command } from "./types";
 
 export const HumanCommandInputSchema = z.discriminatedUnion("type", [
   z.object({
+    type: z.literal("continue"),
+  }),
+  z.object({
     type: z.literal("wolfKill"),
     targetSeatId: z.number().int().min(1).max(9),
   }),
@@ -30,8 +33,9 @@ export const HumanCommandInputSchema = z.discriminatedUnion("type", [
 ]);
 
 export type HumanCommandInput = z.infer<typeof HumanCommandInputSchema>;
+type HumanRuleCommandInput = Exclude<HumanCommandInput, { type: "continue" }>;
 
-export function toHumanCommand(input: HumanCommandInput, actorSeatId: number): Command {
+export function toHumanCommand(input: HumanRuleCommandInput, actorSeatId: number): Command {
   switch (input.type) {
     case "wolfKill":
       return { type: "wolfKill", actorSeatId, targetSeatId: input.targetSeatId };

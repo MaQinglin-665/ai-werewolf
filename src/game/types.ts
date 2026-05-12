@@ -37,6 +37,7 @@ export type GameEventType =
   | "DAY_STARTED"
   | "SPEECH_CREATED"
   | "VOTE_CAST"
+  | "VOTE_REVEALED"
   | "VOTE_TIED"
   | "PLAYER_EXILED"
   | "PLAYER_DIED"
@@ -133,6 +134,10 @@ export type ReviewDayRound = {
   day: number;
   speechCount: number;
   votes: ReviewVote[];
+  voteTally: Array<{
+    target: ReviewSeat;
+    count: number;
+  }>;
   exiled?: ReviewSeat;
   tiedSeatIds: number[];
 };
@@ -242,6 +247,7 @@ export type PublicVoteSnapshot = {
     count: number;
   }>;
   leaders: ActionTarget[];
+  revealed: boolean;
 };
 
 export type SeatRead = ActionTarget & {
@@ -301,7 +307,8 @@ export type AvailableHumanAction =
     }
   | { type: "speak" }
   | { type: "vote"; targets: ActionTarget[] }
-  | { type: "hunterShoot"; targets: ActionTarget[]; canSkip: boolean };
+  | { type: "hunterShoot"; targets: ActionTarget[]; canSkip: boolean }
+  | { type: "continue"; label: string; description: string };
 
 export type HumanGameView = {
   id: string;

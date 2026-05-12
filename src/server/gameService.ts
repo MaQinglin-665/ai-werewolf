@@ -1,4 +1,4 @@
-import { advanceWithMockAi, createConfiguredAiOptions } from "@/ai/mockAgent";
+import { advanceOneAiStep, createConfiguredAiOptions } from "@/ai/mockAgent";
 import type { AiDecisionLog } from "@/ai/types";
 import { applyCommand, createGame } from "@/game/engine";
 import { buildHumanView } from "@/game/projection";
@@ -7,9 +7,8 @@ import { prisma } from "@/lib/prisma";
 
 export async function createGameRecord(): Promise<HumanGameView> {
   const state = createGame();
-  const advanced = await advanceWithMockAi(state, createConfiguredAiOptions());
-  await saveGameState(advanced.state, advanced.aiLogs);
-  return buildHumanView(advanced.state);
+  await saveGameState(state);
+  return buildHumanView(state);
 }
 
 export async function getGameState(gameId: string): Promise<GameState | null> {
@@ -28,7 +27,17 @@ export async function submitHumanCommand(gameId: string, command: Command): Prom
   }
 
   const afterHuman = applyCommand(state, command);
-  const advanced = await advanceWithMockAi(afterHuman, createConfiguredAiOptions());
+  await saveGameState(afterHuman);
+  return buildHumanView(afterHuman);
+}
+
+export async function continueGame(gameId: string): Promise<HumanGameView> {
+  const state = await loadGameState(gameId);
+  if (!state) {
+    throw new Error("对局不存在。");
+  }
+
+  const advanced = await advanceOneAiStep(state, createConfiguredAiOptions());
   await saveGameState(advanced.state, advanced.aiLogs);
   return buildHumanView(advanced.state);
 }
