@@ -1,23 +1,22 @@
 import { applyCommand, applySystemStep, getAliveSeats, getSeat, getTurnRequirement } from "@/game/engine";
 import { buildAgentView } from "@/game/projection";
-import type { AgentView, Command, GameState, Phase } from "@/game/types";
+import type { Command, GameState } from "@/game/types";
+import { createConfiguredSpeechProvider, mockSpeechProvider } from "./speechProviders";
+import type { AiActionProvider, AiDecisionLog, AiSpeechProvider } from "./types";
 
-export type AiDecisionLog = {
-  gameId: string;
-  seatNumber: number;
-  phase: Phase;
-  prompt: AgentView;
-  output: Command;
-  isFallback: boolean;
+export const mockActionProvider: AiActionProvider = {
+  providerId: "mock-action",
+  createCommand: createMockCommand,
 };
 
-export function advanceWithMockAi(
+export async function advanceWithMockAi(
   initialState: GameState,
-  options: { ignoreHuman?: boolean; maxSteps?: number } = {},
-): { state: GameState; aiLogs: AiDecisionLog[] } {
+  options: { ignoreHuman?: boolean; maxSteps?: number; speechProvider?: AiSpeechProvider } = {},
+): Promise<{ state: GameState; aiLogs: AiDecisionLog[] }> {
   let state = initialState;
   const aiLogs: AiDecisionLog[] = [];
   const maxSteps = options.maxSteps ?? 400;
+  const speechProvider = options.speechProvider ?? mockSpeechProvider;
 
   for (let step = 0; step < maxSteps; step += 1) {
     const requirement = getTurnRequirement(state);
@@ -36,19 +35,32 @@ export function advanceWithMockAi(
 
     const actorSeatId = requirement.actorSeatId;
     const prompt = buildAgentView(state, actorSeatId);
-    const output = createMockCommand(state, actorSeatId);
+    const speechResult = state.phase === "DAY_SPEECH" ? await speechProvider.generateSpeech(prompt) : undefined;
+    const output: Command =
+      state.phase === "DAY_SPEECH"
+        ? { type: "speak", actorSeatId, message: speechResult?.speech ?? createSpeech(state, actorSeatId) }
+        : mockActionProvider.createCommand(state, actorSeatId);
     state = applyCommand(state, output);
     aiLogs.push({
       gameId: state.id,
       seatNumber: actorSeatId,
       phase: requirement.phase,
+      provider: speechResult?.provider ?? mockActionProvider.providerId,
       prompt,
       output,
-      isFallback: false,
+      rawOutput: speechResult?.rawOutput,
+      isFallback: speechResult?.isFallback ?? false,
+      error: speechResult?.error,
     });
   }
 
   throw new Error("自动推进超过步数上限，可能存在状态机死循环。");
+}
+
+export function createConfiguredAiOptions(): { speechProvider: AiSpeechProvider } {
+  return {
+    speechProvider: createConfiguredSpeechProvider(),
+  };
 }
 
 export function createMockCommand(state: GameState, actorSeatId: number): Command {

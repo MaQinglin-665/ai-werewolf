@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { ROLE_LABELS } from "./labels";
+import { getAiPersonaForSeat } from "./personas";
 import type {
   Camp,
   Command,
@@ -45,6 +46,7 @@ export function createGame(options: CreateGameOptions = {}): GameState {
       isAi: seatId !== humanSeatId,
       role,
       alive: true,
+      persona: seatId === humanSeatId ? undefined : getAiPersonaForSeat(seatId),
     };
   });
 

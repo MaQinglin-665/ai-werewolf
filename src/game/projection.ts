@@ -71,8 +71,10 @@ export function buildAgentView(state: GameState, seatId: number): AgentView {
     phase: state.phase,
     mySeatId: seatId,
     myRole: seat.role,
+    persona: seat.persona,
     aliveSeats: getAliveSeats(state).map(toTarget),
     publicEvents: state.events.filter(isPublicEvent).map(toEventView),
+    publicSummary: buildPublicSummary(state),
     privateKnowledge: {
       wolfTeammates:
         seat.role === "WEREWOLF"
@@ -94,6 +96,23 @@ export function buildAgentView(state: GameState, seatId: number): AgentView {
       pendingHunterShot: state.pendingHunterShot?.shooterSeatId === seatId ? state.pendingHunterShot : undefined,
     },
     allowedActions: getAvailableActionsForSeat(state, seatId),
+  };
+}
+
+function buildPublicSummary(state: GameState): AgentView["publicSummary"] {
+  return {
+    recentSpeeches: state.events
+      .filter((event) => event.type === "SPEECH_CREATED")
+      .slice(-6)
+      .map((event) => event.message),
+    recentVotes: state.events
+      .filter((event) => event.type === "VOTE_CAST")
+      .slice(-8)
+      .map((event) => event.message),
+    recentDeaths: state.events
+      .filter((event) => event.type === "DAY_STARTED" || event.type === "PLAYER_EXILED" || event.type === "HUNTER_SHOT")
+      .slice(-6)
+      .map((event) => event.message),
   };
 }
 

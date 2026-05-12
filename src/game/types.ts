@@ -62,6 +62,7 @@ export type Seat = {
   role: Role;
   alive: boolean;
   deathReason?: DeathReason;
+  persona?: AiPersona;
 };
 
 export type SeerCheck = {
@@ -197,6 +198,15 @@ export type ActionTarget = {
   name: string;
 };
 
+export type AiPersona = {
+  id: string;
+  label: string;
+  style: string;
+  goal: string;
+  riskTolerance: number;
+  bluffing: number;
+};
+
 export type AvailableHumanAction =
   | { type: "wolfKill"; targets: ActionTarget[] }
   | { type: "seerCheck"; targets: ActionTarget[] }
@@ -248,8 +258,14 @@ export type AgentView = {
   phase: Phase;
   mySeatId: number;
   myRole: Role;
+  persona?: AiPersona;
   aliveSeats: ActionTarget[];
   publicEvents: HumanGameView["publicEvents"];
+  publicSummary: {
+    recentSpeeches: string[];
+    recentVotes: string[];
+    recentDeaths: string[];
+  };
   privateKnowledge: {
     wolfTeammates?: ActionTarget[];
     seerChecks?: SeerCheck[];

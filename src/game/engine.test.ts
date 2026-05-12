@@ -99,9 +99,9 @@ describe("game engine", () => {
     expect(wolfView.seats.filter((seat) => seat.role === "WEREWOLF")).toHaveLength(3);
   });
 
-  it("finishes 1000 mock games without illegal states or loops", () => {
+  it("finishes 1000 mock games without illegal states or loops", async () => {
     for (let seed = 0; seed < 1000; seed += 1) {
-      const { state } = advanceWithMockAi(createGame({ seed }), {
+      const { state } = await advanceWithMockAi(createGame({ seed }), {
         ignoreHuman: true,
         maxSteps: 500,
       });
