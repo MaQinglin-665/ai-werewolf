@@ -140,8 +140,10 @@ export function GameClient() {
               {game.review && <ReviewPanel game={game} />}
             </div>
 
-            <aside className="grid gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
+            <aside className="grid content-start gap-4">
               <InfoPanel game={game} />
+              <SpeechFeed game={game} />
+              <VoteTable game={game} />
               <PublicLog events={latestEvents} />
             </aside>
           </section>
@@ -560,6 +562,123 @@ function InfoPanel({ game }: { game: HumanGameView }) {
             {event.message}
           </div>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function SpeechFeed({ game }: { game: HumanGameView }) {
+  const speeches = game.tableSummary.recentSpeeches;
+  const currentSpeaker = game.currentSpeakerSeatId
+    ? game.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId)
+    : undefined;
+
+  return (
+    <section className="overflow-hidden rounded-[24px] border border-[#77d898]/25 bg-[#0f2118]/82 shadow-2xl shadow-black/35 backdrop-blur-md">
+      <div className="flex items-center justify-between border-b border-[#77d898]/15 px-4 py-3">
+        <h2 className="text-sm font-semibold text-[#dff4df]">发言席</h2>
+        <span className="text-xs text-[#9ecfac]">
+          {currentSpeaker ? `当前：${currentSpeaker.name}` : game.phase === "DAY_SPEECH" ? "等待发言" : "非发言阶段"}
+        </span>
+      </div>
+      <div className="grid max-h-[300px] gap-3 overflow-y-auto p-4">
+        {speeches.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[#77d898]/20 px-3 py-6 text-center text-sm text-[#9ecfac]">
+            暂无公开发言
+          </div>
+        ) : (
+          speeches.map((speech) => {
+            const isHuman = speech.speaker?.seatId === game.humanSeatId;
+            return (
+              <div
+                key={speech.seq}
+                className={[
+                  "rounded-2xl border px-3 py-2 text-sm leading-6",
+                  isHuman ? "border-[#f1c76e]/30 bg-[#2b2110]/75 text-[#f7ead5]" : "border-[#77d898]/18 bg-black/22 text-[#dff4df]",
+                ].join(" ")}
+              >
+                <div className="mb-1 flex items-center justify-between gap-3 text-xs text-[#9ecfac]">
+                  <span>{speech.speaker ? `${speech.speaker.seatId}号 · ${speech.speaker.name}` : "未知发言人"}</span>
+                  <span>D{speech.day}</span>
+                </div>
+                {speech.message}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </section>
+  );
+}
+
+function VoteTable({ game }: { game: HumanGameView }) {
+  const voteAction = game.availableActions.find((action) => action.type === "vote");
+  const voteTargets = voteAction?.type === "vote" ? voteAction.targets : [];
+  const snapshot = game.tableSummary.voteSnapshot;
+
+  return (
+    <section className="overflow-hidden rounded-[24px] border border-[#e46d55]/25 bg-[#2b1110]/82 shadow-2xl shadow-black/35 backdrop-blur-md">
+      <div className="flex items-center justify-between border-b border-[#e46d55]/15 px-4 py-3">
+        <h2 className="text-sm font-semibold text-[#ffd8cf]">投票台</h2>
+        <span className="text-xs text-[#d9a099]">
+          {snapshot.leaders.length > 0 ? `焦点：${snapshot.leaders.map((seat) => seat.name).join("、")}` : "暂无票型"}
+        </span>
+      </div>
+
+      <div className="grid gap-3 p-4">
+        {voteTargets.length > 0 && (
+          <div>
+            <div className="mb-2 text-xs text-[#d9a099]">你可投目标</div>
+            <div className="flex flex-wrap gap-2">
+              {voteTargets.map((target) => (
+                <span key={target.seatId} className="rounded-full border border-[#e46d55]/25 bg-black/20 px-3 py-1 text-xs text-[#ffd8cf]">
+                  {target.seatId}号 {target.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <div className="mb-2 text-xs text-[#d9a099]">当前票型</div>
+          {snapshot.tally.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#e46d55]/20 px-3 py-5 text-center text-sm text-[#d9a099]">
+              还没有公开投票
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              {snapshot.tally.map((item) => (
+                <div key={item.target.seatId} className="rounded-2xl border border-[#e46d55]/18 bg-black/22 px-3 py-2">
+                  <div className="flex items-center justify-between gap-3 text-sm text-[#ffd8cf]">
+                    <span>
+                      {item.target.seatId}号 · {item.target.name}
+                    </span>
+                    <strong>{item.count} 票</strong>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/35">
+                    <div
+                      className="h-full rounded-full bg-[#e46d55]"
+                      style={{ width: `${Math.min(100, item.count * 22)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {game.tableSummary.aiReasonHighlights.length > 0 && (
+          <div>
+            <div className="mb-2 text-xs text-[#d9a099]">AI 投票理由</div>
+            <div className="grid gap-2">
+              {game.tableSummary.aiReasonHighlights.map((reason) => (
+                <div key={reason} className="rounded-2xl bg-black/22 px-3 py-2 text-xs leading-5 text-[#ffd8cf]">
+                  {reason}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
