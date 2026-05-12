@@ -87,6 +87,65 @@ export type GameResult = {
   reason: string;
 };
 
+export type ReviewSeat = {
+  seatId: number;
+  name: string;
+};
+
+export type ReviewRoleReveal = ReviewSeat & {
+  role: Role;
+  roleLabel: string;
+  camp: Camp;
+  alive: boolean;
+  deathReason?: DeathReason;
+};
+
+export type ReviewDeath = {
+  day: number;
+  seat: ReviewSeat;
+  reason: DeathReason;
+  reasonLabel: string;
+};
+
+export type ReviewNightRound = {
+  day: number;
+  wolfTarget?: ReviewSeat;
+  seerCheck?: {
+    seer: ReviewSeat;
+    target: ReviewSeat;
+    result: "WEREWOLF" | "GOOD";
+  };
+  witchAction?: {
+    mode: "save" | "poison" | "skip";
+    target?: ReviewSeat;
+  };
+  deaths: ReviewSeat[];
+};
+
+export type ReviewVote = {
+  voter: ReviewSeat;
+  target: ReviewSeat;
+};
+
+export type ReviewDayRound = {
+  day: number;
+  speechCount: number;
+  votes: ReviewVote[];
+  exiled?: ReviewSeat;
+  tiedSeatIds: number[];
+};
+
+export type ReviewKeyEvent = Pick<GameEvent, "seq" | "day" | "phase" | "message">;
+
+export type GameReview = {
+  roleReveal: ReviewRoleReveal[];
+  nightRounds: ReviewNightRound[];
+  dayRounds: ReviewDayRound[];
+  deathTimeline: ReviewDeath[];
+  keyEvents: ReviewKeyEvent[];
+  result?: GameResult;
+};
+
 export type GameState = {
   id: string;
   day: number;
@@ -180,6 +239,7 @@ export type HumanGameView = {
   witch: GameState["witch"];
   votes: Record<string, number>;
   result?: GameResult;
+  review?: GameReview;
 };
 
 export type AgentView = {

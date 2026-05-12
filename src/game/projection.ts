@@ -1,5 +1,6 @@
 import { getAliveSeats, getCurrentSpeakerSeatId, getSeat, getTurnRequirement } from "./engine";
 import { PHASE_LABELS, ROLE_LABELS } from "./labels";
+import { buildGameReview } from "./review";
 import type {
   ActionTarget,
   AgentView,
@@ -58,6 +59,7 @@ export function buildHumanView(state: GameState): HumanGameView {
     witch: state.witch,
     votes: state.votes,
     result: state.result,
+    review: gameOver ? buildGameReview(state) : undefined,
   };
 }
 

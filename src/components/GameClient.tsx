@@ -115,6 +115,7 @@ export function GameClient() {
             <div className="flex flex-col gap-5">
               <SeatBoard game={game} />
               <ActionPanel game={game} loading={loading} onSubmit={submitCommand} />
+              {game.review && <ReviewPanel game={game} />}
             </div>
 
             <aside className="grid gap-5 lg:grid-rows-[auto_1fr]">
@@ -173,6 +174,132 @@ function SeatBoard({ game }: { game: HumanGameView }) {
           </div>
         );
       })}
+    </section>
+  );
+}
+
+function ReviewPanel({ game }: { game: HumanGameView }) {
+  const review = game.review;
+  if (!review) return null;
+
+  return (
+    <section className="rounded-md border border-[#d9dece] bg-white p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef0e8] pb-3">
+        <div>
+          <h2 className="text-sm font-semibold">终局复盘</h2>
+          <p className="mt-1 text-sm text-[#5f6654]">
+            {review.result?.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜 · {review.result?.reason}
+          </p>
+        </div>
+        <a href="#review-events" className="rounded-md border border-[#d9dece] px-3 py-2 text-sm hover:bg-[#f5f7f2]">
+          查看关键事件
+        </a>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <div>
+          <h3 className="text-sm font-semibold">身份揭晓</h3>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {review.roleReveal.map((seat) => (
+              <div key={seat.seatId} className="rounded-md border border-[#eef0e8] p-3 text-sm">
+                <div className="flex justify-between gap-3">
+                  <strong>
+                    {seat.seatId}号 · {seat.name}
+                  </strong>
+                  <span className={seat.role === "WEREWOLF" ? "text-[#a33b2f]" : "text-[#2f6f4e]"}>
+                    {seat.roleLabel}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-[#747a68]">
+                  {seat.alive ? "存活到终局" : seat.deathReason ? DEATH_LABELS[seat.deathReason] : "已出局"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold">死亡时间线</h3>
+          <div className="mt-3 grid gap-2">
+            {review.deathTimeline.length === 0 ? (
+              <p className="text-sm text-[#747a68]">没有玩家死亡。</p>
+            ) : (
+              review.deathTimeline.map((death, index) => (
+                <div key={`${death.day}-${death.seat.seatId}-${index}`} className="rounded-md bg-[#f7f4ed] p-3 text-sm">
+                  D{death.day} · {death.seat.name} · {death.reasonLabel}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-2">
+        <div>
+          <h3 className="text-sm font-semibold">夜晚记录</h3>
+          <div className="mt-3 grid gap-3">
+            {review.nightRounds.map((round) => (
+              <div key={round.day} className="rounded-md border border-[#eef0e8] p-3 text-sm leading-6">
+                <strong>第 {round.day} 夜</strong>
+                <div>狼人刀口：{round.wolfTarget?.name ?? "无"}</div>
+                <div>
+                  查验：
+                  {round.seerCheck
+                    ? `${round.seerCheck.seer.name} 查验 ${round.seerCheck.target.name} 为 ${
+                        round.seerCheck.result === "WEREWOLF" ? "狼人" : "好人"
+                      }`
+                    : "无"}
+                </div>
+                <div>
+                  女巫：
+                  {round.witchAction
+                    ? round.witchAction.mode === "save"
+                      ? `救了 ${round.witchAction.target?.name ?? "刀口"}`
+                      : round.witchAction.mode === "poison"
+                        ? `毒了 ${round.witchAction.target?.name ?? "未知目标"}`
+                        : "未用药"
+                    : "无行动"}
+                </div>
+                <div>死亡：{round.deaths.length > 0 ? round.deaths.map((seat) => seat.name).join("、") : "平安夜"}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold">白天投票</h3>
+          <div className="mt-3 grid gap-3">
+            {review.dayRounds.map((round) => (
+              <div key={round.day} className="rounded-md border border-[#eef0e8] p-3 text-sm leading-6">
+                <strong>第 {round.day} 天</strong>
+                <div>发言数：{round.speechCount}</div>
+                <div>投票：{round.votes.length > 0 ? round.votes.map((vote) => `${vote.voter.name}->${vote.target.name}`).join("，") : "无"}</div>
+                <div>
+                  结果：
+                  {round.exiled
+                    ? `${round.exiled.name} 被放逐`
+                    : round.tiedSeatIds.length > 0
+                      ? `平票：${round.tiedSeatIds.join("、")}号`
+                      : "无放逐"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div id="review-events" className="mt-5">
+        <h3 className="text-sm font-semibold">关键事件</h3>
+        <div className="mt-3 grid gap-2">
+          {review.keyEvents.map((event) => (
+            <div key={event.seq} className="border-l-2 border-[#b6a15a] pl-3 text-sm leading-6 text-[#33372d]">
+              <span className="text-xs text-[#747a68]">D{event.day} · {event.phase}</span>
+              <br />
+              {event.message}
+            </div>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }

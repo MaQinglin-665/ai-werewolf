@@ -601,6 +601,7 @@ function killSeat(state: GameState, seatId: number, reason: DeathReason): boolea
 
   appendEvent(state, "PLAYER_DIED", "public", `${seat.name} 出局。`, {
     seatId,
+    deathReason: reason,
     publicReason: reason === "EXILED" ? "exiled" : "dead",
   });
   return true;
