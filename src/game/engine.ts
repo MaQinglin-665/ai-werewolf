@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { ROLE_LABELS } from "./labels";
+import { getAiPersonaForSeat } from "./personas";
 import type {
   Camp,
   Command,
@@ -45,6 +46,7 @@ export function createGame(options: CreateGameOptions = {}): GameState {
       isAi: seatId !== humanSeatId,
       role,
       alive: true,
+      persona: seatId === humanSeatId ? undefined : getAiPersonaForSeat(seatId),
     };
   });
 
@@ -99,17 +101,17 @@ export function applyCommand(state: GameState, command: Command): GameState {
 
   switch (command.type) {
     case "wolfKill":
-      return applyWolfKill(next, command.actorSeatId, command.targetSeatId);
+      return applyWolfKill(next, command.actorSeatId, command.targetSeatId, command.reason);
     case "seerCheck":
-      return applySeerCheck(next, command.actorSeatId, command.targetSeatId);
+      return applySeerCheck(next, command.actorSeatId, command.targetSeatId, command.reason);
     case "witchAction":
-      return applyWitchAction(next, command.actorSeatId, command.mode, command.targetSeatId);
+      return applyWitchAction(next, command.actorSeatId, command.mode, command.targetSeatId, command.reason);
     case "speak":
       return applySpeech(next, command.actorSeatId, command.message);
     case "vote":
-      return applyVote(next, command.actorSeatId, command.targetSeatId);
+      return applyVote(next, command.actorSeatId, command.targetSeatId, command.reason);
     case "hunterShoot":
-      return applyHunterShot(next, command.actorSeatId, command.targetSeatId);
+      return applyHunterShot(next, command.actorSeatId, command.targetSeatId, command.reason);
   }
 }
 
@@ -228,7 +230,7 @@ export function getCamp(role: Role): Camp {
   return role === "WEREWOLF" ? "WEREWOLVES" : "GOOD";
 }
 
-function applyWolfKill(state: GameState, actorSeatId: number, targetSeatId: number): GameState {
+function applyWolfKill(state: GameState, actorSeatId: number, targetSeatId: number, reason?: string): GameState {
   assertPhase(state, "NIGHT_WOLVES");
   const actor = assertAliveRole(state, actorSeatId, "WEREWOLF");
   const target = assertAlive(state, targetSeatId);
@@ -243,13 +245,13 @@ function applyWolfKill(state: GameState, actorSeatId: number, targetSeatId: numb
       "NIGHT_KILL_SELECTED",
       "private",
       `${actor.name} 选择夜间击杀 ${target.name}。`,
-      { targetSeatId: target.seatId },
+      { targetSeatId: target.seatId, ...reasonPayload(reason) },
       actor.seatId,
     ),
   );
 }
 
-function applySeerCheck(state: GameState, actorSeatId: number, targetSeatId: number): GameState {
+function applySeerCheck(state: GameState, actorSeatId: number, targetSeatId: number, reason?: string): GameState {
   assertPhase(state, "NIGHT_SEER");
   const actor = assertAliveRole(state, actorSeatId, "SEER");
   const target = assertAlive(state, targetSeatId);
@@ -272,7 +274,7 @@ function applySeerCheck(state: GameState, actorSeatId: number, targetSeatId: num
       "SEER_CHECKED",
       "private",
       `你查验了 ${target.name}，结果是 ${result === "WEREWOLF" ? "狼人" : "好人"}。`,
-      { targetSeatId: target.seatId, result },
+      { targetSeatId: target.seatId, result, ...reasonPayload(reason) },
       actor.seatId,
     ),
   );
@@ -283,6 +285,7 @@ function applyWitchAction(
   actorSeatId: number,
   mode: "save" | "poison" | "skip",
   targetSeatId?: number,
+  reason?: string,
 ): GameState {
   assertPhase(state, "NIGHT_WITCH");
   const actor = assertAliveRole(state, actorSeatId, "WITCH");
@@ -303,7 +306,7 @@ function applyWitchAction(
         "WITCH_USED_ANTIDOTE",
         "private",
         `${actor.name} 使用了解药。`,
-        { targetSeatId: state.night.witchSavedSeatId },
+        { targetSeatId: state.night.witchSavedSeatId, ...reasonPayload(reason) },
         actor.seatId,
       ),
     );
@@ -329,7 +332,7 @@ function applyWitchAction(
         "WITCH_USED_POISON",
         "private",
         `${actor.name} 对 ${target.name} 使用了毒药。`,
-        { targetSeatId: target.seatId },
+        { targetSeatId: target.seatId, ...reasonPayload(reason) },
         actor.seatId,
       ),
     );
@@ -337,7 +340,7 @@ function applyWitchAction(
 
   state.phase = "DAY_ANNOUNCEMENT";
   return touch(
-    appendEvent(state, "WITCH_SKIPPED", "private", `${actor.name} 没有使用药。`, {}, actor.seatId),
+    appendEvent(state, "WITCH_SKIPPED", "private", `${actor.name} 没有使用药。`, reasonPayload(reason), actor.seatId),
   );
 }
 
@@ -372,7 +375,7 @@ function applySpeech(state: GameState, actorSeatId: number, message: string): Ga
   return touch(state);
 }
 
-function applyVote(state: GameState, actorSeatId: number, targetSeatId: number): GameState {
+function applyVote(state: GameState, actorSeatId: number, targetSeatId: number, reason?: string): GameState {
   assertPhase(state, "DAY_VOTE");
   const actor = assertAlive(state, actorSeatId);
   const target = assertAlive(state, targetSeatId);
@@ -388,8 +391,8 @@ function applyVote(state: GameState, actorSeatId: number, targetSeatId: number):
     state,
     "VOTE_CAST",
     "public",
-    `${actor.name} 投票给 ${target.name}。`,
-    { voterSeatId: actor.seatId, targetSeatId: target.seatId },
+    `${actor.name} 投票给 ${target.name}。${cleanReason(reason) ? `理由：${cleanReason(reason)}` : ""}`,
+    { voterSeatId: actor.seatId, targetSeatId: target.seatId, ...reasonPayload(reason) },
     actor.seatId,
   );
 
@@ -400,7 +403,7 @@ function applyVote(state: GameState, actorSeatId: number, targetSeatId: number):
   return touch(state);
 }
 
-function applyHunterShot(state: GameState, actorSeatId: number, targetSeatId?: number): GameState {
+function applyHunterShot(state: GameState, actorSeatId: number, targetSeatId?: number, reason?: string): GameState {
   assertPhase(state, "HUNTER_SHOT");
   const pending = state.pendingHunterShot;
   if (!pending || pending.shooterSeatId !== actorSeatId) {
@@ -411,7 +414,14 @@ function applyHunterShot(state: GameState, actorSeatId: number, targetSeatId?: n
 
   if (!targetSeatId) {
     state.pendingHunterShot = undefined;
-    state = appendEvent(state, "HUNTER_SKIPPED", "public", `${actor.name} 没有开枪。`, {}, actor.seatId);
+    state = appendEvent(
+      state,
+      "HUNTER_SKIPPED",
+      "public",
+      `${actor.name} 没有开枪。${cleanReason(reason) ? `理由：${cleanReason(reason)}` : ""}`,
+      reasonPayload(reason),
+      actor.seatId,
+    );
     return cause === "EXILED" ? finishAfterDayDeaths(state) : finishAfterNightDeaths(state);
   }
 
@@ -425,8 +435,8 @@ function applyHunterShot(state: GameState, actorSeatId: number, targetSeatId?: n
     state,
     "HUNTER_SHOT",
     "public",
-    `${actor.name} 开枪带走了 ${target.name}。`,
-    { shooterSeatId: actor.seatId, targetSeatId: target.seatId },
+    `${actor.name} 开枪带走了 ${target.name}。${cleanReason(reason) ? `理由：${cleanReason(reason)}` : ""}`,
+    { shooterSeatId: actor.seatId, targetSeatId: target.seatId, ...reasonPayload(reason) },
     actor.seatId,
   );
   return cause === "EXILED" ? finishAfterDayDeaths(state) : finishAfterNightDeaths(state);
@@ -601,6 +611,7 @@ function killSeat(state: GameState, seatId: number, reason: DeathReason): boolea
 
   appendEvent(state, "PLAYER_DIED", "public", `${seat.name} 出局。`, {
     seatId,
+    deathReason: reason,
     publicReason: reason === "EXILED" ? "exiled" : "dead",
   });
   return true;
@@ -652,6 +663,16 @@ function appendEvent(
 function touch(state: GameState): GameState {
   state.updatedAt = new Date().toISOString();
   return state;
+}
+
+function reasonPayload(reason: string | undefined): Record<string, string> {
+  const reasonText = cleanReason(reason);
+  return reasonText ? { reason: reasonText } : {};
+}
+
+function cleanReason(reason: string | undefined): string | undefined {
+  const clean = reason?.trim().replace(/\s+/g, " ");
+  return clean ? clean.slice(0, 90) : undefined;
 }
 
 function cloneState(state: GameState): GameState {

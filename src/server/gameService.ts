@@ -1,4 +1,5 @@
-import { advanceWithMockAi, type AiDecisionLog } from "@/ai/mockAgent";
+import { advanceWithMockAi, createConfiguredAiOptions } from "@/ai/mockAgent";
+import type { AiDecisionLog } from "@/ai/types";
 import { applyCommand, createGame } from "@/game/engine";
 import { buildHumanView } from "@/game/projection";
 import type { Command, GameState, HumanGameView } from "@/game/types";
@@ -6,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function createGameRecord(): Promise<HumanGameView> {
   const state = createGame();
-  const advanced = advanceWithMockAi(state);
+  const advanced = await advanceWithMockAi(state, createConfiguredAiOptions());
   await saveGameState(advanced.state, advanced.aiLogs);
   return buildHumanView(advanced.state);
 }
@@ -27,7 +28,7 @@ export async function submitHumanCommand(gameId: string, command: Command): Prom
   }
 
   const afterHuman = applyCommand(state, command);
-  const advanced = advanceWithMockAi(afterHuman);
+  const advanced = await advanceWithMockAi(afterHuman, createConfiguredAiOptions());
   await saveGameState(advanced.state, advanced.aiLogs);
   return buildHumanView(advanced.state);
 }
@@ -94,8 +95,8 @@ async function saveGameState(state: GameState, aiLogs: AiDecisionLog[] = []): Pr
           gameId: state.id,
           seatNumber: log.seatNumber,
           phase: log.phase,
-          promptJson: JSON.stringify(log.prompt),
-          outputJson: JSON.stringify(log.output),
+          promptJson: JSON.stringify({ provider: log.provider, view: log.prompt }),
+          outputJson: JSON.stringify({ output: log.output, rawOutput: log.rawOutput, error: log.error }),
           isFallback: log.isFallback,
         })),
       });

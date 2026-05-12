@@ -62,6 +62,7 @@ export type Seat = {
   role: Role;
   alive: boolean;
   deathReason?: DeathReason;
+  persona?: AiPersona;
 };
 
 export type SeerCheck = {
@@ -85,6 +86,74 @@ export type HunterShotState = {
 export type GameResult = {
   winner: Camp;
   reason: string;
+};
+
+export type ReviewSeat = {
+  seatId: number;
+  name: string;
+};
+
+export type ReviewRoleReveal = ReviewSeat & {
+  role: Role;
+  roleLabel: string;
+  camp: Camp;
+  alive: boolean;
+  deathReason?: DeathReason;
+};
+
+export type ReviewDeath = {
+  day: number;
+  seat: ReviewSeat;
+  reason: DeathReason;
+  reasonLabel: string;
+};
+
+export type ReviewNightRound = {
+  day: number;
+  wolfTarget?: ReviewSeat;
+  seerCheck?: {
+    seer: ReviewSeat;
+    target: ReviewSeat;
+    result: "WEREWOLF" | "GOOD";
+  };
+  witchAction?: {
+    mode: "save" | "poison" | "skip";
+    target?: ReviewSeat;
+  };
+  deaths: ReviewSeat[];
+};
+
+export type ReviewVote = {
+  voter: ReviewSeat;
+  target: ReviewSeat;
+  reason?: string;
+};
+
+export type ReviewDayRound = {
+  day: number;
+  speechCount: number;
+  votes: ReviewVote[];
+  exiled?: ReviewSeat;
+  tiedSeatIds: number[];
+};
+
+export type ReviewKeyEvent = Pick<GameEvent, "seq" | "day" | "phase" | "message">;
+
+export type ReviewTurningPoint = {
+  day: number;
+  title: string;
+  description: string;
+  eventSeq?: number;
+};
+
+export type GameReview = {
+  roleReveal: ReviewRoleReveal[];
+  nightRounds: ReviewNightRound[];
+  dayRounds: ReviewDayRound[];
+  deathTimeline: ReviewDeath[];
+  keyEvents: ReviewKeyEvent[];
+  turningPoints: ReviewTurningPoint[];
+  result?: GameResult;
 };
 
 export type GameState = {
@@ -114,18 +183,22 @@ export type GameState = {
   updatedAt: string;
 };
 
+type CommandReason = {
+  reason?: string;
+};
+
 export type Command =
-  | { type: "wolfKill"; actorSeatId: number; targetSeatId: number }
-  | { type: "seerCheck"; actorSeatId: number; targetSeatId: number }
-  | {
+  | ({ type: "wolfKill"; actorSeatId: number; targetSeatId: number } & CommandReason)
+  | ({ type: "seerCheck"; actorSeatId: number; targetSeatId: number } & CommandReason)
+  | ({
       type: "witchAction";
       actorSeatId: number;
       mode: "save" | "poison" | "skip";
       targetSeatId?: number;
-    }
-  | { type: "speak"; actorSeatId: number; message: string }
-  | { type: "vote"; actorSeatId: number; targetSeatId: number }
-  | { type: "hunterShoot"; actorSeatId: number; targetSeatId?: number };
+    } & CommandReason)
+  | ({ type: "speak"; actorSeatId: number; message: string } & CommandReason)
+  | ({ type: "vote"; actorSeatId: number; targetSeatId: number } & CommandReason)
+  | ({ type: "hunterShoot"; actorSeatId: number; targetSeatId?: number } & CommandReason);
 
 export type TurnRequirement =
   | { type: "human"; actorSeatId: number; phase: Phase }
@@ -136,6 +209,84 @@ export type TurnRequirement =
 export type ActionTarget = {
   seatId: number;
   name: string;
+};
+
+export type AiPersona = {
+  id: string;
+  label: string;
+  style: string;
+  goal: string;
+  riskTolerance: number;
+  bluffing: number;
+};
+
+export type PublicSpeechItem = {
+  seq: number;
+  day: number;
+  speaker?: ActionTarget;
+  message: string;
+};
+
+export type PublicVoteItem = {
+  seq: number;
+  day: number;
+  voter: ActionTarget;
+  target: ActionTarget;
+  reason?: string;
+};
+
+export type PublicVoteSnapshot = {
+  votes: PublicVoteItem[];
+  tally: Array<{
+    target: ActionTarget;
+    count: number;
+  }>;
+  leaders: ActionTarget[];
+};
+
+export type SeatRead = ActionTarget & {
+  suspicion: number;
+  trust: number;
+  pressure: string[];
+  isSelf: boolean;
+  isKnownWolf: boolean;
+  isKnownGood: boolean;
+  isWolfTeammate: boolean;
+  lastSpeech?: string;
+  votedFor?: ActionTarget;
+  votesReceived: number;
+};
+
+export type AiTableRead = {
+  mySeatId: number;
+  myRole: Role;
+  day: number;
+  personaLabel?: string;
+  seats: SeatRead[];
+  knownWolfSeatIds: number[];
+  knownGoodSeatIds: number[];
+  wolfTeammateSeatIds: number[];
+  focus?: SeatRead;
+  backupFocus?: SeatRead;
+  voteSnapshot: PublicVoteSnapshot;
+  recentSpeeches: PublicSpeechItem[];
+  recentDeaths: string[];
+  tableMood: string;
+};
+
+export type SpeechPlan = {
+  kind: "claim-check" | "pressure" | "defend" | "explain-vote" | "rally" | "confuse";
+  target?: ActionTarget;
+  stance: string;
+  talkingPoints: string[];
+  risk: number;
+};
+
+export type VotePlan = {
+  target: ActionTarget;
+  reason: string;
+  confidence: number;
+  alternatives: ActionTarget[];
 };
 
 export type AvailableHumanAction =
@@ -179,7 +330,18 @@ export type HumanGameView = {
   seerChecks: SeerCheck[];
   witch: GameState["witch"];
   votes: Record<string, number>;
+  tableSummary: {
+    recentSpeeches: PublicSpeechItem[];
+    voteSnapshot: PublicVoteSnapshot;
+    aiReasonHighlights: string[];
+    phaseSteps: Array<{
+      key: Phase;
+      label: string;
+      status: "done" | "current" | "upcoming";
+    }>;
+  };
   result?: GameResult;
+  review?: GameReview;
 };
 
 export type AgentView = {
@@ -188,8 +350,16 @@ export type AgentView = {
   phase: Phase;
   mySeatId: number;
   myRole: Role;
+  persona?: AiPersona;
   aliveSeats: ActionTarget[];
   publicEvents: HumanGameView["publicEvents"];
+  publicSummary: {
+    recentSpeeches: PublicSpeechItem[];
+    recentVotes: PublicVoteItem[];
+    voteSnapshot: PublicVoteSnapshot;
+    recentDeaths: string[];
+    deathSummary: string[];
+  };
   privateKnowledge: {
     wolfTeammates?: ActionTarget[];
     seerChecks?: SeerCheck[];
