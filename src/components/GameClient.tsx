@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { DEATH_LABELS, ROLE_LABELS } from "@/game/labels";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
@@ -379,14 +380,19 @@ function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnter: () 
       <section className="grid w-full max-w-5xl gap-6 rounded-[30px] border border-[#f1c76e]/30 bg-[#120c0a]/95 p-4 shadow-2xl shadow-black/70 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)]">
         <div className="flex min-h-[500px] flex-col items-center justify-start rounded-[24px] border border-[#f1c76e]/18 bg-black/28 p-5 sm:p-6">
           <div className="role-card-scene mt-1">
-            <div
-              className="role-card-shadow-card rounded-[18px] border border-[#f1c76e]/22 bg-cover bg-center"
-              style={{ backgroundImage: `url(${ROLE_CARD_IMAGES.HIDDEN})` }}
+            <Image
+              fill
+              className="role-card-shadow-card rounded-[18px] border border-[#f1c76e]/22 object-cover"
+              src={ROLE_CARD_IMAGES.HIDDEN}
+              alt=""
+              aria-hidden="true"
             />
-            <div
-              className="role-card-reveal rounded-[18px] border border-[#f1c76e]/60 bg-cover bg-center shadow-2xl"
-              style={{ backgroundImage: `url(${ROLE_CARD_IMAGES[game.myRole]})` }}
-              aria-label={`${intro.title}身份牌`}
+            <Image
+              fill
+              priority
+              className="role-card-reveal rounded-[18px] border border-[#f1c76e]/60 object-contain shadow-2xl"
+              src={ROLE_CARD_IMAGES[game.myRole]}
+              alt={`${intro.title}身份牌`}
             />
           </div>
           <div className="mt-6 text-center">

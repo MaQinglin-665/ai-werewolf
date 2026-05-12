@@ -53,17 +53,23 @@ button:disabled {
 
 .role-card-shadow-card,
 .role-card-reveal {
+  height: 100%;
   inset: 0;
   position: absolute;
+  width: 100%;
 }
 
 .role-card-shadow-card {
   opacity: 0.34;
   transform: translate(12px, 12px) rotate(3deg) scale(0.97);
+  z-index: 0;
 }
 
 .role-card-reveal {
   animation: role-card-deal 980ms cubic-bezier(0.2, 0.78, 0.18, 1) both;
+  background: #120c0a;
+  display: block;
+  z-index: 1;
 }
 
 .phase-curtain {
