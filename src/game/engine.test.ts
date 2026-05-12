@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { advanceWithMockAi } from "@/ai/mockAgent";
 import { buildHumanView } from "./projection";
+import { buildGameReview } from "./review";
 import { applyCommand, applySystemStep, createGame, evaluateWinCondition, getSeat } from "./engine";
 
 describe("game engine", () => {
@@ -64,6 +65,27 @@ describe("game engine", () => {
     poisonedHunter.night.witchPoisonTargetSeatId = hunter.seatId;
     poisonedHunter = applySystemStep(poisonedHunter);
     expect(poisonedHunter.phase).not.toBe("HUNTER_SHOT");
+    expect(getSeat(poisonedHunter, hunter.seatId).deathReason).toBe("WITCH_POISON");
+  });
+
+  it("handles tied votes without exile", () => {
+    let state = createGame({ seed: 11 });
+    state.phase = "DAY_VOTE";
+    state.votes = {
+      "1": 2,
+      "2": 1,
+      "3": 4,
+      "4": 3,
+    };
+
+    state = applySystemStep(state);
+    expect(state.phase).toBe("EXILE_RESOLUTION");
+    state = applySystemStep(state);
+
+    expect(state.day).toBe(2);
+    expect(state.phase).toBe("NIGHT_WOLVES");
+    expect(state.seats.every((seat) => seat.alive)).toBe(true);
+    expect(state.events.some((event) => event.type === "VOTE_TIED")).toBe(true);
   });
 
   it("evaluates slaughter-side win conditions", () => {
@@ -99,7 +121,32 @@ describe("game engine", () => {
     expect(wolfView.seats.filter((seat) => seat.role === "WEREWOLF")).toHaveLength(3);
   });
 
+  it("reveals all roles and includes review only after game over", async () => {
+    const initialState = createGame({ seed: 15 });
+    const earlyView = buildHumanView(initialState);
+    expect(earlyView.review).toBeUndefined();
+
+    const { state } = await advanceWithMockAi(initialState, {
+      ignoreHuman: true,
+      maxSteps: 500,
+    });
+    const terminalView = buildHumanView(state);
+    const review = buildGameReview(state);
+
+    expect(terminalView.review).toBeDefined();
+    expect(terminalView.seats.every((seat) => seat.role)).toBe(true);
+    expect(review.roleReveal).toHaveLength(9);
+    expect(review.keyEvents.at(-1)?.message).toContain("获胜");
+    expect(review.nightRounds.length).toBeGreaterThan(0);
+  });
+
   it("finishes 1000 mock games without illegal states or loops", async () => {
+    const stats = {
+      goodWins: 0,
+      werewolfWins: 0,
+      totalDays: 0,
+    };
+
     for (let seed = 0; seed < 1000; seed += 1) {
       const { state } = await advanceWithMockAi(createGame({ seed }), {
         ignoreHuman: true,
@@ -107,6 +154,12 @@ describe("game engine", () => {
       });
       expect(state.phase).toBe("GAME_OVER");
       expect(state.result).toBeDefined();
+      stats.totalDays += state.day;
+      if (state.result?.winner === "GOOD") stats.goodWins += 1;
+      if (state.result?.winner === "WEREWOLVES") stats.werewolfWins += 1;
     }
+
+    expect(stats.goodWins + stats.werewolfWins).toBe(1000);
+    expect(stats.totalDays / 1000).toBeGreaterThan(0);
   });
 });
