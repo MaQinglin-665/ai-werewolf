@@ -1,7 +1,8 @@
-import { applyCommand, applySystemStep, getAliveSeats, getSeat, getTurnRequirement } from "@/game/engine";
+import { applyCommand, applySystemStep, getTurnRequirement } from "@/game/engine";
 import { buildAgentView } from "@/game/projection";
-import type { Command, GameState } from "@/game/types";
+import type { ActionTarget, AgentView, AiTableRead, Command, GameState, SeatRead, VotePlan } from "@/game/types";
 import { createConfiguredSpeechProvider, mockSpeechProvider } from "./speechProviders";
+import { buildAiTableRead, createSpeechPlan, createVotePlan } from "./tableRead";
 import type { AiActionProvider, AiDecisionLog, AiSpeechProvider } from "./types";
 
 export const mockActionProvider: AiActionProvider = {
@@ -35,11 +36,14 @@ export async function advanceWithMockAi(
 
     const actorSeatId = requirement.actorSeatId;
     const prompt = buildAgentView(state, actorSeatId);
-    const speechResult = state.phase === "DAY_SPEECH" ? await speechProvider.generateSpeech(prompt) : undefined;
-    const output: Command =
-      state.phase === "DAY_SPEECH"
-        ? { type: "speak", actorSeatId, message: speechResult?.speech ?? createSpeech(state, actorSeatId) }
-        : mockActionProvider.createCommand(state, actorSeatId);
+    const tableRead = buildAiTableRead(prompt);
+    const speechPlan = state.phase === "DAY_SPEECH" ? createSpeechPlan(prompt, tableRead) : undefined;
+    const votePlan = state.phase === "DAY_VOTE" ? createVotePlan(prompt, tableRead) : undefined;
+    const speechResult = speechPlan ? await speechProvider.generateSpeech(prompt, speechPlan) : undefined;
+    const output: Command = speechPlan
+      ? { type: "speak", actorSeatId, message: speechResult?.speech ?? "", reason: speechPlan.stance }
+      : createMockCommand(prompt, tableRead, votePlan);
+
     state = applyCommand(state, output);
     aiLogs.push({
       gameId: state.id,
@@ -48,6 +52,8 @@ export async function advanceWithMockAi(
       provider: speechResult?.provider ?? mockActionProvider.providerId,
       prompt,
       output,
+      votePlan,
+      speechPlan,
       rawOutput: speechResult?.rawOutput,
       isFallback: speechResult?.isFallback ?? false,
       error: speechResult?.error,
@@ -63,134 +69,154 @@ export function createConfiguredAiOptions(): { speechProvider: AiSpeechProvider 
   };
 }
 
-export function createMockCommand(state: GameState, actorSeatId: number): Command {
-  const actor = getSeat(state, actorSeatId);
+export function createMockCommand(
+  view: AgentView,
+  tableRead = buildAiTableRead(view),
+  votePlan?: VotePlan,
+): Command {
+  const actorSeatId = view.mySeatId;
 
-  switch (state.phase) {
-    case "NIGHT_WOLVES":
+  switch (view.phase) {
+    case "NIGHT_WOLVES": {
+      const target = chooseWolfKillTarget(view, tableRead);
       return {
         type: "wolfKill",
         actorSeatId,
-        targetSeatId: chooseWolfKillTarget(state),
+        targetSeatId: target.seatId,
+        reason: `${target.name} 当前可信度较高，夜里先拆稳定发言位。`,
       };
-    case "NIGHT_SEER":
+    }
+    case "NIGHT_SEER": {
+      const target = chooseSeerTarget(view, tableRead);
       return {
         type: "seerCheck",
         actorSeatId,
-        targetSeatId: chooseSeerTarget(state, actorSeatId),
+        targetSeatId: target.seatId,
+        reason: `${target.name} 是当前焦点，查验收益最高。`,
       };
+    }
     case "NIGHT_WITCH":
-      return chooseWitchAction(state, actorSeatId);
-    case "DAY_SPEECH":
+      return chooseWitchAction(view, tableRead);
+    case "DAY_SPEECH": {
+      const speechPlan = createSpeechPlan(view, tableRead);
       return {
         type: "speak",
         actorSeatId,
-        message: createSpeech(state, actorSeatId),
+        message: speechPlan.talkingPoints.join("。"),
+        reason: speechPlan.stance,
       };
-    case "DAY_VOTE":
+    }
+    case "DAY_VOTE": {
+      const plan = votePlan ?? createVotePlan(view, tableRead);
       return {
         type: "vote",
         actorSeatId,
-        targetSeatId: chooseVoteTarget(state, actorSeatId),
+        targetSeatId: plan.target.seatId,
+        reason: plan.reason,
       };
-    case "HUNTER_SHOT":
+    }
+    case "HUNTER_SHOT": {
+      const target = chooseHunterTarget(view, tableRead);
       return {
         type: "hunterShoot",
         actorSeatId,
-        targetSeatId: chooseHunterTarget(state, actorSeatId),
+        targetSeatId: target?.seatId,
+        reason: target ? `${target.name} 的公开疑点最高，猎人枪优先处理。` : "没有足够确定的带人目标。",
       };
+    }
     default:
-      throw new Error(`${actor.name} 当前阶段不需要 mock 动作。`);
+      throw new Error(`当前阶段不需要 mock 动作。`);
   }
 }
 
-function chooseWolfKillTarget(state: GameState): number {
-  const aliveGood = getAliveSeats(state).filter((seat) => seat.role !== "WEREWOLF");
-  const priority = ["SEER", "WITCH", "HUNTER", "VILLAGER"];
-  aliveGood.sort((a, b) => priority.indexOf(a.role) - priority.indexOf(b.role) || a.seatId - b.seatId);
-  return aliveGood[0].seatId;
+function chooseWolfKillTarget(view: AgentView, tableRead: AiTableRead): ActionTarget {
+  const action = getAction(view, "wolfKill");
+  const legalTargetIds = new Set(action.targets.map((target) => target.seatId));
+  const candidates = tableRead.seats
+    .filter((seat) => legalTargetIds.has(seat.seatId))
+    .sort((a, b) => b.trust - a.trust || a.suspicion - b.suspicion || a.seatId - b.seatId);
+  return toTarget(candidates[0] ?? action.targets[0]);
 }
 
-function chooseSeerTarget(state: GameState, actorSeatId: number): number {
-  const checked = new Set(
-    state.seerChecks
-      .filter((check) => check.seerSeatId === actorSeatId)
-      .map((check) => check.targetSeatId),
-  );
-  const targets = getAliveSeats(state).filter((seat) => seat.seatId !== actorSeatId && !checked.has(seat.seatId));
-  return (targets[0] ?? getAliveSeats(state).find((seat) => seat.seatId !== actorSeatId))!.seatId;
+function chooseSeerTarget(view: AgentView, tableRead: AiTableRead): ActionTarget {
+  const action = getAction(view, "seerCheck");
+  const checked = new Set(view.privateKnowledge.seerChecks?.map((check) => check.targetSeatId) ?? []);
+  const legalTargetIds = new Set(action.targets.filter((target) => !checked.has(target.seatId)).map((target) => target.seatId));
+  const candidates = tableRead.seats
+    .filter((seat) => legalTargetIds.has(seat.seatId))
+    .sort((a, b) => b.suspicion - a.suspicion || a.trust - b.trust || a.seatId - b.seatId);
+  return toTarget(candidates[0] ?? action.targets.find((target) => !checked.has(target.seatId)) ?? action.targets[0]);
 }
 
-function chooseWitchAction(state: GameState, actorSeatId: number): Command {
-  const victim = state.night.wolfTargetSeatId ? getSeat(state, state.night.wolfTargetSeatId) : undefined;
-  if (state.witch.antidoteAvailable && victim && (state.day === 1 || victim.role === "WITCH")) {
-    return { type: "witchAction", actorSeatId, mode: "save" };
+function chooseWitchAction(view: AgentView, tableRead: AiTableRead): Command {
+  const action = getAction(view, "witchAction");
+  const victim = action.saveTarget;
+
+  if (action.canSave && victim && shouldSaveVictim(view, tableRead, victim)) {
+    return {
+      type: "witchAction",
+      actorSeatId: view.mySeatId,
+      mode: "save",
+      reason: `${victim.name} 当前不像焦点狼，优先保夜间信息。`,
+    };
   }
 
-  if (state.witch.poisonAvailable && state.day >= 2) {
-    const target = getAliveSeats(state).find((seat) => seat.seatId !== actorSeatId);
-    if (target) {
-      return { type: "witchAction", actorSeatId, mode: "poison", targetSeatId: target.seatId };
+  if (action.canPoison && view.day >= 2) {
+    const legalTargetIds = new Set(action.poisonTargets.map((target) => target.seatId));
+    const target = tableRead.seats
+      .filter((seat) => legalTargetIds.has(seat.seatId))
+      .sort((a, b) => b.suspicion - a.suspicion || a.seatId - b.seatId)[0];
+
+    if (target && target.suspicion >= 68) {
+      return {
+        type: "witchAction",
+        actorSeatId: view.mySeatId,
+        mode: "poison",
+        targetSeatId: target.seatId,
+        reason: `${target.name} 的公开疑点较高，毒药用于加速排坑。`,
+      };
     }
   }
 
-  return { type: "witchAction", actorSeatId, mode: "skip" };
+  return {
+    type: "witchAction",
+    actorSeatId: view.mySeatId,
+    mode: "skip",
+    reason: "信息不足，女巫先保留药品。",
+  };
 }
 
-function chooseVoteTarget(state: GameState, actorSeatId: number): number {
-  const actor = getSeat(state, actorSeatId);
-  const knownWolf = state.seerChecks
-    .filter((check) => check.seerSeatId === actorSeatId && check.result === "WEREWOLF")
-    .find((check) => getSeat(state, check.targetSeatId).alive);
-  if (knownWolf) {
-    return knownWolf.targetSeatId;
-  }
+function chooseHunterTarget(view: AgentView, tableRead: AiTableRead): ActionTarget | undefined {
+  const action = getAction(view, "hunterShoot");
+  const legalTargetIds = new Set(action.targets.map((target) => target.seatId));
+  const target = tableRead.seats
+    .filter((seat) => legalTargetIds.has(seat.seatId))
+    .sort((a, b) => b.suspicion - a.suspicion || a.seatId - b.seatId)[0];
 
-  const targets = getAliveSeats(state).filter((seat) => seat.seatId !== actorSeatId);
-  if (actor.role === "WEREWOLF") {
-    return targets.find((seat) => seat.role !== "WEREWOLF")?.seatId ?? targets[0].seatId;
-  }
-
-  return targets[0].seatId;
+  if (!target || target.suspicion < 56) return undefined;
+  return toTarget(target);
 }
 
-function chooseHunterTarget(state: GameState, actorSeatId: number): number | undefined {
-  const actor = getSeat(state, actorSeatId);
-  if (actor.role !== "HUNTER") {
-    return undefined;
-  }
-
-  const targets = getAliveSeats(state).filter((seat) => seat.seatId !== actorSeatId);
-  return targets[0]?.seatId;
+function shouldSaveVictim(view: AgentView, tableRead: AiTableRead, victim: ActionTarget): boolean {
+  if (view.day === 1) return true;
+  const victimRead = tableRead.seats.find((seat) => seat.seatId === victim.seatId);
+  return Boolean(victimRead && victimRead.trust >= victimRead.suspicion);
 }
 
-function createSpeech(state: GameState, actorSeatId: number): string {
-  const actor = getSeat(state, actorSeatId);
-  const firstTarget = getAliveSeats(state).find((seat) => seat.seatId !== actorSeatId);
-  const targetName = firstTarget?.name ?? "场上玩家";
-
-  if (actor.role === "SEER") {
-    const latestCheck = [...state.seerChecks]
-      .reverse()
-      .find((check) => check.seerSeatId === actorSeatId);
-    if (latestCheck) {
-      const checked = getSeat(state, latestCheck.targetSeatId);
-      return `我跳预言家，昨晚查验 ${checked.name} 是${latestCheck.result === "WEREWOLF" ? "狼人" : "好人"}。今天先围绕这个信息盘。`;
-    }
-    return "我偏向先听完所有人发言，暂时不急着归票。";
+function getAction<T extends AgentView["allowedActions"][number]["type"]>(
+  view: AgentView,
+  type: T,
+): Extract<AgentView["allowedActions"][number], { type: T }> {
+  const action = view.allowedActions.find((item) => item.type === type);
+  if (!action) {
+    throw new Error(`缺少 ${type} 可执行动作。`);
   }
+  return action as Extract<AgentView["allowedActions"][number], { type: T }>;
+}
 
-  if (actor.role === "WEREWOLF") {
-    return `我这里先不认同太快站边，${targetName} 的发言需要重点听一下，别让节奏被单点带跑。`;
-  }
-
-  if (actor.role === "WITCH") {
-    return "我会重点看投票一致性，今天不希望大家只用身份压力做判断。";
-  }
-
-  if (actor.role === "HUNTER") {
-    return `我有自己的底牌，不怕被抗推。现在更想听 ${targetName} 怎么解释前面的站边。`;
-  }
-
-  return `我是闭眼好人视角，先看 ${targetName} 的逻辑是否连贯，投票前我会再对比发言。`;
+function toTarget(seat: SeatRead | ActionTarget): ActionTarget {
+  return {
+    seatId: seat.seatId,
+    name: seat.name,
+  };
 }
