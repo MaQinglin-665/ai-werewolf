@@ -126,6 +126,7 @@ export type ReviewNightRound = {
 export type ReviewVote = {
   voter: ReviewSeat;
   target: ReviewSeat;
+  reason?: string;
 };
 
 export type ReviewDayRound = {
