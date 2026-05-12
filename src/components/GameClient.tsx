@@ -133,20 +133,23 @@ export function GameClient() {
             onStartGame={startGame}
           />
         ) : (
-          <section className="grid flex-1 gap-4 xl:grid-cols-[minmax(0,1.55fr)_420px]">
-            <div className="grid gap-4">
-              <SeatBoard game={game} />
-              <ActionPanel game={game} loading={loading} onNewGame={startGame} onSubmit={submitCommand} />
-              {game.review && <ReviewPanel game={game} />}
-            </div>
+          <div className="grid flex-1 gap-4">
+            <PhaseRhythm game={game} />
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_420px]">
+              <div className="grid gap-4">
+                <SeatBoard game={game} />
+                <ActionPanel game={game} loading={loading} onNewGame={startGame} onSubmit={submitCommand} />
+                {game.review && <ReviewPanel game={game} />}
+              </div>
 
-            <aside className="grid content-start gap-4">
-              <InfoPanel game={game} />
-              <SpeechFeed game={game} />
-              <VoteTable game={game} />
-              <PublicLog events={latestEvents} />
-            </aside>
-          </section>
+              <aside className="grid content-start gap-4">
+                <InfoPanel game={game} />
+                <SpeechFeed game={game} />
+                <VoteTable game={game} />
+                <PublicLog events={latestEvents} />
+              </aside>
+            </section>
+          </div>
         )}
       </div>
     </main>
@@ -257,6 +260,49 @@ function LandingPanel({
             </div>
           )}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function PhaseRhythm({ game }: { game: HumanGameView }) {
+  return (
+    <section className="rounded-[22px] border border-[#f1c76e]/20 bg-[#130d0b]/72 px-3 py-3 shadow-xl shadow-black/25 backdrop-blur-md">
+      <div className="grid grid-cols-5 gap-2">
+        {game.tableSummary.phaseSteps.map((step, index) => (
+          <div key={step.key} className="min-w-0">
+            <div className="flex items-center gap-2">
+              <div
+                className={[
+                  "grid h-8 w-8 shrink-0 place-items-center rounded-full border text-xs font-semibold",
+                  step.status === "done"
+                    ? "border-[#77d898]/35 bg-[#1d4e33]/70 text-[#a8f0b6]"
+                    : step.status === "current"
+                      ? "border-[#f1c76e]/65 bg-[#4a2d12] text-[#f1d796] shadow-lg shadow-[#f1c76e]/10"
+                      : "border-[#f1c76e]/18 bg-black/25 text-[#8f8065]",
+                ].join(" ")}
+              >
+                {index + 1}
+              </div>
+              {index < game.tableSummary.phaseSteps.length - 1 && (
+                <div
+                  className={[
+                    "hidden h-px flex-1 sm:block",
+                    step.status === "done" ? "bg-[#77d898]/35" : "bg-[#f1c76e]/15",
+                  ].join(" ")}
+                />
+              )}
+            </div>
+            <div
+              className={[
+                "mt-2 truncate text-xs",
+                step.status === "current" ? "font-semibold text-[#f1d796]" : step.status === "done" ? "text-[#a8f0b6]" : "text-[#8f8065]",
+              ].join(" ")}
+            >
+              {step.label}
+            </div>
+          </div>
+        ))}
       </div>
     </section>
   );
@@ -386,6 +432,24 @@ function ReviewPanel({ game }: { game: HumanGameView }) {
         </a>
       </div>
 
+      {review.turningPoints.length > 0 && (
+        <div className="mt-4">
+          <SectionTitle>关键转折</SectionTitle>
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {review.turningPoints.map((point, index) => (
+              <div key={`${point.day}-${point.title}-${index}`} className="rounded-2xl border border-[#f1c76e]/18 bg-[#261510]/75 p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <span className="rounded-full bg-[#f1c76e]/12 px-2 py-1 text-xs text-[#f1d796]">D{point.day}</span>
+                  <span className="text-xs text-[#ad9c7d]">#{index + 1}</span>
+                </div>
+                <div className="text-sm font-semibold text-[#f7ead5]">{point.title}</div>
+                <p className="mt-2 text-xs leading-5 text-[#dcc9a7]">{point.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <div>
           <SectionTitle>身份揭晓</SectionTitle>
@@ -500,6 +564,18 @@ function ReviewDayRounds({ game }: { game: HumanGameView }) {
             <strong>第 {round.day} 天</strong>
             <div>发言数：{round.speechCount}</div>
             <div>投票：{round.votes.length > 0 ? round.votes.map((vote) => `${vote.voter.name}->${vote.target.name}`).join("，") : "无"}</div>
+            {round.votes.some((vote) => vote.reason) && (
+              <div className="mt-2 grid gap-1 text-xs text-[#bfe7c6]">
+                {round.votes
+                  .filter((vote) => vote.reason)
+                  .slice(0, 4)
+                  .map((vote) => (
+                    <div key={`${round.day}-${vote.voter.seatId}-${vote.target.seatId}`}>
+                      {vote.voter.name}：{vote.reason}
+                    </div>
+                  ))}
+              </div>
+            )}
             <div>
               结果：
               {round.exiled
