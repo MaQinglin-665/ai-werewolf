@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { DEATH_LABELS, ROLE_LABELS } from "@/game/labels";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
 
 const CURRENT_GAME_KEY = "ai-werewolf-game-id";
 const RECENT_GAMES_KEY = "ai-werewolf-recent-game-ids";
+const EMPTY_RECENT_GAME_IDS: string[] = [];
+let recentGameIdsRawCache: string | null = null;
+let recentGameIdsSnapshotCache: string[] = EMPTY_RECENT_GAME_IDS;
 
 const ROLE_CARD_IMAGES: Record<HumanGameView["myRole"] | "HIDDEN", string> = {
   WEREWOLF: "/images/role-werewolf.jpg",
@@ -40,13 +43,13 @@ export function GameClient() {
   const [game, setGame] = useState<HumanGameView | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [recentGameIds, setRecentGameIds] = useState<string[]>(() => readRecentGameIds());
+  const recentGameIds = useSyncExternalStore(subscribeRecentGameIds, readRecentGameIds, getRecentGameIdsServerSnapshot);
 
   const rememberGame = useCallback((gameId: string) => {
     const nextIds = [gameId, ...readRecentGameIds().filter((id) => id !== gameId)].slice(0, 5);
     window.localStorage.setItem(CURRENT_GAME_KEY, gameId);
     window.localStorage.setItem(RECENT_GAMES_KEY, JSON.stringify(nextIds));
-    setRecentGameIds(nextIds);
+    window.dispatchEvent(new Event("ai-werewolf-recent-games-changed"));
   }, []);
 
   const loadGameById = useCallback(
@@ -1027,14 +1030,42 @@ function phaseCategory(phase: HumanGameView["phase"]): string {
 
 function readRecentGameIds(): string[] {
   if (typeof window === "undefined") {
-    return [];
+    return EMPTY_RECENT_GAME_IDS;
   }
 
   try {
     const raw = window.localStorage.getItem(RECENT_GAMES_KEY);
+    if (raw === recentGameIdsRawCache) {
+      return recentGameIdsSnapshotCache;
+    }
+
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string").slice(0, 5) : [];
+    recentGameIdsRawCache = raw;
+    recentGameIdsSnapshotCache = Array.isArray(parsed)
+      ? parsed.filter((id): id is string => typeof id === "string").slice(0, 5)
+      : EMPTY_RECENT_GAME_IDS;
+    return recentGameIdsSnapshotCache;
   } catch {
-    return [];
+    recentGameIdsRawCache = null;
+    recentGameIdsSnapshotCache = EMPTY_RECENT_GAME_IDS;
+    return recentGameIdsSnapshotCache;
   }
+}
+
+function getRecentGameIdsServerSnapshot(): string[] {
+  return EMPTY_RECENT_GAME_IDS;
+}
+
+function subscribeRecentGameIds(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  const handleChange = () => onStoreChange();
+  window.addEventListener("storage", handleChange);
+  window.addEventListener("ai-werewolf-recent-games-changed", handleChange);
+  return () => {
+    window.removeEventListener("storage", handleChange);
+    window.removeEventListener("ai-werewolf-recent-games-changed", handleChange);
+  };
 }

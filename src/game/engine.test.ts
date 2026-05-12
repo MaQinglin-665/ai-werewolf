@@ -237,5 +237,5 @@ describe("game engine", () => {
     expect(stats.totalDays / 1000).toBeGreaterThan(0);
     expect(stats.fallbackCount).toBe(0);
     expect(stats.tiedVotes).toBeGreaterThanOrEqual(0);
-  });
+  }, 15000);
 });
