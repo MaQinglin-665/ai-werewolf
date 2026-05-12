@@ -7,6 +7,27 @@ import type { AvailableHumanAction, HumanGameView } from "@/game/types";
 const CURRENT_GAME_KEY = "ai-werewolf-game-id";
 const RECENT_GAMES_KEY = "ai-werewolf-recent-game-ids";
 
+const ROLE_CARD_IMAGES: Record<HumanGameView["myRole"] | "HIDDEN", string> = {
+  WEREWOLF: "/images/role-werewolf.jpg",
+  VILLAGER: "/images/role-villager.jpg",
+  SEER: "/images/role-seer.jpg",
+  WITCH: "/images/role-witch.jpg",
+  HUNTER: "/images/role-hunter.jpg",
+  HIDDEN: "/images/role-back.jpg",
+};
+
+const SEAT_ORBIT_CLASSES = [
+  "lg:left-1/2 lg:top-4 lg:-translate-x-1/2",
+  "lg:right-[17%] lg:top-[10%]",
+  "lg:right-4 lg:top-1/2 lg:-translate-y-1/2",
+  "lg:right-[13%] lg:bottom-[10%]",
+  "lg:left-1/2 lg:bottom-4 lg:-translate-x-1/2",
+  "lg:left-[13%] lg:bottom-[10%]",
+  "lg:left-4 lg:top-1/2 lg:-translate-y-1/2",
+  "lg:left-[17%] lg:top-[10%]",
+  "lg:left-1/2 lg:top-[30%] lg:-translate-x-1/2",
+];
+
 type CommandPayload =
   | { type: "wolfKill"; targetSeatId: number }
   | { type: "seerCheck"; targetSeatId: number }
@@ -85,94 +106,43 @@ export function GameClient() {
     }
   }
 
-  const latestEvents = useMemo(() => game?.publicEvents.slice(-16).reverse() ?? [], [game]);
+  const latestEvents = useMemo(() => game?.publicEvents.slice(-18).reverse() ?? [], [game]);
 
   return (
-    <main className="min-h-screen bg-[#f5f7f2] text-[#161812]">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-5 px-4 py-4 lg:px-6">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d9dece] pb-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-normal">单人 AI 狼人杀</h1>
-            <p className="mt-1 text-sm text-[#5f6654]">
-              9人预女猎 · 当前身份 {game ? game.myRoleLabel : "未开局"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {game && (
-              <div className="rounded-md border border-[#d9dece] bg-white px-3 py-2 text-sm">
-                第 {game.day} 天 · {game.phaseLabel}
-              </div>
-            )}
-            <button
-              onClick={startGame}
-              disabled={loading}
-              className="rounded-md bg-[#a33b2f] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#872f27] disabled:opacity-60"
-            >
-              {game ? "新开一局" : "开始对局"}
-            </button>
-          </div>
-        </header>
+    <main
+      className="min-h-screen bg-[#100b0a] bg-cover bg-center bg-fixed text-[#f7ead5]"
+      style={{
+        backgroundImage:
+          "linear-gradient(180deg, rgba(7,9,12,0.72), rgba(16,11,10,0.88)), url('/images/werewolf-table-bg.jpg')",
+      }}
+    >
+      <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-4 px-3 py-3 sm:px-5 lg:px-7">
+        <RoomHeader game={game} loading={loading} onNewGame={startGame} />
 
         {error && (
-          <div className="rounded-md border border-[#e3b5aa] bg-[#fff3ef] px-3 py-2 text-sm text-[#8a2f24]">
+          <div className="rounded-lg border border-[#e46d55]/45 bg-[#381511]/90 px-4 py-3 text-sm text-[#ffd8cf] shadow-lg">
             {error}
           </div>
         )}
 
         {!game ? (
-          <section className="grid flex-1 place-items-center">
-            <div className="grid w-full max-w-xl gap-4 rounded-md border border-[#d9dece] bg-white p-5">
-              <button
-                onClick={startGame}
-                disabled={loading}
-                className="rounded-md bg-[#a33b2f] px-6 py-3 text-base font-semibold text-white transition hover:bg-[#872f27] disabled:opacity-60"
-              >
-                {loading ? "创建中" : "进入牌桌"}
-              </button>
-              {recentGameIds.length > 0 && (
-                <div className="border-t border-[#eef0e8] pt-4">
-                  <h2 className="text-sm font-semibold">最近对局</h2>
-                  <div className="mt-3 grid gap-2">
-                    {recentGameIds.map((gameId, index) => (
-                      <button
-                        key={gameId}
-                        onClick={() => loadGameById(gameId)}
-                        disabled={loading}
-                        className="rounded-md border border-[#d9dece] px-3 py-2 text-left text-sm transition hover:bg-[#f5f7f2] disabled:opacity-60"
-                      >
-                        {index === 0 ? "继续上一局" : "查看最近终局"} · {gameId.slice(0, 8)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
+          <LandingPanel
+            loading={loading}
+            recentGameIds={recentGameIds}
+            onLoadGame={loadGameById}
+            onStartGame={startGame}
+          />
         ) : (
-          <section className="grid flex-1 gap-5 lg:grid-cols-[1.35fr_0.9fr]">
-            <div className="flex flex-col gap-5">
+          <section className="grid flex-1 gap-4 xl:grid-cols-[minmax(0,1.55fr)_420px]">
+            <div className="grid gap-4">
               <SeatBoard game={game} />
               <ActionPanel game={game} loading={loading} onNewGame={startGame} onSubmit={submitCommand} />
               {game.review && <ReviewPanel game={game} />}
             </div>
 
-            <aside className="grid gap-5 lg:grid-rows-[auto_1fr]">
+            <aside className="grid gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
               <InfoPanel game={game} />
-              <section className="min-h-[360px] overflow-hidden rounded-md border border-[#d9dece] bg-white">
-                <div className="border-b border-[#e4e7dc] px-4 py-3">
-                  <h2 className="text-sm font-semibold">公开记录</h2>
-                </div>
-                <div className="flex max-h-[560px] flex-col gap-3 overflow-y-auto p-4">
-                  {latestEvents.map((event) => (
-                    <div key={event.seq} className={`${eventClassName(event.phase)} border-l-2 pl-3 text-sm leading-6`}>
-                      <div className="text-xs text-[#747a68]">
-                        D{event.day} · {event.phase}
-                      </div>
-                      {event.message}
-                    </div>
-                  ))}
-                </div>
-              </section>
+              <PublicLog events={latestEvents} />
             </aside>
           </section>
         )}
@@ -181,38 +151,215 @@ export function GameClient() {
   );
 }
 
-function SeatBoard({ game }: { game: HumanGameView }) {
+function RoomHeader({
+  game,
+  loading,
+  onNewGame,
+}: {
+  game: HumanGameView | null;
+  loading: boolean;
+  onNewGame: () => Promise<void>;
+}) {
   return (
-    <section className="grid grid-cols-3 gap-3 md:grid-cols-5">
-      {game.seats.map((seat) => {
-        const isCurrent = game.currentActorSeatId === seat.seatId;
-        return (
-          <div
-            key={seat.seatId}
-            className={[
-              "min-h-[122px] rounded-md border bg-white p-3 transition",
-              seat.alive ? "border-[#d9dece]" : "border-[#d8c4bd] bg-[#f1ece8] text-[#7d746d]",
-              isCurrent ? "ring-2 ring-[#b6a15a]" : "",
-            ].join(" ")}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-sm font-semibold">{seat.seatId}号</div>
-              <div className="rounded-sm bg-[#eef2e7] px-2 py-1 text-xs text-[#4f5b41]">
-                {seat.isHuman ? "真人" : "AI"}
+    <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f1c76e]/25 bg-[#130d0b]/75 px-4 py-3 shadow-2xl shadow-black/25 backdrop-blur-md">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#f1c76e]/45 bg-[#2a1712] text-lg font-semibold text-[#f1c76e] shadow-inner">
+          狼
+        </div>
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-semibold tracking-normal sm:text-2xl">单人 AI 狼人杀</h1>
+          <p className="mt-1 text-xs text-[#cab995] sm:text-sm">
+            9人预女猎 · {game ? `你是${game.myRoleLabel}` : "1 真人 + 8 AI"}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {game && (
+          <>
+            <StatusPill tone="gold">第 {game.day} 天</StatusPill>
+            <StatusPill tone={game.phase.startsWith("NIGHT") ? "blue" : "green"}>{game.phaseLabel}</StatusPill>
+          </>
+        )}
+        <button
+          onClick={onNewGame}
+          disabled={loading}
+          className="rounded-full bg-[#b74332] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#220806]/35 transition hover:bg-[#cf513d] disabled:opacity-60"
+        >
+          {game ? "新开一局" : "开始对局"}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+function LandingPanel({
+  loading,
+  recentGameIds,
+  onLoadGame,
+  onStartGame,
+}: {
+  loading: boolean;
+  recentGameIds: string[];
+  onLoadGame: (gameId: string) => Promise<void>;
+  onStartGame: () => Promise<void>;
+}) {
+  return (
+    <section className="grid flex-1 place-items-center py-8">
+      <div className="grid w-full max-w-5xl gap-5 lg:grid-cols-[1fr_360px]">
+        <div className="min-h-[420px] rounded-[28px] border border-[#f1c76e]/25 bg-[#160f0d]/55 bg-cover bg-center p-5 shadow-2xl shadow-black/45 backdrop-blur-sm">
+          <div className="flex h-full flex-col justify-between rounded-[22px] border border-[#f1c76e]/20 bg-gradient-to-br from-black/55 via-[#2c160f]/35 to-black/60 p-6">
+            <div>
+              <div className="mb-4 inline-flex rounded-full border border-[#f1c76e]/35 bg-black/35 px-3 py-1 text-xs text-[#f1d796]">
+                本地 Alpha · 规则引擎驱动
+              </div>
+              <h2 className="max-w-2xl text-4xl font-semibold leading-tight sm:text-5xl">进入牌桌，和 8 个 AI 玩完一整局</h2>
+              <p className="mt-4 max-w-xl text-sm leading-6 text-[#dcc9a7]">
+                固定 9 人预女猎，AI 自动推进非真人阶段，终局后揭晓身份、刀口、查验、投票和胜负原因。
+              </p>
+            </div>
+            <button
+              onClick={onStartGame}
+              disabled={loading}
+              className="mt-8 w-full rounded-2xl bg-[#b74332] px-6 py-4 text-base font-semibold text-white shadow-xl shadow-black/35 transition hover:bg-[#cf513d] disabled:opacity-60 sm:w-fit"
+            >
+              {loading ? "创建中" : "进入牌桌"}
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/80 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-[#f7ead5]">最近对局</h2>
+            <span className="text-xs text-[#ad9c7d]">最多 5 局</span>
+          </div>
+          {recentGameIds.length === 0 ? (
+            <div className="grid min-h-[260px] place-items-center rounded-2xl border border-dashed border-[#f1c76e]/25 text-center text-sm leading-6 text-[#ad9c7d]">
+              暂无本地记录
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              {recentGameIds.map((gameId, index) => (
+                <button
+                  key={gameId}
+                  onClick={() => onLoadGame(gameId)}
+                  disabled={loading}
+                  className="rounded-2xl border border-[#f1c76e]/20 bg-[#211410]/80 px-4 py-3 text-left transition hover:border-[#f1c76e]/45 hover:bg-[#2d1a13] disabled:opacity-60"
+                >
+                  <div className="text-sm font-semibold text-[#f7ead5]">
+                    {index === 0 ? "继续上一局" : "查看最近终局"}
+                  </div>
+                  <div className="mt-1 text-xs text-[#ad9c7d]">{gameId.slice(0, 8)}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SeatBoard({ game }: { game: HumanGameView }) {
+  const aliveCount = game.seats.filter((seat) => seat.alive).length;
+  const deadCount = game.seats.length - aliveCount;
+
+  return (
+    <section
+      className="relative overflow-hidden rounded-[30px] border border-[#f1c76e]/25 bg-[#120b09]/70 bg-cover bg-center p-4 shadow-2xl shadow-black/45 lg:min-h-[690px]"
+      style={{
+        backgroundImage:
+          "linear-gradient(180deg, rgba(8,6,5,0.20), rgba(8,6,5,0.78)), url('/images/werewolf-table-bg.jpg')",
+      }}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(243,192,104,0.18),transparent_42%),linear-gradient(180deg,transparent,rgba(0,0,0,0.35))]" />
+
+      <div className="relative mb-4 grid gap-3 rounded-2xl border border-[#f1c76e]/20 bg-black/35 p-3 text-sm text-[#dcc9a7] lg:hidden">
+        <div className="flex items-center justify-between">
+          <span>{game.phaseLabel}</span>
+          <span>
+            存活 {aliveCount} · 出局 {deadCount}
+          </span>
+        </div>
+      </div>
+
+      <div className="relative z-10 grid grid-cols-3 gap-3 lg:block lg:min-h-[650px]">
+        <div className="hidden lg:absolute lg:inset-[21%] lg:grid lg:place-items-center">
+          <div className="grid aspect-square w-full max-w-[360px] place-items-center rounded-full border border-[#f1c76e]/30 bg-[#130d0b]/70 p-8 text-center shadow-2xl shadow-black/45 backdrop-blur-sm">
+            <div>
+              <div className="text-xs uppercase tracking-[0.26em] text-[#ad9c7d]">Room Phase</div>
+              <div className="mt-3 text-4xl font-semibold text-[#f1d796]">第 {game.day} 天</div>
+              <div className="mt-3 text-lg text-[#f7ead5]">{game.phaseLabel}</div>
+              <div className="mt-5 flex justify-center gap-2 text-xs">
+                <StatusPill tone="green">存活 {aliveCount}</StatusPill>
+                <StatusPill tone="red">出局 {deadCount}</StatusPill>
               </div>
             </div>
-            <div className="mt-3 text-lg font-semibold">{seat.name}</div>
-            <div className="mt-2 flex flex-wrap gap-2 text-xs">
-              <span className={seat.alive ? "text-[#2f6f4e]" : "text-[#8a2f24]"}>
-                {seat.alive ? "存活" : "出局"}
-              </span>
-              {seat.roleLabel && <span className="text-[#6b4f13]">{seat.roleLabel}</span>}
-              {seat.deathReason && <span>{DEATH_LABELS[seat.deathReason]}</span>}
-            </div>
           </div>
-        );
-      })}
+        </div>
+
+        {game.seats.map((seat) => (
+          <SeatToken
+            key={seat.seatId}
+            game={game}
+            seat={seat}
+            orbitClassName={SEAT_ORBIT_CLASSES[(seat.seatId - 1) % SEAT_ORBIT_CLASSES.length]}
+          />
+        ))}
+      </div>
     </section>
+  );
+}
+
+function SeatToken({
+  game,
+  seat,
+  orbitClassName,
+}: {
+  game: HumanGameView;
+  seat: HumanGameView["seats"][number];
+  orbitClassName: string;
+}) {
+  const isCurrent = game.currentActorSeatId === seat.seatId;
+  const cardImage = ROLE_CARD_IMAGES[seat.role ?? "HIDDEN"];
+  const isKnown = Boolean(seat.role);
+
+  return (
+    <div
+      className={[
+        "group min-w-0 rounded-2xl border bg-[#180f0c]/88 p-2 shadow-xl shadow-black/35 backdrop-blur-md transition",
+        "lg:absolute lg:w-[150px]",
+        seat.alive ? "border-[#f1c76e]/28" : "border-[#8b4a3d]/55 opacity-75",
+        isCurrent ? "ring-2 ring-[#f1d796]" : "",
+        seat.isHuman ? "bg-[#25130f]/92" : "",
+        orbitClassName,
+      ].join(" ")}
+    >
+      <div className="flex flex-col items-center gap-2">
+        <div
+          className={[
+            "relative h-[70px] w-[48px] shrink-0 overflow-hidden rounded-lg border bg-cover bg-center shadow-lg",
+            seat.alive ? "border-[#f1c76e]/45" : "border-[#8b4a3d]/70 grayscale",
+          ].join(" ")}
+          style={{ backgroundImage: `url(${cardImage})` }}
+          aria-label={isKnown ? `${seat.roleLabel}身份牌` : "未揭晓身份牌"}
+        >
+          {!isKnown && <div className="absolute inset-0 bg-black/10" />}
+        </div>
+        <div className="min-w-0 flex-1 text-center lg:w-full">
+          <div className="flex items-center justify-center gap-2">
+            <span className="rounded-full bg-black/35 px-2 py-0.5 text-[11px] text-[#f1d796]">{seat.seatId}号</span>
+            {seat.isHuman && <span className="rounded-full bg-[#b74332] px-2 py-0.5 text-[11px] text-white">我</span>}
+          </div>
+          <div className="mt-2 truncate text-sm font-semibold text-[#f7ead5]">{seat.name}</div>
+          <div className="mt-1 flex flex-wrap justify-center gap-1 text-[11px]">
+            <span className={seat.alive ? "text-[#9fe0a4]" : "text-[#ffb1a4]"}>{seat.alive ? "存活" : "出局"}</span>
+            {seat.roleLabel && <span className="text-[#f1d796]">{seat.roleLabel}</span>}
+            {seat.deathReason && <span className="text-[#c8b99a]">{DEATH_LABELS[seat.deathReason]}</span>}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -221,35 +368,42 @@ function ReviewPanel({ game }: { game: HumanGameView }) {
   if (!review) return null;
 
   return (
-    <section id="review" className="rounded-md border border-[#d9dece] bg-white p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef0e8] pb-3">
+    <section id="review" className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#f1c76e]/15 pb-4">
         <div>
-          <h2 className="text-sm font-semibold">终局复盘</h2>
-          <p className="mt-1 text-sm text-[#5f6654]">
+          <h2 className="text-lg font-semibold text-[#f7ead5]">终局复盘</h2>
+          <p className="mt-1 text-sm text-[#dcc9a7]">
             {review.result?.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜 · {review.result?.reason}
           </p>
         </div>
-        <a href="#review-events" className="rounded-md border border-[#d9dece] px-3 py-2 text-sm hover:bg-[#f5f7f2]">
+        <a
+          href="#review-events"
+          className="rounded-full border border-[#f1c76e]/30 px-4 py-2 text-sm text-[#f1d796] transition hover:bg-[#f1c76e]/10"
+        >
           查看关键事件
         </a>
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <div>
-          <h3 className="text-sm font-semibold">身份揭晓</h3>
+          <SectionTitle>身份揭晓</SectionTitle>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {review.roleReveal.map((seat) => (
-              <div key={seat.seatId} className="rounded-md border border-[#eef0e8] p-3 text-sm">
-                <div className="flex justify-between gap-3">
-                  <strong>
+              <div key={seat.seatId} className="flex gap-3 rounded-2xl border border-[#f1c76e]/15 bg-black/20 p-3 text-sm">
+                <div
+                  className="h-16 w-11 shrink-0 rounded-md border border-[#f1c76e]/30 bg-cover bg-center"
+                  style={{ backgroundImage: `url(${ROLE_CARD_IMAGES[seat.role]})` }}
+                />
+                <div className="min-w-0">
+                  <div className="truncate font-semibold text-[#f7ead5]">
                     {seat.seatId}号 · {seat.name}
-                  </strong>
-                  <span className={seat.role === "WEREWOLF" ? "text-[#a33b2f]" : "text-[#2f6f4e]"}>
+                  </div>
+                  <div className={seat.role === "WEREWOLF" ? "mt-1 text-[#ff8c78]" : "mt-1 text-[#9fe0a4]"}>
                     {seat.roleLabel}
-                  </span>
-                </div>
-                <div className="mt-1 text-xs text-[#747a68]">
-                  {seat.alive ? "存活到终局" : seat.deathReason ? DEATH_LABELS[seat.deathReason] : "已出局"}
+                  </div>
+                  <div className="mt-1 text-xs text-[#ad9c7d]">
+                    {seat.alive ? "存活到终局" : seat.deathReason ? DEATH_LABELS[seat.deathReason] : "已出局"}
+                  </div>
                 </div>
               </div>
             ))}
@@ -257,13 +411,13 @@ function ReviewPanel({ game }: { game: HumanGameView }) {
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold">死亡时间线</h3>
+          <SectionTitle>死亡时间线</SectionTitle>
           <div className="mt-3 grid gap-2">
             {review.deathTimeline.length === 0 ? (
-              <p className="text-sm text-[#747a68]">没有玩家死亡。</p>
+              <p className="rounded-2xl border border-[#f1c76e]/15 bg-black/20 p-3 text-sm text-[#ad9c7d]">没有玩家死亡。</p>
             ) : (
               review.deathTimeline.map((death, index) => (
-                <div key={`${death.day}-${death.seat.seatId}-${index}`} className="rounded-md bg-[#f7f4ed] p-3 text-sm">
+                <div key={`${death.day}-${death.seat.seatId}-${index}`} className="rounded-2xl bg-[#261510]/85 p-3 text-sm text-[#dcc9a7]">
                   D{death.day} · {death.seat.name} · {death.reasonLabel}
                 </div>
               ))
@@ -273,65 +427,16 @@ function ReviewPanel({ game }: { game: HumanGameView }) {
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">
-        <div>
-          <h3 className="text-sm font-semibold">夜晚记录</h3>
-          <div className="mt-3 grid gap-3">
-            {review.nightRounds.map((round) => (
-              <div key={round.day} className="rounded-md border border-[#eef0e8] p-3 text-sm leading-6">
-                <strong>第 {round.day} 夜</strong>
-                <div>狼人刀口：{round.wolfTarget?.name ?? "无"}</div>
-                <div>
-                  查验：
-                  {round.seerCheck
-                    ? `${round.seerCheck.seer.name} 查验 ${round.seerCheck.target.name} 为 ${
-                        round.seerCheck.result === "WEREWOLF" ? "狼人" : "好人"
-                      }`
-                    : "无"}
-                </div>
-                <div>
-                  女巫：
-                  {round.witchAction
-                    ? round.witchAction.mode === "save"
-                      ? `救了 ${round.witchAction.target?.name ?? "刀口"}`
-                      : round.witchAction.mode === "poison"
-                        ? `毒了 ${round.witchAction.target?.name ?? "未知目标"}`
-                        : "未用药"
-                    : "无行动"}
-                </div>
-                <div>死亡：{round.deaths.length > 0 ? round.deaths.map((seat) => seat.name).join("、") : "平安夜"}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-sm font-semibold">白天投票</h3>
-          <div className="mt-3 grid gap-3">
-            {review.dayRounds.map((round) => (
-              <div key={round.day} className="rounded-md border border-[#eef0e8] p-3 text-sm leading-6">
-                <strong>第 {round.day} 天</strong>
-                <div>发言数：{round.speechCount}</div>
-                <div>投票：{round.votes.length > 0 ? round.votes.map((vote) => `${vote.voter.name}->${vote.target.name}`).join("，") : "无"}</div>
-                <div>
-                  结果：
-                  {round.exiled
-                    ? `${round.exiled.name} 被放逐`
-                    : round.tiedSeatIds.length > 0
-                      ? `平票：${round.tiedSeatIds.join("、")}号`
-                      : "无放逐"}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <ReviewNightRounds game={game} />
+        <ReviewDayRounds game={game} />
       </div>
 
       <div id="review-events" className="mt-5">
-        <h3 className="text-sm font-semibold">关键事件</h3>
+        <SectionTitle>关键事件</SectionTitle>
         <div className="mt-3 grid gap-2">
           {review.keyEvents.map((event) => (
-            <div key={event.seq} className="border-l-2 border-[#b6a15a] pl-3 text-sm leading-6 text-[#33372d]">
-              <span className="text-xs text-[#747a68]">D{event.day} · {event.phase}</span>
+            <div key={event.seq} className="border-l-2 border-[#f1c76e] bg-black/15 py-2 pl-3 text-sm leading-6 text-[#dcc9a7]">
+              <span className="text-xs text-[#ad9c7d]">D{event.day} · {event.phase}</span>
               <br />
               {event.message}
             </div>
@@ -342,46 +447,137 @@ function ReviewPanel({ game }: { game: HumanGameView }) {
   );
 }
 
+function ReviewNightRounds({ game }: { game: HumanGameView }) {
+  const review = game.review;
+  if (!review) return null;
+
+  return (
+    <div>
+      <SectionTitle>夜晚记录</SectionTitle>
+      <div className="mt-3 grid gap-3">
+        {review.nightRounds.map((round) => (
+          <div key={round.day} className="rounded-2xl border border-[#5e87b9]/25 bg-[#0d1623]/55 p-3 text-sm leading-6 text-[#d8e6f7]">
+            <strong>第 {round.day} 夜</strong>
+            <div>狼人刀口：{round.wolfTarget?.name ?? "无"}</div>
+            <div>
+              查验：
+              {round.seerCheck
+                ? `${round.seerCheck.seer.name} 查验 ${round.seerCheck.target.name} 为 ${
+                    round.seerCheck.result === "WEREWOLF" ? "狼人" : "好人"
+                  }`
+                : "无"}
+            </div>
+            <div>
+              女巫：
+              {round.witchAction
+                ? round.witchAction.mode === "save"
+                  ? `救了 ${round.witchAction.target?.name ?? "刀口"}`
+                  : round.witchAction.mode === "poison"
+                    ? `毒了 ${round.witchAction.target?.name ?? "未知目标"}`
+                    : "未用药"
+                : "无行动"}
+            </div>
+            <div>死亡：{round.deaths.length > 0 ? round.deaths.map((seat) => seat.name).join("、") : "平安夜"}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReviewDayRounds({ game }: { game: HumanGameView }) {
+  const review = game.review;
+  if (!review) return null;
+
+  return (
+    <div>
+      <SectionTitle>白天投票</SectionTitle>
+      <div className="mt-3 grid gap-3">
+        {review.dayRounds.map((round) => (
+          <div key={round.day} className="rounded-2xl border border-[#8fd29a]/25 bg-[#0f2118]/60 p-3 text-sm leading-6 text-[#dff4df]">
+            <strong>第 {round.day} 天</strong>
+            <div>发言数：{round.speechCount}</div>
+            <div>投票：{round.votes.length > 0 ? round.votes.map((vote) => `${vote.voter.name}->${vote.target.name}`).join("，") : "无"}</div>
+            <div>
+              结果：
+              {round.exiled
+                ? `${round.exiled.name} 被放逐`
+                : round.tiedSeatIds.length > 0
+                  ? `平票：${round.tiedSeatIds.join("、")}号`
+                  : "无放逐"}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function InfoPanel({ game }: { game: HumanGameView }) {
   return (
-    <section className="rounded-md border border-[#d9dece] bg-white p-4">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">我的信息</h2>
-        {game.result && (
-          <span className="rounded-sm bg-[#a33b2f] px-2 py-1 text-xs font-medium text-white">
-            {game.result.winner === "GOOD" ? "好人胜利" : "狼人胜利"}
-          </span>
-        )}
-      </div>
-      <div className="mt-4 grid gap-3 text-sm text-[#33372d]">
-        <div className="flex justify-between gap-3 border-b border-[#eef0e8] pb-2">
-          <span>身份</span>
-          <strong>{ROLE_LABELS[game.myRole]}</strong>
-        </div>
-        {game.wolfTeammates.length > 0 && (
-          <div className="border-b border-[#eef0e8] pb-2">
-            <div className="mb-1 text-[#747a68]">狼队友</div>
-            {game.wolfTeammates.map((seat) => seat.name).join("、")}
+    <section className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
+      <div className="flex items-start gap-4">
+        <div
+          className="h-36 w-24 shrink-0 rounded-xl border border-[#f1c76e]/35 bg-cover bg-center shadow-xl"
+          style={{ backgroundImage: `url(${ROLE_CARD_IMAGES[game.myRole]})` }}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-[#f7ead5]">我的身份</h2>
+            {game.result && (
+              <span className="rounded-full bg-[#b74332] px-2 py-1 text-xs font-medium text-white">
+                {game.result.winner === "GOOD" ? "好人胜利" : "狼人胜利"}
+              </span>
+            )}
           </div>
+          <div className="mt-2 text-3xl font-semibold text-[#f1d796]">{ROLE_LABELS[game.myRole]}</div>
+          <div className="mt-3 text-xs leading-5 text-[#ad9c7d]">
+            你的私密信息只在这里展示，其他 AI 身份会在终局复盘中揭晓。
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 text-sm text-[#dcc9a7]">
+        {game.wolfTeammates.length > 0 && (
+          <InfoRow label="狼队友">{game.wolfTeammates.map((seat) => seat.name).join("、")}</InfoRow>
         )}
         {game.seerChecks.length > 0 && (
-          <div className="border-b border-[#eef0e8] pb-2">
-            <div className="mb-1 text-[#747a68]">查验</div>
+          <InfoRow label="查验">
             {game.seerChecks.map((check) => (
               <div key={`${check.day}-${check.targetSeatId}`}>
                 D{check.day} · {check.targetSeatId}号 · {check.result === "WEREWOLF" ? "狼人" : "好人"}
               </div>
             ))}
-          </div>
+          </InfoRow>
         )}
         {game.myRole === "WITCH" && (
-          <div className="border-b border-[#eef0e8] pb-2">
-            <div className="mb-1 text-[#747a68]">药品</div>
+          <InfoRow label="药品">
             解药 {game.witch.antidoteAvailable ? "可用" : "已用"} · 毒药 {game.witch.poisonAvailable ? "可用" : "已用"}
-          </div>
+          </InfoRow>
         )}
         {game.privateEvents.slice(-4).map((event) => (
-          <div key={event.seq} className="text-[#5f6654]">
+          <div key={event.seq} className="rounded-2xl border border-[#f1c76e]/15 bg-black/20 px-3 py-2 text-[#dcc9a7]">
+            {event.message}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PublicLog({ events }: { events: HumanGameView["publicEvents"] }) {
+  return (
+    <section className="min-h-[360px] overflow-hidden rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 shadow-2xl shadow-black/35 backdrop-blur-md">
+      <div className="flex items-center justify-between border-b border-[#f1c76e]/15 px-4 py-3">
+        <h2 className="text-sm font-semibold text-[#f7ead5]">公开记录</h2>
+        <span className="text-xs text-[#ad9c7d]">夜晚 / 白天 / 投票 / 系统</span>
+      </div>
+      <div className="flex max-h-[620px] flex-col gap-3 overflow-y-auto p-4">
+        {events.map((event) => (
+          <div key={event.seq} className={`${eventClassName(event.phase)} rounded-2xl border px-3 py-2 text-sm leading-6`}>
+            <div className="mb-1 text-xs opacity-75">
+              D{event.day} · {phaseCategory(event.phase)}
+            </div>
             {event.message}
           </div>
         ))}
@@ -403,19 +599,22 @@ function ActionPanel({
 }) {
   if (game.result) {
     return (
-      <section className="rounded-md border border-[#d9dece] bg-white p-4">
-        <h2 className="text-sm font-semibold">终局</h2>
-        <p className="mt-2 text-sm text-[#33372d]">
+      <section className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
+        <h2 className="text-lg font-semibold text-[#f7ead5]">终局</h2>
+        <p className="mt-2 text-sm text-[#dcc9a7]">
           {game.result.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜：{game.result.reason}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <a href="#review" className="rounded-md bg-[#2f6f4e] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#275d42]">
+          <a
+            href="#review"
+            className="rounded-full bg-[#2f8157] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#379566]"
+          >
             查看复盘
           </a>
           <button
             onClick={onNewGame}
             disabled={loading}
-            className="rounded-md border border-[#d9dece] px-4 py-2 text-sm font-medium transition hover:bg-[#f5f7f2] disabled:opacity-60"
+            className="rounded-full border border-[#f1c76e]/30 px-5 py-2.5 text-sm font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10 disabled:opacity-60"
           >
             新开一局
           </button>
@@ -426,61 +625,31 @@ function ActionPanel({
 
   if (game.availableActions.length === 0) {
     return (
-      <section className="rounded-md border border-[#d9dece] bg-white p-4 text-sm text-[#5f6654]">
+      <section className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 text-sm text-[#dcc9a7] shadow-2xl shadow-black/35 backdrop-blur-md">
         {loading ? "结算中" : "等待 AI 行动"}
       </section>
     );
   }
 
+  const meta = getActionMeta(game.availableActions[0]);
+
   return (
-    <section className="rounded-md border border-[#d9dece] bg-white p-4">
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold">{getActionMeta(game.availableActions[0]).title}</h2>
-        <p className="mt-1 text-sm text-[#5f6654]">{getActionMeta(game.availableActions[0]).description}</p>
+    <section className="sticky bottom-3 z-20 rounded-[24px] border border-[#f1c76e]/30 bg-[#130d0b]/92 p-4 shadow-2xl shadow-black/45 backdrop-blur-md">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="mb-2 inline-flex rounded-full bg-[#f1c76e]/10 px-3 py-1 text-xs text-[#f1d796]">{game.phaseLabel}</div>
+          <h2 className="text-xl font-semibold text-[#f7ead5]">{meta.title}</h2>
+          <p className="mt-1 text-sm text-[#dcc9a7]">{meta.description}</p>
+        </div>
+        <span className="rounded-full border border-[#f1c76e]/25 px-3 py-1 text-xs text-[#ad9c7d]">轮到你行动</span>
       </div>
-      {game.availableActions.map((action) => (
-        <ActionControl key={action.type} action={action} loading={loading} onSubmit={onSubmit} />
-      ))}
+      <div className="grid gap-3">
+        {game.availableActions.map((action) => (
+          <ActionControl key={action.type} action={action} loading={loading} onSubmit={onSubmit} />
+        ))}
+      </div>
     </section>
   );
-}
-
-function getActionMeta(action: AvailableHumanAction) {
-  switch (action.type) {
-    case "wolfKill":
-      return { title: "狼人夜刀", description: "选择一名非狼人存活玩家作为今晚刀口。" };
-    case "seerCheck":
-      return { title: "预言家查验", description: "选择一名存活玩家，系统会私下告诉你阵营结果。" };
-    case "witchAction":
-      return { title: "女巫用药", description: "选择救人、毒人，或保留药品跳过本夜。" };
-    case "speak":
-      return { title: "轮到你发言", description: "公开发言会进入所有 AI 的公开信息流。" };
-    case "vote":
-      return { title: "投票放逐", description: "选择一名存活玩家投票，所有人投完后进入结算。" };
-    case "hunterShoot":
-      return { title: "猎人开枪", description: "你可以带走一名存活玩家，也可以选择不开枪。" };
-  }
-}
-
-function eventClassName(phase: HumanGameView["phase"]): string {
-  if (phase.startsWith("NIGHT")) return "border-[#415a77] text-[#26384d]";
-  if (phase === "DAY_VOTE" || phase === "EXILE_RESOLUTION") return "border-[#a33b2f] text-[#4f2b25]";
-  if (phase === "DAY_SPEECH") return "border-[#2f6f4e] text-[#273c31]";
-  return "border-[#b6a15a] text-[#33372d]";
-}
-
-function readRecentGameIds(): string[] {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  try {
-    const raw = window.localStorage.getItem(RECENT_GAMES_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string").slice(0, 5) : [];
-  } catch {
-    return [];
-  }
 }
 
 function ActionControl({
@@ -501,13 +670,13 @@ function ActionControl({
           value={message}
           onChange={(event) => setMessage(event.target.value)}
           maxLength={240}
-          className="min-h-24 rounded-md border border-[#d9dece] px-3 py-2 text-sm outline-none focus:border-[#b6a15a]"
+          className="min-h-28 resize-none rounded-2xl border border-[#f1c76e]/25 bg-black/30 px-4 py-3 text-sm text-[#f7ead5] outline-none transition placeholder:text-[#8f8065] focus:border-[#f1d796]"
           placeholder="输入本轮发言"
         />
         <button
           disabled={loading || message.trim().length === 0}
           onClick={() => onSubmit({ type: "speak", message })}
-          className="rounded-md bg-[#2f6f4e] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#275d42] disabled:opacity-60"
+          className="rounded-full bg-[#2f8157] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#379566] disabled:opacity-60"
         >
           确认发言
         </button>
@@ -519,32 +688,24 @@ function ActionControl({
     return (
       <div className="flex flex-wrap gap-2">
         {action.canSave && action.saveTarget && (
-          <button
-            disabled={loading}
-            onClick={() => onSubmit({ type: "witchAction", mode: "save" })}
-            className="rounded-md bg-[#2f6f4e] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#275d42] disabled:opacity-60"
-          >
+          <ActionButton disabled={loading} tone="green" onClick={() => onSubmit({ type: "witchAction", mode: "save" })}>
             救 {action.saveTarget.name}
-          </button>
+          </ActionButton>
         )}
         {action.canPoison &&
           action.poisonTargets.map((target) => (
-            <button
+            <ActionButton
               key={target.seatId}
               disabled={loading}
+              tone="red"
               onClick={() => onSubmit({ type: "witchAction", mode: "poison", targetSeatId: target.seatId })}
-              className="rounded-md border border-[#a33b2f] px-3 py-2 text-sm font-medium text-[#8a2f24] transition hover:bg-[#fff3ef] disabled:opacity-60"
             >
               毒 {target.name}
-            </button>
+            </ActionButton>
           ))}
-        <button
-          disabled={loading}
-          onClick={() => onSubmit({ type: "witchAction", mode: "skip" })}
-          className="rounded-md border border-[#d9dece] px-4 py-2 text-sm font-medium transition hover:bg-[#f5f7f2] disabled:opacity-60"
-        >
+        <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "witchAction", mode: "skip" })}>
           不用药
-        </button>
+        </ActionButton>
       </div>
     );
   }
@@ -553,22 +714,18 @@ function ActionControl({
     return (
       <div className="flex flex-wrap gap-2">
         {action.targets.map((target) => (
-          <button
+          <ActionButton
             key={target.seatId}
             disabled={loading}
+            tone="red"
             onClick={() => onSubmit({ type: "hunterShoot", targetSeatId: target.seatId })}
-            className="rounded-md bg-[#a33b2f] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#872f27] disabled:opacity-60"
           >
             带走 {target.name}
-          </button>
+          </ActionButton>
         ))}
-        <button
-          disabled={loading}
-          onClick={() => onSubmit({ type: "hunterShoot" })}
-          className="rounded-md border border-[#d9dece] px-4 py-2 text-sm font-medium transition hover:bg-[#f5f7f2] disabled:opacity-60"
-        >
+        <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "hunterShoot" })}>
           不开枪
-        </button>
+        </ActionButton>
       </div>
     );
   }
@@ -576,15 +733,113 @@ function ActionControl({
   return (
     <div className="flex flex-wrap gap-2">
       {action.targets.map((target) => (
-        <button
+        <ActionButton
           key={target.seatId}
           disabled={loading}
+          tone={action.type === "wolfKill" ? "red" : "green"}
           onClick={() => onSubmit({ type: action.type, targetSeatId: target.seatId } as CommandPayload)}
-          className="rounded-md bg-[#2f6f4e] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#275d42] disabled:opacity-60"
         >
           {action.type === "wolfKill" ? "击杀" : action.type === "seerCheck" ? "查验" : "投票"} {target.name}
-        </button>
+        </ActionButton>
       ))}
     </div>
   );
+}
+
+function ActionButton({
+  children,
+  disabled,
+  tone,
+  onClick,
+}: {
+  children: React.ReactNode;
+  disabled: boolean;
+  tone: "green" | "red" | "neutral";
+  onClick: () => void;
+}) {
+  const className =
+    tone === "red"
+      ? "bg-[#b74332] text-white hover:bg-[#cf513d]"
+      : tone === "green"
+        ? "bg-[#2f8157] text-white hover:bg-[#379566]"
+        : "border border-[#f1c76e]/30 text-[#f1d796] hover:bg-[#f1c76e]/10";
+
+  return (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      className={`${className} min-h-11 rounded-full px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-[#f1c76e]/15 bg-black/20 px-3 py-2">
+      <div className="mb-1 text-xs text-[#ad9c7d]">{label}</div>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h3 className="text-sm font-semibold text-[#f1d796]">{children}</h3>;
+}
+
+function StatusPill({ children, tone }: { children: React.ReactNode; tone: "gold" | "green" | "red" | "blue" }) {
+  const colors = {
+    gold: "border-[#f1c76e]/35 bg-[#f1c76e]/10 text-[#f1d796]",
+    green: "border-[#77d898]/30 bg-[#1d4e33]/45 text-[#a8f0b6]",
+    red: "border-[#e46d55]/35 bg-[#572017]/45 text-[#ffb1a4]",
+    blue: "border-[#6797d5]/35 bg-[#142845]/50 text-[#cfe4ff]",
+  };
+
+  return <span className={`${colors[tone]} rounded-full border px-3 py-1 text-xs font-medium`}>{children}</span>;
+}
+
+function getActionMeta(action: AvailableHumanAction) {
+  switch (action.type) {
+    case "wolfKill":
+      return { title: "狼人夜刀", description: "选择一名非狼人存活玩家作为今晚刀口。" };
+    case "seerCheck":
+      return { title: "预言家查验", description: "选择一名存活玩家，系统会私下告诉你阵营结果。" };
+    case "witchAction":
+      return { title: "女巫用药", description: "选择救人、毒人，或保留药品跳过本夜。" };
+    case "speak":
+      return { title: "轮到你发言", description: "公开发言会进入所有 AI 的公开信息流。" };
+    case "vote":
+      return { title: "投票放逐", description: "选择一名存活玩家投票，所有人投完后进入结算。" };
+    case "hunterShoot":
+      return { title: "猎人开枪", description: "你可以带走一名存活玩家，也可以选择不开枪。" };
+  }
+}
+
+function eventClassName(phase: HumanGameView["phase"]): string {
+  if (phase.startsWith("NIGHT")) return "border-[#6797d5]/25 bg-[#0d1623]/65 text-[#d8e6f7]";
+  if (phase === "DAY_VOTE" || phase === "EXILE_RESOLUTION") return "border-[#e46d55]/30 bg-[#2b1110]/70 text-[#ffd8cf]";
+  if (phase === "DAY_SPEECH") return "border-[#77d898]/25 bg-[#0f2118]/70 text-[#dff4df]";
+  return "border-[#f1c76e]/25 bg-[#261510]/65 text-[#dcc9a7]";
+}
+
+function phaseCategory(phase: HumanGameView["phase"]): string {
+  if (phase.startsWith("NIGHT")) return "夜晚";
+  if (phase === "DAY_SPEECH") return "白天";
+  if (phase === "DAY_VOTE" || phase === "EXILE_RESOLUTION") return "投票";
+  return "系统";
+}
+
+function readRecentGameIds(): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(RECENT_GAMES_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string").slice(0, 5) : [];
+  } catch {
+    return [];
+  }
 }
