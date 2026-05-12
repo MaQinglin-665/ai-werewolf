@@ -58,6 +58,13 @@ npm run lint
 npm run build
 ```
 
+## Alpha 验收清单
+
+- 功能分支：`codex/alpha-playable-loop`。
+- 本地入口：启动后打开 http://localhost:3000。
+- 当前已覆盖：终局复盘、AI persona、mock/openai 发言 provider、最近对局入口、阶段化操作区。
+- 推荐验收：至少试玩狼人、预言家、女巫、猎人、平民各一局，确认未终局时不会暴露其他玩家身份。
+
 ## API
 
 - `POST /api/games` 创建新局。
