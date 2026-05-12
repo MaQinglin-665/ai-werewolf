@@ -1,0 +1,66 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Game {
+  id          String      @id
+  humanSeatId Int
+  status      String
+  phase       String
+  day         Int
+  stateJson   String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  seats       Seat[]
+  events      GameEvent[]
+  aiCallLogs  AiCallLog[]
+}
+
+model Seat {
+  id         String   @id @default(cuid())
+  gameId     String
+  seatNumber Int
+  name       String
+  isAi       Boolean
+  role       String
+  isAlive    Boolean
+  game       Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, seatNumber])
+}
+
+model GameEvent {
+  id          String   @id @default(cuid())
+  gameId      String
+  seq         Int
+  type        String
+  visibility  String
+  actorSeatId Int?
+  payloadJson String
+  createdAt   DateTime @default(now())
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, seq])
+}
+
+model AiCallLog {
+  id          String   @id @default(cuid())
+  gameId      String
+  seatNumber  Int
+  phase       String
+  promptJson  String
+  outputJson  String
+  isFallback  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
