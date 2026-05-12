@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { DEATH_LABELS, ROLE_LABELS } from "@/game/labels";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
+
+const CURRENT_GAME_KEY = "ai-werewolf-game-id";
+const RECENT_GAMES_KEY = "ai-werewolf-recent-game-ids";
 
 type CommandPayload =
   | { type: "wolfKill"; targetSeatId: number }
@@ -16,33 +19,49 @@ export function GameClient() {
   const [game, setGame] = useState<HumanGameView | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recentGameIds, setRecentGameIds] = useState<string[]>(() => readRecentGameIds());
 
-  useEffect(() => {
-    const gameId = window.localStorage.getItem("ai-werewolf-game-id");
-    if (!gameId) return;
-
-    void fetch(`/api/games/${gameId}`)
-      .then((response) => (response.ok ? response.json() : null))
-      .then((view: HumanGameView | null) => {
-        if (view) setGame(view);
-      });
+  const rememberGame = useCallback((gameId: string) => {
+    const nextIds = [gameId, ...readRecentGameIds().filter((id) => id !== gameId)].slice(0, 5);
+    window.localStorage.setItem(CURRENT_GAME_KEY, gameId);
+    window.localStorage.setItem(RECENT_GAMES_KEY, JSON.stringify(nextIds));
+    setRecentGameIds(nextIds);
   }, []);
 
-  async function startGame() {
+  const loadGameById = useCallback(
+    async (gameId: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(`/api/games/${gameId}`);
+        if (!response.ok) throw new Error("对局不存在或已被清理。");
+        const view = (await response.json()) as HumanGameView;
+        rememberGame(view.id);
+        setGame(view);
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : "读取对局失败。");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [rememberGame],
+  );
+
+  const startGame = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const response = await fetch("/api/games", { method: "POST" });
       if (!response.ok) throw new Error("创建对局失败。");
       const view = (await response.json()) as HumanGameView;
-      window.localStorage.setItem("ai-werewolf-game-id", view.id);
+      rememberGame(view.id);
       setGame(view);
     } catch {
       setError("创建对局失败。");
     } finally {
       setLoading(false);
     }
-  }
+  }, [rememberGame]);
 
   async function submitCommand(payload: CommandPayload) {
     if (!game) return;
@@ -102,19 +121,38 @@ export function GameClient() {
 
         {!game ? (
           <section className="grid flex-1 place-items-center">
-            <button
-              onClick={startGame}
-              disabled={loading}
-              className="rounded-md bg-[#a33b2f] px-6 py-3 text-base font-semibold text-white transition hover:bg-[#872f27] disabled:opacity-60"
-            >
-              {loading ? "创建中" : "进入牌桌"}
-            </button>
+            <div className="grid w-full max-w-xl gap-4 rounded-md border border-[#d9dece] bg-white p-5">
+              <button
+                onClick={startGame}
+                disabled={loading}
+                className="rounded-md bg-[#a33b2f] px-6 py-3 text-base font-semibold text-white transition hover:bg-[#872f27] disabled:opacity-60"
+              >
+                {loading ? "创建中" : "进入牌桌"}
+              </button>
+              {recentGameIds.length > 0 && (
+                <div className="border-t border-[#eef0e8] pt-4">
+                  <h2 className="text-sm font-semibold">最近对局</h2>
+                  <div className="mt-3 grid gap-2">
+                    {recentGameIds.map((gameId, index) => (
+                      <button
+                        key={gameId}
+                        onClick={() => loadGameById(gameId)}
+                        disabled={loading}
+                        className="rounded-md border border-[#d9dece] px-3 py-2 text-left text-sm transition hover:bg-[#f5f7f2] disabled:opacity-60"
+                      >
+                        {index === 0 ? "继续上一局" : "查看最近终局"} · {gameId.slice(0, 8)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </section>
         ) : (
           <section className="grid flex-1 gap-5 lg:grid-cols-[1.35fr_0.9fr]">
             <div className="flex flex-col gap-5">
               <SeatBoard game={game} />
-              <ActionPanel game={game} loading={loading} onSubmit={submitCommand} />
+              <ActionPanel game={game} loading={loading} onNewGame={startGame} onSubmit={submitCommand} />
               {game.review && <ReviewPanel game={game} />}
             </div>
 
@@ -126,7 +164,7 @@ export function GameClient() {
                 </div>
                 <div className="flex max-h-[560px] flex-col gap-3 overflow-y-auto p-4">
                   {latestEvents.map((event) => (
-                    <div key={event.seq} className="border-l-2 border-[#b6a15a] pl-3 text-sm leading-6 text-[#33372d]">
+                    <div key={event.seq} className={`${eventClassName(event.phase)} border-l-2 pl-3 text-sm leading-6`}>
                       <div className="text-xs text-[#747a68]">
                         D{event.day} · {event.phase}
                       </div>
@@ -183,7 +221,7 @@ function ReviewPanel({ game }: { game: HumanGameView }) {
   if (!review) return null;
 
   return (
-    <section className="rounded-md border border-[#d9dece] bg-white p-4">
+    <section id="review" className="rounded-md border border-[#d9dece] bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef0e8] pb-3">
         <div>
           <h2 className="text-sm font-semibold">终局复盘</h2>
@@ -356,9 +394,11 @@ function ActionPanel({
   game,
   loading,
   onSubmit,
+  onNewGame,
 }: {
   game: HumanGameView;
   loading: boolean;
+  onNewGame: () => Promise<void>;
   onSubmit: (payload: CommandPayload) => Promise<void>;
 }) {
   if (game.result) {
@@ -368,6 +408,18 @@ function ActionPanel({
         <p className="mt-2 text-sm text-[#33372d]">
           {game.result.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜：{game.result.reason}
         </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <a href="#review" className="rounded-md bg-[#2f6f4e] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#275d42]">
+            查看复盘
+          </a>
+          <button
+            onClick={onNewGame}
+            disabled={loading}
+            className="rounded-md border border-[#d9dece] px-4 py-2 text-sm font-medium transition hover:bg-[#f5f7f2] disabled:opacity-60"
+          >
+            新开一局
+          </button>
+        </div>
       </section>
     );
   }
@@ -382,11 +434,53 @@ function ActionPanel({
 
   return (
     <section className="rounded-md border border-[#d9dece] bg-white p-4">
+      <div className="mb-3">
+        <h2 className="text-sm font-semibold">{getActionMeta(game.availableActions[0]).title}</h2>
+        <p className="mt-1 text-sm text-[#5f6654]">{getActionMeta(game.availableActions[0]).description}</p>
+      </div>
       {game.availableActions.map((action) => (
         <ActionControl key={action.type} action={action} loading={loading} onSubmit={onSubmit} />
       ))}
     </section>
   );
+}
+
+function getActionMeta(action: AvailableHumanAction) {
+  switch (action.type) {
+    case "wolfKill":
+      return { title: "狼人夜刀", description: "选择一名非狼人存活玩家作为今晚刀口。" };
+    case "seerCheck":
+      return { title: "预言家查验", description: "选择一名存活玩家，系统会私下告诉你阵营结果。" };
+    case "witchAction":
+      return { title: "女巫用药", description: "选择救人、毒人，或保留药品跳过本夜。" };
+    case "speak":
+      return { title: "轮到你发言", description: "公开发言会进入所有 AI 的公开信息流。" };
+    case "vote":
+      return { title: "投票放逐", description: "选择一名存活玩家投票，所有人投完后进入结算。" };
+    case "hunterShoot":
+      return { title: "猎人开枪", description: "你可以带走一名存活玩家，也可以选择不开枪。" };
+  }
+}
+
+function eventClassName(phase: HumanGameView["phase"]): string {
+  if (phase.startsWith("NIGHT")) return "border-[#415a77] text-[#26384d]";
+  if (phase === "DAY_VOTE" || phase === "EXILE_RESOLUTION") return "border-[#a33b2f] text-[#4f2b25]";
+  if (phase === "DAY_SPEECH") return "border-[#2f6f4e] text-[#273c31]";
+  return "border-[#b6a15a] text-[#33372d]";
+}
+
+function readRecentGameIds(): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(RECENT_GAMES_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string").slice(0, 5) : [];
+  } catch {
+    return [];
+  }
 }
 
 function ActionControl({
