@@ -267,6 +267,20 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
 
   if (view.myRole === "SEER" && latestCheck) {
     const target = toTargetFromRead(tableRead, latestCheck.targetSeatId);
+    const shouldRevealCheck = latestCheck.result === "WEREWOLF" || view.day >= 2;
+    if (!shouldRevealCheck) {
+      return attachDynamics({
+        kind: "defend",
+        target,
+        stance: "首日金水先藏验人，保留预言家生存空间",
+        talkingPoints: [
+          "我手里有一张偏好信息，今天先不把身份线打满",
+          memoryPoint ?? (focus ? `${focus.name} 的发言和票型先继续验` : "先让外置位充分发言"),
+        ],
+        risk: 0.42,
+      });
+    }
+
     return attachDynamics({
       kind: "claim-check",
       target,
@@ -626,11 +640,12 @@ function chooseVillagerFakeGodRole(view: AgentView, identityPressure: IdentityPr
 
   const personaRisk = view.persona?.riskTolerance ?? 0.45;
   const bluffing = view.persona?.bluffing ?? 0.45;
+  if (view.day <= 1) return undefined;
+
   const hasIdentityPressure =
-    view.day >= 2 ||
     view.publicSummary.tableMemory.counterclaims.length > 0 ||
     view.publicSummary.claimBoard.some((claim) => claim.claimedRole === "SEER");
-  if (!hasIdentityPressure && bluffing < 0.86) return undefined;
+  if (!hasIdentityPressure && (bluffing < 0.9 || personaRisk < 0.78)) return undefined;
 
   const availableRoles = (["WITCH", "HUNTER"] as const).filter((role) => !identityPressure.exposedGodRoles.has(role));
   if (availableRoles.length === 0) return undefined;
@@ -640,7 +655,7 @@ function chooseVillagerFakeGodRole(view: AgentView, identityPressure: IdentityPr
   }
 
   const threshold = clampProbability(
-    0.04 + bluffing * 0.22 + personaRisk * 0.12 + (view.day >= 2 ? 0.1 : 0) + (hasIdentityPressure ? 0.08 : 0),
+    0.02 + bluffing * 0.14 + personaRisk * 0.08 + (hasIdentityPressure ? 0.06 : 0),
   );
   const roll = stableRoll(["villager-fake-god", view.day, view.mySeatId, view.persona?.id, identityPressure.exposedGodRoles.size]);
   if (roll >= threshold) return undefined;
@@ -656,9 +671,11 @@ function withSpeechDynamics(
 ): SpeechPlan {
   const interaction = buildSpeechInteraction(view, tableRead, focus, plan);
   const personaCue = buildPersonaCue(view, plan, focus);
+  const stanceCue = buildGoodStanceCue(view, plan.target ?? toTargetFromSeatRead(focus), tableRead);
   const talkingPoints = uniqueSpeechPoints([
     interaction?.line,
     personaCue?.line,
+    stanceCue,
     ...plan.talkingPoints,
   ]).slice(0, 4);
 
@@ -669,6 +686,27 @@ function withSpeechDynamics(
     personaCue,
     talkingPoints,
   };
+}
+
+function buildGoodStanceCue(
+  view: AgentView,
+  target: ActionTarget | undefined,
+  tableRead: AiTableRead,
+): string | undefined {
+  if (!target || view.myRole === "WEREWOLF") return undefined;
+  const read = tableRead.seats.find((seat) => seat.seatId === target.seatId);
+  if (!read || read.isSelf || read.isWolfTeammate) return undefined;
+
+  const pressureDelta = read.suspicion - read.trust;
+  if (pressureDelta >= 10) {
+    return `我怀疑${read.seatId}号，${read.pressure[0] ?? "这轮发言和票型需要继续解释"}`;
+  }
+
+  if (read.trust - read.suspicion >= 18) {
+    return `我认${read.seatId}号，先把他的视角和票型放进好人参考`;
+  }
+
+  return undefined;
 }
 
 function buildSpeechInteraction(
@@ -1117,7 +1155,7 @@ function chooseWolfTeamVoteTarget(view: AgentView, candidates: SeatRead[]): Seat
   if (!assignment?.target) return undefined;
   const risk = view.persona?.riskTolerance ?? 0.45;
   const threshold = clampProbability(
-    (assignment.task === "PUSH_MISLYNCH" ? 0.46 : assignment.task === "HIDE" ? 0.2 : 0.3) + risk * 0.12,
+    (assignment.task === "PUSH_MISLYNCH" ? 0.34 : assignment.task === "HIDE" ? 0.16 : 0.24) + risk * 0.08,
   );
   const roll = stableRoll([
     "wolf-team-vote-follow",
@@ -1236,7 +1274,7 @@ function voteScore(view: AgentView, seat: SeatRead): number {
   const pressureBonus = weighted(Math.min(10, seat.pressure.length * 2), Math.max(preferences.leadership, preferences.emotion));
   const voteJitter = stableSignedJitter(
     ["vote", view.day, view.phase, view.mySeatId, view.persona?.id, seat.seatId, view.publicSummary.recentSpeeches.at(-1)?.seq],
-    6 + personaRisk * 6,
+    view.myRole === "WEREWOLF" ? 6 + personaRisk * 6 : 3 + personaRisk * 3,
   );
   const memory = view.privateKnowledge.aiMemory;
   const memoryBonus =
