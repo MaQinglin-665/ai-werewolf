@@ -322,10 +322,43 @@ function ReviewAnalysisDrawer({ game }: { game: HumanGameView }) {
       </summary>
 
       <div className="mt-4 grid gap-4">
+        {game.tableSummary.tableMemory.reasoningCues.length > 0 && <ReviewReasoningCuePanel game={game} />}
         {insightCount > 0 && <AiInsightsPanel game={game} embedded />}
         {game.reviewDebug && <ReviewDebugPanel debug={game.reviewDebug} />}
       </div>
     </details>
+  );
+}
+
+function ReviewReasoningCuePanel({ game }: { game: HumanGameView }) {
+  const cues = game.tableSummary.tableMemory.reasoningCues.slice(0, 8);
+  if (cues.length === 0) return null;
+
+  return (
+    <div>
+      <SectionTitle>公开推理线索</SectionTitle>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        {cues.map((cue) => (
+          <div key={cue.cueId} className="rounded-2xl border border-[#f1c76e]/18 bg-[#261510]/40 p-3 text-sm text-[#dcc9a7]">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-semibold text-[#f7ead5]">{cue.summary}</span>
+              <span className="rounded-full border border-[#f1c76e]/16 bg-black/16 px-2 py-0.5 text-[11px] text-[#f1d796]">
+                {cue.weight}
+              </span>
+            </div>
+            {cue.evidence.length > 0 && (
+              <div className="mt-2 grid gap-1">
+                {cue.evidence.slice(0, 3).map((line) => (
+                  <div key={`${cue.cueId}-${line}`} className="rounded-xl bg-black/18 px-3 py-2 text-xs leading-5 text-[#dcc9a7]">
+                    {line}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

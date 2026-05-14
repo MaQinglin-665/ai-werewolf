@@ -50,6 +50,7 @@ export type LlmSpeechInput = {
     privateFacts: string[];
     unknowns: string[];
     legalSpeechFocus: string[];
+    publicReasoningCues: string[];
   };
   publicContext: {
     rules: {
@@ -76,6 +77,8 @@ export type LlmSpeechInput = {
       | "stanceBoard"
       | "stanceShifts"
       | "seerLegacies"
+      | "speechInfluence"
+      | "reasoningCues"
       | "counterclaims"
       | "focus"
       | "voteHistory"
@@ -268,6 +271,8 @@ export function buildConstrainedSpeechInput(
         stanceBoard: view.publicSummary.tableMemory.stanceBoard.slice(-12),
         stanceShifts: view.publicSummary.tableMemory.stanceShifts.slice(-8),
         seerLegacies: view.publicSummary.tableMemory.seerLegacies.slice(0, 4),
+        speechInfluence: view.publicSummary.tableMemory.speechInfluence.slice(0, 6),
+        reasoningCues: view.publicSummary.tableMemory.reasoningCues.slice(0, 8),
         counterclaims: view.publicSummary.tableMemory.counterclaims,
         focus: view.publicSummary.tableMemory.focus.slice(0, 4),
         voteHistory: view.publicSummary.tableMemory.voteHistory.slice(-3),
@@ -516,12 +521,17 @@ function buildTableBriefing(
       : "本轮可以自由选择公开身份线、死讯、前置发言或票型作为切入点。",
   ];
 
+  const publicReasoningCues = view.publicSummary.tableMemory.reasoningCues
+    .slice(0, 6)
+    .map((cue) => `${cue.summary}${cue.evidence.length > 0 ? `；依据：${cue.evidence.slice(0, 2).join("、")}` : ""}`);
+
   return {
     text: [
       "【发言前牌桌事实简报】",
       ...publicBoundary.map((line) => `公开边界：${line}`),
       ...privateBoundary.map((line) => `私有边界：${line}`),
       ...publicFacts,
+      ...publicReasoningCues.map((line) => `公开推理线索：${line}`),
       ...privateFacts.map((line) => `私有视角：${line}`),
       ...unknowns.map((line) => `不能越界：${line}`),
       ...legalSpeechFocus.map((line) => `可发言方向：${line}`),
@@ -534,6 +544,7 @@ function buildTableBriefing(
     privateFacts,
     unknowns,
     legalSpeechFocus,
+    publicReasoningCues,
   };
 }
 

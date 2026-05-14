@@ -64,6 +64,8 @@ export type LlmActionInput = {
       | "stanceBoard"
       | "stanceShifts"
       | "seerLegacies"
+      | "speechInfluence"
+      | "reasoningCues"
       | "counterclaims"
       | "focus"
       | "voteHistory"
@@ -236,6 +238,8 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
         stanceBoard: view.publicSummary.tableMemory.stanceBoard.slice(-12),
         stanceShifts: view.publicSummary.tableMemory.stanceShifts.slice(-8),
         seerLegacies: view.publicSummary.tableMemory.seerLegacies.slice(0, 4),
+        speechInfluence: view.publicSummary.tableMemory.speechInfluence.slice(0, 6),
+        reasoningCues: view.publicSummary.tableMemory.reasoningCues.slice(0, 8),
         counterclaims: view.publicSummary.tableMemory.counterclaims,
         focus: view.publicSummary.tableMemory.focus.slice(0, 4),
         voteHistory: view.publicSummary.tableMemory.voteHistory.slice(-3),
@@ -794,6 +798,10 @@ function buildActionConstraints(view: AgentView): string[] {
 
   if (view.phase === "DAY_VOTE" || view.phase === "HUNTER_SHOT") {
     constraints.push("Vote and shot reasons may become visible later, so write them only from public table evidence.");
+  }
+
+  if (view.publicSummary.tableMemory.reasoningCues.length > 0) {
+    constraints.push("Prefer publicContext.tableMemory.reasoningCues when choosing between close targets; they summarize public speech, vote, claim, and stance evidence.");
   }
 
   if (view.phase === "DAY_VOTE" && view.myRole !== "WEREWOLF" && view.publicSummary.tableMemory.seerLegacies.length > 0) {

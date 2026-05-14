@@ -613,12 +613,36 @@ export type SeatMemory = ActionTarget & {
   publicReasons: string[];
 };
 
+export type SpeechInfluenceItem = {
+  sourceSpeechSeq: number;
+  day: number;
+  speaker: ActionTarget;
+  target: ActionTarget;
+  direction: "pressure" | "support";
+  summary: string;
+  followupActors: ActionTarget[];
+  followupCount: number;
+};
+
+export type PublicReasoningCue = {
+  cueId: string;
+  day: number;
+  kind: "claim" | "counterclaim" | "seer_legacy" | "speech_influence" | "stance_shift" | "vote";
+  weight: "strong" | "medium" | "light";
+  summary: string;
+  actor?: ActionTarget;
+  target?: ActionTarget;
+  evidence: string[];
+};
+
 export type TableMemory = {
   day: number;
   claimBoard: ClaimBoardItem[];
   stanceBoard: StanceBoardItem[];
   stanceShifts: StanceShiftItem[];
   seerLegacies: SeerLegacyItem[];
+  speechInfluence: SpeechInfluenceItem[];
+  reasoningCues: PublicReasoningCue[];
   counterclaims: Array<{
     claimedRole: Role;
     claimedRoleLabel: string;

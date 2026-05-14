@@ -84,7 +84,7 @@ export async function advanceWithMockAi(
       output,
       votePlan,
       speechPlan,
-      publicFactBasis: speechPlan ? buildPublicSpeechFactBasis(prompt) : undefined,
+      publicFactBasis: buildPublicDecisionFactBasis(prompt),
       rawOutput: speechResult?.rawOutput ?? actionResult?.rawOutput,
       isFallback: speechResult?.isFallback ?? actionResult?.isFallback ?? false,
       error: speechResult?.error ?? actionResult?.error,
@@ -179,7 +179,7 @@ async function advanceAiTurn(
       output,
       votePlan,
       speechPlan,
-      publicFactBasis: speechPlan ? buildPublicSpeechFactBasis(prompt) : undefined,
+      publicFactBasis: buildPublicDecisionFactBasis(prompt),
       rawOutput: speechResult?.rawOutput ?? actionResult?.rawOutput,
       isFallback: speechResult?.isFallback ?? actionResult?.isFallback ?? false,
       error: speechResult?.error ?? actionResult?.error,
@@ -314,7 +314,7 @@ export function createMockCommand(
   }
 }
 
-function buildPublicSpeechFactBasis(view: AgentView): string[] {
+function buildPublicDecisionFactBasis(view: AgentView): string[] {
   const spokenSeatIds = new Set(
     view.publicSummary.recentSpeeches
       .filter((speech) => speech.day === view.day && speech.speaker)
@@ -346,15 +346,23 @@ function buildPublicSpeechFactBasis(view: AgentView): string[] {
     latestVote && latestVote.tally.length > 0
       ? `最近公开票型：${latestVote.tally.map((item) => `${seatText(item.target)}${item.count}票`).join("，")}。`
       : undefined;
+  const reasoningCueLines = view.publicSummary.tableMemory.reasoningCues
+    .slice(0, 5)
+    .map((cue) => `公开推理线索：${cue.summary}${cue.evidence.length > 0 ? `；依据：${cue.evidence.slice(0, 2).join("、")}` : ""}`);
+  const speechInfluenceLines = view.publicSummary.tableMemory.speechInfluence
+    .slice(0, 3)
+    .map((item) => `发言影响：${item.summary}`);
 
   return [
-    `第${view.day}天，${view.mySeatId}号轮到白天公开发言。`,
+    `第${view.day}天，${view.mySeatId}号在${view.phase}阶段准备行动。`,
     `本日已发言：${formatTargets(alreadySpoken)}。`,
     `本日未发言：${formatTargets(unspoken)}。`,
     deaths.length > 0 ? `公开死讯：${deaths.join("；")}。` : "公开死讯：暂无。",
     claims.length > 0 ? `公开身份声明：${claims.join("；")}。` : "公开身份声明：暂无。",
     ...recentSpeeches,
     voteLine,
+    ...reasoningCueLines,
+    ...speechInfluenceLines,
     ...view.publicSummary.tableMemory.publicSignals.slice(-4).map((signal) => `公开局势信号：${signal}`),
   ].filter((fact): fact is string => Boolean(fact));
 }

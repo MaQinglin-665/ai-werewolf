@@ -21,12 +21,14 @@ export function buildTableMemory(state: GameState): TableMemory {
   const counterclaims = buildCounterclaims(claimBoard);
   const voteHistory = buildVoteHistory(state);
   const seerLegacies = buildSeerLegacies(state, claimBoard, stanceBoard, voteHistory);
+  const speechInfluence = buildSpeechInfluence(stanceBoard);
   const deathAnnouncements = state.events
     .filter((event) => event.type === "DAY_STARTED" || event.type === "PLAYER_EXILED" || event.type === "HUNTER_SHOT")
     .slice(-8)
     .map((event) => event.message);
   const seats = buildSeatMemories(state, claimBoard, stanceBoard);
   const focus = buildFocus(seats, counterclaims, stanceShifts, voteHistory.at(-1));
+  const reasoningCues = buildReasoningCues(counterclaims, stanceShifts, seerLegacies, voteHistory.at(-1), speechInfluence);
 
   return {
     day: state.day,
@@ -34,12 +36,21 @@ export function buildTableMemory(state: GameState): TableMemory {
     stanceBoard,
     stanceShifts,
     seerLegacies,
+    speechInfluence,
+    reasoningCues,
     counterclaims,
     focus,
     seats,
     voteHistory,
     deathAnnouncements,
-    publicSignals: buildPublicSignals(counterclaims, stanceShifts, seerLegacies, voteHistory.at(-1), deathAnnouncements.at(-1)),
+    publicSignals: buildPublicSignals(
+      counterclaims,
+      stanceShifts,
+      seerLegacies,
+      speechInfluence,
+      voteHistory.at(-1),
+      deathAnnouncements.at(-1),
+    ),
   };
 }
 
@@ -262,6 +273,125 @@ function buildSeerLegacies(
     .slice(0, 4);
 }
 
+function buildSpeechInfluence(stanceBoard: StanceBoardItem[]): TableMemory["speechInfluence"] {
+  const bySourceTarget = new Map<string, StanceBoardItem>();
+  for (const stance of stanceBoard) {
+    const direction = stanceInfluenceDirection(stance.kind);
+    if (!stance.sourceSpeechSeq || !direction) continue;
+    const key = `${stance.sourceSpeechSeq}:${stance.target.seatId}:${direction}`;
+    if (!bySourceTarget.has(key)) {
+      bySourceTarget.set(key, stance);
+    }
+  }
+
+  return [...bySourceTarget.values()]
+    .map((stance) => {
+      const direction = stanceInfluenceDirection(stance.kind);
+      if (!stance.sourceSpeechSeq || !direction) return undefined;
+      const followupActors = uniqueTargets(
+        stanceBoard
+          .filter(
+            (item) =>
+              item.day === stance.day &&
+              item.sourceSpeechSeq !== undefined &&
+              item.sourceSpeechSeq > stance.sourceSpeechSeq! &&
+              item.actor.seatId !== stance.actor.seatId &&
+              item.target.seatId === stance.target.seatId &&
+              stanceInfluenceDirection(item.kind) === direction,
+          )
+          .map((item) => item.actor),
+      );
+      if (followupActors.length === 0) return undefined;
+
+      const actionText = direction === "pressure" ? "压力" : "支持";
+      return {
+        sourceSpeechSeq: stance.sourceSpeechSeq,
+        day: stance.day,
+        speaker: stance.actor,
+        target: stance.target,
+        direction,
+        summary: `${stance.actor.name}对${stance.target.name}的${actionText}被${followupActors.length}名后续发言者接住`,
+        followupActors,
+        followupCount: followupActors.length,
+      };
+    })
+    .filter((item): item is TableMemory["speechInfluence"][number] => Boolean(item))
+    .sort((a, b) => b.followupCount - a.followupCount || b.sourceSpeechSeq - a.sourceSpeechSeq)
+    .slice(0, 6);
+}
+
+function buildReasoningCues(
+  counterclaims: TableMemory["counterclaims"],
+  stanceShifts: StanceShiftItem[],
+  seerLegacies: TableMemory["seerLegacies"],
+  latestVote: TableMemory["voteHistory"][number] | undefined,
+  speechInfluence: TableMemory["speechInfluence"],
+): TableMemory["reasoningCues"] {
+  const cues: TableMemory["reasoningCues"] = [
+    ...counterclaims.map((group) => ({
+      cueId: `counterclaim:${group.claimedRole}:${group.claimants.map((seat) => seat.seatId).join("-")}`,
+      day: 0,
+      kind: "counterclaim" as const,
+      weight: "strong" as const,
+      summary: `${group.claimedRoleLabel}对跳：${group.claimants.map((seat) => seat.name).join("、")}`,
+      evidence: group.claimants.map((seat) => `${seat.name}公开声称${group.claimedRoleLabel}`),
+    })),
+    ...seerLegacies.map((legacy) => ({
+      cueId: `seer-legacy:${legacy.claimant.seatId}:${legacy.deathDay}`,
+      day: legacy.deathDay,
+      kind: "seer_legacy" as const,
+      weight: "strong" as const,
+      summary: legacy.summary,
+      actor: legacy.claimant,
+      evidence: [
+        ...legacy.checks.map((check) => `${legacy.claimant.name}曾报${check.target.name}${check.result === "WEREWOLF" ? "查杀" : "金水"}`),
+        ...legacy.stancesGiven.slice(-2).map((stance) => stance.summary),
+        legacy.lastVote?.target ? `${legacy.claimant.name}最后投给${legacy.lastVote.target.name}` : undefined,
+      ].filter((item): item is string => Boolean(item)),
+    })),
+    ...speechInfluence.map((item) => ({
+      cueId: `speech-influence:${item.sourceSpeechSeq}:${item.target.seatId}:${item.direction}`,
+      day: item.day,
+      kind: "speech_influence" as const,
+      weight: item.followupCount >= 2 ? ("strong" as const) : ("medium" as const),
+      summary: item.summary,
+      actor: item.speaker,
+      target: item.target,
+      evidence: item.followupActors.map((actor) => `${actor.name}后续继续${item.direction === "pressure" ? "施压" : "支持"}${item.target.name}`),
+    })),
+    ...stanceShifts.slice(-4).map((shift) => ({
+      cueId: `stance-shift:${shift.actor.seatId}:${shift.target.seatId}:${shift.fromDay}:${shift.toDay}`,
+      day: shift.toDay,
+      kind: "stance_shift" as const,
+      weight: "medium" as const,
+      summary: shift.summary,
+      actor: shift.actor,
+      target: shift.target,
+      evidence: [`D${shift.fromDay}${shift.fromKindLabel}${shift.target.name}`, `D${shift.toDay}改为${shift.toKindLabel}${shift.target.name}`],
+    })),
+    ...(latestVote
+      ? [
+          {
+            cueId: `vote:${latestVote.day}`,
+            day: latestVote.day,
+            kind: "vote" as const,
+            weight: latestVote.tiedSeatIds.length > 0 || latestVote.exiled ? ("strong" as const) : ("medium" as const),
+            summary:
+              latestVote.tiedSeatIds.length > 0
+                ? `D${latestVote.day}最高票平票：${latestVote.tiedSeatIds.map((seatId) => `${seatId}号`).join("、")}`
+                : latestVote.exiled
+                  ? `D${latestVote.day}${latestVote.exiled.name}被放逐`
+                  : `D${latestVote.day}公开票型焦点：${latestVote.leaders.map((seat) => seat.name).join("、")}`,
+            target: latestVote.exiled ?? latestVote.leaders[0],
+            evidence: latestVote.tally.map((item) => `${item.target.name}${item.count}票`),
+          },
+        ]
+      : []),
+  ];
+
+  return cues.sort((a, b) => cueWeightScore(b.weight) - cueWeightScore(a.weight) || b.day - a.day).slice(0, 8);
+}
+
 function buildFocus(
   seats: SeatMemory[],
   counterclaims: TableMemory["counterclaims"],
@@ -336,6 +466,7 @@ function buildPublicSignals(
   counterclaims: TableMemory["counterclaims"],
   stanceShifts: StanceShiftItem[],
   seerLegacies: TableMemory["seerLegacies"],
+  speechInfluence: TableMemory["speechInfluence"],
   latestVote: TableMemory["voteHistory"][number] | undefined,
   latestDeath?: string,
 ): string[] {
@@ -343,10 +474,34 @@ function buildPublicSignals(
     ...counterclaims.map((group) => `${group.claimedRoleLabel}对跳：${group.claimants.map((seat) => seat.name).join("、")}`),
     ...stanceShifts.slice(-2).map((shift) => `站边变化：${shift.summary}`),
     ...seerLegacies.slice(0, 2).map((legacy) => legacy.summary),
+    ...speechInfluence.slice(0, 2).map((item) => item.summary),
     latestVote?.leaders.length ? `公开票型焦点：${latestVote.leaders.map((seat) => seat.name).join("、")}` : undefined,
     latestDeath,
   ];
   return signals.filter((signal): signal is string => Boolean(signal)).slice(0, 5);
+}
+
+function stanceInfluenceDirection(kind: StanceBoardItem["kind"]): TableMemory["speechInfluence"][number]["direction"] | undefined {
+  if (kind === "QUESTION" || kind === "PRESSURE") return "pressure";
+  if (kind === "SUPPORT" || kind === "FOLLOW") return "support";
+  return undefined;
+}
+
+function uniqueTargets(targets: ActionTarget[]): ActionTarget[] {
+  const seen = new Set<number>();
+  const unique: ActionTarget[] = [];
+  for (const target of targets) {
+    if (seen.has(target.seatId)) continue;
+    seen.add(target.seatId);
+    unique.push(target);
+  }
+  return unique;
+}
+
+function cueWeightScore(weight: TableMemory["reasoningCues"][number]["weight"]): number {
+  if (weight === "strong") return 3;
+  if (weight === "medium") return 2;
+  return 1;
 }
 
 function summarizeStance(stance: PublicStance, target: ActionTarget): string {
