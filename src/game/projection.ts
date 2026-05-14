@@ -192,6 +192,7 @@ function buildRecentVotes(state: GameState): PublicVoteItem[] {
         day: event.day,
         voter: toTarget(getSeat(state, voterSeatId)),
         ...(targetSeatId ? { target: toTarget(getSeat(state, targetSeatId)) } : { abstained: true }),
+        reason: typeof event.payload.reason === "string" ? event.payload.reason : undefined,
       };
       return item;
     })

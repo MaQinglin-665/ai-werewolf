@@ -10,6 +10,8 @@ describe("simulation stats", () => {
     expect(summary.winners.GOOD + summary.winners.WEREWOLVES).toBe(25);
     expect(summary.averageDays).toBeGreaterThan(0);
     expect(summary.totalVotes).toBeGreaterThan(0);
+    expect(summary.firstExiles).toBeGreaterThan(0);
+    expect(summary.firstExileWolves + summary.firstExileGood).toBe(summary.firstExiles);
     expect(summary.phaseActionCounts.DAY_VOTE).toBeGreaterThan(0);
     expect(summary.seerChecks).toBeGreaterThan(0);
     expect(summary.averageSeerSurvivalDays).toBeGreaterThan(0);
