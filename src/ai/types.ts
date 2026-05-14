@@ -1,4 +1,4 @@
-import type { AgentView, Command, Phase, SpeechPlan, VotePlan } from "@/game/types";
+import type { AgentView, AiTableRead, Command, Phase, SpeechPlan, VotePlan } from "@/game/types";
 
 export type AiDecisionLog = {
   gameId: string;
@@ -9,9 +9,11 @@ export type AiDecisionLog = {
   output: Command;
   votePlan?: VotePlan;
   speechPlan?: SpeechPlan;
+  publicFactBasis?: string[];
   rawOutput?: unknown;
   isFallback: boolean;
   error?: string;
+  validationErrors?: string[];
 };
 
 export type AiSpeechResult = {
@@ -20,14 +22,35 @@ export type AiSpeechResult = {
   rawOutput?: unknown;
   isFallback: boolean;
   error?: string;
+  validationErrors?: string[];
+};
+
+export type AiSpeechProviderContext = {
+  onTextDelta?: (text: string) => void;
+  onTextSnapshot?: (text: string) => void;
+};
+
+export type AiActionProviderContext = {
+  tableRead: AiTableRead;
+  votePlan?: VotePlan;
+  fallbackCommand: Command;
+};
+
+export type AiActionResult = {
+  command: Command;
+  provider: string;
+  rawOutput?: unknown;
+  isFallback: boolean;
+  error?: string;
+  validationErrors?: string[];
 };
 
 export type AiActionProvider = {
   providerId: string;
-  createCommand(view: AgentView): Command;
+  generateCommand(view: AgentView, context: AiActionProviderContext): Promise<AiActionResult>;
 };
 
 export type AiSpeechProvider = {
   providerId: string;
-  generateSpeech(view: AgentView, plan?: SpeechPlan): Promise<AiSpeechResult>;
+  generateSpeech(view: AgentView, plan?: SpeechPlan, context?: AiSpeechProviderContext): Promise<AiSpeechResult>;
 };
