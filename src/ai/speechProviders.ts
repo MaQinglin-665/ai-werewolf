@@ -75,6 +75,7 @@ export type LlmSpeechInput = {
       | "claimBoard"
       | "stanceBoard"
       | "stanceShifts"
+      | "seerLegacies"
       | "counterclaims"
       | "focus"
       | "voteHistory"
@@ -266,6 +267,7 @@ export function buildConstrainedSpeechInput(
         claimBoard: view.publicSummary.tableMemory.claimBoard,
         stanceBoard: view.publicSummary.tableMemory.stanceBoard.slice(-12),
         stanceShifts: view.publicSummary.tableMemory.stanceShifts.slice(-8),
+        seerLegacies: view.publicSummary.tableMemory.seerLegacies.slice(0, 4),
         counterclaims: view.publicSummary.tableMemory.counterclaims,
         focus: view.publicSummary.tableMemory.focus.slice(0, 4),
         voteHistory: view.publicSummary.tableMemory.voteHistory.slice(-3),
@@ -489,6 +491,7 @@ function buildTableBriefing(
     `你之后还没发言的人：${formatSeatList(speechOrder.currentDayUnspokenSeats)}。`,
     buildDeathBriefingLine(view),
     buildClaimBriefingLine(view),
+    buildSeerLegacyBriefingLine(view),
     ...recentCurrentDaySpeeches.map(
       (speech) => `${seatText(speech.speaker!)}刚才说：${clipBriefingText(speech.message, 90)}`,
     ),
@@ -557,6 +560,13 @@ function buildClaimBriefingLine(view: AgentView): string {
     return `${seatText(claim.claimant)}声称${claim.claimedRoleLabel}${checks}`;
   });
   return claims.length > 0 ? `公开身份声明：${claims.join("；")}。` : "公开身份声明：无。";
+}
+
+function buildSeerLegacyBriefingLine(view: AgentView): string {
+  const legacies = view.publicSummary.tableMemory.seerLegacies.slice(0, 3).map((legacy) => legacy.summary);
+  return legacies.length > 0
+    ? `夜死预言家声明遗留：${legacies.join("；")}。这只是公开遗留视角，不等于系统确认真预言家。`
+    : "夜死预言家声明遗留：无。";
 }
 
 function buildPrivateBriefingLines(view: AgentView): string[] {

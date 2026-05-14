@@ -59,7 +59,15 @@ export type LlmActionInput = {
     claimBoard: AgentView["publicSummary"]["claimBoard"];
     tableMemory: Pick<
       TableMemory,
-      "day" | "claimBoard" | "stanceBoard" | "stanceShifts" | "counterclaims" | "focus" | "voteHistory" | "publicSignals"
+      | "day"
+      | "claimBoard"
+      | "stanceBoard"
+      | "stanceShifts"
+      | "seerLegacies"
+      | "counterclaims"
+      | "focus"
+      | "voteHistory"
+      | "publicSignals"
     >;
   };
   selfContext: {
@@ -227,6 +235,7 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
         claimBoard: view.publicSummary.tableMemory.claimBoard,
         stanceBoard: view.publicSummary.tableMemory.stanceBoard.slice(-12),
         stanceShifts: view.publicSummary.tableMemory.stanceShifts.slice(-8),
+        seerLegacies: view.publicSummary.tableMemory.seerLegacies.slice(0, 4),
         counterclaims: view.publicSummary.tableMemory.counterclaims,
         focus: view.publicSummary.tableMemory.focus.slice(0, 4),
         voteHistory: view.publicSummary.tableMemory.voteHistory.slice(-3),
@@ -790,6 +799,12 @@ function buildActionConstraints(view: AgentView): string[] {
 
   if (view.phase === "DAY_VOTE" || view.phase === "HUNTER_SHOT") {
     constraints.push("Vote and shot reasons may become visible later, so write them only from public table evidence.");
+  }
+
+  if (view.phase === "DAY_VOTE" && view.myRole !== "WEREWOLF" && view.publicSummary.tableMemory.seerLegacies.length > 0) {
+    constraints.push(
+      "For good-side day votes, review seerLegacies as public legacy from night-dead seer claimants; treat it as evidence to test, not hidden role truth.",
+    );
   }
 
   if (view.phase === "LAST_WORDS") {

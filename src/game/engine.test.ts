@@ -393,7 +393,7 @@ describe("game engine", () => {
     expect(state.events.some((event) => event.type === "VOTE_TIED")).toBe(true);
   });
 
-  it("keeps votes private until resolution reveals only tally", () => {
+  it("keeps votes private until resolution reveals tally and public vote reasons", () => {
     let state = createGame({ seed: 30 });
     state.phase = "DAY_VOTE";
     state = applyCommand(state, { type: "vote", actorSeatId: 1, targetSeatId: 2, reason: "测试理由" });
@@ -418,9 +418,9 @@ describe("game engine", () => {
       expect.objectContaining({
         voter: expect.objectContaining({ seatId: 1 }),
         target: expect.objectContaining({ seatId: 2 }),
+        reason: "测试理由",
       }),
     ]);
-    expect(JSON.stringify(viewAfterReveal.tableSummary.voteSnapshot.votes)).not.toContain("测试理由");
   });
 
   it("allows abstain votes and keeps them out of exile tally", () => {
@@ -1679,6 +1679,98 @@ describe("game engine", () => {
     expect(view.privateKnowledge.wolfTeammates).toBeUndefined();
   });
 
+  it("passes night-dead public seer claimant legacy to AI without confirming truth", () => {
+    let state = createGame({ seed: 52 });
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    const villager = state.seats.find((seat) => seat.isAi && seat.role === "VILLAGER")!;
+
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [seer.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: seer.seatId,
+      message: `我跳预言家，${wolf.seatId}号是查杀。今天先归${wolf.seatId}号。`,
+    });
+
+    seer.alive = false;
+    seer.deathReason = "WOLF_KILL";
+    state.day = 2;
+    state.phase = "DAY_VOTE";
+    state.events.push({
+      seq: Math.max(...state.events.map((event) => event.seq)) + 1,
+      type: "DAY_STARTED",
+      visibility: "public",
+      day: 2,
+      phase: "DAY_ANNOUNCEMENT",
+      message: `第2天清晨，${seer.seatId}号 死亡。`,
+      payload: { deadSeatIds: [seer.seatId] },
+    });
+
+    const view = buildAgentView(state, villager.seatId);
+    const tableRead = buildAiTableRead(view);
+    const wolfRead = tableRead.seats.find((seat) => seat.seatId === wolf.seatId)!;
+    const votePlan = createVotePlan(view, tableRead);
+    const actionInput = buildConstrainedActionInput(view, {
+      tableRead,
+      votePlan,
+      fallbackCommand: createMockCommand(view, tableRead, votePlan),
+    });
+    const serializedMemory = JSON.stringify(view.publicSummary.tableMemory);
+
+    expect(view.publicSummary.tableMemory.seerLegacies).toEqual([
+      expect.objectContaining({
+        claimant: expect.objectContaining({ seatId: seer.seatId }),
+        deathDay: 2,
+        checks: [expect.objectContaining({ target: expect.objectContaining({ seatId: wolf.seatId }), result: "WEREWOLF" })],
+      }),
+    ]);
+    expect(wolfRead.pressure).toContain(`${seer.name}夜死后遗留查杀`);
+    expect(actionInput.publicContext.tableMemory.seerLegacies).toHaveLength(1);
+    expect(actionInput.constraints.join("\n")).toContain("night-dead seer claimants");
+    expect(serializedMemory).not.toMatch(/trueRole|truthful|actualResult|deathReason|WOLF_KILL/);
+  });
+
+  it("gives good AI a public reason not to weakly push unchallenged god claims", () => {
+    const state = createGame({ seed: 60 });
+    const witch = state.seats.find((seat) => seat.role === "WITCH")!;
+    const villager = state.seats.find((seat) => seat.isAi && seat.role === "VILLAGER")!;
+    const counterclaimant = state.seats.find((seat) => seat.seatId !== witch.seatId && seat.seatId !== villager.seatId)!;
+
+    state.phase = "DAY_VOTE";
+    state.roleClaims.push({
+      id: `${witch.seatId}:WITCH`,
+      day: 1,
+      claimantSeatId: witch.seatId,
+      claimedRole: "WITCH",
+      strength: "hard",
+      checks: [],
+      message: "我拍女巫。",
+    });
+
+    const protectedRead = buildAiTableRead(buildAgentView(state, villager.seatId));
+    const protectedWitch = protectedRead.seats.find((seat) => seat.seatId === witch.seatId)!;
+
+    expect(protectedWitch.pressure).toContain("女巫未对跳，先不弱推");
+    expect(protectedWitch.trust).toBeGreaterThan(protectedWitch.suspicion);
+
+    state.roleClaims.push({
+      id: `${counterclaimant.seatId}:WITCH`,
+      day: 1,
+      claimantSeatId: counterclaimant.seatId,
+      claimedRole: "WITCH",
+      strength: "hard",
+      checks: [],
+      message: "我也拍女巫。",
+    });
+
+    const counterclaimedRead = buildAiTableRead(buildAgentView(state, villager.seatId));
+    const counterclaimedWitch = counterclaimedRead.seats.find((seat) => seat.seatId === witch.seatId)!;
+
+    expect(counterclaimedWitch.pressure).not.toContain("女巫未对跳，先不弱推");
+  });
+
   it("lets wolf AI counterclaim seer with a fake check that does not black a teammate", () => {
     let found:
       | {
@@ -1889,8 +1981,12 @@ describe("game engine", () => {
 
     const read = buildAiTableRead(buildAgentView(state, villager.seatId));
     const wolfRead = read.seats.find((seat) => seat.seatId === wolf.seatId)!;
+    const seerRead = read.seats.find((seat) => seat.seatId === seer.seatId)!;
 
     expect(wolfRead.pressure).toContain("查杀卷入预言家对跳");
+    expect(wolfRead.pressure).toContain("后置查杀已跳预言家");
+    expect(wolfRead.suspicion).toBeGreaterThan(wolfRead.trust);
+    expect(seerRead.pressure).toContain("被后置预言家查杀，先按反打降权");
     expect(JSON.stringify(read)).not.toMatch(/trueRole|truthful|actualResult/);
   });
 

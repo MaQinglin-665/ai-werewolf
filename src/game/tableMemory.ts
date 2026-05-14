@@ -20,6 +20,7 @@ export function buildTableMemory(state: GameState): TableMemory {
   const stanceShifts = buildStanceShifts(stanceBoard);
   const counterclaims = buildCounterclaims(claimBoard);
   const voteHistory = buildVoteHistory(state);
+  const seerLegacies = buildSeerLegacies(state, claimBoard, stanceBoard, voteHistory);
   const deathAnnouncements = state.events
     .filter((event) => event.type === "DAY_STARTED" || event.type === "PLAYER_EXILED" || event.type === "HUNTER_SHOT")
     .slice(-8)
@@ -32,12 +33,13 @@ export function buildTableMemory(state: GameState): TableMemory {
     claimBoard,
     stanceBoard,
     stanceShifts,
+    seerLegacies,
     counterclaims,
     focus,
     seats,
     voteHistory,
     deathAnnouncements,
-    publicSignals: buildPublicSignals(counterclaims, stanceShifts, voteHistory.at(-1), deathAnnouncements.at(-1)),
+    publicSignals: buildPublicSignals(counterclaims, stanceShifts, seerLegacies, voteHistory.at(-1), deathAnnouncements.at(-1)),
   };
 }
 
@@ -221,6 +223,45 @@ function buildVoteHistory(state: GameState): TableMemory["voteHistory"] {
     });
 }
 
+function buildSeerLegacies(
+  state: GameState,
+  claimBoard: ClaimBoardItem[],
+  stanceBoard: StanceBoardItem[],
+  voteHistory: TableMemory["voteHistory"],
+): TableMemory["seerLegacies"] {
+  const seerClaims = claimBoard.filter((claim) => claim.claimedRole === "SEER");
+
+  return seerClaims
+    .map((claim) => {
+      const deathDay = findNightDeathDay(state, claim.claimant.seatId);
+      if (!deathDay || deathDay < claim.lastUpdatedDay) return undefined;
+
+      const stancesGiven = stanceBoard.filter((stance) => stance.actor.seatId === claim.claimant.seatId).slice(-5);
+      const lastVote = findLastRevealedVoteBySeat(state, voteHistory, claim.claimant.seatId);
+      const details = [
+        claim.checks.length > 0
+          ? claim.checks
+              .map((check) => `${check.target.name}${check.result === "WEREWOLF" ? "查杀" : "金水"}`)
+              .join("、")
+          : undefined,
+        stancesGiven.at(-1)?.summary,
+        lastVote?.target ? `最后投${lastVote.target.name}` : lastVote?.abstained ? "最后弃票" : undefined,
+      ].filter((detail): detail is string => Boolean(detail));
+
+      return {
+        claimant: claim.claimant,
+        deathDay,
+        checks: claim.checks,
+        stancesGiven,
+        ...(lastVote ? { lastVote } : {}),
+        summary: `第${deathDay}天夜死预言家声明遗留：${claim.claimant.name}${details.length > 0 ? `留下${details.join("；")}` : "没有明确查验或投票遗留"}`,
+      };
+    })
+    .filter((legacy): legacy is TableMemory["seerLegacies"][number] => Boolean(legacy))
+    .sort((a, b) => b.deathDay - a.deathDay || a.claimant.seatId - b.claimant.seatId)
+    .slice(0, 4);
+}
+
 function buildFocus(
   seats: SeatMemory[],
   counterclaims: TableMemory["counterclaims"],
@@ -294,12 +335,14 @@ function buildFocus(
 function buildPublicSignals(
   counterclaims: TableMemory["counterclaims"],
   stanceShifts: StanceShiftItem[],
+  seerLegacies: TableMemory["seerLegacies"],
   latestVote: TableMemory["voteHistory"][number] | undefined,
   latestDeath?: string,
 ): string[] {
   const signals = [
     ...counterclaims.map((group) => `${group.claimedRoleLabel}对跳：${group.claimants.map((seat) => seat.name).join("、")}`),
     ...stanceShifts.slice(-2).map((shift) => `站边变化：${shift.summary}`),
+    ...seerLegacies.slice(0, 2).map((legacy) => legacy.summary),
     latestVote?.leaders.length ? `公开票型焦点：${latestVote.leaders.map((seat) => seat.name).join("、")}` : undefined,
     latestDeath,
   ];
@@ -332,6 +375,44 @@ function readTallyItems(state: GameState, event: GameEvent): TableMemory["voteHi
     .sort((a, b) => b.count - a.count || a.target.seatId - b.target.seatId);
 }
 
+function findNightDeathDay(state: GameState, seatId: number): number | undefined {
+  const deathEvent = state.events.find((event) => {
+    if (event.type !== "DAY_STARTED") return false;
+    const deadSeatIds = Array.isArray(event.payload.deadSeatIds)
+      ? event.payload.deadSeatIds.filter((id): id is number => typeof id === "number")
+      : [];
+    return deadSeatIds.includes(seatId);
+  });
+  return deathEvent?.day;
+}
+
+function findLastRevealedVoteBySeat(
+  state: GameState,
+  voteHistory: TableMemory["voteHistory"],
+  seatId: number,
+): NonNullable<TableMemory["seerLegacies"][number]["lastVote"]> | undefined {
+  const revealedDays = new Set(voteHistory.map((vote) => vote.day));
+  const voteEvent = [...state.events]
+    .reverse()
+    .find(
+      (event) =>
+        event.type === "VOTE_CAST" &&
+        revealedDays.has(event.day) &&
+        (readNumber(event, "voterSeatId") ?? event.actorSeatId) === seatId,
+    );
+  if (!voteEvent) return undefined;
+
+  const targetSeatId = readNumber(voteEvent, "targetSeatId");
+  const target = getTarget(state, targetSeatId);
+  const abstained = voteEvent.payload.abstained === true || !target;
+  const reason = readString(voteEvent, "reason");
+  return {
+    day: voteEvent.day,
+    ...(target ? { target } : { abstained }),
+    ...(reason ? { reason } : {}),
+  };
+}
+
 function summarizeClaim(role: Role, checks: ClaimBoardItem["checks"]): string {
   if (checks.length === 0) return `声称${ROLE_LABELS[role]}`;
   return `声称${ROLE_LABELS[role]}，${checks
@@ -352,4 +433,9 @@ function getTarget(state: GameState, seatId: number | undefined): ActionTarget |
 function readNumber(event: GameEvent | undefined, key: string): number | undefined {
   const value = event?.payload[key];
   return typeof value === "number" ? value : undefined;
+}
+
+function readString(event: GameEvent | undefined, key: string): string | undefined {
+  const value = event?.payload[key];
+  return typeof value === "string" ? value : undefined;
 }
