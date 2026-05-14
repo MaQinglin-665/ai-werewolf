@@ -560,6 +560,20 @@ export type StanceShiftItem = {
   summary: string;
 };
 
+export type SeerLegacyItem = {
+  claimant: ActionTarget;
+  deathDay: number;
+  checks: ClaimBoardItem["checks"];
+  stancesGiven: StanceBoardItem[];
+  lastVote?: {
+    day: number;
+    target?: ActionTarget;
+    abstained?: boolean;
+    reason?: string;
+  };
+  summary: string;
+};
+
 export type WolfTeamTask = "COUNTERCLAIM_SEER" | "PUSH_MISLYNCH" | "DISTANCE" | "HIDE";
 
 export type WolfTeamAssignment = {
@@ -604,6 +618,7 @@ export type TableMemory = {
   claimBoard: ClaimBoardItem[];
   stanceBoard: StanceBoardItem[];
   stanceShifts: StanceShiftItem[];
+  seerLegacies: SeerLegacyItem[];
   counterclaims: Array<{
     claimedRole: Role;
     claimedRoleLabel: string;

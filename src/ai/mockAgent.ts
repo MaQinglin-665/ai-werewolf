@@ -526,16 +526,17 @@ function chooseWitchAction(view: AgentView, tableRead: AiTableRead): Command {
       .filter((seat) => legalTargetIds.has(seat.seatId))
       .sort((a, b) => witchPoisonScore(b) - witchPoisonScore(a) || a.seatId - b.seatId)[0];
     const publicWolfCheck = target?.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ?? false;
+    const hasStrongEvidence = target ? hasStrongWitchPoisonEvidence(target) : false;
 
     const poisonThreshold =
-      (publicWolfCheck ? 64 : 82) -
+      (publicWolfCheck ? 66 : 86) -
       (view.persona?.riskTolerance ?? 0.45) * (publicWolfCheck ? 12 : 10) +
       stableSignedJitter(
       ["witch-poison-threshold", view.day, view.mySeatId, view.persona?.id],
       4,
     );
 
-    if (target && target.suspicion >= poisonThreshold) {
+    if (target && hasStrongEvidence && target.suspicion >= poisonThreshold) {
       return {
         type: "witchAction",
         actorSeatId: view.mySeatId,
@@ -585,7 +586,32 @@ function shouldSaveVictim(view: AgentView, tableRead: AiTableRead, victim: Actio
 function witchPoisonScore(seat: SeatRead): number {
   const publicWolfCheckBonus = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ? 14 : 0;
   const claimPenalty = seat.publicClaims.some((claim) => claim.claimedRole === "SEER" || claim.claimedRole === "WITCH") ? 8 : 0;
-  return seat.suspicion - seat.trust * 0.08 + publicWolfCheckBonus - claimPenalty;
+  const reactiveClaimantBonus = seat.pressure.some((item) => item.includes("后置查杀已跳预言家")) ? 18 : 0;
+  const protectedTargetPenalty = seat.pressure.some((item) => item.includes("被后置预言家查杀") || item.includes("未对跳"))
+    ? 28
+    : 0;
+  return seat.suspicion - seat.trust * 0.08 + publicWolfCheckBonus + reactiveClaimantBonus - claimPenalty - protectedTargetPenalty;
+}
+
+function hasStrongWitchPoisonEvidence(seat: SeatRead): boolean {
+  if (seat.pressure.some((item) => item.includes("被后置预言家查杀") || item.includes("未对跳"))) {
+    return false;
+  }
+
+  if (seat.pressure.some((item) => item.includes("后置查杀已跳预言家") || item.includes("夜死后遗留查杀"))) {
+    return true;
+  }
+
+  if (seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") && seat.suspicion >= 72) {
+    return true;
+  }
+
+  const negativeActors = new Set(
+    seat.publicStancedBy
+      .filter((stance) => stance.kind === "QUESTION" || stance.kind === "PRESSURE")
+      .map((stance) => stance.actor.seatId),
+  );
+  return (negativeActors.size >= 2 && seat.suspicion >= 80) || seat.suspicion >= 92;
 }
 
 function hunterShotScore(seat: SeatRead): number {
