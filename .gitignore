@@ -18,6 +18,12 @@
 /prisma/dev.db-journal
 /src/generated/prisma
 
+# generated runtime speech cache
+/public/audio/ai-speech/*.mp3
+/public/audio/ai-speech/*.wav
+/public/audio/ai-speech/*.aac
+/public/audio/ai-speech/*.flac
+
 # next.js
 /.next/
 /out/
@@ -35,6 +41,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 dev-server.*.log
+dev-server-*.log
+start-server*.log
+codex-dev-*.log
 
 # env files (can opt-in for committing if needed)
 .env*
