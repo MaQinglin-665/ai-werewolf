@@ -293,7 +293,8 @@ function coerceActionDecision(value: unknown, input: LlmActionInput): Partial<Ac
     resolveCandidateId(rawCandidateId, input) ??
     rawCandidateId ??
     resolveCandidateIdFromTarget(fields, input) ??
-    resolveCandidateId(sourceText, input);
+    resolveCandidateId(sourceText, input) ??
+    resolveTruncatedCandidateId(sourceText, input);
   const reason = readFirstString(fields, ["reason", "rationale", "explanation", "why", "理由"]) ?? extractInlineReason(sourceText);
   const message = readFirstString(fields, ["message", "speech", "lastWords", "last_words", "text", "遗言", "发言"]);
 
@@ -302,6 +303,13 @@ function coerceActionDecision(value: unknown, input: LlmActionInput): Partial<Ac
     ...(reason ? { reason } : {}),
     ...(message ? { message } : {}),
   };
+}
+
+function resolveTruncatedCandidateId(sourceText: string, input: LlmActionInput): string | undefined {
+  if (!input.fallbackCandidateId) return undefined;
+  return /["']?candidate_?id["']?\s*[:：]\s*["']?[^"'，,}\]\s]*$/i.test(sourceText.trim())
+    ? input.fallbackCandidateId
+    : undefined;
 }
 
 function readFirstString(fields: Record<string, unknown>, keys: string[]): string | undefined {
