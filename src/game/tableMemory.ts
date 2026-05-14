@@ -1,0 +1,355 @@
+import { ROLE_LABELS } from "./labels";
+import { isSupportedRoleClaim } from "./claims";
+import { stanceKindLabel } from "./stances";
+import type {
+  ActionTarget,
+  ClaimBoardItem,
+  GameEvent,
+  GameState,
+  PublicStance,
+  Role,
+  SeatMemory,
+  StanceBoardItem,
+  StanceShiftItem,
+  TableMemory,
+} from "./types";
+
+export function buildTableMemory(state: GameState): TableMemory {
+  const claimBoard = buildClaimBoard(state);
+  const stanceBoard = buildStanceBoard(state);
+  const stanceShifts = buildStanceShifts(stanceBoard);
+  const counterclaims = buildCounterclaims(claimBoard);
+  const voteHistory = buildVoteHistory(state);
+  const deathAnnouncements = state.events
+    .filter((event) => event.type === "DAY_STARTED" || event.type === "PLAYER_EXILED" || event.type === "HUNTER_SHOT")
+    .slice(-8)
+    .map((event) => event.message);
+  const seats = buildSeatMemories(state, claimBoard, stanceBoard);
+  const focus = buildFocus(seats, counterclaims, stanceShifts, voteHistory.at(-1));
+
+  return {
+    day: state.day,
+    claimBoard,
+    stanceBoard,
+    stanceShifts,
+    counterclaims,
+    focus,
+    seats,
+    voteHistory,
+    deathAnnouncements,
+    publicSignals: buildPublicSignals(counterclaims, stanceShifts, voteHistory.at(-1), deathAnnouncements.at(-1)),
+  };
+}
+
+export function buildClaimBoard(state: GameState): ClaimBoardItem[] {
+  const items: ClaimBoardItem[] = [];
+
+  for (const claim of (state.roleClaims ?? []).filter(isSupportedRoleClaim)) {
+    const claimant = getTarget(state, claim.claimantSeatId);
+    if (!claimant) continue;
+    const checks = claim.checks
+      .map((check) => {
+        const target = getTarget(state, check.targetSeatId);
+        return target
+          ? {
+              day: check.day,
+              target,
+              result: check.result,
+            }
+          : undefined;
+      })
+      .filter((check): check is ClaimBoardItem["checks"][number] => Boolean(check));
+    const item: ClaimBoardItem = {
+      claimId: claim.id,
+      claimant,
+      claimedRole: claim.claimedRole,
+      claimedRoleLabel: ROLE_LABELS[claim.claimedRole],
+      strength: claim.strength,
+      checks,
+      summary: summarizeClaim(claim.claimedRole, checks),
+      lastUpdatedDay: claim.checks.at(-1)?.day ?? claim.day,
+    };
+    if (claim.sourceSpeechSeq !== undefined) {
+      item.sourceSpeechSeq = claim.sourceSpeechSeq;
+    }
+    items.push(item);
+  }
+
+  return items.sort((a, b) => a.claimant.seatId - b.claimant.seatId || roleSort(a.claimedRole) - roleSort(b.claimedRole));
+}
+
+function buildCounterclaims(claimBoard: ClaimBoardItem[]): TableMemory["counterclaims"] {
+  const byRole = new Map<Role, ClaimBoardItem[]>();
+  for (const claim of claimBoard) {
+    byRole.set(claim.claimedRole, [...(byRole.get(claim.claimedRole) ?? []), claim]);
+  }
+
+  return [...byRole.entries()]
+    .filter(([, claims]) => claims.length > 1)
+    .map(([claimedRole, claims]) => ({
+      claimedRole,
+      claimedRoleLabel: ROLE_LABELS[claimedRole],
+      claimants: claims.map((claim) => claim.claimant),
+    }));
+}
+
+function buildStanceBoard(state: GameState): StanceBoardItem[] {
+  const items: StanceBoardItem[] = [];
+
+  for (const stance of state.stances ?? []) {
+    const actor = getTarget(state, stance.actorSeatId);
+    const target = getTarget(state, stance.targetSeatId);
+    if (!actor || !target) continue;
+    const item: StanceBoardItem = {
+      stanceId: stance.id,
+      day: stance.day,
+      actor,
+      target,
+      kind: stance.kind,
+      kindLabel: stanceKindLabel(stance.kind),
+      summary: summarizeStance(stance, target),
+    };
+    if (stance.targetRole) {
+      item.targetRole = stance.targetRole;
+      item.targetRoleLabel = ROLE_LABELS[stance.targetRole];
+    }
+    if (stance.sourceSpeechSeq !== undefined) {
+      item.sourceSpeechSeq = stance.sourceSpeechSeq;
+    }
+    items.push(item);
+  }
+
+  return items.sort((a, b) => a.day - b.day || (a.sourceSpeechSeq ?? 0) - (b.sourceSpeechSeq ?? 0));
+}
+
+function buildStanceShifts(stanceBoard: StanceBoardItem[]): StanceShiftItem[] {
+  const byActorTarget = new Map<string, StanceBoardItem[]>();
+  for (const stance of stanceBoard) {
+    const key = `${stance.actor.seatId}:${stance.target.seatId}:${stance.targetRole ?? "ANY"}`;
+    byActorTarget.set(key, [...(byActorTarget.get(key) ?? []), stance]);
+  }
+
+  const shifts: StanceShiftItem[] = [];
+  for (const stances of byActorTarget.values()) {
+    const sorted = [...stances].sort((a, b) => a.day - b.day || (a.sourceSpeechSeq ?? 0) - (b.sourceSpeechSeq ?? 0));
+    for (let index = 1; index < sorted.length; index += 1) {
+      const previous = sorted[index - 1];
+      const current = sorted[index];
+      if (!previous || !current || previous.kind === current.kind) continue;
+      if (isMeaningfulShift(previous.kind, current.kind)) {
+        shifts.push({
+          actor: previous.actor,
+          target: previous.target,
+          fromKind: previous.kind,
+          fromKindLabel: previous.kindLabel,
+          toKind: current.kind,
+          toKindLabel: current.kindLabel,
+          fromDay: previous.day,
+          toDay: current.day,
+          summary: `${previous.actor.name}从${previous.kindLabel}${previous.target.name}改为${current.kindLabel}${current.target.name}`,
+        });
+      }
+    }
+  }
+
+  return shifts.slice(-8);
+}
+
+function buildSeatMemories(state: GameState, claimBoard: ClaimBoardItem[], stanceBoard: StanceBoardItem[]): SeatMemory[] {
+  return state.seats.map((seat) => {
+    const speeches = state.speeches.filter((speech) => speech.seatId === seat.seatId);
+    const lastSpeech = speeches.at(-1);
+    const claims = claimBoard.filter((claim) => claim.claimant.seatId === seat.seatId);
+    const stancesGiven = stanceBoard.filter((stance) => stance.actor.seatId === seat.seatId);
+    const stancedBy = stanceBoard.filter((stance) => stance.target.seatId === seat.seatId);
+    const claimedByChecks = claimBoard.flatMap((claim) =>
+      claim.checks
+        .filter((check) => check.target.seatId === seat.seatId)
+        .map((check) => ({
+          claimant: claim.claimant,
+          result: check.result,
+          day: check.day,
+        })),
+    );
+    const shortSpeechCount = speeches.filter((speech) => speech.message.length < 42).length;
+    const evasiveSpeechCount = speeches.filter((speech) => /不急|先听|过一轮|不站死|不好说|看后面/.test(speech.message))
+      .length;
+    const publicReasons = [
+      ...claims.map((claim) => `声称${claim.claimedRoleLabel}`),
+      ...stancesGiven.slice(-2).map((stance) => `${stance.kindLabel}${stance.target.name}`),
+      ...stancedBy.slice(-2).map((stance) => `被${stance.actor.name}${stance.kindLabel}`),
+      ...claimedByChecks.map((check) => `被${check.claimant.name}报${check.result === "WEREWOLF" ? "查杀" : "金水"}`),
+      ...(shortSpeechCount > 0 ? ["发言偏短"] : []),
+      ...(evasiveSpeechCount > 0 ? ["回避站边"] : []),
+    ];
+
+    return {
+      seatId: seat.seatId,
+      name: seat.name,
+      alive: seat.alive,
+      speechCount: speeches.length,
+      shortSpeechCount,
+      evasiveSpeechCount,
+      lastSpeech: lastSpeech?.message,
+      lastSpeechDay: lastSpeech?.day,
+      claims,
+      stancesGiven,
+      stancedBy,
+      claimedByChecks,
+      publicReasons,
+    };
+  });
+}
+
+function buildVoteHistory(state: GameState): TableMemory["voteHistory"] {
+  return state.events
+    .filter((event) => event.type === "VOTE_REVEALED")
+    .map((event) => {
+      const tally = readTallyItems(state, event);
+      const topCount = tally[0]?.count ?? 0;
+      const exiled = state.events.find((item) => item.day === event.day && item.type === "PLAYER_EXILED");
+      const tied = state.events.find((item) => item.day === event.day && item.type === "VOTE_TIED");
+      return {
+        day: event.day,
+        tally,
+        leaders: tally.filter((item) => item.count === topCount && topCount > 0).map((item) => item.target),
+        exiled: getTarget(state, readNumber(exiled, "seatId")),
+        tiedSeatIds: Array.isArray(tied?.payload.tiedSeatIds)
+          ? tied.payload.tiedSeatIds.filter((seatId): seatId is number => typeof seatId === "number")
+          : [],
+      };
+    });
+}
+
+function buildFocus(
+  seats: SeatMemory[],
+  counterclaims: TableMemory["counterclaims"],
+  stanceShifts: StanceShiftItem[],
+  latestVote: TableMemory["voteHistory"][number] | undefined,
+): TableMemory["focus"] {
+  const counterclaimSeatIds = new Set(counterclaims.flatMap((group) => group.claimants.map((claimant) => claimant.seatId)));
+  const voteCounts = new Map(latestVote?.tally.map((item) => [item.target.seatId, item.count]) ?? []);
+  const shiftedActors = new Set(stanceShifts.map((shift) => shift.actor.seatId));
+
+  return seats
+    .filter((seat) => seat.alive)
+    .map((seat) => {
+      let score = 0;
+      const reasons: string[] = [];
+      for (const check of seat.claimedByChecks) {
+        if (check.result === "WEREWOLF") {
+          score += 24;
+          reasons.push(`${check.claimant.name}公开报查杀`);
+        } else {
+          score -= 8;
+          reasons.push(`${check.claimant.name}公开报金水`);
+        }
+      }
+      if (counterclaimSeatIds.has(seat.seatId)) {
+        score += 18;
+        reasons.push("处在身份对跳关系");
+      }
+      for (const stance of seat.stancedBy.slice(-5)) {
+        if (stance.kind === "QUESTION") {
+          score += 7;
+          reasons.push(`被${stance.actor.name}质疑`);
+        }
+        if (stance.kind === "PRESSURE") {
+          score += 9;
+          reasons.push(`被${stance.actor.name}施压`);
+        }
+        if (stance.kind === "SUPPORT") {
+          score -= 4;
+          reasons.push(`被${stance.actor.name}支持`);
+        }
+      }
+      if (shiftedActors.has(seat.seatId)) {
+        score += 12;
+        reasons.push("站边前后变化");
+      }
+      if (seat.shortSpeechCount > 0) {
+        score += Math.min(12, seat.shortSpeechCount * 4);
+        reasons.push("发言偏短");
+      }
+      if (seat.evasiveSpeechCount > 0) {
+        score += Math.min(10, seat.evasiveSpeechCount * 5);
+        reasons.push("回避站边");
+      }
+      const votes = voteCounts.get(seat.seatId) ?? 0;
+      if (votes > 0) {
+        score += votes * 7;
+        reasons.push(`上一轮公开吃到${votes}票`);
+      }
+      return {
+        seat: { seatId: seat.seatId, name: seat.name },
+        reasons: [...new Set(reasons)].slice(0, 3),
+        score,
+      };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.seat.seatId - b.seat.seatId)
+    .slice(0, 4);
+}
+
+function buildPublicSignals(
+  counterclaims: TableMemory["counterclaims"],
+  stanceShifts: StanceShiftItem[],
+  latestVote: TableMemory["voteHistory"][number] | undefined,
+  latestDeath?: string,
+): string[] {
+  const signals = [
+    ...counterclaims.map((group) => `${group.claimedRoleLabel}对跳：${group.claimants.map((seat) => seat.name).join("、")}`),
+    ...stanceShifts.slice(-2).map((shift) => `站边变化：${shift.summary}`),
+    latestVote?.leaders.length ? `公开票型焦点：${latestVote.leaders.map((seat) => seat.name).join("、")}` : undefined,
+    latestDeath,
+  ];
+  return signals.filter((signal): signal is string => Boolean(signal)).slice(0, 5);
+}
+
+function summarizeStance(stance: PublicStance, target: ActionTarget): string {
+  const targetRole = stance.targetRole ? ROLE_LABELS[stance.targetRole] : "";
+  const roleText = targetRole ? `的${targetRole}` : "";
+  return `${stanceKindLabel(stance.kind)}${target.name}${roleText}`;
+}
+
+function isMeaningfulShift(fromKind: StanceBoardItem["kind"], toKind: StanceBoardItem["kind"]): boolean {
+  const positive = new Set(["SUPPORT", "FOLLOW"]);
+  const negative = new Set(["QUESTION", "PRESSURE"]);
+  return (positive.has(fromKind) && negative.has(toKind)) || (negative.has(fromKind) && positive.has(toKind));
+}
+
+function readTallyItems(state: GameState, event: GameEvent): TableMemory["voteHistory"][number]["tally"] {
+  const rawTally = Array.isArray(event.payload.tally) ? event.payload.tally : [];
+  return rawTally
+    .map((item) => {
+      if (!item || typeof item !== "object") return undefined;
+      const targetSeatId = "targetSeatId" in item && typeof item.targetSeatId === "number" ? item.targetSeatId : undefined;
+      const count = "votes" in item && typeof item.votes === "number" ? item.votes : undefined;
+      const target = getTarget(state, targetSeatId);
+      return target && count !== undefined ? { target, count } : undefined;
+    })
+    .filter((item): item is TableMemory["voteHistory"][number]["tally"][number] => Boolean(item))
+    .sort((a, b) => b.count - a.count || a.target.seatId - b.target.seatId);
+}
+
+function summarizeClaim(role: Role, checks: ClaimBoardItem["checks"]): string {
+  if (checks.length === 0) return `声称${ROLE_LABELS[role]}`;
+  return `声称${ROLE_LABELS[role]}，${checks
+    .map((check) => `D${check.day}报${check.target.name}${check.result === "WEREWOLF" ? "查杀" : "金水"}`)
+    .join("、")}`;
+}
+
+function roleSort(role: Role): number {
+  const order: Role[] = ["SEER", "WITCH", "HUNTER", "VILLAGER", "WEREWOLF"];
+  return order.indexOf(role);
+}
+
+function getTarget(state: GameState, seatId: number | undefined): ActionTarget | undefined {
+  const seat = state.seats.find((item) => item.seatId === seatId);
+  return seat ? { seatId: seat.seatId, name: seat.name } : undefined;
+}
+
+function readNumber(event: GameEvent | undefined, key: string): number | undefined {
+  const value = event?.payload[key];
+  return typeof value === "number" ? value : undefined;
+}
