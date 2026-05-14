@@ -1,63 +1,653 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { DEATH_LABELS, ROLE_LABELS } from "@/game/labels";
+import { stripSpeechStageDirections } from "@/game/speechText";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
+import {
+  ActionPanel,
+  AuxiliaryInfoPanel,
+  FlowStatusBar,
+  HostStage,
+  LandingPanel,
+  PhaseCurtain,
+  PhaseRhythm,
+  ReviewPanel,
+  RoleIntroOverlay,
+  RoomHeader,
+  SeatBoard,
+  VoteTable,
+  getPhaseCurtainCue,
+} from "./game/GamePanels";
+import type { PhaseCurtainCue } from "./game/GamePanels";
+import type {
+  AiSpeechAudioStatus,
+  AiSpeechAudioTextCue,
+  BoardOption,
+  CommandPayload,
+  HostAudioStatus,
+  LiveAiSpeech,
+  SpeechItem,
+} from "./game/clientTypes";
+import { formatSystemMessage } from "./game/viewHelpers";
 
 const CURRENT_GAME_KEY = "ai-werewolf-game-id";
 const RECENT_GAMES_KEY = "ai-werewolf-recent-game-ids";
+const HOST_AUDIO_ENABLED_KEY = "ai-werewolf-host-audio-enabled";
+const AI_SPEECH_AUDIO_ENABLED_KEY = "ai-werewolf-ai-speech-audio-enabled";
+const HOST_AUDIO_BASE_PATH = "/audio/host";
 const EMPTY_RECENT_GAME_IDS: string[] = [];
 let recentGameIdsRawCache: string | null = null;
 let recentGameIdsSnapshotCache: string[] = EMPTY_RECENT_GAME_IDS;
+const AI_SPEECH_MIN_READ_MS = 2600;
+const AI_SPEECH_MAX_READ_MS = 22000;
+const AI_SPEECH_AUDIO_MAX_ATTEMPTS = 1;
+const AI_SPEECH_AUDIO_PLAYBACK_RATE = 1.12;
+const AI_SPEECH_TTS_MIN_CHUNK_CHARS = 12;
+const AI_SPEECH_TTS_SOFT_CHUNK_CHARS = 28;
+const AI_SPEECH_TTS_MAX_CHUNK_CHARS = 62;
 
-const ROLE_CARD_IMAGES: Record<HumanGameView["myRole"] | "HIDDEN", string> = {
-  WEREWOLF: "/images/role-werewolf.jpg",
-  VILLAGER: "/images/role-villager.jpg",
-  SEER: "/images/role-seer.jpg",
-  WITCH: "/images/role-witch.jpg",
-  HUNTER: "/images/role-hunter.jpg",
-  HIDDEN: "/images/role-back.jpg",
-};
+class AiSpeechAudioUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AiSpeechAudioUnavailableError";
+  }
+}
 
-const SEAT_ORBIT_CLASSES = [
-  "lg:left-1/2 lg:top-4 lg:-translate-x-1/2",
-  "lg:right-[17%] lg:top-[10%]",
-  "lg:right-4 lg:top-1/2 lg:-translate-y-1/2",
-  "lg:right-[13%] lg:bottom-[10%]",
-  "lg:left-1/2 lg:bottom-4 lg:-translate-x-1/2",
-  "lg:left-[13%] lg:bottom-[10%]",
-  "lg:left-4 lg:top-1/2 lg:-translate-y-1/2",
-  "lg:left-[17%] lg:top-[10%]",
-  "lg:left-1/2 lg:top-[30%] lg:-translate-x-1/2",
-];
+function isAiSpeechAudioUnavailableError(error: unknown): boolean {
+  if (error instanceof AiSpeechAudioUnavailableError) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return /缺少|missing|unavailable|503|无法生成 AI 发言音频/i.test(message);
+}
 
-type CommandPayload =
-  | { type: "wolfKill"; targetSeatId: number }
-  | { type: "seerCheck"; targetSeatId: number }
-  | { type: "witchAction"; mode: "save" | "poison" | "skip"; targetSeatId?: number }
-  | { type: "speak"; message: string }
-  | { type: "vote"; targetSeatId: number }
-  | { type: "hunterShoot"; targetSeatId?: number }
-  | { type: "continue" };
-
-function getAutoAdvanceDelay(game: HumanGameView, action: AvailableHumanAction): number {
+function getAutoAdvanceDelay(game: HumanGameView, action: AvailableHumanAction, speechToRead?: SpeechItem): number {
   if (action.type !== "continue") return 0;
-  if (game.phase === "DAY_SPEECH") return 2600;
+  if (speechToRead) return getAiSpeechReadDelay(speechToRead);
+  if (game.phase === "DAY_SPEECH") return AI_SPEECH_MIN_READ_MS;
   if (game.phase === "DAY_VOTE") return 900;
   if (game.phase === "DAY_ANNOUNCEMENT" || game.phase === "EXILE_RESOLUTION") return 1600;
   if (game.phase.startsWith("NIGHT")) return 1300;
   return 1200;
 }
 
+function getAiSpeechReadDelay(speech: SpeechItem): number {
+  return Math.min(AI_SPEECH_MAX_READ_MS, Math.max(AI_SPEECH_MIN_READ_MS, speech.message.length * 42 + 1200));
+}
+
+function getLatestStreamableAiSpeech(game: HumanGameView): SpeechItem | undefined {
+  const latestSpeech = game.tableSummary.recentSpeeches.at(-1);
+  if (!latestSpeech?.speaker || latestSpeech.speaker.seatId === game.humanSeatId) return undefined;
+  return latestSpeech;
+}
+
+function getNextPlayableAiSpeech(game: HumanGameView, completedKeys: ReadonlySet<string>): SpeechItem | undefined {
+  return game.tableSummary.recentSpeeches.find((speech) => {
+    if (!speech.speaker || speech.speaker.seatId === game.humanSeatId) return false;
+    return !completedKeys.has(speechStreamKey(game.id, speech));
+  });
+}
+
+function speechStreamKey(gameId: string, speech: SpeechItem): string {
+  return `${gameId}:${speech.seq}:${speech.message.length}`;
+}
+
+function latestPublicEvent(game: HumanGameView): HumanGameView["publicEvents"][number] | undefined {
+  return game.publicEvents.at(-1);
+}
+
+type HostAudioClip =
+  | string
+  | {
+      src: string;
+      playbackRate?: number;
+      volume?: number;
+      preDelayMs?: number;
+    };
+
+type HostAudioCue = {
+  key: string;
+  clips: HostAudioClip[];
+};
+
+type AiSpeechAudioCue = {
+  key: string;
+  gameId: string;
+  speech: SpeechItem;
+};
+
+function hostClip(name: string, options?: Omit<Extract<HostAudioClip, { src: string }>, "src">): HostAudioClip {
+  const src = `${HOST_AUDIO_BASE_PATH}/${name}.mp3`;
+  return options ? { src, ...options } : src;
+}
+
+function seatClip(seatId: number): HostAudioClip {
+  return hostClip(`seat-${seatId}`);
+}
+
+function hostClipSrc(clip: HostAudioClip): string {
+  return typeof clip === "string" ? clip : clip.src;
+}
+
+function hostClipPreDelayMs(clip: HostAudioClip): number {
+  return typeof clip === "string" ? 0 : (clip.preDelayMs ?? 0);
+}
+
+function dawnReportClip(): HostAudioClip {
+  return hostClip("dawn-report");
+}
+
+function extractSeatNumbers(text: string): number[] {
+  const seen = new Set<number>();
+  for (const match of text.matchAll(/(\d{1,2})号/g)) {
+    seen.add(Number(match[1]));
+  }
+  return [...seen];
+}
+
+function latestPublicMessageForPhase(game: HumanGameView, phase: HumanGameView["phase"]): string | undefined {
+  return [...game.publicEvents].reverse().find((event) => event.day === game.day && event.phase === phase)?.message;
+}
+
+function buildDawnAudioCue(game: HumanGameView): HostAudioCue | undefined {
+  const message = formatSystemMessage(game, latestPublicMessageForPhase(game, "DAY_ANNOUNCEMENT") ?? "");
+  if (!message) return undefined;
+
+  const deadSeatIds = extractSeatNumbers(message);
+  if (message.includes("平安夜")) {
+    return { key: `${game.id}:${game.day}:dawn:peaceful`, clips: [dawnReportClip(), hostClip("dawn-peaceful")] };
+  }
+  if (deadSeatIds.length > 0) {
+    return {
+      key: `${game.id}:${game.day}:dawn:${deadSeatIds.join("-")}`,
+      clips: [dawnReportClip(), hostClip("dawn-deaths"), ...deadSeatIds.map(seatClip), hostClip("dead")],
+    };
+  }
+  return { key: `${game.id}:${game.day}:dawn`, clips: [dawnReportClip()] };
+}
+
+function readEventSeatId(
+  game: HumanGameView,
+  event: HumanGameView["publicEvents"][number],
+  key: "seatId" | "targetSeatId",
+): number | undefined {
+  const payloadSeatId = event.payload[key];
+  return typeof payloadSeatId === "number"
+    ? payloadSeatId
+    : extractSeatNumbers(formatSystemMessage(game, event.message)).at(key === "targetSeatId" ? 1 : 0);
+}
+
+function buildLastWordsAudioCue(game: HumanGameView, completedKeys: ReadonlySet<string>): HostAudioCue | undefined {
+  if (game.phase !== "LAST_WORDS" || !game.currentActorSeatId) return undefined;
+
+  const actorSeatId = game.currentActorSeatId;
+  const sourceEvent = [...game.publicEvents]
+    .reverse()
+    .find((event) => {
+      if (event.type === "PLAYER_EXILED") return readEventSeatId(game, event, "seatId") === actorSeatId;
+      if (event.type === "HUNTER_SHOT") return readEventSeatId(game, event, "targetSeatId") === actorSeatId;
+      return false;
+    });
+  if (!sourceEvent) return undefined;
+
+  const key = `${game.id}:${sourceEvent.seq}:last-words:${actorSeatId}`;
+  if (completedKeys.has(key)) return undefined;
+
+  const resultClip = sourceEvent.type === "HUNTER_SHOT" ? hostClip("hunter-taken") : hostClip("exiled");
+  return {
+    key,
+    clips: [seatClip(actorSeatId), resultClip, hostClip("last-words", { playbackRate: 1.08, volume: 0.9 })],
+  };
+}
+
+function buildHostAudioCue(game: HumanGameView, completedKeys: ReadonlySet<string> = new Set()): HostAudioCue {
+  const currentSpeaker = game.currentSpeakerSeatId
+    ? game.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId)
+    : undefined;
+  const currentActor = game.currentActorSeatId
+    ? game.seats.find((seat) => seat.seatId === game.currentActorSeatId)
+    : undefined;
+  const pendingDawnCue = buildDawnAudioCue(game);
+  const pendingLastWordsCue = buildLastWordsAudioCue(game, completedKeys);
+
+  if (pendingLastWordsCue) {
+    return pendingLastWordsCue;
+  }
+  if (game.phase === "LAST_WORDS") {
+    return { key: `${game.id}:${game.day}:last-words:idle:${game.currentActorSeatId ?? "host"}`, clips: [] };
+  }
+
+  if (game.phase === "DAY_SPEECH") {
+    if (currentSpeaker?.isHuman) {
+      return { key: `${game.id}:${game.day}:speech:human`, clips: [hostClip("your-turn-speak")] };
+    }
+    if (currentSpeaker) {
+      return {
+        key: `${game.id}:${game.day}:speech:${currentSpeaker.seatId}`,
+        clips: [seatClip(currentSpeaker.seatId), hostClip("please-speak", { playbackRate: 1.16, volume: 0.88 })],
+      };
+    }
+    return { key: `${game.id}:${game.day}:speech:complete`, clips: [] };
+  }
+
+  if (game.phase === "DAY_VOTE") {
+    if (currentActor?.isHuman) {
+      return { key: `${game.id}:${game.day}:vote:human`, clips: [hostClip("your-turn-vote")] };
+    }
+    if (currentActor) {
+      return {
+        key: `${game.id}:${game.day}:vote:${currentActor.seatId}`,
+        clips: [hostClip("please"), seatClip(currentActor.seatId), hostClip("vote")],
+      };
+    }
+    return { key: `${game.id}:${game.day}:vote:start`, clips: [hostClip("day-vote-start")] };
+  }
+
+  if (game.phase === "DAY_ANNOUNCEMENT") {
+    return pendingDawnCue ?? { key: `${game.id}:${game.day}:dawn:pending`, clips: [] };
+  }
+
+  if (game.phase === "EXILE_RESOLUTION") {
+    const message = formatSystemMessage(game, latestPublicMessageForPhase(game, "EXILE_RESOLUTION") ?? "");
+    const seatIds = extractSeatNumbers(message);
+    if (message.includes("平票")) {
+      return { key: `${game.id}:${game.day}:exile:tie`, clips: [hostClip("vote-tie")] };
+    }
+    if (message.includes("放逐") && seatIds[0]) {
+      return {
+        key: `${game.id}:${game.day}:exile:${seatIds[0]}`,
+        clips: [seatClip(seatIds[0]), hostClip("exiled")],
+      };
+    }
+    return { key: `${game.id}:${game.day}:exile`, clips: [hostClip("vote-revealed")] };
+  }
+
+  if (game.phase === "HUNTER_SHOT") {
+    return {
+      key: `${game.id}:${game.day}:hunter:${currentActor?.isHuman ? "human" : "ai"}`,
+      clips: [hostClip(currentActor?.isHuman ? "hunter-shot-human" : "hunter-shot")],
+    };
+  }
+
+  if (game.phase === "GAME_OVER") {
+    return {
+      key: `${game.id}:game-over:${game.result?.winner ?? "unknown"}`,
+      clips: [hostClip(game.result?.winner === "GOOD" ? "game-over-good" : "game-over-wolves")],
+    };
+  }
+
+  const phaseClips: Partial<Record<HumanGameView["phase"], string>> = {
+    NIGHT_WOLVES: "night-wolves",
+    NIGHT_SEER: "night-seer",
+    NIGHT_WITCH: "night-witch",
+  };
+  return {
+    key: `${game.id}:${game.day}:${game.phase}:${latestPublicEvent(game)?.seq ?? 0}`,
+    clips: [hostClip(phaseClips[game.phase] ?? "flow-next")],
+  };
+}
+
+function buildAiSpeechAudioCue(game: HumanGameView, completedKeys: ReadonlySet<string>): AiSpeechAudioCue | undefined {
+  const speech = getNextPlayableAiSpeech(game, completedKeys);
+  if (!speech?.speaker) return undefined;
+  return {
+    key: speechStreamKey(game.id, speech),
+    gameId: game.id,
+    speech,
+  };
+}
+
+function findNewAiSpeech(
+  game: HumanGameView,
+  previousKeys: ReadonlySet<string>,
+  speakerSeatId: number,
+): SpeechItem | undefined {
+  return game.tableSummary.recentSpeeches.find((speech) => {
+    if (!speech.speaker || speech.speaker.seatId !== speakerSeatId || speech.speaker.seatId === game.humanSeatId) {
+      return false;
+    }
+    return !previousKeys.has(speechStreamKey(game.id, speech));
+  });
+}
+
+function createStreamingAiSpeechTtsQueue(options: {
+  gameId: string;
+  speechKeyPrefix: string;
+  speaker: NonNullable<SpeechItem["speaker"]>;
+  runId: number;
+  loadChunk: (cue: AiSpeechAudioTextCue) => Promise<HTMLAudioElement>;
+  playLoadedChunk: (audio: HTMLAudioElement, runId: number, cue: AiSpeechAudioTextCue) => Promise<void>;
+  shouldContinue: () => boolean;
+  onError: (error: unknown) => void;
+}) {
+  let latestText = "";
+  let consumedLength = 0;
+  let chunkIndex = 0;
+  let isDraining = false;
+  let playedAny = false;
+  let cancelled = false;
+  let lastError: unknown;
+  const queue: Array<{
+    audio: Promise<
+      | { ok: true; audio: HTMLAudioElement }
+      | { ok: false; error: unknown }
+    >;
+    cue: AiSpeechAudioTextCue;
+  }> = [];
+  let idleResolve: (() => void) | undefined;
+  let idlePromise = Promise.resolve();
+
+  const resetIdlePromise = () => {
+    if (!idleResolve) {
+      idlePromise = new Promise<void>((resolve) => {
+        idleResolve = resolve;
+      });
+    }
+  };
+
+  const resolveIdleIfDone = () => {
+    if (queue.length > 0 || isDraining || !idleResolve) return;
+    idleResolve();
+    idleResolve = undefined;
+  };
+
+  const drain = () => {
+    if (isDraining) return;
+    isDraining = true;
+    void (async () => {
+      try {
+        while (!cancelled && options.shouldContinue() && queue.length > 0) {
+          const item = queue.shift();
+          if (!item) continue;
+          const loaded = await item.audio;
+          if (!loaded.ok) throw loaded.error;
+          if (!options.shouldContinue()) return;
+          await options.playLoadedChunk(loaded.audio, options.runId, item.cue);
+          playedAny = true;
+        }
+      } catch (error) {
+        lastError = error;
+        options.onError(error);
+        cancelled = true;
+        queue.length = 0;
+      } finally {
+        if (!options.shouldContinue()) {
+          cancelled = true;
+          queue.length = 0;
+        }
+        isDraining = false;
+        resolveIdleIfDone();
+        if (!cancelled && queue.length > 0) {
+          window.setTimeout(drain, 0);
+        }
+      }
+    })();
+  };
+
+  const enqueue = (text: string) => {
+    const clean = text.trim();
+    if (!clean || cancelled) return;
+    resetIdlePromise();
+    const cue = {
+      gameId: options.gameId,
+      speechKey: `${options.speechKeyPrefix}:chunk:${chunkIndex}`,
+      speaker: options.speaker,
+      text: clean,
+    };
+    chunkIndex += 1;
+    queue.push({
+      cue,
+      audio: options.loadChunk(cue).then(
+        (audio) => ({ ok: true, audio }),
+        (error) => ({ ok: false, error }),
+      ),
+    });
+    drain();
+  };
+
+  const consumeStableChunks = (force: boolean) => {
+    while (!cancelled) {
+      const chunk = takeStableTtsChunk(latestText, consumedLength, force);
+      if (!chunk) break;
+      consumedLength = chunk.end;
+      enqueue(chunk.text);
+      if (force) break;
+    }
+  };
+
+  return {
+    push(text: string) {
+      if (cancelled || !text) return;
+      if (text.length < consumedLength) consumedLength = 0;
+      latestText = text;
+      consumeStableChunks(false);
+    },
+    async finish(finalText?: string) {
+      if (!options.shouldContinue()) {
+        cancelled = true;
+        queue.length = 0;
+        resolveIdleIfDone();
+        return;
+      }
+      if (finalText) {
+        latestText = finalText;
+      }
+      consumeStableChunks(true);
+      await idlePromise;
+      if (lastError) throw lastError;
+    },
+    cancel() {
+      cancelled = true;
+      queue.length = 0;
+      resolveIdleIfDone();
+    },
+    getLatestText() {
+      return latestText;
+    },
+    hasPlayedAny() {
+      return playedAny;
+    },
+  };
+}
+
+function takeStableTtsChunk(
+  text: string,
+  cursor: number,
+  force: boolean,
+): { text: string; end: number } | undefined {
+  const raw = text.slice(cursor);
+  const leadingWhitespace = raw.match(/^\s*/)?.[0].length ?? 0;
+  const start = cursor + leadingWhitespace;
+  const pending = text.slice(start);
+  if (!pending.trim()) return undefined;
+
+  const strongBoundary = findBoundaryIndex(pending, /[。！？!?；;]/, AI_SPEECH_TTS_MIN_CHUNK_CHARS);
+  if (strongBoundary >= 0) {
+    return { text: pending.slice(0, strongBoundary + 1), end: start + strongBoundary + 1 };
+  }
+
+  if (pending.length >= AI_SPEECH_TTS_SOFT_CHUNK_CHARS) {
+    const softBoundary = findBoundaryIndex(
+      pending.slice(0, Math.min(pending.length, AI_SPEECH_TTS_MAX_CHUNK_CHARS)),
+      /[，,、：:]/,
+      AI_SPEECH_TTS_MIN_CHUNK_CHARS,
+    );
+    if (softBoundary >= 0) {
+      return { text: pending.slice(0, softBoundary + 1), end: start + softBoundary + 1 };
+    }
+  }
+
+  if (pending.length >= AI_SPEECH_TTS_MAX_CHUNK_CHARS) {
+    const end = AI_SPEECH_TTS_MAX_CHUNK_CHARS;
+    return { text: pending.slice(0, end), end: start + end };
+  }
+
+  if (force) {
+    return { text: pending, end: text.length };
+  }
+
+  return undefined;
+}
+
+function findBoundaryIndex(text: string, pattern: RegExp, minIndex: number): number {
+  for (let index = text.length - 1; index >= minIndex; index -= 1) {
+    if (pattern.test(text[index] ?? "")) return index;
+  }
+  return -1;
+}
+
+function prepareAiSpeechAudio(url: string): HTMLAudioElement {
+  const audio = new Audio(url);
+  audio.preload = "auto";
+  audio.volume = 0.94;
+  audio.playbackRate = AI_SPEECH_AUDIO_PLAYBACK_RATE;
+  audio.preservesPitch = true;
+  audio.load();
+  return audio;
+}
+
+function waitForAudioReady(audio: HTMLAudioElement, timeoutMs = 700): Promise<void> {
+  if (audio.readyState >= 2) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer = 0;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      audio.removeEventListener("loadeddata", done);
+      audio.removeEventListener("canplay", done);
+      window.clearTimeout(timer);
+      resolve();
+    };
+    timer = window.setTimeout(done, timeoutMs);
+    audio.addEventListener("loadeddata", done, { once: true });
+    audio.addEventListener("canplay", done, { once: true });
+  });
+}
+
+async function tryPlayHostClip(audio: HTMLAudioElement, clip: string): Promise<void> {
+  const sources = clip.endsWith(".mp3") ? [clip, clip.replace(/\.mp3$/, ".wav")] : [clip];
+  let lastError: unknown;
+
+  for (const source of sources) {
+    try {
+      audio.src = source;
+      audio.load();
+      await waitForAudioReady(audio);
+      await audio.play();
+      await new Promise<void>((resolve, reject) => {
+        audio.onended = () => resolve();
+        audio.onerror = () => reject(new Error(`音频加载失败：${source}`));
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+}
+
+async function submitStreamingContinue(
+  game: HumanGameView,
+  payload: Extract<CommandPayload, { type: "continue" }>,
+  setLiveAiSpeech: React.Dispatch<React.SetStateAction<LiveAiSpeech | null>>,
+  onSpeechTextSnapshot?: (text: string) => void,
+): Promise<HumanGameView> {
+  const speaker = game.currentSpeakerSeatId
+    ? game.tableSummary.tableMemory.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId)
+    : undefined;
+  let finalView: HumanGameView | undefined;
+  if (speaker) {
+    setLiveAiSpeech({
+      gameId: game.id,
+      speaker,
+      text: "",
+    });
+  }
+
+  const response = await fetch(`/api/games/${game.id}/commands/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok || !response.body) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? "流式推进失败。");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const handleEvent = (rawEvent: string) => {
+    const event = rawEvent.match(/^event:\s*(.+)$/m)?.[1]?.trim() ?? "message";
+    const dataText = rawEvent.match(/^data:\s*([\s\S]*)$/m)?.[1]?.trim();
+    if (!dataText) return;
+    const data = JSON.parse(dataText) as { text?: string; view?: HumanGameView; error?: string };
+    if (event === "speech" && data.text && speaker) {
+      const visibleText = stripSpeechStageDirections(data.text);
+      setLiveAiSpeech({
+        gameId: game.id,
+        speaker,
+        text: visibleText,
+      });
+      if (visibleText) {
+        onSpeechTextSnapshot?.(visibleText);
+      }
+    }
+    if (event === "done" && data.view) {
+      finalView = data.view;
+    }
+    if (event === "error") {
+      throw new Error(data.error ?? "流式推进失败。");
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split(/\n\n/);
+    buffer = events.pop() ?? "";
+    for (const event of events) handleEvent(event);
+  }
+  if (buffer.trim()) handleEvent(buffer);
+  if (!finalView) throw new Error("流式推进没有返回最终牌桌。");
+  return finalView;
+}
+
 export function GameClient() {
   const [game, setGame] = useState<HumanGameView | null>(null);
+  const [boards, setBoards] = useState<BoardOption[]>([]);
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roleIntroGameId, setRoleIntroGameId] = useState<string | null>(null);
   const [phaseCurtain, setPhaseCurtain] = useState<PhaseCurtainCue | null>(null);
+  const [hostAudioEnabled, setHostAudioEnabled] = useState(false);
+  const [aiSpeechAudioEnabled, setAiSpeechAudioEnabled] = useState(false);
+  const [liveAiSpeech, setLiveAiSpeech] = useState<LiveAiSpeech | null>(null);
+  const [hostAudioStatus, setHostAudioStatus] = useState<HostAudioStatus | null>(null);
+  const [aiSpeechAudioStatus, setAiSpeechAudioStatus] = useState<AiSpeechAudioStatus | null>(null);
+  const [aiSpeechAudioUnavailable, setAiSpeechAudioUnavailable] = useState(false);
+  const [pendingCommandType, setPendingCommandType] = useState<CommandPayload["type"] | null>(null);
+  const [hostAudioCompletionTick, setHostAudioCompletionTick] = useState(0);
+  const [aiSpeechAudioCompletionTick, setAiSpeechAudioCompletionTick] = useState(0);
   const lastCurtainKeyRef = useRef<string | null>(null);
+  const autoReadGameIdRef = useRef<string | null>(null);
+  const autoReadSpeechKeysRef = useRef<Set<string>>(new Set());
+  const lastHostAudioKeyRef = useRef<string | null>(null);
+  const completedHostAudioKeysRef = useRef<Set<string>>(new Set());
+  const aiSpeechAudioGameIdRef = useRef<string | null>(null);
+  const lastAiSpeechAudioKeyRef = useRef<string | null>(null);
+  const completedAiSpeechAudioKeysRef = useRef<Set<string>>(new Set());
+  const streamingAiSpeechAudioKeysRef = useRef<Set<string>>(new Set());
+  const textFallbackAiSpeechKeysRef = useRef<Set<string>>(new Set());
+  const aiSpeechAudioAttemptCountsRef = useRef<Map<string, number>>(new Map());
+  const hostAudioRef = useRef<HTMLAudioElement | null>(null);
+  const hostAudioRunRef = useRef(0);
+  const aiSpeechAudioRef = useRef<HTMLAudioElement | null>(null);
+  const aiSpeechAudioRunRef = useRef(0);
   const recentGameIds = useSyncExternalStore(subscribeRecentGameIds, readRecentGameIds, getRecentGameIdsServerSnapshot);
+  const effectiveAiSpeechAudioEnabled = aiSpeechAudioEnabled && !aiSpeechAudioUnavailable;
 
   const rememberGame = useCallback((gameId: string) => {
     const nextIds = [gameId, ...readRecentGameIds().filter((id) => id !== gameId)].slice(0, 5);
@@ -65,6 +655,235 @@ export function GameClient() {
     window.localStorage.setItem(RECENT_GAMES_KEY, JSON.stringify(nextIds));
     window.dispatchEvent(new Event("ai-werewolf-recent-games-changed"));
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setHostAudioEnabled(window.localStorage.getItem(HOST_AUDIO_ENABLED_KEY) === "true");
+      setAiSpeechAudioEnabled(window.localStorage.getItem(AI_SPEECH_AUDIO_ENABLED_KEY) === "true");
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/games/boards")
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("读取板子失败。"))))
+      .then((data: { boards?: BoardOption[] }) => {
+        if (cancelled) return;
+        const nextBoards = data.boards ?? [];
+        setBoards(nextBoards);
+        setSelectedBoardId((current) => current ?? nextBoards[0]?.id ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setError("读取板子列表失败。");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const stopHostAudio = useCallback(() => {
+    hostAudioRunRef.current += 1;
+    if (hostAudioRef.current) {
+      hostAudioRef.current.pause();
+      hostAudioRef.current.src = "";
+      hostAudioRef.current = null;
+    }
+    setHostAudioStatus(null);
+  }, []);
+
+  const stopAiSpeechAudio = useCallback(() => {
+    aiSpeechAudioRunRef.current += 1;
+    if (aiSpeechAudioRef.current) {
+      aiSpeechAudioRef.current.pause();
+      aiSpeechAudioRef.current.src = "";
+      aiSpeechAudioRef.current = null;
+    }
+    setAiSpeechAudioStatus(null);
+  }, []);
+
+  const markAiSpeechAudioUnavailable = useCallback(
+    (error: unknown) => {
+      if (!isAiSpeechAudioUnavailableError(error)) return false;
+      setAiSpeechAudioUnavailable(true);
+      streamingAiSpeechAudioKeysRef.current.clear();
+      stopAiSpeechAudio();
+      return true;
+    },
+    [stopAiSpeechAudio],
+  );
+
+  const pauseAiSpeechAudio = useCallback(() => {
+    const audio = aiSpeechAudioRef.current;
+    if (!audio || audio.paused) return;
+    audio.pause();
+    setAiSpeechAudioStatus((current) => (current ? { ...current, state: "paused" } : current));
+  }, []);
+
+  const resumeAiSpeechAudio = useCallback(async () => {
+    const audio = aiSpeechAudioRef.current;
+    if (!audio || !audio.paused) return;
+    try {
+      await audio.play();
+      setAiSpeechAudioStatus((current) => (current ? { ...current, state: "playing" } : current));
+    } catch (audioError) {
+      console.info(audioError instanceof Error ? audioError.message : "AI 发言音频恢复播放失败。");
+    }
+  }, []);
+
+  const skipAiSpeechAudio = useCallback(() => {
+    const speechKey = aiSpeechAudioStatus?.speechKey ?? lastAiSpeechAudioKeyRef.current;
+    if (speechKey) {
+      completedAiSpeechAudioKeysRef.current.add(speechKey);
+      aiSpeechAudioAttemptCountsRef.current.delete(speechKey);
+      streamingAiSpeechAudioKeysRef.current.delete(speechKey);
+    }
+    stopAiSpeechAudio();
+    setAiSpeechAudioCompletionTick((tick) => tick + 1);
+  }, [aiSpeechAudioStatus?.speechKey, stopAiSpeechAudio]);
+
+  const toggleHostAudio = useCallback(() => {
+    setHostAudioEnabled((current) => {
+      const next = !current;
+      window.localStorage.setItem(HOST_AUDIO_ENABLED_KEY, String(next));
+      if (next) {
+        lastHostAudioKeyRef.current = null;
+      } else {
+        stopHostAudio();
+      }
+      return next;
+    });
+  }, [stopHostAudio]);
+
+  const toggleAiSpeechAudio = useCallback(() => {
+    setAiSpeechAudioEnabled((current) => {
+      const next = !current;
+      window.localStorage.setItem(AI_SPEECH_AUDIO_ENABLED_KEY, String(next));
+      if (next) {
+        setAiSpeechAudioUnavailable(false);
+        lastAiSpeechAudioKeyRef.current = null;
+      } else {
+        streamingAiSpeechAudioKeysRef.current.clear();
+        stopAiSpeechAudio();
+      }
+      return next;
+    });
+  }, [stopAiSpeechAudio]);
+
+  const playHostAudioCue = useCallback(
+    async (cue: HostAudioCue, runId: number) => {
+      setHostAudioStatus({ key: cue.key });
+      for (const clip of cue.clips) {
+        if (hostAudioRunRef.current !== runId) return;
+        const preDelayMs = hostClipPreDelayMs(clip);
+        if (preDelayMs > 0) {
+          await new Promise((resolve) => window.setTimeout(resolve, preDelayMs));
+          if (hostAudioRunRef.current !== runId) return;
+        }
+        const source = hostClipSrc(clip);
+        const audio = new Audio(source);
+        audio.preload = "auto";
+        audio.volume = typeof clip === "string" ? 0.92 : (clip.volume ?? 0.92);
+        audio.playbackRate = typeof clip === "string" ? 1 : (clip.playbackRate ?? 1);
+        hostAudioRef.current = audio;
+
+        try {
+          await tryPlayHostClip(audio, source);
+        } catch {
+          console.info(`主持音频未找到或被浏览器拦截：${source}`);
+          return;
+        }
+      }
+    },
+    [],
+  );
+
+  const loadAiSpeechAudioUrl = useCallback(async (cue: AiSpeechAudioTextCue): Promise<string> => {
+    const response = await fetch("/api/ai-speech-audio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        gameId: cue.gameId,
+        speechKey: cue.speechKey,
+        speakerSeatId: cue.speaker.seatId,
+        speakerName: cue.speaker.name,
+        text: cue.text,
+      }),
+    });
+    const data = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
+    if (!response.ok || !data.url) {
+      const message = data.error ?? "AI 发言音频生成失败。";
+      if (response.status === 503) {
+        throw new AiSpeechAudioUnavailableError(message);
+      }
+      throw new Error(message);
+    }
+    return data.url;
+  }, []);
+
+  const loadAiSpeechAudioElement = useCallback(
+    async (cue: AiSpeechAudioTextCue): Promise<HTMLAudioElement> => {
+      const url = await loadAiSpeechAudioUrl(cue);
+      return prepareAiSpeechAudio(url);
+    },
+    [loadAiSpeechAudioUrl],
+  );
+
+  const playAiSpeechAudioElement = useCallback(async (audio: HTMLAudioElement, runId: number, cue: AiSpeechAudioTextCue) => {
+    if (aiSpeechAudioRunRef.current !== runId) return;
+
+    aiSpeechAudioRef.current = audio;
+
+    await waitForAudioReady(audio);
+    await audio.play();
+    setAiSpeechAudioStatus({
+      speechKey: cue.speechKey,
+      speaker: cue.speaker,
+      state: "playing",
+      text: cue.text,
+    });
+    await new Promise<void>((resolve, reject) => {
+      audio.onended = () => resolve();
+      audio.onerror = () => reject(new Error(`AI 发言音频加载失败：${audio.currentSrc || audio.src}`));
+    });
+  }, []);
+
+  const playAiSpeechAudioText = useCallback(
+    async (cue: AiSpeechAudioTextCue, runId: number) => {
+      setAiSpeechAudioStatus({
+        speechKey: cue.speechKey,
+        speaker: cue.speaker,
+        state: "loading",
+        text: cue.text,
+      });
+      try {
+        const audio = await loadAiSpeechAudioElement(cue);
+        await playAiSpeechAudioElement(audio, runId, cue);
+      } finally {
+        if (aiSpeechAudioRunRef.current === runId) {
+          setAiSpeechAudioStatus((current) => (current?.speechKey === cue.speechKey ? null : current));
+        }
+      }
+    },
+    [loadAiSpeechAudioElement, playAiSpeechAudioElement],
+  );
+
+  const playAiSpeechAudioCue = useCallback(
+    async (cue: AiSpeechAudioCue, runId: number) => {
+      const speaker = cue.speech.speaker;
+      if (!speaker) return;
+      await playAiSpeechAudioText(
+        {
+          gameId: cue.gameId,
+          speechKey: cue.key,
+          speaker,
+          text: cue.speech.message,
+        },
+        runId,
+      );
+    },
+    [playAiSpeechAudioText],
+  );
 
   const loadGameById = useCallback(
     async (gameId: string) => {
@@ -86,11 +905,15 @@ export function GameClient() {
     [rememberGame],
   );
 
-  const startGame = useCallback(async () => {
+  const startGame = useCallback(async (boardId?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/games", { method: "POST" });
+      const response = await fetch("/api/games", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ boardId: boardId ?? selectedBoardId ?? undefined }),
+      });
       if (!response.ok) throw new Error("创建对局失败。");
       const view = (await response.json()) as HumanGameView;
       rememberGame(view.id);
@@ -101,13 +924,82 @@ export function GameClient() {
     } finally {
       setLoading(false);
     }
-  }, [rememberGame]);
+  }, [rememberGame, selectedBoardId]);
 
   const submitCommand = useCallback(async (payload: CommandPayload) => {
     if (!game) return;
     setLoading(true);
     setError(null);
+    setLiveAiSpeech(null);
+    setPendingCommandType(payload.type);
+    let streamingTts: ReturnType<typeof createStreamingAiSpeechTtsQueue> | undefined;
     try {
+      if (payload.type === "continue") {
+        const previousSpeechKeys = new Set(game.tableSummary.recentSpeeches.map((speech) => speechStreamKey(game.id, speech)));
+        const streamingSpeaker = game.currentSpeakerSeatId
+          ? game.tableSummary.tableMemory.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId)
+          : undefined;
+        let streamingSpeechKeyPrefix: string | undefined;
+        if (effectiveAiSpeechAudioEnabled && streamingSpeaker && streamingSpeaker.seatId !== game.humanSeatId) {
+          stopAiSpeechAudio();
+          const runId = aiSpeechAudioRunRef.current;
+          const speechKeyPrefix = `${game.id}:${game.day}:live-tts:${streamingSpeaker.seatId}`;
+          streamingSpeechKeyPrefix = speechKeyPrefix;
+          streamingTts = createStreamingAiSpeechTtsQueue({
+            gameId: game.id,
+            speechKeyPrefix,
+            speaker: streamingSpeaker,
+            runId,
+            loadChunk: loadAiSpeechAudioElement,
+            playLoadedChunk: playAiSpeechAudioElement,
+            shouldContinue: () => aiSpeechAudioRunRef.current === runId,
+            onError: (audioError) => {
+              markAiSpeechAudioUnavailable(audioError);
+              console.info(audioError instanceof Error ? audioError.message : "AI 发言流式音频播放失败。");
+            },
+          });
+        }
+
+        const streamedView = await submitStreamingContinue(game, payload, setLiveAiSpeech, streamingTts?.push);
+        const streamedSpeech =
+          streamingTts && streamingSpeaker ? findNewAiSpeech(streamedView, previousSpeechKeys, streamingSpeaker.seatId) : undefined;
+        if (streamingTts && streamedSpeech) {
+          const streamedSpeechKey = speechStreamKey(streamedView.id, streamedSpeech);
+          streamingAiSpeechAudioKeysRef.current.add(streamedSpeechKey);
+          lastAiSpeechAudioKeyRef.current = streamedSpeechKey;
+          void streamingTts
+            .finish(streamedSpeech.message)
+            .then(() => {
+              completedAiSpeechAudioKeysRef.current.add(streamedSpeechKey);
+              aiSpeechAudioAttemptCountsRef.current.delete(streamedSpeechKey);
+            })
+            .catch((audioError) => {
+              const unavailable = markAiSpeechAudioUnavailable(audioError);
+              console.info(audioError instanceof Error ? audioError.message : "AI 发言流式音频播放失败。");
+              if (streamingTts?.hasPlayedAny()) {
+                completedAiSpeechAudioKeysRef.current.add(streamedSpeechKey);
+              } else {
+                textFallbackAiSpeechKeysRef.current.add(streamedSpeechKey);
+                completedAiSpeechAudioKeysRef.current.add(streamedSpeechKey);
+                if (!unavailable) {
+                  lastAiSpeechAudioKeyRef.current = null;
+                }
+              }
+            })
+            .finally(() => {
+              streamingAiSpeechAudioKeysRef.current.delete(streamedSpeechKey);
+              setAiSpeechAudioStatus((current) =>
+                streamingSpeechKeyPrefix && current?.speechKey.startsWith(streamingSpeechKeyPrefix) ? null : current,
+              );
+              setAiSpeechAudioCompletionTick((tick) => tick + 1);
+            });
+        } else {
+          streamingTts?.cancel();
+        }
+        setGame(streamedView);
+        return;
+      }
+
       const response = await fetch(`/api/games/${game.id}/commands`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -119,25 +1011,77 @@ export function GameClient() {
       }
       setGame(data as HumanGameView);
     } catch (submitError) {
+      streamingTts?.cancel();
       setError(submitError instanceof Error ? submitError.message : "动作执行失败。");
     } finally {
+      setLiveAiSpeech(null);
+      setPendingCommandType(null);
       setLoading(false);
     }
-  }, [game]);
+  }, [
+    effectiveAiSpeechAudioEnabled,
+    game,
+    loadAiSpeechAudioElement,
+    markAiSpeechAudioUnavailable,
+    playAiSpeechAudioElement,
+    stopAiSpeechAudio,
+  ]);
+
+  const phaseCurtainActive = Boolean(phaseCurtain);
 
   useEffect(() => {
-    if (!game || loading || error || game.result || roleIntroGameId === game.id) return;
+    if (!game || loading || error || game.result || roleIntroGameId === game.id || phaseCurtainActive) return;
+
+    const currentSpeechKeys = new Set(game.tableSummary.recentSpeeches.map((speech) => speechStreamKey(game.id, speech)));
+    if (autoReadGameIdRef.current !== game.id) {
+      autoReadGameIdRef.current = game.id;
+      autoReadSpeechKeysRef.current = currentSpeechKeys;
+    }
 
     const action = game.availableActions[0];
     const isAutoStep = game.availableActions.length === 1 && action?.type === "continue";
     if (!isAutoStep) return;
 
+    const pendingAiSpeechCue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current);
+    const latestAiSpeech = getLatestStreamableAiSpeech(game);
+    const latestAiSpeechKey = latestAiSpeech ? speechStreamKey(game.id, latestAiSpeech) : undefined;
+    if (effectiveAiSpeechAudioEnabled && pendingAiSpeechCue) {
+      return;
+    }
+
+    if (hostAudioEnabled) {
+      const cue = buildHostAudioCue(game, completedHostAudioKeysRef.current);
+      if (cue.clips.length > 0 && !completedHostAudioKeysRef.current.has(cue.key)) return;
+    }
+
+    const speechToRead =
+      latestAiSpeech &&
+      latestAiSpeechKey &&
+      (!effectiveAiSpeechAudioEnabled || textFallbackAiSpeechKeysRef.current.has(latestAiSpeechKey)) &&
+      !autoReadSpeechKeysRef.current.has(latestAiSpeechKey)
+        ? latestAiSpeech
+        : undefined;
+    if (latestAiSpeechKey) {
+      autoReadSpeechKeysRef.current.add(latestAiSpeechKey);
+    }
+
     const timer = window.setTimeout(() => {
       void submitCommand({ type: "continue" });
-    }, getAutoAdvanceDelay(game, action));
+    }, getAutoAdvanceDelay(game, action, speechToRead));
 
     return () => window.clearTimeout(timer);
-  }, [error, game, loading, roleIntroGameId, submitCommand]);
+  }, [
+    aiSpeechAudioCompletionTick,
+    effectiveAiSpeechAudioEnabled,
+    error,
+    game,
+    hostAudioCompletionTick,
+    hostAudioEnabled,
+    loading,
+    phaseCurtainActive,
+    roleIntroGameId,
+    submitCommand,
+  ]);
 
   useEffect(() => {
     if (!game || roleIntroGameId === game.id) return;
@@ -152,7 +1096,122 @@ export function GameClient() {
     return () => window.clearTimeout(timer);
   }, [game, roleIntroGameId]);
 
-  const latestEvents = useMemo(() => game?.publicEvents.slice(-18).reverse() ?? [], [game]);
+  useEffect(() => {
+    if (!game) return;
+    if (aiSpeechAudioGameIdRef.current === game.id) return;
+
+    aiSpeechAudioGameIdRef.current = game.id;
+    lastAiSpeechAudioKeyRef.current = null;
+    textFallbackAiSpeechKeysRef.current.clear();
+    for (const speech of game.tableSummary.recentSpeeches) {
+      completedAiSpeechAudioKeysRef.current.add(speechStreamKey(game.id, speech));
+    }
+  }, [game]);
+
+  useEffect(() => {
+    if (!game || !hostAudioEnabled || roleIntroGameId === game.id) return;
+
+    if (effectiveAiSpeechAudioEnabled && game.phase !== "DAY_ANNOUNCEMENT") {
+      const pendingAiSpeechCue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current);
+      if (pendingAiSpeechCue && !completedAiSpeechAudioKeysRef.current.has(pendingAiSpeechCue.key)) return;
+    }
+
+    const cue = buildHostAudioCue(game, completedHostAudioKeysRef.current);
+    if (completedHostAudioKeysRef.current.has(cue.key)) return;
+    if (cue.clips.length === 0) {
+      completedHostAudioKeysRef.current.add(cue.key);
+      setHostAudioCompletionTick((tick) => tick + 1);
+      return;
+    }
+    if (lastHostAudioKeyRef.current === cue.key) return;
+    lastHostAudioKeyRef.current = cue.key;
+    stopHostAudio();
+    const runId = hostAudioRunRef.current;
+
+    const delayMs = game.phase === "DAY_ANNOUNCEMENT" ? 0 : 260;
+    const timer = window.setTimeout(() => {
+      void playHostAudioCue(cue, runId).finally(() => {
+        if (hostAudioRunRef.current === runId) {
+          setHostAudioStatus(null);
+          completedHostAudioKeysRef.current.add(cue.key);
+          setHostAudioCompletionTick((tick) => tick + 1);
+        }
+      });
+    }, delayMs);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    aiSpeechAudioCompletionTick,
+    effectiveAiSpeechAudioEnabled,
+    game,
+    hostAudioCompletionTick,
+    hostAudioEnabled,
+    playHostAudioCue,
+    roleIntroGameId,
+    stopHostAudio,
+  ]);
+
+  useEffect(() => {
+    if (!game || !effectiveAiSpeechAudioEnabled || roleIntroGameId === game.id) return;
+
+    const cue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current);
+    if (!cue) return;
+    if (completedAiSpeechAudioKeysRef.current.has(cue.key)) return;
+    if (streamingAiSpeechAudioKeysRef.current.has(cue.key)) return;
+    if (lastAiSpeechAudioKeyRef.current === cue.key) return;
+
+    lastAiSpeechAudioKeyRef.current = cue.key;
+    stopAiSpeechAudio();
+    const runId = aiSpeechAudioRunRef.current;
+
+    const timer = window.setTimeout(() => {
+      void playAiSpeechAudioCue(cue, runId)
+        .then(() => {
+          completedAiSpeechAudioKeysRef.current.add(cue.key);
+          aiSpeechAudioAttemptCountsRef.current.delete(cue.key);
+        })
+        .catch((audioError) => {
+          const unavailable = markAiSpeechAudioUnavailable(audioError);
+          console.info(audioError instanceof Error ? audioError.message : "AI 发言音频播放失败。");
+          const attempts = (aiSpeechAudioAttemptCountsRef.current.get(cue.key) ?? 0) + 1;
+          aiSpeechAudioAttemptCountsRef.current.set(cue.key, attempts);
+          if (!unavailable) {
+            lastAiSpeechAudioKeyRef.current = null;
+          }
+          if (attempts < AI_SPEECH_AUDIO_MAX_ATTEMPTS) return;
+          completedAiSpeechAudioKeysRef.current.add(cue.key);
+          textFallbackAiSpeechKeysRef.current.add(cue.key);
+          aiSpeechAudioAttemptCountsRef.current.delete(cue.key);
+        })
+        .finally(() => {
+          if (aiSpeechAudioRunRef.current === runId) {
+            setAiSpeechAudioCompletionTick((tick) => tick + 1);
+          }
+        });
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    aiSpeechAudioCompletionTick,
+    effectiveAiSpeechAudioEnabled,
+    game,
+    markAiSpeechAudioUnavailable,
+    playAiSpeechAudioCue,
+    roleIntroGameId,
+    stopAiSpeechAudio,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      stopHostAudio();
+      stopAiSpeechAudio();
+    };
+  }, [stopAiSpeechAudio, stopHostAudio]);
+
+  const latestEvents = useMemo(
+    () => game?.publicEvents.filter((event) => event.phase !== "DAY_SPEECH").slice(-18).reverse() ?? [],
+    [game],
+  );
 
   return (
     <main
@@ -163,7 +1222,16 @@ export function GameClient() {
       }}
     >
       <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-4 px-3 py-3 sm:px-5 lg:px-7">
-        <RoomHeader game={game} loading={loading} onNewGame={startGame} />
+        <RoomHeader
+          game={game}
+          loading={loading}
+          aiSpeechAudioEnabled={aiSpeechAudioEnabled}
+          aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
+          hostAudioEnabled={hostAudioEnabled}
+          onNewGame={startGame}
+          onToggleAiSpeechAudio={toggleAiSpeechAudio}
+          onToggleHostAudio={toggleHostAudio}
+        />
 
         {error && (
           <div className="rounded-lg border border-[#e46d55]/45 bg-[#381511]/90 px-4 py-3 text-sm text-[#ffd8cf] shadow-lg">
@@ -174,26 +1242,40 @@ export function GameClient() {
         {!game ? (
           <LandingPanel
             loading={loading}
+            boards={boards}
+            selectedBoardId={selectedBoardId}
+            onSelectBoard={setSelectedBoardId}
             recentGameIds={recentGameIds}
             onLoadGame={loadGameById}
-            onStartGame={startGame}
+            onStartGame={() => startGame(selectedBoardId ?? undefined)}
           />
         ) : (
           <div className="grid flex-1 gap-4">
             <PhaseRhythm game={game} />
             <HostStage game={game} />
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_420px]">
+            <FlowStatusBar
+              game={game}
+              loading={loading}
+              pendingCommandType={pendingCommandType}
+              liveAiSpeech={liveAiSpeech}
+              hostAudioStatus={hostAudioStatus}
+              aiSpeechAudioStatus={aiSpeechAudioStatus}
+              aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
+              onPauseAiSpeechAudio={pauseAiSpeechAudio}
+              onResumeAiSpeechAudio={resumeAiSpeechAudio}
+              onSkipAiSpeechAudio={skipAiSpeechAudio}
+              onToggleAiSpeechAudio={toggleAiSpeechAudio}
+            />
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,420px)]">
               <div className="grid gap-4">
-                <SeatBoard game={game} />
-                <ActionPanel game={game} loading={loading} onNewGame={startGame} onSubmit={submitCommand} />
+                <SeatBoard game={game} liveAiSpeech={liveAiSpeech} aiSpeechAudioStatus={aiSpeechAudioStatus} />
                 {game.review && <ReviewPanel game={game} />}
               </div>
 
               <aside className="grid content-start gap-4">
-                <InfoPanel game={game} />
-                <SpeechFeed game={game} />
-                <VoteTable game={game} />
-                <PublicLog events={latestEvents} />
+                <ActionPanel game={game} loading={loading} onNewGame={startGame} onSubmit={submitCommand} />
+                <VoteTable game={game} loading={loading} pendingCommandType={pendingCommandType} />
+                <AuxiliaryInfoPanel game={game} events={latestEvents} />
               </aside>
             </section>
           </div>
@@ -208,1462 +1290,6 @@ export function GameClient() {
   );
 }
 
-function RoomHeader({
-  game,
-  loading,
-  onNewGame,
-}: {
-  game: HumanGameView | null;
-  loading: boolean;
-  onNewGame: () => Promise<void>;
-}) {
-  return (
-    <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f1c76e]/25 bg-[#130d0b]/75 px-4 py-3 shadow-2xl shadow-black/25 backdrop-blur-md">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#f1c76e]/45 bg-[#2a1712] text-lg font-semibold text-[#f1c76e] shadow-inner">
-          狼
-        </div>
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-semibold tracking-normal sm:text-2xl">单人 AI 狼人杀</h1>
-          <p className="mt-1 text-xs text-[#cab995] sm:text-sm">
-            9人预女猎 · {game ? `你是${game.myRoleLabel}` : "1 真人 + 8 AI"}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {game && (
-          <>
-            <StatusPill tone="gold">第 {game.day} 天</StatusPill>
-            <StatusPill tone={game.phase.startsWith("NIGHT") ? "blue" : "green"}>{game.phaseLabel}</StatusPill>
-          </>
-        )}
-        <button
-          onClick={onNewGame}
-          disabled={loading}
-          className="rounded-full bg-[#b74332] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#220806]/35 transition hover:bg-[#cf513d] disabled:opacity-60"
-        >
-          {game ? "新开一局" : "开始对局"}
-        </button>
-      </div>
-    </header>
-  );
-}
-
-function LandingPanel({
-  loading,
-  recentGameIds,
-  onLoadGame,
-  onStartGame,
-}: {
-  loading: boolean;
-  recentGameIds: string[];
-  onLoadGame: (gameId: string) => Promise<void>;
-  onStartGame: () => Promise<void>;
-}) {
-  return (
-    <section className="grid flex-1 place-items-center py-8">
-      <div className="grid w-full max-w-5xl gap-5 lg:grid-cols-[1fr_360px]">
-        <div className="min-h-[420px] rounded-[28px] border border-[#f1c76e]/25 bg-[#160f0d]/55 bg-cover bg-center p-5 shadow-2xl shadow-black/45 backdrop-blur-sm">
-          <div className="flex h-full flex-col justify-between rounded-[22px] border border-[#f1c76e]/20 bg-gradient-to-br from-black/55 via-[#2c160f]/35 to-black/60 p-6">
-            <div>
-              <div className="mb-4 inline-flex rounded-full border border-[#f1c76e]/35 bg-black/35 px-3 py-1 text-xs text-[#f1d796]">
-                本地 Alpha · 规则引擎驱动
-              </div>
-              <h2 className="max-w-2xl text-4xl font-semibold leading-tight sm:text-5xl">进入牌桌，和 8 个 AI 玩完一整局</h2>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-[#dcc9a7]">
-                固定 9 人预女猎，AI 自动推进非真人阶段，终局后揭晓身份、刀口、查验、投票和胜负原因。
-              </p>
-            </div>
-            <button
-              onClick={onStartGame}
-              disabled={loading}
-              className="mt-8 w-full rounded-2xl bg-[#b74332] px-6 py-4 text-base font-semibold text-white shadow-xl shadow-black/35 transition hover:bg-[#cf513d] disabled:opacity-60 sm:w-fit"
-            >
-              {loading ? "创建中" : "进入牌桌"}
-            </button>
-          </div>
-        </div>
-
-        <div className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/80 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-[#f7ead5]">最近对局</h2>
-            <span className="text-xs text-[#ad9c7d]">最多 5 局</span>
-          </div>
-          {recentGameIds.length === 0 ? (
-            <div className="grid min-h-[260px] place-items-center rounded-2xl border border-dashed border-[#f1c76e]/25 text-center text-sm leading-6 text-[#ad9c7d]">
-              暂无本地记录
-            </div>
-          ) : (
-            <div className="grid gap-2">
-              {recentGameIds.map((gameId, index) => (
-                <button
-                  key={gameId}
-                  onClick={() => onLoadGame(gameId)}
-                  disabled={loading}
-                  className="rounded-2xl border border-[#f1c76e]/20 bg-[#211410]/80 px-4 py-3 text-left transition hover:border-[#f1c76e]/45 hover:bg-[#2d1a13] disabled:opacity-60"
-                >
-                  <div className="text-sm font-semibold text-[#f7ead5]">
-                    {index === 0 ? "继续上一局" : "查看最近终局"}
-                  </div>
-                  <div className="mt-1 text-xs text-[#ad9c7d]">{gameId.slice(0, 8)}</div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-type RoleIntro = {
-  title: string;
-  camp: string;
-  goal: string;
-  ability: string;
-  tip: string;
-};
-
-type PhaseCurtainCue = {
-  eyebrow: string;
-  title: string;
-  subtitle: string;
-  tone: "night" | "day" | "vote" | "danger" | "end";
-  durationMs: number;
-};
-
-const ROLE_INTROS: Record<HumanGameView["myRole"], RoleIntro> = {
-  WEREWOLF: {
-    title: "狼人",
-    camp: "狼人阵营",
-    goal: "让所有平民出局，或让所有神职出局。",
-    ability: "每晚参与选择一名玩家作为刀口。白天需要隐藏身份、制造好人焦点。",
-    tip: "不要过早暴露狼队视角，发言时尽量用公开信息包装你的怀疑。",
-  },
-  VILLAGER: {
-    title: "平民",
-    camp: "好人阵营",
-    goal: "找出并放逐所有狼人。",
-    ability: "没有夜晚技能，只能依靠发言、投票和死亡信息推理。",
-    tip: "你是闭眼视角，重点观察谁在回避逻辑、谁在强行带节奏。",
-  },
-  SEER: {
-    title: "预言家",
-    camp: "好人阵营",
-    goal: "通过查验帮助好人找出狼人。",
-    ability: "每晚可以查验一名玩家，得知其阵营为狼人或好人。",
-    tip: "查验结果是你的核心信息。什么时候报、怎么归票，会直接影响局势。",
-  },
-  WITCH: {
-    title: "女巫",
-    camp: "好人阵营",
-    goal: "利用药品保护关键好人，并找机会毒杀狼人。",
-    ability: "拥有一瓶解药和一瓶毒药。每晚最多使用一瓶药。",
-    tip: "药品很珍贵。先听发言，再决定是否公开自己的判断。",
-  },
-  HUNTER: {
-    title: "猎人",
-    camp: "好人阵营",
-    goal: "用发言和最后一枪帮助好人扩大优势。",
-    ability: "被狼人击杀或白天放逐时，可以开枪带走一名玩家；被毒死不能开枪。",
-    tip: "你有威慑力，但不必一开始亮身份。把枪口留给最值得怀疑的人。",
-  },
-};
-
-function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnter: () => void }) {
-  const intro = ROLE_INTROS[game.myRole];
-  const teammates = game.wolfTeammates.map((seat) => seat.name).join("、");
-
-  return (
-    <div className="role-intro-backdrop fixed inset-0 z-50 grid place-items-center bg-black/86 px-4 py-6 backdrop-blur-md">
-      <section className="grid w-full max-w-5xl gap-6 rounded-[30px] border border-[#f1c76e]/30 bg-[#120c0a]/95 p-4 shadow-2xl shadow-black/70 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="flex min-h-[500px] flex-col items-center justify-start rounded-[24px] border border-[#f1c76e]/18 bg-black/28 p-5 sm:p-6">
-          <div className="role-card-scene mt-1">
-            <Image
-              fill
-              className="role-card-shadow-card rounded-[18px] border border-[#f1c76e]/22 object-cover"
-              src={ROLE_CARD_IMAGES.HIDDEN}
-              alt=""
-              aria-hidden="true"
-            />
-            <Image
-              fill
-              priority
-              className="role-card-reveal rounded-[18px] border border-[#f1c76e]/60 object-contain shadow-2xl"
-              src={ROLE_CARD_IMAGES[game.myRole]}
-              alt={`${intro.title}身份牌`}
-            />
-          </div>
-          <div className="mt-6 text-center">
-            <div className="text-xs uppercase tracking-[0.28em] text-[#ad9c7d]">Your Role</div>
-            <div className="mt-2 text-3xl font-semibold text-[#f1d796]">{intro.title}</div>
-          </div>
-        </div>
-
-        <div className="flex min-w-0 flex-col justify-between gap-6">
-          <div>
-            <div className="inline-flex rounded-full border border-[#f1c76e]/25 bg-[#f1c76e]/10 px-3 py-1 text-xs text-[#f1d796]">
-              身份已发放
-            </div>
-            <h2 className="mt-4 text-3xl font-semibold leading-tight text-[#f7ead5] sm:text-4xl">
-              你是 {intro.title}
-            </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#dcc9a7]">
-              记住你的身份和胜利目标。确认后进入牌桌，系统会以主持人节奏自动推进到你需要行动的时刻。
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <RoleIntroItem label="阵营" value={intro.camp} />
-            <RoleIntroItem label="胜利目标" value={intro.goal} />
-            <RoleIntroItem label="能力" value={intro.ability} />
-            <RoleIntroItem label="发言建议" value={intro.tip} />
-            {teammates && <RoleIntroItem label="狼队友" value={teammates} />}
-          </div>
-
-          <button
-            onClick={onEnter}
-            className="min-h-12 rounded-full bg-[#b74332] px-6 py-3 text-sm font-semibold text-white shadow-xl shadow-black/35 transition hover:bg-[#cf513d]"
-          >
-            确认身份，进入游戏
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function RoleIntroItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-[#f1c76e]/16 bg-black/24 px-4 py-3">
-      <div className="mb-1 text-xs text-[#ad9c7d]">{label}</div>
-      <div className="text-sm leading-6 text-[#f7ead5]">{value}</div>
-    </div>
-  );
-}
-
-function PhaseCurtain({ cue }: { cue: PhaseCurtainCue }) {
-  return (
-    <div className="phase-curtain pointer-events-none fixed inset-0 z-40 grid place-items-center bg-black/48 px-4 backdrop-blur-[2px]">
-      <div className={`${phaseCurtainToneClass(cue.tone)} min-w-0 rounded-[28px] border px-8 py-7 text-center shadow-2xl shadow-black/55`}>
-        <div className="text-xs uppercase tracking-[0.3em] text-white/52">{cue.eyebrow}</div>
-        <div className="mt-3 text-4xl font-semibold text-white sm:text-5xl">{cue.title}</div>
-        <div className="mt-3 text-sm leading-6 text-white/70">{cue.subtitle}</div>
-      </div>
-    </div>
-  );
-}
-
-function getPhaseCurtainCue(game: HumanGameView): PhaseCurtainCue {
-  switch (game.phase) {
-    case "NIGHT_WOLVES":
-      return {
-        eyebrow: `第 ${game.day} 夜`,
-        title: "天黑请闭眼",
-        subtitle: "狼人请睁眼，选择今晚的刀口。",
-        tone: "night",
-        durationMs: 1300,
-      };
-    case "NIGHT_SEER":
-      return {
-        eyebrow: `第 ${game.day} 夜`,
-        title: "预言家请睁眼",
-        subtitle: "选择一名玩家查验身份。",
-        tone: "night",
-        durationMs: 1200,
-      };
-    case "NIGHT_WITCH":
-      return {
-        eyebrow: `第 ${game.day} 夜`,
-        title: "女巫请睁眼",
-        subtitle: "确认刀口，决定是否使用药品。",
-        tone: "night",
-        durationMs: 1200,
-      };
-    case "DAY_ANNOUNCEMENT":
-      return {
-        eyebrow: `第 ${game.day} 天`,
-        title: "天亮了",
-        subtitle: "主持人公布昨夜情况。",
-        tone: "day",
-        durationMs: 1300,
-      };
-    case "DAY_SPEECH":
-      return {
-        eyebrow: `第 ${game.day} 天`,
-        title: "开始发言",
-        subtitle: "存活玩家按座位顺序依次发言。",
-        tone: "day",
-        durationMs: 1100,
-      };
-    case "DAY_VOTE":
-      return {
-        eyebrow: `第 ${game.day} 天`,
-        title: "开始投票",
-        subtitle: "投票过程保密，结束后统一开票。",
-        tone: "vote",
-        durationMs: 1100,
-      };
-    case "EXILE_RESOLUTION":
-      return {
-        eyebrow: `第 ${game.day} 天`,
-        title: "公布票数",
-        subtitle: "结算今日放逐结果。",
-        tone: "vote",
-        durationMs: 1200,
-      };
-    case "HUNTER_SHOT":
-      return {
-        eyebrow: "猎人阶段",
-        title: "猎人请行动",
-        subtitle: "选择是否发动最后一枪。",
-        tone: "danger",
-        durationMs: 1100,
-      };
-    case "GAME_OVER":
-      return {
-        eyebrow: "终局",
-        title: "游戏结束",
-        subtitle: game.result?.reason ?? "查看复盘了解关键节点。",
-        tone: "end",
-        durationMs: 1400,
-      };
-    default:
-      return {
-        eyebrow: "准备",
-        title: "准备开局",
-        subtitle: "正在生成本局身份。",
-        tone: "day",
-        durationMs: 900,
-      };
-  }
-}
-
-function phaseCurtainToneClass(tone: PhaseCurtainCue["tone"]): string {
-  const tones = {
-    night: "border-[#6d93d4]/38 bg-[#0b1428]/92",
-    day: "border-[#f1c76e]/34 bg-[#26170c]/92",
-    vote: "border-[#e46d55]/36 bg-[#32100d]/92",
-    danger: "border-[#ff9a6b]/40 bg-[#35180e]/94",
-    end: "border-[#77d898]/36 bg-[#0f2418]/94",
-  };
-  return tones[tone];
-}
-
-function PhaseRhythm({ game }: { game: HumanGameView }) {
-  return (
-    <section className="rounded-[22px] border border-[#f1c76e]/20 bg-[#130d0b]/72 px-3 py-3 shadow-xl shadow-black/25 backdrop-blur-md">
-      <div className="grid grid-cols-5 gap-2">
-        {game.tableSummary.phaseSteps.map((step, index) => (
-          <div key={step.key} className="min-w-0">
-            <div className="flex items-center gap-2">
-              <div
-                className={[
-                  "grid h-8 w-8 shrink-0 place-items-center rounded-full border text-xs font-semibold",
-                  step.status === "done"
-                    ? "border-[#77d898]/35 bg-[#1d4e33]/70 text-[#a8f0b6]"
-                    : step.status === "current"
-                      ? "border-[#f1c76e]/65 bg-[#4a2d12] text-[#f1d796] shadow-lg shadow-[#f1c76e]/10"
-                      : "border-[#f1c76e]/18 bg-black/25 text-[#8f8065]",
-                ].join(" ")}
-              >
-                {index + 1}
-              </div>
-              {index < game.tableSummary.phaseSteps.length - 1 && (
-                <div
-                  className={[
-                    "hidden h-px flex-1 sm:block",
-                    step.status === "done" ? "bg-[#77d898]/35" : "bg-[#f1c76e]/15",
-                  ].join(" ")}
-                />
-              )}
-            </div>
-            <div
-              className={[
-                "mt-2 truncate text-xs",
-                step.status === "current" ? "font-semibold text-[#f1d796]" : step.status === "done" ? "text-[#a8f0b6]" : "text-[#8f8065]",
-              ].join(" ")}
-            >
-              {step.label}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-type HostCue = {
-  badge: string;
-  title: string;
-  line: string;
-  detail: string;
-  tone: "night" | "day" | "vote" | "danger" | "end";
-};
-
-function HostStage({ game }: { game: HumanGameView }) {
-  const cue = getHostCue(game);
-  const action = game.availableActions[0];
-  const currentActor = game.currentActorSeatId
-    ? game.seats.find((seat) => seat.seatId === game.currentActorSeatId)
-    : undefined;
-
-  return (
-    <section className={`${hostToneClass(cue.tone)} overflow-hidden rounded-[26px] border p-4 shadow-2xl shadow-black/35 backdrop-blur-md`}>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] lg:items-center">
-        <div className="min-w-0">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-white/15 bg-black/24 px-3 py-1 text-xs font-semibold text-white/82">
-              主持人
-            </span>
-            <span className="rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs text-white/70">
-              {cue.badge}
-            </span>
-            {currentActor && (
-              <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1 text-xs text-white/72">
-                当前：{currentActor.seatId}号 {currentActor.name}
-              </span>
-            )}
-          </div>
-          <h2 className="text-2xl font-semibold text-white sm:text-3xl">{cue.title}</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-white/78">{cue.line}</p>
-          <p className="mt-1 text-xs leading-5 text-white/56">{cue.detail}</p>
-        </div>
-
-        <div className="rounded-2xl border border-white/12 bg-black/20 p-3">
-          <HostStageDetail game={game} action={action} />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function HostStageDetail({ game, action }: { game: HumanGameView; action?: AvailableHumanAction }) {
-  if (game.phase.startsWith("NIGHT")) {
-    return <NightRoleTrack phase={game.phase} />;
-  }
-
-  if (game.phase === "DAY_SPEECH") {
-    return <SpeechOrderStrip game={game} />;
-  }
-
-  if (game.phase === "DAY_VOTE") {
-    return <VotePrivacyStrip game={game} action={action} />;
-  }
-
-  if (game.phase === "EXILE_RESOLUTION") {
-    return <VoteRevealStrip game={game} />;
-  }
-
-  if (game.phase === "DAY_ANNOUNCEMENT") {
-    const latestAnnouncement = [...game.publicEvents]
-      .reverse()
-      .find((event) => event.day === game.day && event.phase === "DAY_ANNOUNCEMENT");
-    return (
-      <div className="grid gap-2 text-sm leading-6 text-white/75">
-        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Dawn Report</div>
-        <div>{latestAnnouncement?.message ?? "等待公布昨夜死亡情况。"}</div>
-      </div>
-    );
-  }
-
-  if (game.phase === "HUNTER_SHOT") {
-    return (
-      <div className="grid gap-2 text-sm leading-6 text-white/75">
-        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Hunter Window</div>
-        <div>猎人进入最后行动窗口，结算完成后继续进入白天或终局。</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-2 text-sm leading-6 text-white/75">
-      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Result</div>
-      <div>{game.result ? `${game.result.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜：${game.result.reason}` : "流程继续推进。"}</div>
-    </div>
-  );
-}
-
-function NightRoleTrack({ phase }: { phase: HumanGameView["phase"] }) {
-  const steps = [
-    { phase: "NIGHT_WOLVES", label: "狼人睁眼", detail: "选择今晚刀口" },
-    { phase: "NIGHT_SEER", label: "预言家睁眼", detail: "查验一名玩家" },
-    { phase: "NIGHT_WITCH", label: "女巫睁眼", detail: "决定是否用药" },
-  ] as const;
-  const currentIndex = steps.findIndex((step) => step.phase === phase);
-
-  return (
-    <div className="grid gap-3">
-      {steps.map((step, index) => {
-        const status = index < currentIndex ? "done" : index === currentIndex ? "current" : "upcoming";
-        return (
-          <div
-            key={step.phase}
-            className={[
-              "flex items-center justify-between gap-3 rounded-2xl border px-3 py-2",
-              status === "done"
-                ? "border-[#77d898]/25 bg-[#153421]/50 text-[#c9f6d0]"
-                : status === "current"
-                  ? "border-[#7da8e3]/40 bg-[#132942]/70 text-[#d8e6f7]"
-                  : "border-white/10 bg-black/18 text-white/45",
-            ].join(" ")}
-          >
-            <div>
-              <div className="text-sm font-semibold">{step.label}</div>
-              <div className="mt-0.5 text-xs opacity-70">{step.detail}</div>
-            </div>
-            <span className="text-xs">{status === "done" ? "已完成" : status === "current" ? "进行中" : "等待"}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function SpeechOrderStrip({ game }: { game: HumanGameView }) {
-  const spokenSeatIds = new Set(
-    game.publicEvents
-      .filter((event) => event.day === game.day && event.phase === "DAY_SPEECH" && typeof event.actorSeatId === "number")
-      .map((event) => event.actorSeatId),
-  );
-  const aliveSeats = game.seats.filter((seat) => seat.alive);
-
-  return (
-    <div>
-      <div className="mb-3 flex items-center justify-between gap-3 text-xs text-white/58">
-        <span>本轮发言顺序</span>
-        <span>
-          已发言 {spokenSeatIds.size}/{aliveSeats.length}
-        </span>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {aliveSeats.map((seat) => {
-          const isCurrent = game.currentSpeakerSeatId === seat.seatId;
-          const hasSpoken = spokenSeatIds.has(seat.seatId);
-          return (
-            <span
-              key={seat.seatId}
-              className={[
-                "rounded-full border px-3 py-1 text-xs",
-                isCurrent
-                  ? "border-[#f1c76e]/55 bg-[#4a2d12]/80 text-[#f1d796]"
-                  : hasSpoken
-                    ? "border-[#77d898]/25 bg-[#153421]/55 text-[#a8f0b6]"
-                    : "border-white/10 bg-black/20 text-white/50",
-              ].join(" ")}
-            >
-              {seat.seatId}号{seat.isHuman ? " 你" : ""}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function VotePrivacyStrip({ game, action }: { game: HumanGameView; action?: AvailableHumanAction }) {
-  const currentActor = game.currentActorSeatId
-    ? game.seats.find((seat) => seat.seatId === game.currentActorSeatId)
-    : undefined;
-  const isHumanVote = action?.type === "vote";
-
-  return (
-    <div className="grid gap-3 text-sm leading-6 text-white/75">
-      <div className="rounded-2xl border border-[#e46d55]/25 bg-[#351210]/45 px-3 py-2">
-        投票期间不会公开任何人的投票对象，也不会显示实时票数。
-      </div>
-      <div className="flex flex-wrap gap-2 text-xs">
-        <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1 text-white/65">
-          {isHumanVote ? "轮到你投票" : currentActor ? `等待 ${currentActor.name} 投票` : "等待投票"}
-        </span>
-        <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1 text-white/65">结束后统一开票</span>
-      </div>
-    </div>
-  );
-}
-
-function VoteRevealStrip({ game }: { game: HumanGameView }) {
-  const tally = game.tableSummary.voteSnapshot.tally;
-  return (
-    <div className="grid gap-2">
-      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Final Tally</div>
-      {tally.length === 0 ? (
-        <div className="text-sm text-white/65">等待公开投票结果。</div>
-      ) : (
-        tally.map((item) => (
-          <div key={item.target.seatId} className="flex items-center justify-between gap-3 rounded-2xl border border-[#e46d55]/20 bg-black/20 px-3 py-2 text-sm text-[#ffd8cf]">
-            <span>
-              {item.target.seatId}号 {item.target.name}
-            </span>
-            <strong>{item.count} 票</strong>
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
-function getHostCue(game: HumanGameView): HostCue {
-  switch (game.phase) {
-    case "NIGHT_WOLVES":
-      return {
-        badge: `第 ${game.day} 夜`,
-        title: "天黑请闭眼",
-        line: "狼人请睁眼，选择今晚的击杀目标。其他身份暂时闭眼等待。",
-        detail: "如果轮到 AI，点击继续会播放下一步；如果你是狼人，则直接选择刀口。",
-        tone: "night",
-      };
-    case "NIGHT_SEER":
-      return {
-        badge: `第 ${game.day} 夜`,
-        title: "预言家请睁眼",
-        line: "预言家选择一名玩家查验身份，查验结果只进入预言家的私密信息。",
-        detail: "这一阶段不会公开查验对象和结果。",
-        tone: "night",
-      };
-    case "NIGHT_WITCH":
-      return {
-        badge: `第 ${game.day} 夜`,
-        title: "女巫请睁眼",
-        line: "女巫确认昨夜刀口，并决定是否使用解药或毒药。",
-        detail: "每晚最多使用一瓶药，药品用完后不会再次出现对应操作。",
-        tone: "night",
-      };
-    case "DAY_ANNOUNCEMENT":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "天亮了",
-        line: "主持人公布昨夜死亡情况，随后进入白天发言。",
-        detail: "死亡信息公开，身份仍然只在终局复盘揭晓。",
-        tone: "day",
-      };
-    case "DAY_SPEECH":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "按座位顺序发言",
-        line: "所有存活玩家依次发言。发言结束后才进入投票。",
-        detail: "AI 只读取公开信息和自己的私密信息，不能看到完整身份表。",
-        tone: "day",
-      };
-    case "DAY_VOTE":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "开始投票",
-        line: "所有存活玩家投票放逐一名玩家。投票结束前，票型和投票对象全部保密。",
-        detail: "结束后只公布每名候选人的得票数，再结算放逐或平票。",
-        tone: "vote",
-      };
-    case "EXILE_RESOLUTION":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "公布投票结果",
-        line: "主持人公开最终票数，并结算今日放逐结果。",
-        detail: "这里不会展示个人投票理由，避免复盘之外的信息影响过程体验。",
-        tone: "vote",
-      };
-    case "HUNTER_SHOT":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "猎人行动窗口",
-        line: "猎人出局后可以选择是否开枪带走一名玩家。",
-        detail: "如果猎人被女巫毒死，则不会触发开枪。",
-        tone: "danger",
-      };
-    case "GAME_OVER":
-      return {
-        badge: "终局",
-        title: "游戏结束",
-        line: game.result ? `${game.result.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜。` : "对局已经结束。",
-        detail: game.result?.reason ?? "可以查看复盘了解关键节点。",
-        tone: "end",
-      };
-    default:
-      return {
-        badge: "准备",
-        title: "准备开局",
-        line: "正在创建本局座位和身份。",
-        detail: "规则引擎会先生成事件，再投影出当前玩家视角。",
-        tone: "day",
-      };
-  }
-}
-
-function hostToneClass(tone: HostCue["tone"]): string {
-  const tones = {
-    night: "border-[#6d93d4]/28 bg-[#0c1424]/82",
-    day: "border-[#f1c76e]/26 bg-[#1c150e]/82",
-    vote: "border-[#e46d55]/28 bg-[#2a1110]/84",
-    danger: "border-[#ff9a6b]/30 bg-[#30140d]/86",
-    end: "border-[#77d898]/28 bg-[#0f2118]/84",
-  };
-  return tones[tone];
-}
-
-function SeatBoard({ game }: { game: HumanGameView }) {
-  const aliveCount = game.seats.filter((seat) => seat.alive).length;
-  const deadCount = game.seats.length - aliveCount;
-
-  return (
-    <section
-      className="relative overflow-hidden rounded-[30px] border border-[#f1c76e]/25 bg-[#120b09]/70 bg-cover bg-center p-4 shadow-2xl shadow-black/45 lg:min-h-[690px]"
-      style={{
-        backgroundImage:
-          "linear-gradient(180deg, rgba(8,6,5,0.20), rgba(8,6,5,0.78)), url('/images/werewolf-table-bg.jpg')",
-      }}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(243,192,104,0.18),transparent_42%),linear-gradient(180deg,transparent,rgba(0,0,0,0.35))]" />
-
-      <div className="relative mb-4 grid gap-3 rounded-2xl border border-[#f1c76e]/20 bg-black/35 p-3 text-sm text-[#dcc9a7] lg:hidden">
-        <div className="flex items-center justify-between">
-          <span>{game.phaseLabel}</span>
-          <span>
-            存活 {aliveCount} · 出局 {deadCount}
-          </span>
-        </div>
-      </div>
-
-      <div className="relative z-10 grid grid-cols-3 gap-3 lg:block lg:min-h-[650px]">
-        <div className="hidden lg:absolute lg:inset-[21%] lg:grid lg:place-items-center">
-          <div className="grid aspect-square w-full max-w-[360px] place-items-center rounded-full border border-[#f1c76e]/30 bg-[#130d0b]/70 p-8 text-center shadow-2xl shadow-black/45 backdrop-blur-sm">
-            <div>
-              <div className="text-xs uppercase tracking-[0.26em] text-[#ad9c7d]">Room Phase</div>
-              <div className="mt-3 text-4xl font-semibold text-[#f1d796]">第 {game.day} 天</div>
-              <div className="mt-3 text-lg text-[#f7ead5]">{game.phaseLabel}</div>
-              <div className="mt-5 flex justify-center gap-2 text-xs">
-                <StatusPill tone="green">存活 {aliveCount}</StatusPill>
-                <StatusPill tone="red">出局 {deadCount}</StatusPill>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {game.seats.map((seat) => (
-          <SeatToken
-            key={seat.seatId}
-            game={game}
-            seat={seat}
-            orbitClassName={SEAT_ORBIT_CLASSES[(seat.seatId - 1) % SEAT_ORBIT_CLASSES.length]}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function SeatToken({
-  game,
-  seat,
-  orbitClassName,
-}: {
-  game: HumanGameView;
-  seat: HumanGameView["seats"][number];
-  orbitClassName: string;
-}) {
-  const isCurrent = game.currentActorSeatId === seat.seatId;
-  const isSpeaking = game.currentSpeakerSeatId === seat.seatId;
-  const currentLabel = isSpeaking ? "发言中" : isCurrent ? "行动中" : undefined;
-  const cardImage = ROLE_CARD_IMAGES[seat.role ?? "HIDDEN"];
-  const isKnown = Boolean(seat.role);
-
-  return (
-    <div
-      className={[
-        "group min-w-0 rounded-2xl border bg-[#180f0c]/88 p-2 shadow-xl shadow-black/35 backdrop-blur-md transition",
-        "lg:absolute lg:w-[150px]",
-        seat.alive ? "border-[#f1c76e]/28" : "border-[#8b4a3d]/55 opacity-75",
-        isSpeaking ? "ring-2 ring-[#77d898]" : isCurrent ? "ring-2 ring-[#f1d796]" : "",
-        seat.isHuman ? "bg-[#25130f]/92" : "",
-        orbitClassName,
-      ].join(" ")}
-    >
-      <div className="flex flex-col items-center gap-2">
-        <div
-          className={[
-            "relative h-[70px] w-[48px] shrink-0 overflow-hidden rounded-lg border bg-cover bg-center shadow-lg",
-            seat.alive ? "border-[#f1c76e]/45" : "border-[#8b4a3d]/70 grayscale",
-          ].join(" ")}
-          style={{ backgroundImage: `url(${cardImage})` }}
-          aria-label={isKnown ? `${seat.roleLabel}身份牌` : "未揭晓身份牌"}
-        >
-          {!isKnown && <div className="absolute inset-0 bg-black/10" />}
-        </div>
-        <div className="min-w-0 flex-1 text-center lg:w-full">
-          <div className="flex items-center justify-center gap-2">
-            <span className="rounded-full bg-black/35 px-2 py-0.5 text-[11px] text-[#f1d796]">{seat.seatId}号</span>
-            {seat.isHuman && <span className="rounded-full bg-[#b74332] px-2 py-0.5 text-[11px] text-white">我</span>}
-          </div>
-          <div className="mt-2 truncate text-sm font-semibold text-[#f7ead5]">{seat.name}</div>
-          <div className="mt-1 flex flex-wrap justify-center gap-1 text-[11px]">
-            <span className={seat.alive ? "text-[#9fe0a4]" : "text-[#ffb1a4]"}>{seat.alive ? "存活" : "出局"}</span>
-            {seat.roleLabel && <span className="text-[#f1d796]">{seat.roleLabel}</span>}
-            {seat.deathReason && <span className="text-[#c8b99a]">{DEATH_LABELS[seat.deathReason]}</span>}
-            {currentLabel && <span className="text-[#f1d796]">{currentLabel}</span>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ReviewPanel({ game }: { game: HumanGameView }) {
-  const review = game.review;
-  if (!review) return null;
-
-  return (
-    <section id="review" className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#f1c76e]/15 pb-4">
-        <div>
-          <h2 className="text-lg font-semibold text-[#f7ead5]">终局复盘</h2>
-          <p className="mt-1 text-sm text-[#dcc9a7]">
-            {review.result?.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜 · {review.result?.reason}
-          </p>
-        </div>
-        <a
-          href="#review-events"
-          className="rounded-full border border-[#f1c76e]/30 px-4 py-2 text-sm text-[#f1d796] transition hover:bg-[#f1c76e]/10"
-        >
-          查看关键事件
-        </a>
-      </div>
-
-      {review.turningPoints.length > 0 && (
-        <div className="mt-4">
-          <SectionTitle>关键转折</SectionTitle>
-          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {review.turningPoints.map((point, index) => (
-              <div key={`${point.day}-${point.title}-${index}`} className="rounded-2xl border border-[#f1c76e]/18 bg-[#261510]/75 p-3">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <span className="rounded-full bg-[#f1c76e]/12 px-2 py-1 text-xs text-[#f1d796]">D{point.day}</span>
-                  <span className="text-xs text-[#ad9c7d]">#{index + 1}</span>
-                </div>
-                <div className="text-sm font-semibold text-[#f7ead5]">{point.title}</div>
-                <p className="mt-2 text-xs leading-5 text-[#dcc9a7]">{point.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <div>
-          <SectionTitle>身份揭晓</SectionTitle>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {review.roleReveal.map((seat) => (
-              <div key={seat.seatId} className="flex gap-3 rounded-2xl border border-[#f1c76e]/15 bg-black/20 p-3 text-sm">
-                <div
-                  className="h-16 w-11 shrink-0 rounded-md border border-[#f1c76e]/30 bg-cover bg-center"
-                  style={{ backgroundImage: `url(${ROLE_CARD_IMAGES[seat.role]})` }}
-                />
-                <div className="min-w-0">
-                  <div className="truncate font-semibold text-[#f7ead5]">
-                    {seat.seatId}号 · {seat.name}
-                  </div>
-                  <div className={seat.role === "WEREWOLF" ? "mt-1 text-[#ff8c78]" : "mt-1 text-[#9fe0a4]"}>
-                    {seat.roleLabel}
-                  </div>
-                  <div className="mt-1 text-xs text-[#ad9c7d]">
-                    {seat.alive ? "存活到终局" : seat.deathReason ? DEATH_LABELS[seat.deathReason] : "已出局"}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <SectionTitle>死亡时间线</SectionTitle>
-          <div className="mt-3 grid gap-2">
-            {review.deathTimeline.length === 0 ? (
-              <p className="rounded-2xl border border-[#f1c76e]/15 bg-black/20 p-3 text-sm text-[#ad9c7d]">没有玩家死亡。</p>
-            ) : (
-              review.deathTimeline.map((death, index) => (
-                <div key={`${death.day}-${death.seat.seatId}-${index}`} className="rounded-2xl bg-[#261510]/85 p-3 text-sm text-[#dcc9a7]">
-                  D{death.day} · {death.seat.name} · {death.reasonLabel}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-4 xl:grid-cols-2">
-        <ReviewNightRounds game={game} />
-        <ReviewDayRounds game={game} />
-      </div>
-
-      <div id="review-events" className="mt-5">
-        <SectionTitle>关键事件</SectionTitle>
-        <div className="mt-3 grid gap-2">
-          {review.keyEvents.map((event) => (
-            <div key={event.seq} className="border-l-2 border-[#f1c76e] bg-black/15 py-2 pl-3 text-sm leading-6 text-[#dcc9a7]">
-              <span className="text-xs text-[#ad9c7d]">D{event.day} · {event.phase}</span>
-              <br />
-              {event.message}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ReviewNightRounds({ game }: { game: HumanGameView }) {
-  const review = game.review;
-  if (!review) return null;
-
-  return (
-    <div>
-      <SectionTitle>夜晚记录</SectionTitle>
-      <div className="mt-3 grid gap-3">
-        {review.nightRounds.map((round) => (
-          <div key={round.day} className="rounded-2xl border border-[#5e87b9]/25 bg-[#0d1623]/55 p-3 text-sm leading-6 text-[#d8e6f7]">
-            <strong>第 {round.day} 夜</strong>
-            <div>狼人刀口：{round.wolfTarget?.name ?? "无"}</div>
-            <div>
-              查验：
-              {round.seerCheck
-                ? `${round.seerCheck.seer.name} 查验 ${round.seerCheck.target.name} 为 ${
-                    round.seerCheck.result === "WEREWOLF" ? "狼人" : "好人"
-                  }`
-                : "无"}
-            </div>
-            <div>
-              女巫：
-              {round.witchAction
-                ? round.witchAction.mode === "save"
-                  ? `救了 ${round.witchAction.target?.name ?? "刀口"}`
-                  : round.witchAction.mode === "poison"
-                    ? `毒了 ${round.witchAction.target?.name ?? "未知目标"}`
-                    : "未用药"
-                : "无行动"}
-            </div>
-            <div>死亡：{round.deaths.length > 0 ? round.deaths.map((seat) => seat.name).join("、") : "平安夜"}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ReviewDayRounds({ game }: { game: HumanGameView }) {
-  const review = game.review;
-  if (!review) return null;
-
-  return (
-    <div>
-      <SectionTitle>白天投票</SectionTitle>
-      <div className="mt-3 grid gap-3">
-        {review.dayRounds.map((round) => (
-          <div key={round.day} className="rounded-2xl border border-[#8fd29a]/25 bg-[#0f2118]/60 p-3 text-sm leading-6 text-[#dff4df]">
-            <strong>第 {round.day} 天</strong>
-            <div>发言数：{round.speechCount}</div>
-            <div>
-              票数：
-              {round.voteTally.length > 0
-                ? round.voteTally.map((item) => `${item.target.name} ${item.count}票`).join("，")
-                : "无"}
-            </div>
-            <div>
-              结果：
-              {round.exiled
-                ? `${round.exiled.name} 被放逐`
-                : round.tiedSeatIds.length > 0
-                  ? `平票：${round.tiedSeatIds.join("、")}号`
-                  : "无放逐"}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function InfoPanel({ game }: { game: HumanGameView }) {
-  return (
-    <section className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
-      <div className="flex items-start gap-4">
-        <div
-          className="h-36 w-24 shrink-0 rounded-xl border border-[#f1c76e]/35 bg-cover bg-center shadow-xl"
-          style={{ backgroundImage: `url(${ROLE_CARD_IMAGES[game.myRole]})` }}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-[#f7ead5]">我的身份</h2>
-            {game.result && (
-              <span className="rounded-full bg-[#b74332] px-2 py-1 text-xs font-medium text-white">
-                {game.result.winner === "GOOD" ? "好人胜利" : "狼人胜利"}
-              </span>
-            )}
-          </div>
-          <div className="mt-2 text-3xl font-semibold text-[#f1d796]">{ROLE_LABELS[game.myRole]}</div>
-          <div className="mt-3 text-xs leading-5 text-[#ad9c7d]">
-            你的私密信息只在这里展示，其他 AI 身份会在终局复盘中揭晓。
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 text-sm text-[#dcc9a7]">
-        {game.wolfTeammates.length > 0 && (
-          <InfoRow label="狼队友">{game.wolfTeammates.map((seat) => seat.name).join("、")}</InfoRow>
-        )}
-        {game.seerChecks.length > 0 && (
-          <InfoRow label="查验">
-            {game.seerChecks.map((check) => (
-              <div key={`${check.day}-${check.targetSeatId}`}>
-                D{check.day} · {check.targetSeatId}号 · {check.result === "WEREWOLF" ? "狼人" : "好人"}
-              </div>
-            ))}
-          </InfoRow>
-        )}
-        {game.myRole === "WITCH" && (
-          <InfoRow label="药品">
-            解药 {game.witch.antidoteAvailable ? "可用" : "已用"} · 毒药 {game.witch.poisonAvailable ? "可用" : "已用"}
-          </InfoRow>
-        )}
-        {game.privateEvents.slice(-4).map((event) => (
-          <div key={event.seq} className="rounded-2xl border border-[#f1c76e]/15 bg-black/20 px-3 py-2 text-[#dcc9a7]">
-            {event.message}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function SpeechFeed({ game }: { game: HumanGameView }) {
-  const speeches = game.tableSummary.recentSpeeches;
-  const currentSpeaker = game.currentSpeakerSeatId
-    ? game.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId)
-    : undefined;
-
-  return (
-    <section className="overflow-hidden rounded-[24px] border border-[#77d898]/25 bg-[#0f2118]/82 shadow-2xl shadow-black/35 backdrop-blur-md">
-      <div className="flex items-center justify-between border-b border-[#77d898]/15 px-4 py-3">
-        <h2 className="text-sm font-semibold text-[#dff4df]">发言席</h2>
-        <span className="text-xs text-[#9ecfac]">
-          {currentSpeaker ? `当前：${currentSpeaker.name}` : game.phase === "DAY_SPEECH" ? "等待发言" : "非发言阶段"}
-        </span>
-      </div>
-      <div className="grid max-h-[300px] gap-3 overflow-y-auto p-4">
-        {speeches.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#77d898]/20 px-3 py-6 text-center text-sm text-[#9ecfac]">
-            暂无公开发言
-          </div>
-        ) : (
-          speeches.map((speech) => {
-            const isHuman = speech.speaker?.seatId === game.humanSeatId;
-            return (
-              <div
-                key={speech.seq}
-                className={[
-                  "rounded-2xl border px-3 py-2 text-sm leading-6",
-                  isHuman ? "border-[#f1c76e]/30 bg-[#2b2110]/75 text-[#f7ead5]" : "border-[#77d898]/18 bg-black/22 text-[#dff4df]",
-                ].join(" ")}
-              >
-                <div className="mb-1 flex items-center justify-between gap-3 text-xs text-[#9ecfac]">
-                  <span>{speech.speaker ? `${speech.speaker.seatId}号 · ${speech.speaker.name}` : "未知发言人"}</span>
-                  <span>D{speech.day}</span>
-                </div>
-                {speech.message}
-              </div>
-            );
-          })
-        )}
-      </div>
-    </section>
-  );
-}
-
-function VoteTable({ game }: { game: HumanGameView }) {
-  const voteAction = game.availableActions.find((action) => action.type === "vote");
-  const voteTargets = voteAction?.type === "vote" ? voteAction.targets : [];
-  const snapshot = game.tableSummary.voteSnapshot;
-
-  return (
-    <section className="overflow-hidden rounded-[24px] border border-[#e46d55]/25 bg-[#2b1110]/82 shadow-2xl shadow-black/35 backdrop-blur-md">
-      <div className="flex items-center justify-between border-b border-[#e46d55]/15 px-4 py-3">
-        <h2 className="text-sm font-semibold text-[#ffd8cf]">投票台</h2>
-        <span className="text-xs text-[#d9a099]">
-          {game.phase === "DAY_VOTE"
-            ? "投票保密"
-            : snapshot.leaders.length > 0
-              ? `焦点：${snapshot.leaders.map((seat) => seat.name).join("、")}`
-              : "暂无票型"}
-        </span>
-      </div>
-
-      <div className="grid gap-3 p-4">
-        {voteTargets.length > 0 && (
-          <div>
-            <div className="mb-2 text-xs text-[#d9a099]">你可投目标</div>
-            <div className="flex flex-wrap gap-2">
-              {voteTargets.map((target) => (
-                <span key={target.seatId} className="rounded-full border border-[#e46d55]/25 bg-black/20 px-3 py-1 text-xs text-[#ffd8cf]">
-                  {target.seatId}号 {target.name}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div>
-          <div className="mb-2 text-xs text-[#d9a099]">{snapshot.revealed ? "最近公开票数" : "投票状态"}</div>
-          {snapshot.tally.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#e46d55]/20 px-3 py-5 text-center text-sm text-[#d9a099]">
-              {game.phase === "DAY_VOTE" ? "投票进行中，票数暂不公开" : "还没有公开票数"}
-            </div>
-          ) : (
-            <div className="grid gap-2">
-              {snapshot.tally.map((item) => (
-                <div key={item.target.seatId} className="rounded-2xl border border-[#e46d55]/18 bg-black/22 px-3 py-2">
-                  <div className="flex items-center justify-between gap-3 text-sm text-[#ffd8cf]">
-                    <span>
-                      {item.target.seatId}号 · {item.target.name}
-                    </span>
-                    <strong>{item.count} 票</strong>
-                  </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/35">
-                    <div
-                      className="h-full rounded-full bg-[#e46d55]"
-                      style={{ width: `${Math.min(100, item.count * 22)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {game.tableSummary.aiReasonHighlights.length > 0 && (
-          <div>
-            <div className="mb-2 text-xs text-[#d9a099]">局势提示</div>
-            <div className="grid gap-2">
-              {game.tableSummary.aiReasonHighlights.map((reason) => (
-                <div key={reason} className="rounded-2xl bg-black/22 px-3 py-2 text-xs leading-5 text-[#ffd8cf]">
-                  {reason}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function PublicLog({ events }: { events: HumanGameView["publicEvents"] }) {
-  return (
-    <section className="min-h-[360px] overflow-hidden rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 shadow-2xl shadow-black/35 backdrop-blur-md">
-      <div className="flex items-center justify-between border-b border-[#f1c76e]/15 px-4 py-3">
-        <h2 className="text-sm font-semibold text-[#f7ead5]">公开记录</h2>
-        <span className="text-xs text-[#ad9c7d]">夜晚 / 白天 / 投票 / 系统</span>
-      </div>
-      <div className="flex max-h-[620px] flex-col gap-3 overflow-y-auto p-4">
-        {events.map((event) => (
-          <div key={event.seq} className={`${eventClassName(event.phase)} rounded-2xl border px-3 py-2 text-sm leading-6`}>
-            <div className="mb-1 text-xs opacity-75">
-              D{event.day} · {phaseCategory(event.phase)}
-            </div>
-            {event.message}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ActionPanel({
-  game,
-  loading,
-  onSubmit,
-  onNewGame,
-}: {
-  game: HumanGameView;
-  loading: boolean;
-  onNewGame: () => Promise<void>;
-  onSubmit: (payload: CommandPayload) => Promise<void>;
-}) {
-  if (game.result) {
-    return (
-      <section className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
-        <h2 className="text-lg font-semibold text-[#f7ead5]">终局</h2>
-        <p className="mt-2 text-sm text-[#dcc9a7]">
-          {game.result.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜：{game.result.reason}
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <a
-            href="#review"
-            className="rounded-full bg-[#2f8157] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#379566]"
-          >
-            查看复盘
-          </a>
-          <button
-            onClick={onNewGame}
-            disabled={loading}
-            className="rounded-full border border-[#f1c76e]/30 px-5 py-2.5 text-sm font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10 disabled:opacity-60"
-          >
-            新开一局
-          </button>
-        </div>
-      </section>
-    );
-  }
-
-  if (game.availableActions.length === 0) {
-    return (
-      <section className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 text-sm text-[#dcc9a7] shadow-2xl shadow-black/35 backdrop-blur-md">
-        {loading ? "结算中" : "等待 AI 行动"}
-      </section>
-    );
-  }
-
-  const meta = getActionMeta(game.availableActions[0]);
-  const isContinueOnly = game.availableActions.every((action) => action.type === "continue");
-
-  if (isContinueOnly && game.availableActions[0]?.type === "continue") {
-    const action = game.availableActions[0];
-    return (
-      <section className="sticky bottom-3 z-20 rounded-[24px] border border-[#f1c76e]/24 bg-[#130d0b]/88 p-4 shadow-2xl shadow-black/40 backdrop-blur-md">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="mb-2 inline-flex rounded-full bg-[#f1c76e]/10 px-3 py-1 text-xs text-[#f1d796]">{game.phaseLabel}</div>
-            <h2 className="text-lg font-semibold text-[#f7ead5]">{meta.title}</h2>
-            <p className="mt-1 text-sm text-[#dcc9a7]">{meta.description}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#77d898]/25 bg-[#14311f]/55 px-3 py-2 text-xs text-[#a8f0b6]">
-              <span className="h-2 w-2 rounded-full bg-[#77d898]" />
-              自动播放中
-            </span>
-            <button
-              disabled={loading}
-              onClick={() => onSubmit({ type: "continue" })}
-              className="rounded-full border border-[#f1c76e]/25 px-4 py-2 text-xs font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10 disabled:opacity-60"
-            >
-              {loading ? "播放中" : `立即跳过：${action.label}`}
-            </button>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section className="sticky bottom-3 z-20 rounded-[24px] border border-[#f1c76e]/30 bg-[#130d0b]/92 p-4 shadow-2xl shadow-black/45 backdrop-blur-md">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="mb-2 inline-flex rounded-full bg-[#f1c76e]/10 px-3 py-1 text-xs text-[#f1d796]">{game.phaseLabel}</div>
-          <h2 className="text-xl font-semibold text-[#f7ead5]">{meta.title}</h2>
-          <p className="mt-1 text-sm text-[#dcc9a7]">
-            {isContinueOnly ? `${meta.description} 系统会自动播放下一步。` : meta.description}
-          </p>
-        </div>
-        <span className="rounded-full border border-[#f1c76e]/25 px-3 py-1 text-xs text-[#ad9c7d]">
-          {isContinueOnly ? "观看流程" : "轮到你行动"}
-        </span>
-      </div>
-      <div className="grid gap-3">
-        {game.availableActions.map((action) => (
-          <ActionControl key={action.type} action={action} loading={loading} onSubmit={onSubmit} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ActionControl({
-  action,
-  loading,
-  onSubmit,
-}: {
-  action: AvailableHumanAction;
-  loading: boolean;
-  onSubmit: (payload: CommandPayload) => Promise<void>;
-}) {
-  const [message, setMessage] = useState("");
-
-  if (action.type === "speak") {
-    return (
-      <div className="grid gap-3">
-        <textarea
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          maxLength={240}
-          className="min-h-28 resize-none rounded-2xl border border-[#f1c76e]/25 bg-black/30 px-4 py-3 text-sm text-[#f7ead5] outline-none transition placeholder:text-[#8f8065] focus:border-[#f1d796]"
-          placeholder="输入本轮发言"
-        />
-        <button
-          disabled={loading || message.trim().length === 0}
-          onClick={() => onSubmit({ type: "speak", message })}
-          className="rounded-full bg-[#2f8157] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#379566] disabled:opacity-60"
-        >
-          确认发言
-        </button>
-      </div>
-    );
-  }
-
-  if (action.type === "continue") {
-    return (
-      <button
-        disabled={loading}
-        onClick={() => onSubmit({ type: "continue" })}
-        className="rounded-full bg-[#b74332] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#cf513d] disabled:opacity-60"
-      >
-        {loading ? "播放中" : `立即播放：${action.label}`}
-      </button>
-    );
-  }
-
-  if (action.type === "witchAction") {
-    return (
-      <div className="flex flex-wrap gap-2">
-        {action.canSave && action.saveTarget && (
-          <ActionButton disabled={loading} tone="green" onClick={() => onSubmit({ type: "witchAction", mode: "save" })}>
-            救 {action.saveTarget.name}
-          </ActionButton>
-        )}
-        {action.canPoison &&
-          action.poisonTargets.map((target) => (
-            <ActionButton
-              key={target.seatId}
-              disabled={loading}
-              tone="red"
-              onClick={() => onSubmit({ type: "witchAction", mode: "poison", targetSeatId: target.seatId })}
-            >
-              毒 {target.name}
-            </ActionButton>
-          ))}
-        <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "witchAction", mode: "skip" })}>
-          不用药
-        </ActionButton>
-      </div>
-    );
-  }
-
-  if (action.type === "hunterShoot") {
-    return (
-      <div className="flex flex-wrap gap-2">
-        {action.targets.map((target) => (
-          <ActionButton
-            key={target.seatId}
-            disabled={loading}
-            tone="red"
-            onClick={() => onSubmit({ type: "hunterShoot", targetSeatId: target.seatId })}
-          >
-            带走 {target.name}
-          </ActionButton>
-        ))}
-        <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "hunterShoot" })}>
-          不开枪
-        </ActionButton>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {action.targets.map((target) => (
-        <ActionButton
-          key={target.seatId}
-          disabled={loading}
-          tone={action.type === "wolfKill" ? "red" : "green"}
-          onClick={() => onSubmit({ type: action.type, targetSeatId: target.seatId } as CommandPayload)}
-        >
-          {action.type === "wolfKill" ? "击杀" : action.type === "seerCheck" ? "查验" : "投票"} {target.name}
-        </ActionButton>
-      ))}
-    </div>
-  );
-}
-
-function ActionButton({
-  children,
-  disabled,
-  tone,
-  onClick,
-}: {
-  children: React.ReactNode;
-  disabled: boolean;
-  tone: "green" | "red" | "neutral";
-  onClick: () => void;
-}) {
-  const className =
-    tone === "red"
-      ? "bg-[#b74332] text-white hover:bg-[#cf513d]"
-      : tone === "green"
-        ? "bg-[#2f8157] text-white hover:bg-[#379566]"
-        : "border border-[#f1c76e]/30 text-[#f1d796] hover:bg-[#f1c76e]/10";
-
-  return (
-    <button
-      disabled={disabled}
-      onClick={onClick}
-      className={`${className} min-h-11 rounded-full px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-[#f1c76e]/15 bg-black/20 px-3 py-2">
-      <div className="mb-1 text-xs text-[#ad9c7d]">{label}</div>
-      <div>{children}</div>
-    </div>
-  );
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-sm font-semibold text-[#f1d796]">{children}</h3>;
-}
-
-function StatusPill({ children, tone }: { children: React.ReactNode; tone: "gold" | "green" | "red" | "blue" }) {
-  const colors = {
-    gold: "border-[#f1c76e]/35 bg-[#f1c76e]/10 text-[#f1d796]",
-    green: "border-[#77d898]/30 bg-[#1d4e33]/45 text-[#a8f0b6]",
-    red: "border-[#e46d55]/35 bg-[#572017]/45 text-[#ffb1a4]",
-    blue: "border-[#6797d5]/35 bg-[#142845]/50 text-[#cfe4ff]",
-  };
-
-  return <span className={`${colors[tone]} rounded-full border px-3 py-1 text-xs font-medium`}>{children}</span>;
-}
-
-function getActionMeta(action: AvailableHumanAction) {
-  switch (action.type) {
-    case "wolfKill":
-      return { title: "狼人夜刀", description: "选择一名非狼人存活玩家作为今晚刀口。" };
-    case "seerCheck":
-      return { title: "预言家查验", description: "选择一名存活玩家，系统会私下告诉你阵营结果。" };
-    case "witchAction":
-      return { title: "女巫用药", description: "选择救人、毒人，或保留药品跳过本夜。" };
-    case "speak":
-      return { title: "轮到你发言", description: "公开发言会进入所有 AI 的公开信息流。" };
-    case "vote":
-      return { title: "投票放逐", description: "选择一名存活玩家投票，所有人投完后进入结算。" };
-    case "hunterShoot":
-      return { title: "猎人开枪", description: "你可以带走一名存活玩家，也可以选择不开枪。" };
-    case "continue":
-      return { title: action.label, description: action.description };
-  }
-}
-
-function eventClassName(phase: HumanGameView["phase"]): string {
-  if (phase.startsWith("NIGHT")) return "border-[#6797d5]/25 bg-[#0d1623]/65 text-[#d8e6f7]";
-  if (phase === "DAY_VOTE" || phase === "EXILE_RESOLUTION") return "border-[#e46d55]/30 bg-[#2b1110]/70 text-[#ffd8cf]";
-  if (phase === "DAY_SPEECH") return "border-[#77d898]/25 bg-[#0f2118]/70 text-[#dff4df]";
-  return "border-[#f1c76e]/25 bg-[#261510]/65 text-[#dcc9a7]";
-}
-
-function phaseCategory(phase: HumanGameView["phase"]): string {
-  if (phase.startsWith("NIGHT")) return "夜晚";
-  if (phase === "DAY_SPEECH") return "白天";
-  if (phase === "DAY_VOTE" || phase === "EXILE_RESOLUTION") return "投票";
-  return "系统";
-}
-
 function readRecentGameIds(): string[] {
   if (typeof window === "undefined") {
     return EMPTY_RECENT_GAME_IDS;
@@ -1675,16 +1301,16 @@ function readRecentGameIds(): string[] {
       return recentGameIdsSnapshotCache;
     }
 
-    const parsed = raw ? JSON.parse(raw) : [];
     recentGameIdsRawCache = raw;
+    const parsed = raw ? JSON.parse(raw) : [];
     recentGameIdsSnapshotCache = Array.isArray(parsed)
-      ? parsed.filter((id): id is string => typeof id === "string").slice(0, 5)
+      ? parsed.filter((gameId): gameId is string => typeof gameId === "string").slice(0, 5)
       : EMPTY_RECENT_GAME_IDS;
     return recentGameIdsSnapshotCache;
   } catch {
     recentGameIdsRawCache = null;
     recentGameIdsSnapshotCache = EMPTY_RECENT_GAME_IDS;
-    return recentGameIdsSnapshotCache;
+    return EMPTY_RECENT_GAME_IDS;
   }
 }
 
@@ -1697,11 +1323,20 @@ function subscribeRecentGameIds(onStoreChange: () => void): () => void {
     return () => undefined;
   }
 
-  const handleChange = () => onStoreChange();
-  window.addEventListener("storage", handleChange);
-  window.addEventListener("ai-werewolf-recent-games-changed", handleChange);
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key !== CURRENT_GAME_KEY && event.key !== RECENT_GAMES_KEY) return;
+    recentGameIdsRawCache = null;
+    onStoreChange();
+  };
+  const handleLocalChange = () => {
+    recentGameIdsRawCache = null;
+    onStoreChange();
+  };
+
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener("ai-werewolf-recent-games-changed", handleLocalChange);
   return () => {
-    window.removeEventListener("storage", handleChange);
-    window.removeEventListener("ai-werewolf-recent-games-changed", handleChange);
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener("ai-werewolf-recent-games-changed", handleLocalChange);
   };
 }
