@@ -1458,6 +1458,36 @@ describe("game engine", () => {
     expect(result.command.reason).toBe("public pressure and vote shape point there");
   });
 
+  it("adds a compact public decision summary to LLM action input", () => {
+    let state = createGame({ seed: 76 });
+    const speaker = state.seats.find((seat) => seat.isAi)!;
+    const voter = state.seats.find((seat) => seat.isAi && seat.seatId !== speaker.seatId)!;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: speaker.seatId,
+      message: "I pressure 1 2 3 4 5 6 7 8 9 because this table needs public evidence before votes.",
+    });
+    state.phase = "DAY_VOTE";
+
+    const view = buildAgentView(state, voter.seatId);
+    const tableRead = buildAiTableRead(view);
+    const votePlan = createVotePlan(view, tableRead);
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      votePlan,
+      fallbackCommand: createMockCommand(view, tableRead, votePlan),
+    });
+    const summary = input.publicContext.decisionSummary;
+
+    expect(summary.speechChain.join(" ")).toContain("public evidence before votes");
+    expect(summary.candidatePublicEvidence.some((item) => item.evidence.join(" ").includes("mentioned"))).toBe(true);
+    expect(input.constraints.join(" ")).toContain("decisionSummary");
+    expect(JSON.stringify(summary)).not.toMatch(/privateKnowledge|wolfTeamPlan|knownWolfSeatIds/);
+  });
+
   it("coerces stable LLM action output from targetSeatId into a legal candidate", async () => {
     const state = createGame({ seed: 64 });
     const voter = state.seats.find((seat) => seat.isAi && seat.role === "VILLAGER")!;

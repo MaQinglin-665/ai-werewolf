@@ -11,7 +11,7 @@ import type {
   VotePlan,
 } from "@/game/types";
 import {
-  callRoutedModelJson,
+  callRoutedModelJsonWithFallbacks,
   isModelLlmRoutingAvailable,
   packLlmOutputAttempts,
   parseLlmJsonOutput,
@@ -57,6 +57,16 @@ export type LlmActionInput = {
     voteSnapshot: AgentView["publicSummary"]["voteSnapshot"];
     recentDeaths: string[];
     claimBoard: AgentView["publicSummary"]["claimBoard"];
+    decisionSummary: {
+      focus: string[];
+      candidatePublicEvidence: Array<{
+        seat: ActionTarget;
+        evidence: string[];
+      }>;
+      votePressure: string[];
+      speechChain: string[];
+      claimPressure: string[];
+    };
     tableMemory: Pick<
       TableMemory,
       | "day"
@@ -232,6 +242,7 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
       voteSnapshot: view.publicSummary.voteSnapshot,
       recentDeaths: view.publicSummary.recentDeaths.slice(-4),
       claimBoard: view.publicSummary.claimBoard,
+      decisionSummary: buildPublicActionDecisionSummary(view, candidates),
       tableMemory: {
         day: view.publicSummary.tableMemory.day,
         claimBoard: view.publicSummary.tableMemory.claimBoard,
@@ -258,6 +269,122 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
     candidates,
     constraints: buildActionConstraints(view),
   };
+}
+
+function buildPublicActionDecisionSummary(
+  view: AgentView,
+  candidates: LlmActionCandidate[],
+): LlmActionInput["publicContext"]["decisionSummary"] {
+  const memory = view.publicSummary.tableMemory;
+  const candidateTargets = uniqueActionTargets(
+    candidates
+      .map((candidate) => candidate.target ?? commandTarget(view, candidate.command))
+      .filter((target): target is ActionTarget => Boolean(target)),
+  ).slice(0, 6);
+
+  return {
+    focus: [
+      ...memory.focus.map((item) => `Focus ${seatLabel(item.seat)}: ${item.reasons.join("; ")}`),
+      ...memory.publicSignals.slice(-4),
+    ].map(compactPublicLine).filter(Boolean).slice(0, 6),
+    candidatePublicEvidence: candidateTargets.map((target) => ({
+      seat: target,
+      evidence: publicEvidenceForTarget(view, target).slice(0, 6),
+    })),
+    votePressure: buildVotePressureLines(view).slice(0, 5),
+    speechChain: view.publicSummary.recentSpeeches
+      .slice(-5)
+      .map((speech) =>
+        compactPublicLine(`${speech.speaker ? seatLabel(speech.speaker) : "unknown"}: ${speech.message}`),
+      )
+      .filter(Boolean),
+    claimPressure: view.publicSummary.tableMemory.counterclaims
+      .map((group) => `${group.claimedRoleLabel} counterclaim: ${group.claimants.map(seatLabel).join(" vs ")}`)
+      .concat(view.publicSummary.claimBoard.slice(-5).map((claim) => claim.summary))
+      .map(compactPublicLine)
+      .filter(Boolean)
+      .slice(0, 6),
+  };
+}
+
+function publicEvidenceForTarget(view: AgentView, target: ActionTarget): string[] {
+  const memory = view.publicSummary.tableMemory;
+  const cueLines = memory.reasoningCues
+    .filter((cue) => cue.actor?.seatId === target.seatId || cue.target?.seatId === target.seatId)
+    .map((cue) => `${cue.weight} ${cue.kind}: ${cue.summary}`);
+  const focusLines = memory.focus
+    .filter((item) => item.seat.seatId === target.seatId)
+    .flatMap((item) => item.reasons.map((reason) => `focus: ${reason}`));
+  const claimLines = view.publicSummary.claimBoard
+    .filter(
+      (claim) =>
+        claim.claimant.seatId === target.seatId ||
+        claim.checks.some((check) => check.target.seatId === target.seatId),
+    )
+    .flatMap((claim) => [
+      claim.claimant.seatId === target.seatId
+        ? `${seatLabel(claim.claimant)} claimed ${claim.claimedRoleLabel}`
+        : undefined,
+      ...claim.checks
+        .filter((check) => check.target.seatId === target.seatId)
+        .map((check) => `${seatLabel(claim.claimant)} reported ${seatLabel(target)} as ${check.result === "WEREWOLF" ? "wolf-side" : "good-side"}`),
+    ]);
+  const voteLines = view.publicSummary.voteSnapshot.votes
+    .filter((vote) => vote.target?.seatId === target.seatId || vote.voter.seatId === target.seatId)
+    .slice(-4)
+    .map((vote) =>
+      vote.target
+        ? `vote: ${seatLabel(vote.voter)} -> ${seatLabel(vote.target)}${vote.reason ? ` (${vote.reason})` : ""}`
+        : `vote: ${seatLabel(vote.voter)} abstained${vote.reason ? ` (${vote.reason})` : ""}`,
+    );
+  const speechLines = view.publicSummary.recentSpeeches
+    .filter((speech) => speechMentionsTarget(speech.message, target))
+    .slice(-3)
+    .map((speech) => `speech: ${speech.speaker ? seatLabel(speech.speaker) : "unknown"} mentioned ${seatLabel(target)}`);
+
+  const evidence = [...cueLines, ...focusLines, ...claimLines, ...voteLines, ...speechLines]
+    .map(compactPublicLine)
+    .filter(Boolean);
+  return evidence.length > 0 ? [...new Set(evidence)] : ["No strong public evidence yet; avoid overconfident action unless the candidate list leaves no better choice."];
+}
+
+function buildVotePressureLines(view: AgentView): string[] {
+  const snapshot = view.publicSummary.voteSnapshot;
+  const tallyLines = snapshot.tally.map((item) => `${seatLabel(item.target)} has ${item.count} public vote(s)`);
+  const leaderLine = snapshot.leaders.length > 0 ? `Current vote leader(s): ${snapshot.leaders.map(seatLabel).join(", ")}` : undefined;
+  const abstainLine = snapshot.abstainCount ? `${snapshot.abstainCount} abstention(s)` : undefined;
+  const historyLines = view.publicSummary.tableMemory.voteHistory.slice(-2).map((vote) => {
+    if (vote.tiedSeatIds.length > 0) return `D${vote.day} tied exile pressure: ${vote.tiedSeatIds.join(", ")}`;
+    if (vote.exiled) return `D${vote.day} exiled ${seatLabel(vote.exiled)}`;
+    return `D${vote.day} leaders: ${vote.leaders.map(seatLabel).join(", ")}`;
+  });
+
+  return [leaderLine, ...tallyLines, abstainLine, ...historyLines].map(compactPublicLine).filter(Boolean);
+}
+
+function uniqueActionTargets(targets: ActionTarget[]): ActionTarget[] {
+  const seen = new Set<number>();
+  const unique: ActionTarget[] = [];
+  for (const target of targets) {
+    if (seen.has(target.seatId)) continue;
+    seen.add(target.seatId);
+    unique.push(target);
+  }
+  return unique;
+}
+
+function speechMentionsTarget(message: string, target: ActionTarget): boolean {
+  const seatPattern = new RegExp(`(^|\\D)${target.seatId}(\\D|$)`);
+  return seatPattern.test(message) || Boolean(target.name && message.includes(target.name));
+}
+
+function seatLabel(seat: ActionTarget): string {
+  return `${seat.seatId}#${seat.name}`;
+}
+
+function compactPublicLine(line: string | undefined): string {
+  const clean = (line ?? "").replace(/\s+/g, " ").trim();
+  return clean.length <= 180 ? clean : `${clean.slice(0, 179)}...`;
 }
 
 function withActionStabilityHint(
@@ -804,6 +931,11 @@ function buildActionConstraints(view: AgentView): string[] {
     constraints.push("Prefer publicContext.tableMemory.reasoningCues when choosing between close targets; they summarize public speech, vote, claim, and stance evidence.");
   }
 
+  constraints.push(
+    "Use publicContext.decisionSummary as the first-pass table map: compare focus, candidatePublicEvidence, votePressure, speechChain, and claimPressure before choosing.",
+  );
+  constraints.push("Do not quote cue ids or internal field names in the reason; write a natural public table reason.");
+
   if (view.phase === "DAY_VOTE" && view.myRole !== "WEREWOLF" && view.publicSummary.tableMemory.seerLegacies.length > 0) {
     constraints.push(
       "For good-side day votes, review seerLegacies as public legacy from night-dead seer claimants; treat it as evidence to test, not hidden role truth.",
@@ -1045,14 +1177,40 @@ async function callOpenAiAction(input: LlmActionInput): Promise<string> {
 }
 
 async function callRoutedModelAction(input: LlmActionInput): Promise<RoutedLlmResponse> {
-  return callRoutedModelJson({
-    personaName: input.persona?.name,
+  const primaryPersonaName = readActionPrimaryPersonaName(input);
+  return callRoutedModelJsonWithFallbacks({
+    personaName: primaryPersonaName,
+    fallbackPersonaNames: readActionFallbackPersonaNames(primaryPersonaName),
     task: "action",
     system:
       "You are the decision brain for an AI Werewolf player. Choose exactly one legal candidate action from candidates using persona.preferences as soft model tendencies. Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\"}. Do not reveal private/system context.",
     input,
     maxTokens: 220,
   });
+}
+
+function readActionPrimaryPersonaName(input: LlmActionInput): string | undefined {
+  const primary = input.persona?.name;
+  const previousIssue = input.stability?.previousIssue ?? "";
+  if (!/not valid JSON|did not pass constraints|missing candidate|selected a missing candidate|candidateId/i.test(previousIssue)) {
+    return primary;
+  }
+
+  return readActionFallbackPersonaNames(primary)[0] ?? primary;
+}
+
+function readActionFallbackPersonaNames(primaryPersonaName: string | undefined): string[] {
+  const configured = process.env.AI_LLM_ACTION_FALLBACK_PERSONAS?.trim();
+  const values =
+    configured && !/^(off|none|false|0)$/i.test(configured)
+      ? configured.split(",")
+      : ["GPT", "Claude", "GLM"];
+  const primary = primaryPersonaName?.trim().toLowerCase();
+  return values
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, array) => array.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index)
+    .filter((value) => value.toLowerCase() !== primary);
 }
 
 function extractResponseText(data: unknown): string {
