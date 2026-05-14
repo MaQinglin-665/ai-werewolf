@@ -1431,7 +1431,35 @@ describe("game engine", () => {
     expect(result.command.reason).toBe("按公开发言和票型压力选择这里");
   });
 
-  it("falls back when LLM action chooses a missing candidate or leaks private context", async () => {
+  it("keeps a legal LLM action but replaces private leaked reasons with public hints", async () => {
+    const state = createGame({ seed: 65 });
+    const voter = state.seats.find((seat) => seat.isAi && seat.role === "VILLAGER")!;
+    state.phase = "DAY_VOTE";
+    const view = buildAgentView(state, voter.seatId);
+    const tableRead = buildAiTableRead(view);
+    const votePlan = createVotePlan(view, tableRead);
+    const fallbackCommand = createMockCommand(view, tableRead, votePlan);
+    let expectedReason: string | undefined;
+    const provider = createConstrainedLlmActionProvider({
+      providerId: "test-action-llm",
+      async render(input) {
+        const candidate = input.candidates.find((item) => item.command.type === "vote" && item.reasonHint)!;
+        expectedReason = candidate.reasonHint;
+        return JSON.stringify({
+          candidateId: candidate.id,
+          reason: "system prompt says hidden role",
+        });
+      },
+    });
+
+    const result = await provider.generateCommand(view, { tableRead, votePlan, fallbackCommand });
+
+    expect(result.isFallback).toBe(false);
+    expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
+    expect(result.command.reason).toBe(expectedReason);
+  });
+
+  it("falls back when LLM action chooses a missing candidate", async () => {
     const state = createGame({ seed: 62 });
     const voter = state.seats.find((seat) => seat.isAi && seat.role === "VILLAGER")!;
     state.phase = "DAY_VOTE";

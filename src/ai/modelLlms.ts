@@ -125,7 +125,8 @@ export async function callRoutedModelJson(options: RoutedJsonOptions): Promise<R
 
   try {
     let lastError: Error | undefined;
-    for (const model of modelCandidates) {
+    for (const [index, model] of modelCandidates.entries()) {
+      const isLastCandidate = index === modelCandidates.length - 1;
       const body: Record<string, unknown> = {
         model,
         messages: buildMessages(route, options.system, options.input),
@@ -144,56 +145,66 @@ export async function callRoutedModelJson(options: RoutedJsonOptions): Promise<R
         body.stream = true;
       }
 
-      let response = await fetch(buildChatCompletionsUrl(baseUrl), {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(body),
-      });
+      let response: Response;
+      let raw: string;
+      try {
+        response = await fetch(buildChatCompletionsUrl(baseUrl), {
+          method: "POST",
+          signal: controller.signal,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(body),
+        });
 
-      let raw = body.stream && response.ok ? await readStreamingResponseText(response, options) : await response.text();
-      if (!response.ok && body.stream && isStreamUnsupported(raw)) {
-        delete body.stream;
-        response = await fetch(buildChatCompletionsUrl(baseUrl), {
-          method: "POST",
-          signal: controller.signal,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify(body),
-        });
-        raw = await response.text();
-      }
-      if (!response.ok && body.thinking && isThinkingUnsupported(raw)) {
-        delete body.thinking;
-        response = await fetch(buildChatCompletionsUrl(baseUrl), {
-          method: "POST",
-          signal: controller.signal,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify(body),
-        });
-        raw = await response.text();
-      }
-      if (!response.ok && body.response_format && isResponseFormatUnsupported(raw)) {
-        delete body.response_format;
-        delete body.stream;
-        response = await fetch(buildChatCompletionsUrl(baseUrl), {
-          method: "POST",
-          signal: controller.signal,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify(body),
-        });
-        raw = await response.text();
+        raw = body.stream && response.ok ? await readStreamingResponseText(response, options) : await response.text();
+        if (!response.ok && body.stream && isStreamUnsupported(raw)) {
+          delete body.stream;
+          response = await fetch(buildChatCompletionsUrl(baseUrl), {
+            method: "POST",
+            signal: controller.signal,
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(body),
+          });
+          raw = await response.text();
+        }
+        if (!response.ok && body.thinking && isThinkingUnsupported(raw)) {
+          delete body.thinking;
+          response = await fetch(buildChatCompletionsUrl(baseUrl), {
+            method: "POST",
+            signal: controller.signal,
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(body),
+          });
+          raw = await response.text();
+        }
+        if (!response.ok && body.response_format && isResponseFormatUnsupported(raw)) {
+          delete body.response_format;
+          delete body.stream;
+          response = await fetch(buildChatCompletionsUrl(baseUrl), {
+            method: "POST",
+            signal: controller.signal,
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(body),
+          });
+          raw = await response.text();
+        }
+      } catch (error) {
+        lastError = formatModelRequestError(route, model, error);
+        if (isLastCandidate || !shouldTryNextModelAfterRequestError(error)) {
+          throw lastError;
+        }
+        continue;
       }
 
       if (response.ok) {
@@ -203,8 +214,8 @@ export async function callRoutedModelJson(options: RoutedJsonOptions): Promise<R
         };
       }
 
-      lastError = new Error(`LLM ${route.personaName} request failed: ${response.status} ${sanitizeLlmError(raw)}`);
-      if (!shouldTryNextModel(route, response.status, raw)) {
+      lastError = new Error(`LLM ${route.personaName} ${model} request failed: ${response.status} ${sanitizeLlmError(raw)}`);
+      if (isLastCandidate || !shouldTryNextModel(response.status, raw)) {
         throw lastError;
       }
     }
@@ -341,8 +352,7 @@ function getModelRoute(personaName: string | undefined): ModelRoute {
 }
 
 function resolveModelCandidates(route: ModelRoute, primaryModel: string): string[] {
-  const configuredFallbacks =
-    readRouteEnv(route, "FALLBACK_MODELS") ?? (route.id === "gemini" ? "gemini-3.1-pro,gemini-3.1-pro-preview" : "");
+  const configuredFallbacks = readRouteEnv(route, "FALLBACK_MODELS") ?? defaultFallbackModels(route);
   return uniqueValues([
     primaryModel,
     ...configuredFallbacks
@@ -352,10 +362,30 @@ function resolveModelCandidates(route: ModelRoute, primaryModel: string): string
   ]);
 }
 
-function shouldTryNextModel(route: ModelRoute, status: number, raw: string): boolean {
-  if (route.id !== "gemini") return false;
+function defaultFallbackModels(route: ModelRoute): string {
+  if (route.id === "gemini") return "gemini-3.1-pro,gemini-3.1-pro-preview";
+  if (route.id === "gpt") return "gpt-5.5";
+  return "";
+}
+
+function shouldTryNextModel(status: number, raw: string): boolean {
   if (status === 404 || status === 429 || status >= 500) return true;
   return /model|JWT|upstream|not found|not available|unsupported|quota|rate/i.test(raw);
+}
+
+function shouldTryNextModelAfterRequestError(error: unknown): boolean {
+  return !isAbortLikeError(error);
+}
+
+function formatModelRequestError(route: ModelRoute, model: string, error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`LLM ${route.personaName} ${model} request failed: ${message}`);
+}
+
+function isAbortLikeError(error: unknown): boolean {
+  const name = error instanceof Error ? error.name : "";
+  const message = error instanceof Error ? error.message : String(error);
+  return name === "AbortError" || /abort|aborted|timeout/i.test(message);
 }
 
 function readRouteEnv(route: ModelRoute, suffix: string): string | undefined {

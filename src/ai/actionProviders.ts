@@ -403,7 +403,6 @@ function extractInlineReason(value: string): string | undefined {
 export function validateActionDecision(view: AgentView, input: LlmActionInput, decision: ActionDecision): string[] {
   const errors: string[] = [];
   const candidate = input.candidates.find((item) => item.id === decision.candidateId);
-  const reason = cleanActionReason(decision.reason);
   const message = cleanLastWordsMessage(decision.message);
 
   if (!candidate) {
@@ -417,10 +416,6 @@ export function validateActionDecision(view: AgentView, input: LlmActionInput, d
 
   if (candidate.command.type === "speak") {
     errors.push("action provider cannot select speech commands");
-  }
-
-  if (containsActionPrivateLeak(reason)) {
-    errors.push("reason leaks private or system context");
   }
 
   if (candidate.command.type === "lastWords" && message && containsActionPrivateLeak(message)) {
@@ -933,7 +928,7 @@ function isPrivateWolfTarget(view: AgentView, target: ActionTarget): boolean {
 }
 
 function commandFromDecision(command: Command, decision: ActionDecision, fallbackReason: string | undefined): Command {
-  const reason = cleanActionReason(decision.reason) || fallbackReason;
+  const reason = publicSafeActionReason(decision.reason, fallbackReason);
   if (command.type === "lastWords") {
     const message = cleanLastWordsMessage(decision.message);
     return withReason(message ? { ...command, message } : command, reason);
@@ -953,6 +948,14 @@ function cleanLastWordsMessage(message: string | undefined): string | undefined 
 
 function cleanActionReason(reason: string | undefined): string {
   return (reason ?? "").trim().replace(/\s+/g, " ").slice(0, 90);
+}
+
+function publicSafeActionReason(reason: string | undefined, fallbackReason: string | undefined): string | undefined {
+  const clean = cleanActionReason(reason);
+  if (clean && !containsActionPrivateLeak(clean)) return clean;
+
+  const fallback = cleanActionReason(fallbackReason);
+  return fallback && !containsActionPrivateLeak(fallback) ? fallback : undefined;
 }
 
 function containsActionPrivateLeak(reason: string): boolean {
