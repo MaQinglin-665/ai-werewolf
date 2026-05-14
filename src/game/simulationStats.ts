@@ -31,6 +31,11 @@ export type SimulationGameStats = {
   exiles: number;
   wolfExiles: number;
   goodExiles: number;
+  firstExileDay?: number;
+  firstExileSeatId?: number;
+  firstExileRole?: Role;
+  firstExileCamp?: Camp;
+  firstExileWasGoodPower: boolean;
   roleClaims: number;
   truthfulClaims: number;
   seerClaims: number;
@@ -98,6 +103,12 @@ export type SimulationSummary = {
   wolfExiles: number;
   goodExiles: number;
   mislynchRate: number;
+  firstExiles: number;
+  firstExileWolves: number;
+  firstExileGood: number;
+  firstExileGoodPowers: number;
+  firstExileWolfRate: number;
+  firstExileGoodPowerRate: number;
   roleClaims: number;
   truthfulClaims: number;
   truthfulClaimRate: number;
@@ -177,6 +188,7 @@ export function summarizeSimulatedGame(
 ): SimulationGameStats {
   const voteStats = summarizeVotes(state);
   const exileStats = summarizeExiles(state);
+  const firstExile = summarizeFirstExile(state);
   const claimStats = summarizeClaims(state);
   const powerStats = summarizePowerRoles(state);
   const tableMemory = buildTableMemory(state);
@@ -200,6 +212,7 @@ export function summarizeSimulatedGame(
     exiles: exileStats.exiles,
     wolfExiles: exileStats.wolfExiles,
     goodExiles: exileStats.goodExiles,
+    ...firstExile,
     roleClaims: state.roleClaims.length,
     truthfulClaims: claimStats.truthfulClaims,
     seerClaims: claimStats.seerClaims,
@@ -245,6 +258,10 @@ export function summarizeSimulation(
   const wolfVotes = sum(games, (game) => game.wolfVotes);
   const wolfVotesOnTeammates = sum(games, (game) => game.wolfVotesOnTeammates);
   const exiles = sum(games, (game) => game.exiles);
+  const firstExiles = games.filter((game) => game.firstExileCamp).length;
+  const firstExileWolves = games.filter((game) => game.firstExileCamp === "WEREWOLVES").length;
+  const firstExileGood = games.filter((game) => game.firstExileCamp === "GOOD").length;
+  const firstExileGoodPowers = games.filter((game) => game.firstExileWasGoodPower).length;
   const roleClaims = sum(games, (game) => game.roleClaims);
   const truthfulClaims = sum(games, (game) => game.truthfulClaims);
   const stanceCount = sum(games, (game) => game.stanceCount);
@@ -286,6 +303,12 @@ export function summarizeSimulation(
     wolfExiles: sum(games, (game) => game.wolfExiles),
     goodExiles: sum(games, (game) => game.goodExiles),
     mislynchRate: ratio(sum(games, (game) => game.goodExiles), exiles),
+    firstExiles,
+    firstExileWolves,
+    firstExileGood,
+    firstExileGoodPowers,
+    firstExileWolfRate: ratio(firstExileWolves, firstExiles),
+    firstExileGoodPowerRate: ratio(firstExileGoodPowers, firstExiles),
     roleClaims,
     truthfulClaims,
     truthfulClaimRate: ratio(truthfulClaims, roleClaims),
@@ -377,6 +400,7 @@ export function formatSimulationReport(summary: SimulationSummary): string {
     `- good votes on wolves: ${summary.goodVotesOnWolves}/${summary.goodVotes} (${formatPercent(summary.goodVoteAccuracy)})`,
     `- wolf votes on teammates: ${summary.wolfVotesOnTeammates}/${summary.wolfVotes} (${formatPercent(summary.wolfTeammateVoteRate)})`,
     `- exiles: wolves ${summary.wolfExiles}, good ${summary.goodExiles}, mislynch rate ${formatPercent(summary.mislynchRate)}`,
+    `- first exiles: wolves ${summary.firstExileWolves}, good ${summary.firstExileGood}, good powers ${summary.firstExileGoodPowers} (${formatPercent(summary.firstExileGoodPowerRate)})`,
     "",
     "Table memory",
     `- role claims: ${summary.roleClaims}, truthful ${summary.truthfulClaims} (${formatPercent(summary.truthfulClaimRate)})`,
@@ -483,6 +507,30 @@ function summarizeExiles(state: GameState): Pick<SimulationGameStats, "exiles" |
   }
 
   return { exiles, wolfExiles, goodExiles };
+}
+
+function summarizeFirstExile(state: GameState): Pick<
+  SimulationGameStats,
+  "firstExileDay" | "firstExileSeatId" | "firstExileRole" | "firstExileCamp" | "firstExileWasGoodPower"
+> {
+  const event = state.events.find((item) => item.type === "PLAYER_EXILED");
+  if (!event) {
+    return { firstExileWasGoodPower: false };
+  }
+  const seatId = readNumber(event, "seatId");
+  if (!seatId) {
+    return { firstExileWasGoodPower: false };
+  }
+
+  const seat = getSeat(state, seatId);
+  const camp = getCamp(seat.role);
+  return {
+    firstExileDay: event.day,
+    firstExileSeatId: seatId,
+    firstExileRole: seat.role,
+    firstExileCamp: camp,
+    firstExileWasGoodPower: camp === "GOOD" && seat.role !== "VILLAGER",
+  };
 }
 
 function summarizeClaims(
