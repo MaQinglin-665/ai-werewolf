@@ -37,6 +37,10 @@ type RoutedJsonOptions = {
   onTextSnapshot?: (text: string) => void;
 };
 
+type RoutedJsonFallbackOptions = RoutedJsonOptions & {
+  fallbackPersonaNames?: string[];
+};
+
 const MODEL_ROUTES: ModelRoute[] = [
   {
     id: "deepseek",
@@ -226,6 +230,30 @@ export async function callRoutedModelJson(options: RoutedJsonOptions): Promise<R
   }
 }
 
+export async function callRoutedModelJsonWithFallbacks(options: RoutedJsonFallbackOptions): Promise<RoutedLlmResponse> {
+  const primaryRoute = getModelRoute(options.personaName);
+  const routes = uniqueRoutes([
+    primaryRoute,
+    ...(options.fallbackPersonaNames ?? []).map(getModelRouteByNameOrId).filter((route): route is ModelRoute => Boolean(route)),
+  ]);
+  const eligibleRoutes = routes.filter((route) => Boolean(resolveRouteApiKey(route)));
+  const attempts = eligibleRoutes.length > 0 ? eligibleRoutes : routes;
+  const errors: string[] = [];
+
+  for (const route of attempts) {
+    try {
+      return await callRoutedModelJson({
+        ...options,
+        personaName: route.personaName,
+      });
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  throw new Error(`LLM routed request failed after persona fallbacks: ${errors.join(" | ")}`);
+}
+
 async function readStreamingResponseText(response: Response, options: RoutedJsonOptions): Promise<string> {
   if (!response.body) return response.text();
   const contentType = response.headers.get("content-type") ?? "";
@@ -349,6 +377,16 @@ export function trimLlmOutputForRetry(rawOutput: string | undefined): string | u
 
 function getModelRoute(personaName: string | undefined): ModelRoute {
   return MODEL_ROUTES.find((route) => route.personaName === personaName) ?? FALLBACK_ROUTE;
+}
+
+function getModelRouteByNameOrId(value: string | undefined): ModelRoute | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return undefined;
+  return MODEL_ROUTES.find((route) => route.personaName.toLowerCase() === normalized || route.id === normalized);
+}
+
+function uniqueRoutes(routes: ModelRoute[]): ModelRoute[] {
+  return routes.filter((route, index) => routes.findIndex((item) => item.id === route.id) === index);
 }
 
 function resolveModelCandidates(route: ModelRoute, primaryModel: string): string[] {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { callRoutedModelJson } from "./modelLlms";
+import { callRoutedModelJson, callRoutedModelJsonWithFallbacks } from "./modelLlms";
 
 const originalEnv = { ...process.env };
 
@@ -41,5 +41,37 @@ describe("model LLM routing", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(secondRequest.model).toBe("gpt-5.5");
     expect(result).toEqual({ text: "{\"ok\":true}", providerId: "gpt-action:gpt-5.5" });
+  });
+
+  it("can route action requests to another persona when the primary provider fails", async () => {
+    process.env.AI_LLM_API_KEY = "test-key";
+    process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";
+    process.env.AI_MODEL_GPT = "gpt-5.4";
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const requestBody = JSON.parse(String(init?.body)) as { model: string };
+      if (requestBody.model === "deepseek-v4-flash") {
+        return new Response(JSON.stringify({ error: { message: "upstream 502" } }), { status: 502 });
+      }
+
+      return new Response(JSON.stringify({ choices: [{ message: { content: "{\"candidateId\":\"vote:2\"}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await callRoutedModelJsonWithFallbacks({
+      personaName: "DeepSeek",
+      fallbackPersonaNames: ["GPT"],
+      task: "action",
+      system: "Return JSON.",
+      input: { candidates: [{ id: "vote:2" }] },
+      maxTokens: 100,
+    });
+
+    const models = fetchMock.mock.calls.map((call) => JSON.parse(String(call[1]?.body)) as { model: string });
+    expect(models.map((body) => body.model)).toEqual(["deepseek-v4-flash", "gpt-5.4"]);
+    expect(result).toEqual({ text: "{\"candidateId\":\"vote:2\"}", providerId: "gpt-action:gpt-5.4" });
   });
 });

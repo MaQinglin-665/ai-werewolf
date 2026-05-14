@@ -73,6 +73,7 @@ KIMI_BASE_URL="https://api.moonshot.cn/v1"
 默认映射为 DeepSeek、Claude、GPT、豆包、Mimo、Gemini、GLM、Kimi，可用 `AI_MODEL_*` 或对应的 `*_MODEL` 环境变量覆盖具体模型名。Mimo 如果使用 `tp-` key 且未设置 `MIMO_LLM_BASE_URL`，会自动走 Token Plan 的 Mimo 域名；豆包和 GLM 如果设置了 `ARK_API_KEY`，会优先走火山方舟 Ark；Kimi 如果设置了 `KIMI_API_KEY`，会优先走 Moonshot 官方 OpenAI-compatible 接口。
 
 为保证真实模型输出稳定，LLM 结果会先做 JSON 提取和轻量修复；仍不合格时会带上失败原因重试，最后才回退到本地策略。可用 `AI_LLM_MAX_RETRIES` 控制失败后的重试次数，默认 `1` 次；行动默认温度更低，可用 `AI_LLM_ACTION_TEMPERATURE` 和 `AI_LLM_SPEECH_TEMPERATURE` 分别调节。
+行动决策会先尝试当前 persona 的模型与备用模型；如果上游失败，还会按 `AI_LLM_ACTION_FALLBACK_PERSONAS` 尝试其他 persona 的行动模型，默认 `GPT,Claude,GLM`，再回退到本地策略。GPT 默认备用模型包含 `gpt-5.5`。
 
 ## 语音输入
 
