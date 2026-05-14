@@ -9,6 +9,7 @@
     "lint": "eslint",
     "audio:host": "node scripts/generate-host-audio.mjs",
     "llm:check": "node scripts/check-llm-output.mjs",
+    "llm:evaluate": "node scripts/evaluate-llm-game.mjs",
     "simulate:ai": "node scripts/simulate-ai.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

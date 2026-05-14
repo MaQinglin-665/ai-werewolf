@@ -176,6 +176,24 @@ function TableNotesPanel({ game, embedded = false }: { game: HumanGameView; embe
         </div>
 
         <div>
+          <div className="mb-2 text-xs text-[#9ecfac]">公开推理线索</div>
+          {memory.reasoningCues.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#8fd29a]/20 px-3 py-4 text-center text-xs text-[#9ecfac]">
+              暂无可复盘的公开推理线索
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              {memory.reasoningCues.slice(0, 4).map((cue) => (
+                <div key={cue.cueId} className="rounded-2xl border border-[#8fd29a]/18 bg-black/22 px-3 py-2 text-xs leading-5">
+                  <div className="font-semibold text-[#dff4df]">{cue.summary}</div>
+                  {cue.evidence[0] && <div className="mt-1 text-[#9ecfac]">{cue.evidence[0]}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
           <div className="mb-2 text-xs text-[#9ecfac]">公开票数历史</div>
           {!latestVote || latestVote.tally.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[#8fd29a]/20 px-3 py-4 text-center text-xs text-[#9ecfac]">

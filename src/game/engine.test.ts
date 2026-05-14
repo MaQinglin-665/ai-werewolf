@@ -12,6 +12,7 @@ import { getAiRoster } from "./personas";
 import { buildAgentView, buildHumanView } from "./projection";
 import { buildGameReview } from "./review";
 import { stripSpeechStageDirections } from "./speechText";
+import { buildTableMemory } from "./tableMemory";
 import { applyCommand, applySystemStep, createGame, evaluateWinCondition, getSeat, hydrateGameState } from "./engine";
 
 describe("game engine", () => {
@@ -850,6 +851,60 @@ describe("game engine", () => {
     expect(serialized).toContain(`本日已发言：${firstSpeaker!.seatId}号`);
     expect(serialized).toContain("我先点3号视角不足");
     expect(serialized).not.toMatch(/真实身份|狼队友|私有|privateKnowledge|ROLE_ASSIGNED/);
+  });
+
+  it("turns repeated public pressure into reasoning cues for LLM inputs", () => {
+    const state = createGame({ seed: 817, humanSeatId: 9 });
+    state.phase = "DAY_SPEECH";
+    state.day = 1;
+    state.stances = [
+      {
+        id: "stance-2-5",
+        day: 1,
+        actorSeatId: 2,
+        targetSeatId: 5,
+        kind: "PRESSURE",
+        reason: "发言前后不一致",
+        message: "5号这里前后不一致，我要先压一手。",
+        sourceSpeechSeq: 10,
+      },
+      {
+        id: "stance-6-5",
+        day: 1,
+        actorSeatId: 6,
+        targetSeatId: 5,
+        kind: "QUESTION",
+        reason: "接着质疑",
+        message: "我也觉得5号这轮需要解释。",
+        sourceSpeechSeq: 11,
+      },
+      {
+        id: "stance-7-5",
+        day: 1,
+        actorSeatId: 7,
+        targetSeatId: 5,
+        kind: "PRESSURE",
+        reason: "继续施压",
+        message: "5号这个点不能放。",
+        sourceSpeechSeq: 12,
+      },
+    ];
+
+    const memory = buildTableMemory(state);
+    const influence = memory.speechInfluence[0];
+    const view = buildAgentView(state, 6);
+    const input = buildConstrainedSpeechInput(view);
+
+    expect(influence).toMatchObject({
+      sourceSpeechSeq: 10,
+      followupCount: 2,
+      speaker: { seatId: 2 },
+      target: { seatId: 5 },
+      direction: "pressure",
+    });
+    expect(memory.reasoningCues.some((cue) => cue.kind === "speech_influence" && cue.target?.seatId === 5)).toBe(true);
+    expect(input.publicContext.tableMemory.reasoningCues.some((cue) => cue.kind === "speech_influence")).toBe(true);
+    expect(input.tableBriefing.publicReasoningCues.length).toBeGreaterThan(0);
   });
 
   it("strips stage directions from AI speech before it reaches the table", async () => {
