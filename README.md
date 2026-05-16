@@ -4,6 +4,17 @@
 
 当前公开试玩版暂不包含多人房间，适合单机体验、演示 AI 发言和测试不同板子。
 
+## 下载试玩
+
+Windows 试玩推荐直接下载 Release ZIP：
+
+1. 打开 [v0.1.2-alpha 发布页](https://github.com/MaQinglin-665/ai-werewolf/releases/tag/v0.1.2-alpha)。
+2. 在页面底部 `Assets` 里下载 `Source code (zip)`，或直接下载 [v0.1.2-alpha.zip](https://github.com/MaQinglin-665/ai-werewolf/archive/refs/tags/v0.1.2-alpha.zip)。
+3. 先解压 ZIP，再双击解压后目录里的 `start-alpha.bat`。
+4. 第一次启动会自动安装依赖、初始化本地 SQLite 数据库，并用 Mock 试玩模式打开浏览器。
+
+Mock 试玩不需要 API Key，不调用真实大模型，也不需要配置 TTS。
+
 ## 界面预览
 
 ### 开局入口
@@ -23,8 +34,8 @@
 ### Windows 推荐方式
 
 1. 安装 Node.js 20 或更新版本。
-2. 在 GitHub 页面点击 `Code` -> `Download ZIP`，解压到本地。
-3. 双击根目录的 `start-alpha.bat`。
+2. 从 [最新 Release](https://github.com/MaQinglin-665/ai-werewolf/releases/tag/v0.1.2-alpha) 下载 `Source code (zip)`，解压到本地。
+3. 双击解压后根目录的 `start-alpha.bat`。
 4. 等脚本自动进入 mock 模式、安装依赖、初始化 SQLite 数据库并打开浏览器。
 
 mock 模式不需要 API Key，也不需要配置 TTS，最适合第一次试玩。之后可以在 `/ai-pool` 的“对局 AI 模式”里切换到“真实 LLM”。

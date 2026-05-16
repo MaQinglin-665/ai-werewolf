@@ -25,6 +25,8 @@ $RootDir = Split-Path -Parent $ScriptDir
 $EnvPath = Join-Path $RootDir ".env"
 $EnvExamplePath = Join-Path $RootDir ".env.example"
 $InitialPath = "/"
+$NodeDownloadUrl = "https://nodejs.org/en/download"
+$ReleaseUrl = "https://github.com/MaQinglin-665/ai-werewolf/releases"
 
 Set-Location -LiteralPath $RootDir
 
@@ -219,7 +221,7 @@ try {
   Write-Step "Checking Node.js"
   $NodeCommand = Get-Command node -ErrorAction SilentlyContinue
   if (-not $NodeCommand) {
-    throw "Node.js was not found. Install Node.js 20 or newer from https://nodejs.org/ and run this launcher again."
+    throw "Node.js was not found. Install Node.js 20 LTS or newer from $NodeDownloadUrl, then double-click start-alpha.bat again."
   }
 
   $script:NpmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
@@ -227,13 +229,13 @@ try {
     $script:NpmCommand = Get-Command npm -ErrorAction SilentlyContinue
   }
   if (-not $script:NpmCommand) {
-    throw "npm was not found. Reinstall Node.js 20 or newer from https://nodejs.org/."
+    throw "npm was not found. Reinstall Node.js 20 LTS or newer from $NodeDownloadUrl."
   }
 
   $NodeVersion = (& node -p "process.versions.node").Trim()
   $NodeMajor = [int] ($NodeVersion.Split(".")[0])
   if ($NodeMajor -lt 20) {
-    throw "Node.js $NodeVersion is installed, but this project expects Node.js 20 or newer."
+    throw "Node.js $NodeVersion is installed, but this project expects Node.js 20 or newer. Download the current LTS installer from $NodeDownloadUrl."
   }
   Write-Note "Node.js $NodeVersion"
 
@@ -392,10 +394,12 @@ try {
   Write-Host $_.Exception.Message -ForegroundColor Red
   Write-Host ""
   Write-Host "Common fixes:" -ForegroundColor Yellow
-  Write-Host "  - Install Node.js 20 or newer, then run this launcher again."
-  Write-Host "  - If dependency installation failed, check your network and try again."
-  Write-Host "  - If database setup failed, delete .env and retry, or run npm run db:push manually."
-  Write-Host "  - If the browser does not open, visit the localhost URL printed above."
+  Write-Host "  - Node.js: install Node.js 20 LTS or newer from $NodeDownloadUrl, then double-click start-alpha.bat again."
+  Write-Host "  - ZIP package: make sure you extracted the ZIP first; do not run start-alpha.bat inside the compressed file preview."
+  Write-Host "  - npm install: check your network or proxy, then run start-alpha.bat again."
+  Write-Host "  - Database setup: close this window, delete prisma\\dev.db if it exists, then run start-alpha.bat again."
+  Write-Host "  - Browser: if it does not open automatically, visit the localhost URL printed above."
+  Write-Host "  - Fresh download: $ReleaseUrl"
   Write-Host ""
   Write-Host "Press Enter to close this window."
   [void] (Read-Host)
