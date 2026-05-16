@@ -4,6 +4,20 @@
 
 当前公开试玩版暂不包含多人房间，适合单机体验、演示 AI 发言和测试不同板子。
 
+## 界面预览
+
+### 开局入口
+
+![AI 狼人杀开局入口](docs/assets/ai-werewolf-home.png)
+
+### AI 池配置
+
+![AI 池配置](docs/assets/ai-werewolf-ai-pool.png)
+
+### 牌桌对局
+
+![AI 狼人杀牌桌对局](docs/assets/ai-werewolf-table.png)
+
 ## 快速试玩
 
 ### Windows 推荐方式
