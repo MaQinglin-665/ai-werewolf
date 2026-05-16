@@ -1,5 +1,5 @@
 import { HumanCommandInputSchema, toHumanCommand } from "@/game/commandSchemas";
-import { sanitizeRuntimeAiLlmConfigMap } from "@/game/llmConfig";
+import { sanitizeAiRuntimeMode, sanitizeRuntimeAiLlmConfigMap } from "@/game/llmConfig";
 import { continueGame, getGameView, submitHumanCommand } from "@/server/gameService";
 
 export const runtime = "nodejs";
@@ -16,8 +16,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
 
   try {
     const runtimeAiLlmConfigs = sanitizeRuntimeAiLlmConfigMap(isRecord(body) ? body.aiLlmConfigs : undefined);
+    const aiRuntimeMode = sanitizeAiRuntimeMode(isRecord(body) ? body.aiRuntimeMode : undefined);
     if (parsed.data.type === "continue") {
-      const nextView = await continueGame(gameId, { runtimeAiLlmConfigs });
+      const nextView = await continueGame(gameId, { aiRuntimeMode, runtimeAiLlmConfigs });
       return Response.json(nextView);
     }
 
@@ -29,7 +30,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
       return Response.json({ error: "观战模式不能提交真人动作。" }, { status: 400 });
     }
     const command = toHumanCommand(parsed.data, view.humanSeatId);
-    const nextView = await submitHumanCommand(gameId, command, { runtimeAiLlmConfigs });
+    const nextView = await submitHumanCommand(gameId, command, { aiRuntimeMode, runtimeAiLlmConfigs });
     return Response.json(nextView);
   } catch (error) {
     return Response.json(

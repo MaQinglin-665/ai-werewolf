@@ -253,16 +253,16 @@ try {
   if (-not $Mode) {
     Write-Host ""
     Write-Host "Choose startup mode:"
-    Write-Host "  1. Open AI Pool and configure model keys in the app (recommended)"
-    Write-Host "  2. Local mock mode (fast, no API key)"
+    Write-Host "  1. Local mock mode (fast, no API key, recommended)"
+    Write-Host "  2. Open AI Pool and configure model keys in the app"
     Write-Host "  3. Keep current .env"
     Write-Host "  4. Legacy terminal real-model setup"
     $Choice = Read-Host "Enter 1/2/3/4 (default 1)"
     switch ($Choice) {
-      "2" { $Mode = "mock" }
+      "2" { $Mode = "app" }
       "3" { $Mode = "keep" }
       "4" { $Mode = "real" }
-      default { $Mode = "app" }
+      default { $Mode = "mock" }
     }
   }
 
@@ -390,6 +390,12 @@ try {
   Write-Host ""
   Write-Host "Setup failed:" -ForegroundColor Red
   Write-Host $_.Exception.Message -ForegroundColor Red
+  Write-Host ""
+  Write-Host "Common fixes:" -ForegroundColor Yellow
+  Write-Host "  - Install Node.js 20 or newer, then run this launcher again."
+  Write-Host "  - If dependency installation failed, check your network and try again."
+  Write-Host "  - If database setup failed, delete .env and retry, or run npm run db:push manually."
+  Write-Host "  - If the browser does not open, visit the localhost URL printed above."
   Write-Host ""
   Write-Host "Press Enter to close this window."
   [void] (Read-Host)

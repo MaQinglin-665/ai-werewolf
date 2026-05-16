@@ -1,4 +1,10 @@
-import type { AiFriendLlmConfig, AiFriendRuntimeLlmConfig, AiFriendRuntimeTtsConfig, AiFriendTtsConfig } from "./types";
+import type {
+  AiFriendLlmConfig,
+  AiFriendRuntimeLlmConfig,
+  AiFriendRuntimeTtsConfig,
+  AiFriendTtsConfig,
+  AiRuntimeMode,
+} from "./types";
 
 export function sanitizeAiFriendLlmConfig(value: unknown): AiFriendLlmConfig | undefined {
   if (!isRecord(value) || value.provider !== "openai-compatible") return undefined;
@@ -37,6 +43,10 @@ export function sanitizeRuntimeAiLlmConfigMap(value: unknown): Record<string, Ai
     })
     .filter((entry): entry is readonly [string, AiFriendRuntimeLlmConfig] => Boolean(entry));
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+export function sanitizeAiRuntimeMode(value: unknown): AiRuntimeMode | undefined {
+  return value === "mock" || value === "llm" ? value : undefined;
 }
 
 export function sanitizeAiFriendTtsConfig(value: unknown): AiFriendTtsConfig | undefined {

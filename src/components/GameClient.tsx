@@ -7,6 +7,7 @@ import type {
   AiFriendConfig,
   AiFriendRuntimeLlmConfig,
   AiFriendRuntimeTtsConfig,
+  AiRuntimeMode,
   AvailableHumanAction,
   HumanGameView,
 } from "@/game/types";
@@ -35,6 +36,7 @@ import {
   buildRuntimeAiTtsConfigs,
   getDefaultSelectedAiFriendIds,
   readStoredAiFriendLlmSecrets,
+  readStoredAiRuntimeMode,
   readStoredCustomAiFriends,
   readStoredSelectedAiFriendIds,
   resolveSelectedAiFriends,
@@ -880,6 +882,7 @@ async function submitStreamingContinue(
   game: HumanGameView,
   payload: Extract<CommandPayload, { type: "continue" }>,
   runtimeAiLlmConfigs: Record<string, AiFriendRuntimeLlmConfig> | undefined,
+  aiRuntimeMode: AiRuntimeMode,
   setLiveAiSpeech: React.Dispatch<React.SetStateAction<LiveAiSpeech | null>>,
   onSpeechTextSnapshot?: (text: string) => void,
 ): Promise<HumanGameView> {
@@ -898,7 +901,7 @@ async function submitStreamingContinue(
   const response = await fetch(`/api/games/${game.id}/commands/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, aiLlmConfigs: runtimeAiLlmConfigs }),
+    body: JSON.stringify({ ...payload, aiRuntimeMode, aiLlmConfigs: runtimeAiLlmConfigs }),
   });
   if (!response.ok || !response.body) {
     const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -954,6 +957,7 @@ export function GameClient() {
   const [customAiFriends, setCustomAiFriends] = useState<AiFriendConfig[]>(EMPTY_CUSTOM_AI_FRIENDS);
   const [aiLlmSecrets, setAiLlmSecrets] = useState<AiFriendLlmSecretMap>({});
   const [selectedAiFriendIds, setSelectedAiFriendIds] = useState<string[]>(getDefaultSelectedAiFriendIds);
+  const [aiRuntimeMode, setAiRuntimeMode] = useState<AiRuntimeMode>("mock");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roleIntroGameId, setRoleIntroGameId] = useState<string | null>(null);
@@ -996,8 +1000,8 @@ export function GameClient() {
     [aiFriendOptions, selectedAiFriendIds],
   );
   const runtimeAiLlmConfigs = useMemo(
-    () => buildRuntimeAiLlmConfigs(customAiFriends, aiLlmSecrets),
-    [aiLlmSecrets, customAiFriends],
+    () => (aiRuntimeMode === "llm" ? buildRuntimeAiLlmConfigs(customAiFriends, aiLlmSecrets) : undefined),
+    [aiLlmSecrets, aiRuntimeMode, customAiFriends],
   );
   const runtimeAiTtsConfigs = useMemo(
     () => buildRuntimeAiTtsConfigs(customAiFriends, aiLlmSecrets),
@@ -1096,6 +1100,7 @@ export function GameClient() {
       setCustomAiFriends(readStoredCustomAiFriends());
       setAiLlmSecrets(readStoredAiFriendLlmSecrets());
       setSelectedAiFriendIds(readStoredSelectedAiFriendIds());
+      setAiRuntimeMode(readStoredAiRuntimeMode());
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -1409,7 +1414,14 @@ export function GameClient() {
           });
         }
 
-        const streamedView = await submitStreamingContinue(game, payload, runtimeAiLlmConfigs, setLiveAiSpeech, streamingTts?.push);
+        const streamedView = await submitStreamingContinue(
+          game,
+          payload,
+          runtimeAiLlmConfigs,
+          aiRuntimeMode,
+          setLiveAiSpeech,
+          streamingTts?.push,
+        );
         const streamedSpeech =
           streamingTts && streamingSpeaker ? findNewAiSpeech(streamedView, previousSpeechKeys, streamingSpeaker.seatId) : undefined;
         if (streamingTts && streamedSpeech) {
@@ -1452,7 +1464,7 @@ export function GameClient() {
       const response = await fetch(`/api/games/${game.id}/commands`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, aiLlmConfigs: runtimeAiLlmConfigs }),
+        body: JSON.stringify({ ...payload, aiRuntimeMode, aiLlmConfigs: runtimeAiLlmConfigs }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -1468,6 +1480,7 @@ export function GameClient() {
       setLoading(false);
     }
   }, [
+    aiRuntimeMode,
     effectiveAiSpeechAudioEnabled,
     game,
     loadAiSpeechAudioElement,

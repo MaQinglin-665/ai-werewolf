@@ -25,15 +25,14 @@
 1. 安装 Node.js 20 或更新版本。
 2. 在 GitHub 页面点击 `Code` -> `Download ZIP`，解压到本地。
 3. 双击根目录的 `start-alpha.bat`。
-4. 启动模式选择 `2. Local mock mode (fast, no API key)`。
-5. 等脚本自动安装依赖、初始化 SQLite 数据库并打开浏览器。
+4. 等脚本自动进入 mock 模式、安装依赖、初始化 SQLite 数据库并打开浏览器。
 
-mock 模式不需要 API Key，也不需要配置 TTS，最适合第一次试玩。
+mock 模式不需要 API Key，也不需要配置 TTS，最适合第一次试玩。之后可以在 `/ai-pool` 的“对局 AI 模式”里切换到“真实 LLM”。
 
 ### 命令行方式
 
 ```powershell
-git clone -b codex/share-alpha-without-rooms https://github.com/MaQinglin-665/ai-werewolf.git
+git clone https://github.com/MaQinglin-665/ai-werewolf.git
 cd ai-werewolf
 Copy-Item .env.example .env
 npm install
@@ -55,6 +54,7 @@ AI_LLM_PROVIDER="mock"
 ```
 
 这个模式会使用本地 AI 策略和本地发言，不会调用真实大模型。
+也可以直接在 AI 池右侧选择“Mock 试玩”。该选择会保存到浏览器本地，并在对局推进时强制绕过真实 LLM。
 
 ## 当前能力
 
@@ -69,12 +69,19 @@ AI_LLM_PROVIDER="mock"
 
 真实大模型是可选项。想让不同 AI 使用不同模型时，打开 `/ai-pool`：
 
-1. 展开左侧 AI 卡片。
-2. 填写 OpenAI-compatible `Base URL`、模型名和 API Key。
-3. 点击“保存到这个 AI”。
-4. 回到首页开局。
+1. 在右侧“对局 AI 模式”选择“真实 LLM”。
+2. 展开左侧 AI 卡片。
+3. 填写 OpenAI-compatible `Base URL`、模型名和 API Key。
+4. 点击“保存到这个 AI”。
+5. 回到首页开局。
 
 API Key 只保存在你自己的浏览器本地，不会写入 GitHub，也不会导出到对局配置里。
+
+如果你想让启动脚本直接打开 AI 池，可以在 PowerShell 里运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-alpha.ps1 -Mode app
+```
 
 ## TTS 语音
 
@@ -94,6 +101,24 @@ TTS 不是必填项。
 5. 其他 AI 会自动行动，对局会推进到下一次需要你操作的位置。
 6. 终局后查看复盘，确认身份、夜晚行动、投票和胜负原因。
 
+## 常见问题
+
+### mock 模式是什么？
+
+mock 模式就是离线试玩模式。它不需要 API Key，不调用真实大模型，也不会产生模型费用。AI 会使用项目内置的本地策略自动发言和行动。在 AI 池选择“Mock 试玩”后，即使某些 AI 已经保存了模型配置，本局推进也不会调用真实 LLM。
+
+### TTS 需要配置吗？
+
+不需要。没有配置 TTS 时，游戏仍然可以正常玩；主持流程会播放仓库内置音频片段，AI 发言以文字为主。
+
+### 为什么第一次启动比较慢？
+
+第一次启动会自动安装 npm 依赖、生成 Prisma Client 并初始化 SQLite 数据库，时间主要取决于网络和电脑性能。后续启动会快很多。
+
+### 双击后打不开页面怎么办？
+
+先看启动窗口里打印的 localhost 地址。默认是 http://localhost:3000；如果 3000 端口被占用，脚本会自动尝试附近可用端口。也可以确认 Node.js 版本是否为 20 或更新版本。
+
 ## 常用命令
 
 ```powershell
@@ -107,7 +132,7 @@ npm run simulate:ai
 ## 当前限制
 
 - 这是 Alpha 试玩版，不是公网运营版本。
-- 当前公开分支不包含多人房间、账号、匹配、限流和额度保护。
+- 当前公开版本不包含多人房间、账号、匹配、限流和额度保护。
 - 真实大模型和云 TTS 会增加等待时间，也可能产生 API 费用。
 - AI 表现会随模型、配置和随机种子变化，规则引擎仍然是最终裁判。
 

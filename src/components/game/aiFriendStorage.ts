@@ -7,11 +7,13 @@ import {
 } from "@/game/aiFriends";
 import { formatAiFriendLlmModelLabel } from "@/game/llmConfig";
 import { getAiPersonaById } from "@/game/personas";
-import type { AiFriendConfig, AiFriendRuntimeLlmConfig, AiFriendRuntimeTtsConfig } from "@/game/types";
+import type { AiFriendConfig, AiFriendRuntimeLlmConfig, AiFriendRuntimeTtsConfig, AiRuntimeMode } from "@/game/types";
 import type { AiFriendOption } from "./clientTypes";
 
 const EMPTY_CUSTOM_AI_FRIENDS: AiFriendConfig[] = [];
 export const AI_FRIEND_LLM_SECRETS_STORAGE_KEY = "ai-werewolf-ai-friend-llm-secrets-v1";
+export const AI_RUNTIME_MODE_STORAGE_KEY = "ai-werewolf-ai-runtime-mode-v1";
+export const DEFAULT_AI_RUNTIME_MODE: AiRuntimeMode = "mock";
 
 export type AiFriendLlmSecretMap = Record<string, { apiKey?: string; ttsApiKey?: string }>;
 
@@ -83,6 +85,16 @@ export function writeStoredAiFriendLlmSecrets(secrets: AiFriendLlmSecretMap): vo
       .filter((entry): entry is [string, { apiKey?: string; ttsApiKey?: string }] => Boolean(entry)),
   );
   window.localStorage.setItem(AI_FRIEND_LLM_SECRETS_STORAGE_KEY, JSON.stringify(clean));
+}
+
+export function readStoredAiRuntimeMode(): AiRuntimeMode {
+  if (typeof window === "undefined") return DEFAULT_AI_RUNTIME_MODE;
+  return window.localStorage.getItem(AI_RUNTIME_MODE_STORAGE_KEY) === "llm" ? "llm" : DEFAULT_AI_RUNTIME_MODE;
+}
+
+export function writeStoredAiRuntimeMode(mode: AiRuntimeMode): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(AI_RUNTIME_MODE_STORAGE_KEY, mode);
 }
 
 export function buildRuntimeAiLlmConfigs(

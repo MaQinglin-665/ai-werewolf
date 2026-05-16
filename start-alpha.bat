@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-alpha.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-alpha.ps1" -Mode mock
 set EXIT_CODE=%ERRORLEVEL%
 
 if not "%EXIT_CODE%"=="0" (

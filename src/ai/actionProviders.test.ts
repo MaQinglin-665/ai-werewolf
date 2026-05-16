@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMockCommand } from "./mockAgent";
+import { createConfiguredAiOptions, createMockCommand, mockActionProvider } from "./mockAgent";
+import { mockSpeechProvider } from "./speechProviders";
 import { buildConstrainedActionInput, routedModelActionProvider } from "./actionProviders";
 import { buildAiTableRead, createVotePlan } from "./tableRead";
 import { buildAgentView } from "@/game/projection";
@@ -11,6 +12,15 @@ afterEach(() => {
   process.env = { ...originalEnv };
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe("configured AI options", () => {
+  it("forceMock bypasses configured LLM providers", () => {
+    const options = createConfiguredAiOptions({ forceMock: true });
+
+    expect(options.actionProvider).toBe(mockActionProvider);
+    expect(options.speechProvider).toBe(mockSpeechProvider);
+  });
 });
 
 describe("routed action provider", () => {

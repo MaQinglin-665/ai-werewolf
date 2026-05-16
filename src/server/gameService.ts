@@ -8,6 +8,7 @@ import { PHASES } from "@/game/types";
 import type {
   AiFriendConfig,
   AiFriendRuntimeLlmConfig,
+  AiRuntimeMode,
   BoardSnapshot,
   Command,
   GameState,
@@ -21,7 +22,16 @@ import { prisma } from "@/lib/prisma";
 
 type RuntimeAiOptions = {
   runtimeAiLlmConfigs?: Record<string, AiFriendRuntimeLlmConfig>;
+  aiRuntimeMode?: AiRuntimeMode;
 };
+
+function createRuntimeAiAdvanceOptions(options: RuntimeAiOptions) {
+  const forceMock = options.aiRuntimeMode === "mock";
+  return {
+    ...createConfiguredAiOptions({ forceMock }),
+    runtimeAiLlmConfigs: forceMock ? undefined : options.runtimeAiLlmConfigs,
+  };
+}
 
 const BATCH_AI_AFTER_HUMAN_PHASES = new Set<Phase>([
   "DAY_VOTE",
@@ -73,8 +83,7 @@ export async function submitHumanCommand(
   let aiLogs: AiDecisionLog[] = [];
   if (command.type === "vote" || command.type === "sheriffNominate" || command.type === "sheriffWithdraw" || command.type === "sheriffVote") {
     const advanced = await advancePendingAiTurns(nextState, BATCH_AI_AFTER_HUMAN_PHASES, {
-      ...createConfiguredAiOptions(),
-      runtimeAiLlmConfigs: options.runtimeAiLlmConfigs,
+      ...createRuntimeAiAdvanceOptions(options),
     });
     nextState = revealCompletedVote(advanced.state);
     aiLogs = advanced.aiLogs;
@@ -93,12 +102,10 @@ export async function continueGame(gameId: string, options: RuntimeAiOptions = {
   const advanced =
     state.phase === "DAY_VOTE"
       ? await advancePendingAiVotes(state, {
-          ...createConfiguredAiOptions(),
-          runtimeAiLlmConfigs: options.runtimeAiLlmConfigs,
+          ...createRuntimeAiAdvanceOptions(options),
         })
       : await advanceOneAiStep(state, {
-          ...createConfiguredAiOptions(),
-          runtimeAiLlmConfigs: options.runtimeAiLlmConfigs,
+          ...createRuntimeAiAdvanceOptions(options),
         });
   const nextState = state.phase === "DAY_VOTE" ? revealCompletedVote(advanced.state) : advanced.state;
   await saveGameState(nextState, advanced.aiLogs);
@@ -118,13 +125,11 @@ export async function continueGameWithSpeechStream(
   const advanced =
     state.phase === "DAY_VOTE"
       ? await advancePendingAiVotes(state, {
-          ...createConfiguredAiOptions(),
-          runtimeAiLlmConfigs: options.runtimeAiLlmConfigs,
+          ...createRuntimeAiAdvanceOptions(options),
         })
       : await advanceOneAiStep(state, {
-          ...createConfiguredAiOptions(),
+          ...createRuntimeAiAdvanceOptions(options),
           speechContext,
-          runtimeAiLlmConfigs: options.runtimeAiLlmConfigs,
         });
   const nextState = state.phase === "DAY_VOTE" ? revealCompletedVote(advanced.state) : advanced.state;
   await saveGameState(nextState, advanced.aiLogs);

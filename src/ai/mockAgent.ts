@@ -257,7 +257,14 @@ async function advanceAiTurn(
   };
 }
 
-export function createConfiguredAiOptions(): AiAdvanceOptions {
+export function createConfiguredAiOptions(options: { forceMock?: boolean } = {}): AiAdvanceOptions {
+  if (options.forceMock) {
+    return {
+      speechProvider: mockSpeechProvider,
+      actionProvider: mockActionProvider,
+    };
+  }
+
   return {
     speechProvider: createConfiguredSpeechProvider(),
     actionProvider: createConfiguredActionProvider(mockActionProvider),

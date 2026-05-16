@@ -242,6 +242,8 @@ export type AiFriendRuntimeLlmConfig = AiFriendLlmConfig & {
   apiKey?: string;
 };
 
+export type AiRuntimeMode = "mock" | "llm";
+
 export type AiFriendTtsConfig = {
   provider: "mimo-compatible";
   label?: string;

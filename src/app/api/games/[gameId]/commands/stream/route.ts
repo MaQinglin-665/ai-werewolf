@@ -1,5 +1,5 @@
 import { HumanCommandInputSchema } from "@/game/commandSchemas";
-import { sanitizeRuntimeAiLlmConfigMap } from "@/game/llmConfig";
+import { sanitizeAiRuntimeMode, sanitizeRuntimeAiLlmConfigMap } from "@/game/llmConfig";
 import { continueGameWithSpeechStream } from "@/server/gameService";
 
 export const runtime = "nodejs";
@@ -15,6 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
   }
 
   const runtimeAiLlmConfigs = sanitizeRuntimeAiLlmConfigMap(isRecord(body) ? body.aiLlmConfigs : undefined);
+  const aiRuntimeMode = sanitizeAiRuntimeMode(isRecord(body) ? body.aiRuntimeMode : undefined);
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -27,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
         {
           onTextSnapshot: (text) => send("speech", { text }),
         },
-        { runtimeAiLlmConfigs },
+        { aiRuntimeMode, runtimeAiLlmConfigs },
       )
         .then((view) => {
           send("done", { view });

@@ -10,14 +10,16 @@ import {
   sanitizeCustomAiFriends,
   serializeAiFriendExport,
 } from "@/game/aiFriends";
-import type { AiFriendConfig, AiFriendLlmConfig, AiFriendTtsConfig, AiPersonaPreferences } from "@/game/types";
+import type { AiFriendConfig, AiFriendLlmConfig, AiFriendTtsConfig, AiPersonaPreferences, AiRuntimeMode } from "@/game/types";
 import {
   buildAiFriendOptions,
   getDefaultSelectedAiFriendIds,
   readStoredAiFriendLlmSecrets,
+  readStoredAiRuntimeMode,
   readStoredCustomAiFriends,
   readStoredSelectedAiFriendIds,
   writeStoredAiFriendLlmSecrets,
+  writeStoredAiRuntimeMode,
   writeStoredCustomAiFriends,
   writeStoredSelectedAiFriendIds,
   type AiFriendLlmSecretMap,
@@ -304,6 +306,7 @@ export function AiPoolClient() {
   const [customAiFriends, setCustomAiFriends] = useState<AiFriendConfig[]>([]);
   const [aiLlmSecrets, setAiLlmSecrets] = useState<AiFriendLlmSecretMap>({});
   const [selectedAiFriendIds, setSelectedAiFriendIds] = useState<string[]>(getDefaultSelectedAiFriendIds);
+  const [aiRuntimeMode, setAiRuntimeMode] = useState<AiRuntimeMode>("mock");
   const [aiTransferText, setAiTransferText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
   const [quickAddNickname, setQuickAddNickname] = useState("");
@@ -337,6 +340,7 @@ export function AiPoolClient() {
       setCustomAiFriends(readStoredCustomAiFriends());
       setAiLlmSecrets(readStoredAiFriendLlmSecrets());
       setSelectedAiFriendIds(readStoredSelectedAiFriendIds());
+      setAiRuntimeMode(readStoredAiRuntimeMode());
       setLoaded(true);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -371,6 +375,11 @@ export function AiPoolClient() {
     if (!loaded) return;
     writeStoredSelectedAiFriendIds(selectedAiFriendIds);
   }, [loaded, selectedAiFriendIds]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    writeStoredAiRuntimeMode(aiRuntimeMode);
+  }, [aiRuntimeMode, loaded]);
 
   const toggleAiFriendSelection = useCallback((friendId: string) => {
     setSelectedAiFriendIds((current) =>
@@ -658,7 +667,8 @@ export function AiPoolClient() {
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#b8d6ff]/68">AI Pool</div>
             <h1 className="mt-1 text-2xl font-semibold tracking-normal">AI池和自定义AI</h1>
             <p className="mt-1 text-sm text-[#b8d6ff]/72">
-              {selectedCount} 位已加入本局队列 · {customAiFriends.length} 个自定义AI
+              {selectedCount} 位已加入本局队列 · {customAiFriends.length} 个自定义AI ·{" "}
+              {aiRuntimeMode === "mock" ? "Mock 试玩" : "真实 LLM"}
             </p>
           </div>
           <Link
@@ -686,6 +696,7 @@ export function AiPoolClient() {
             onDelete={deleteCustomAiFriend}
           />
           <div className="grid content-start gap-4">
+            <AiRuntimeModeCard mode={aiRuntimeMode} aiRuntimeConfig={aiRuntimeConfig} onModeChange={setAiRuntimeMode} />
             <CustomAiTransferCard
               baseFriends={baseAiFriends}
               selectedFriends={selectedAiFriends}
@@ -725,6 +736,70 @@ export function AiPoolClient() {
         </section>
       </div>
     </main>
+  );
+}
+
+function AiRuntimeModeCard({
+  mode,
+  aiRuntimeConfig,
+  onModeChange,
+}: {
+  mode: AiRuntimeMode;
+  aiRuntimeConfig: AiRuntimeConfig | null;
+  onModeChange: (mode: AiRuntimeMode) => void;
+}) {
+  const llmReady = Boolean(aiRuntimeConfig?.llm.routingEnabled || aiRuntimeConfig?.llm.routes.some((route) => route.connected));
+  const modeHint =
+    mode === "mock"
+      ? "不需要 API Key，对局只使用本地策略发言和行动。"
+      : llmReady
+        ? "对局会调用已配置的真实大模型；缺少单卡 Key 时使用全局配置。"
+        : "已选择真实 LLM，但当前还没有检测到可用模型配置。";
+
+  return (
+    <section className="rounded-[24px] border border-[#7da8e3]/22 bg-[#0d1623]/78 p-4 shadow-2xl shadow-black/30 backdrop-blur-md">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-[#e4efff]">对局 AI 模式</h2>
+          <p className="mt-1 text-xs leading-5 text-[#b8d6ff]/72">{modeHint}</p>
+        </div>
+        <span
+          className={`rounded-full border px-2 py-1 text-xs ${
+            mode === "mock"
+              ? "border-[#77d898]/22 bg-[#77d898]/10 text-[#a8f0b6]"
+              : "border-[#f1c76e]/24 bg-[#f1c76e]/10 text-[#f1d796]"
+          }`}
+        >
+          {mode === "mock" ? "Mock" : "LLM"}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onModeChange("mock")}
+          className={`rounded-2xl border px-3 py-3 text-left transition ${
+            mode === "mock"
+              ? "border-[#77d898]/42 bg-[#12351f] text-[#dff4df]"
+              : "border-[#7da8e3]/14 bg-black/18 text-[#b8d6ff] hover:border-[#7da8e3]/34"
+          }`}
+        >
+          <span className="block text-sm font-semibold">Mock 试玩</span>
+          <span className="mt-1 block text-xs opacity-72">零配置、无费用</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onModeChange("llm")}
+          className={`rounded-2xl border px-3 py-3 text-left transition ${
+            mode === "llm"
+              ? "border-[#f1c76e]/42 bg-[#342713] text-[#f7ead5]"
+              : "border-[#7da8e3]/14 bg-black/18 text-[#b8d6ff] hover:border-[#7da8e3]/34"
+          }`}
+        >
+          <span className="block text-sm font-semibold">真实 LLM</span>
+          <span className="mt-1 block text-xs opacity-72">使用模型配置</span>
+        </button>
+      </div>
+    </section>
   );
 }
 
