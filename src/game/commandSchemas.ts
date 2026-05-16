@@ -25,6 +25,10 @@ export const HumanCommandInputSchema = z.discriminatedUnion("type", [
     targetSeatId: seatIdSchema.optional(),
   }),
   z.object({
+    type: z.literal("wolfBeautyCharm"),
+    targetSeatId: seatIdSchema.optional(),
+  }),
+  z.object({
     type: z.literal("speak"),
     message: z.string().min(1).max(800),
   }),
@@ -38,6 +42,18 @@ export const HumanCommandInputSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("hunterShoot"),
+    targetSeatId: seatIdSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("wolfKingShoot"),
+    targetSeatId: seatIdSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("whiteWolfKingExplode"),
+    targetSeatId: seatIdSchema,
+  }),
+  z.object({
+    type: z.literal("knightDuel"),
     targetSeatId: seatIdSchema.optional(),
   }),
   z.object({
@@ -80,6 +96,8 @@ export function toHumanCommand(input: HumanRuleCommandInput, actorSeatId: number
         mode: input.mode,
         targetSeatId: input.targetSeatId,
       };
+    case "wolfBeautyCharm":
+      return { type: "wolfBeautyCharm", actorSeatId, targetSeatId: input.targetSeatId };
     case "speak":
       return { type: "speak", actorSeatId, message: input.message };
     case "lastWords":
@@ -88,6 +106,12 @@ export function toHumanCommand(input: HumanRuleCommandInput, actorSeatId: number
       return { type: "vote", actorSeatId, targetSeatId: input.targetSeatId };
     case "hunterShoot":
       return { type: "hunterShoot", actorSeatId, targetSeatId: input.targetSeatId };
+    case "wolfKingShoot":
+      return { type: "wolfKingShoot", actorSeatId, targetSeatId: input.targetSeatId };
+    case "whiteWolfKingExplode":
+      return { type: "whiteWolfKingExplode", actorSeatId, targetSeatId: input.targetSeatId };
+    case "knightDuel":
+      return { type: "knightDuel", actorSeatId, targetSeatId: input.targetSeatId };
     case "sheriffNominate":
       return { type: "sheriffNominate", actorSeatId, run: input.run };
     case "sheriffSpeech":

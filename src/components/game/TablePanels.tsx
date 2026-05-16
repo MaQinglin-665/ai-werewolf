@@ -15,7 +15,7 @@ export function AuxiliaryInfoPanel({ game, events }: { game: HumanGameView; even
   const claimCount = memory.claimBoard.length;
   const eventCount = events.length;
   const tabs: Array<{ key: AuxiliaryInfoTab; label: string; meta: string }> = [
-    { key: "private", label: "私密", meta: game.myRoleLabel },
+    { key: "private", label: "私密", meta: game.myRoleLabel ?? "观战" },
     { key: "notes", label: "局势", meta: claimCount > 0 ? `${claimCount} 声明` : "公开线" },
     { key: "log", label: "记录", meta: eventCount > 0 ? `${eventCount} 条` : "暂无" },
   ];
@@ -37,9 +37,9 @@ export function AuxiliaryInfoPanel({ game, events }: { game: HumanGameView; even
                 aria-pressed={selected}
                 onClick={() => setActiveTab(tab.key)}
                 className={[
-                  "min-w-0 rounded-full px-2 py-2 text-center text-xs transition",
+                  "box-border h-14 min-w-0 rounded-full px-2 text-center text-xs leading-tight transition-colors duration-150",
                   selected
-                    ? "bg-[#f1c76e]/16 text-[#f1d796] shadow-sm shadow-black/20"
+                    ? "bg-[#f1c76e]/16 text-[#f1d796]"
                     : "text-[#ad9c7d] hover:bg-white/6 hover:text-[#f7ead5]",
                 ].join(" ")}
               >
@@ -219,6 +219,30 @@ function TableNotesPanel({ game, embedded = false }: { game: HumanGameView; embe
 }
 
 function InfoPanel({ game, embedded = false }: { game: HumanGameView; embedded?: boolean }) {
+  if (!game.myRole) {
+    const spectatorContent = (
+      <div className="grid gap-3 text-sm text-[#dcc9a7]">
+        <div className="rounded-2xl border border-[#7da8e3]/20 bg-[#0d1623]/46 px-4 py-3">
+          <h2 className="text-sm font-semibold text-[#e4efff]">观战模式</h2>
+          <p className="mt-2 text-xs leading-5 text-[#b8d6ff]">
+            本局没有真人座位，所有玩家由 AI 控制。身份信息会在终局复盘中揭晓。
+          </p>
+        </div>
+        {game.sheriff?.badgeHolder && (
+          <InfoRow label="警徽">{game.sheriff.badgeHolder.seatId}号持有警徽，白天放逐投票计 1.5 票</InfoRow>
+        )}
+      </div>
+    );
+
+    if (embedded) return <div id="private-info">{spectatorContent}</div>;
+
+    return (
+      <section id="private-info" className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
+        {spectatorContent}
+      </section>
+    );
+  }
+
   const content = (
     <>
       <div className={embedded ? "flex items-start gap-3" : "flex items-start gap-4"}>
@@ -260,7 +284,7 @@ function InfoPanel({ game, embedded = false }: { game: HumanGameView; embedded?:
         )}
         {game.myRole === "WITCH" && (
           <InfoRow label="药品">
-            解药 {game.witch.antidoteAvailable ? "可用" : "已用"} · 毒药 {game.witch.poisonAvailable ? "可用" : "已用"}
+            解药 {game.witch?.antidoteAvailable ? "可用" : "已用"} · 毒药 {game.witch?.poisonAvailable ? "可用" : "已用"}
           </InfoRow>
         )}
         {game.myRole === "GUARD" && (
@@ -456,17 +480,33 @@ export function VoteTable({
   loading: boolean;
   pendingCommandType: CommandPayload["type"] | null;
 }) {
-  const snapshot = game.tableSummary.voteSnapshot;
-  const isVoteInProgress = game.phase === "DAY_VOTE";
+  const sheriffSnapshot = game.tableSummary.sheriffVoteSnapshot;
+  const isSheriffVoteInProgress = game.phase === "SHERIFF_VOTE" || game.phase === "SHERIFF_PK_VOTE";
+  const shouldShowSheriffSnapshot =
+    Boolean(sheriffSnapshot) &&
+    (isSheriffVoteInProgress || (!game.tableSummary.voteSnapshot.revealed && game.tableSummary.voteSnapshot.tally.length === 0));
+  const snapshot = shouldShowSheriffSnapshot ? sheriffSnapshot! : game.tableSummary.voteSnapshot;
+  const voteKind: "exile" | "sheriff" = shouldShowSheriffSnapshot ? "sheriff" : "exile";
+  const isVoteInProgress = voteKind === "sheriff" ? isSheriffVoteInProgress : game.phase === "DAY_VOTE";
   const aliveSeats = game.seats.filter((seat) => seat.alive);
+  const candidateSeatIds = new Set(getSheriffVoteCandidateIds(game));
+  const pendingVoteSeats =
+    voteKind === "sheriff" && candidateSeatIds.size > 0
+      ? aliveSeats.filter((seat) => !candidateSeatIds.has(seat.seatId))
+      : aliveSeats;
   const maxVotes = snapshot.tally[0]?.count ?? 0;
   const statusLabel = isVoteInProgress
-    ? "票箱封存"
+    ? voteKind === "sheriff"
+      ? "警长票封存"
+      : "票箱封存"
     : snapshot.leaders.length > 1
       ? `平票：${snapshot.leaders.map((seat) => `${seat.seatId}号`).join("、")}`
       : snapshot.leaders.length === 1
-        ? `焦点：${snapshot.leaders[0].seatId}号`
+        ? voteKind === "sheriff"
+          ? `警长：${snapshot.leaders[0].seatId}号`
+          : `焦点：${snapshot.leaders[0].seatId}号`
         : "暂无票型";
+  const sectionLabel = voteKind === "sheriff" ? (game.phase === "SHERIFF_PK_VOTE" ? "警长 PK 票" : "警长投票") : "放逐投票";
 
   return (
     <section className="overflow-hidden rounded-[24px] border border-[#e46d55]/25 bg-[#2b1110]/82 shadow-2xl shadow-black/35 backdrop-blur-md">
@@ -477,18 +517,25 @@ export function VoteTable({
 
       <div className="grid gap-3 p-4">
         <div>
-          <div className="mb-2 text-xs text-[#d9a099]">{snapshot.revealed ? "开票结果" : "投票状态"}</div>
-          {loading && pendingCommandType === "vote" ? (
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs text-[#d9a099]">
+            <span>{snapshot.revealed ? "开票结果" : "投票状态"}</span>
+            <span>{sectionLabel}</span>
+          </div>
+          {loading && pendingCommandType === (voteKind === "sheriff" ? "sheriffVote" : "vote") ? (
             <div className="vote-sealed-card rounded-2xl border border-[#77d898]/24 bg-[#14311f]/55 px-3 py-4">
               <div className="text-center text-sm font-semibold text-[#a8f0b6]">你已锁票</div>
               <div className="mt-1 text-center text-xs text-[#9ecfac]">等待其他玩家完成投票，开票前不显示任何人的投票对象。</div>
             </div>
           ) : isVoteInProgress ? (
             <div className="vote-sealed-card rounded-2xl border border-dashed border-[#e46d55]/22 bg-black/18 px-3 py-4">
-              <div className="text-center text-sm font-semibold text-[#ffd8cf]">等待所有玩家锁票</div>
-              <div className="mt-1 text-center text-xs text-[#d9a099]">票型不会实时公开，进入结算后一次性揭晓。</div>
+              <div className="text-center text-sm font-semibold text-[#ffd8cf]">
+                {voteKind === "sheriff" ? "等待警下玩家锁票" : "等待所有玩家锁票"}
+              </div>
+              <div className="mt-1 text-center text-xs text-[#d9a099]">
+                {voteKind === "sheriff" ? "警长票不会实时公开，结束后一次性揭晓。" : "票型不会实时公开，进入结算后一次性揭晓。"}
+              </div>
               <div className="mt-3 grid grid-cols-3 gap-2">
-                {aliveSeats.map((seat, index) => (
+                {pendingVoteSeats.map((seat, index) => (
                   <span
                     key={seat.seatId}
                     style={{ animationDelay: `${index * 64}ms` }}
@@ -501,12 +548,12 @@ export function VoteTable({
             </div>
           ) : snapshot.tally.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[#e46d55]/20 px-3 py-5 text-center text-sm text-[#d9a099]">
-              {snapshot.revealed ? "无人获得放逐票" : "还没有公开票数"}
+              {snapshot.revealed ? (voteKind === "sheriff" ? "无人获得警长票" : "无人获得放逐票") : "还没有公开票数"}
               {snapshot.abstainCount ? `，弃票 ${snapshot.abstainCount} 票` : ""}
             </div>
           ) : (
             <div className="grid gap-2">
-              <VoteResultBanner snapshot={snapshot} />
+              <VoteResultBanner snapshot={snapshot} kind={voteKind} />
               {snapshot.tally.map((item) => (
                 <div
                   key={item.target.seatId}
@@ -561,7 +608,24 @@ export function VoteTable({
 
 type VoteSnapshotView = HumanGameView["tableSummary"]["voteSnapshot"];
 
-export function VoteResultBanner({ snapshot, compact = false }: { snapshot: VoteSnapshotView; compact?: boolean }) {
+function getSheriffVoteCandidateIds(game: HumanGameView): number[] {
+  const sheriff = game.sheriff;
+  if (!sheriff) return [];
+  const withdrawnSeatIds = new Set(sheriff.withdrawnSeatIds);
+  return (game.phase === "SHERIFF_PK_VOTE" ? sheriff.pkCandidates ?? [] : sheriff.candidates)
+    .filter((candidate) => !withdrawnSeatIds.has(candidate.seatId))
+    .map((candidate) => candidate.seatId);
+}
+
+export function VoteResultBanner({
+  snapshot,
+  compact = false,
+  kind = "exile",
+}: {
+  snapshot: VoteSnapshotView;
+  compact?: boolean;
+  kind?: "exile" | "sheriff";
+}) {
   if (!snapshot.revealed) return null;
 
   const topVoteCount = snapshot.tally[0]?.count ?? 0;
@@ -572,7 +636,7 @@ export function VoteResultBanner({ snapshot, compact = false }: { snapshot: Vote
   if (topVoteCount === 0 || snapshot.leaders.length === 0) {
     return (
       <div className={`${bannerClass} border-[#f1c76e]/22 bg-black/18 text-[#f1d796]`}>
-        没有有效放逐票，今日无人出局。
+        {kind === "sheriff" ? "没有有效警长票，本局没有产生警长。" : "没有有效放逐票，今日无人出局。"}
       </div>
     );
   }
@@ -580,7 +644,8 @@ export function VoteResultBanner({ snapshot, compact = false }: { snapshot: Vote
   if (snapshot.leaders.length > 1) {
     return (
       <div className={`${bannerClass} border-[#f1c76e]/22 bg-black/18 text-[#f1d796]`}>
-        最高票平票：{snapshot.leaders.map((seat) => `${seat.seatId}号`).join("、")}，本轮无人放逐。
+        {kind === "sheriff" ? "警长票" : "最高票"}平票：{snapshot.leaders.map((seat) => `${seat.seatId}号`).join("、")}
+        {kind === "sheriff" ? "。" : "，本轮无人放逐。"}
       </div>
     );
   }
@@ -588,7 +653,7 @@ export function VoteResultBanner({ snapshot, compact = false }: { snapshot: Vote
   const leader = snapshot.leaders[0];
   return (
     <div className={`${bannerClass} border-[#ff9a6b]/28 bg-[#351210]/54 text-[#ffd8cf]`}>
-      最高票：{leader.seatId}号，获得 {topVoteCount} 票。
+      {kind === "sheriff" ? "警长票最高" : "最高票"}：{leader.seatId}号，获得 {topVoteCount} 票。
     </div>
   );
 }

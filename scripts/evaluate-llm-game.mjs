@@ -12,6 +12,7 @@ const humanSeatId = readPositiveInt(args.human, 9);
 const maxSteps = readPositiveInt(args["max-steps"], 120);
 const maxLlmCalls = readPositiveInt(args["max-llm-calls"], 8);
 const autoHuman = readAutoHuman(args["auto-human"]);
+const realPhases = readRealPhases(args["real-phases"]);
 const boardId = args.board ?? args["board-id"];
 const jsonOutput = Boolean(args.json);
 const outPath = args.out ? path.resolve(root, String(args.out)) : undefined;
@@ -83,6 +84,7 @@ try {
         maxLlmCalls,
         maxSteps,
         mockProviders,
+        realPhases,
         realProviders,
         seed,
       }),
@@ -98,6 +100,7 @@ try {
       humanSeatId,
       maxLlmCalls,
       maxSteps,
+      realPhases: realPhases ? [...realPhases] : ["ALL_AI_PHASES"],
       seedStart,
     },
     summary: summarizeGames(games),
@@ -148,7 +151,7 @@ async function evaluateGame(initialState, modules, options) {
       break;
     }
 
-    const useRealProvider = requirement.type === "ai" || options.autoHuman === "llm";
+    const useRealProvider = shouldUseRealProvider(requirement, options);
     const providers = useRealProvider ? options.realProviders : options.mockProviders;
     const startedAt = performance.now();
     const decision = await evaluateDecision(state, requirement, modules, providers);
@@ -316,6 +319,7 @@ function formatMarkdown(report) {
     `- board: ${report.options.boardId}`,
     `- humanSeatId: ${report.options.humanSeatId}`,
     `- autoHuman: ${report.options.autoHuman}`,
+    `- realPhases: ${report.options.realPhases.join(", ")}`,
     `- maxLlmCalls: ${report.options.maxLlmCalls}`,
     `- maxSteps: ${report.options.maxSteps}`,
     "",
@@ -384,14 +388,69 @@ function classifyFailure(log, attempts, validationErrors) {
 }
 
 function cueMatchesOutput(cue, outputText) {
-  const needles = [
+  const normalizedOutput = normalizeCueText(outputText);
+  const literalNeedles = [
     cue.summary,
+    ...(Array.isArray(cue.evidence) ? cue.evidence : []),
     cue.actor ? seatText(cue.actor) : undefined,
     cue.target ? seatText(cue.target) : undefined,
     cue.actor?.name,
     cue.target?.name,
   ].filter(Boolean);
-  return needles.some((needle) => outputText.includes(needle));
+  if (literalNeedles.some((needle) => includesMeaningfulNeedle(normalizedOutput, needle))) return true;
+
+  const actorMentioned = cue.actor ? seatMentioned(outputText, cue.actor) : false;
+  const targetMentioned = cue.target ? seatMentioned(outputText, cue.target) : false;
+  const cueText = `${cue.summary ?? ""} ${(Array.isArray(cue.evidence) ? cue.evidence : []).join(" ")}`;
+  const cueSeatIds = extractSeatIds(cueText);
+  const cueSeatMentioned = cueSeatIds.some((seatId) => mentionsSeatId(outputText, seatId));
+
+  switch (cue.kind) {
+    case "counterclaim":
+      return /对跳|悍跳|预言家|身份线|查杀|counterclaim|claim/i.test(outputText);
+    case "speech_influence":
+      return /压力|施压|追问|多人|后续|接住|跟进|焦点|归票|票型|集中/i.test(outputText) && (targetMentioned || cueSeatMentioned);
+    case "vote":
+      return /票型|归票|投票|票口|集中|散票|跟票/i.test(outputText) && (targetMentioned || cueSeatMentioned);
+    case "stance_shift":
+      return /站边|变|转向|改口|前后|态度/i.test(outputText) && (actorMentioned || targetMentioned || cueSeatMentioned);
+    case "seer_legacy":
+    case "claim":
+      return /查杀|金水|预言家|查验|验人|身份线/i.test(outputText) && (actorMentioned || targetMentioned || cueSeatMentioned);
+    default:
+      return false;
+  }
+}
+
+function includesMeaningfulNeedle(normalizedOutput, needle) {
+  const normalizedNeedle = normalizeCueText(needle);
+  if (normalizedNeedle.length < 4) return false;
+  return normalizedOutput.includes(normalizedNeedle);
+}
+
+function normalizeCueText(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[|"'`“”‘’{}[\](),，.。:：;；!?！？、-]/g, "");
+}
+
+function seatMentioned(outputText, seat) {
+  return Boolean(seat && (mentionsSeatId(outputText, seat.seatId) || (seat.name && String(outputText).includes(seat.name))));
+}
+
+function mentionsSeatId(outputText, seatId) {
+  return new RegExp(`(^|[^0-9])${seatId}\\s*(号|號|seat|座|位)?`, "i").test(String(outputText));
+}
+
+function extractSeatIds(text) {
+  const ids = [];
+  const pattern = /(\d+)\s*(?:号|號|seat|座|位)?/gi;
+  for (const match of String(text ?? "").matchAll(pattern)) {
+    const seatId = Number(match[1]);
+    if (Number.isInteger(seatId) && seatId > 0 && !ids.includes(seatId)) ids.push(seatId);
+  }
+  return ids;
 }
 
 function commandText(command) {
@@ -470,4 +529,21 @@ function readNonNegativeInt(value, fallback) {
 function readAutoHuman(value) {
   const clean = String(value ?? "mock").toLowerCase();
   return clean === "stop" || clean === "llm" || clean === "mock" ? clean : "mock";
+}
+
+function readRealPhases(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw.toLowerCase() === "all") return undefined;
+  const phases = raw
+    .split(",")
+    .map((phase) => phase.trim().toUpperCase())
+    .filter(Boolean);
+  return phases.length > 0 ? new Set(phases) : undefined;
+}
+
+function shouldUseRealProvider(requirement, options) {
+  const eligible = requirement.type === "ai" || options.autoHuman === "llm";
+  if (!eligible) return false;
+  if (!options.realPhases) return true;
+  return options.realPhases.has(requirement.phase);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { DEATH_LABELS } from "@/game/labels";
+import { isWolfRole } from "@/game/roleUtils";
 import type { HumanGameView } from "@/game/types";
 import { SectionTitle } from "./PanelPrimitives";
 import { ROLE_CARD_IMAGES, formatSystemMessage } from "./viewHelpers";
@@ -134,7 +135,7 @@ export function ReviewPanel({ game }: { game: HumanGameView }) {
                   <div className="truncate font-semibold text-[#f7ead5]">
                     {seat.seatId}号 · {seat.name}
                   </div>
-                  <div className={seat.role === "WEREWOLF" ? "mt-1 text-[#ff8c78]" : "mt-1 text-[#9fe0a4]"}>
+                  <div className={isWolfRole(seat.role) ? "mt-1 text-[#ff8c78]" : "mt-1 text-[#9fe0a4]"}>
                     {seat.roleLabel}
                   </div>
                   <div className="mt-1 text-xs text-[#ad9c7d]">
@@ -233,7 +234,7 @@ function ReviewVoteImpactPanel({ game }: { game: HumanGameView }) {
       <SectionTitle>票型影响</SectionTitle>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         {impacts.map((impact) => {
-          const targetIsWolf = impact.targetRole === "WEREWOLF";
+          const targetIsWolf = isWolfRole(impact.targetRole);
           return (
             <div
               key={`${impact.day}-${impact.title}`}
@@ -306,6 +307,7 @@ function ReviewAnalysisDrawer({ game }: { game: HumanGameView }) {
   const callCount = game.reviewDebug?.aiCalls.length ?? 0;
   const fallbackCount = game.reviewDebug?.fallbackCount ?? 0;
   const publicFactBasisCount = game.reviewDebug?.publicFactBasisCount ?? 0;
+  const matchedPublicLogicCount = game.reviewDebug?.matchedPublicLogicCount ?? 0;
 
   return (
     <details className="review-debug-details mt-4 rounded-2xl border border-[#77d898]/20 bg-black/18 p-3">
@@ -313,7 +315,8 @@ function ReviewAnalysisDrawer({ game }: { game: HumanGameView }) {
         <div>
           <div className="text-sm font-semibold text-[#dff4df]">AI 行为解释与调试回放</div>
           <div className="mt-1 text-xs leading-5 text-[#9ecfac]">
-            默认隐藏 · {insightCount} 个 AI 复盘 · {callCount} 次模型调用 · fallback {fallbackCount} · 公开依据 {publicFactBasisCount}
+            默认隐藏 · {insightCount} 个 AI 复盘 · {callCount} 次模型调用 · fallback {fallbackCount} · 公开依据 {publicFactBasisCount} · 命中逻辑{" "}
+            {matchedPublicLogicCount}
           </div>
         </div>
         <span className="review-debug-chevron shrink-0 rounded-full border border-[#77d898]/20 bg-[#0f2118]/70 px-3 py-1 text-xs text-[#a8f0b6]">
@@ -423,7 +426,7 @@ function ReviewDebugPanel({ debug }: { debug: NonNullable<HumanGameView["reviewD
   return (
     <div>
       <SectionTitle>模型调用回放</SectionTitle>
-      <div className="mt-3 grid gap-2 text-xs leading-5 text-[#ccefd3] sm:grid-cols-3">
+      <div className="mt-3 grid gap-2 text-xs leading-5 text-[#ccefd3] sm:grid-cols-4">
         <div className="rounded-2xl border border-[#77d898]/18 bg-[#0f2118]/38 px-3 py-2">
           调用 {debug.aiCalls.length} 次
         </div>
@@ -432,6 +435,9 @@ function ReviewDebugPanel({ debug }: { debug: NonNullable<HumanGameView["reviewD
         </div>
         <div className="rounded-2xl border border-[#77d898]/18 bg-[#0f2118]/38 px-3 py-2">
           公开依据 {debug.publicFactBasisCount} 条
+        </div>
+        <div className="rounded-2xl border border-[#77d898]/18 bg-[#0f2118]/38 px-3 py-2">
+          命中逻辑 {debug.matchedPublicLogicCount} 条
         </div>
       </div>
 
@@ -462,6 +468,28 @@ function ReviewDebugPanel({ debug }: { debug: NonNullable<HumanGameView["reviewD
                 )}
               </div>
             </div>
+
+            {(call.outputSummary || call.decisionReason || call.matchedPublicLogic.length > 0) && (
+              <div className="mt-3 grid gap-2 rounded-xl border border-[#77d898]/14 bg-[#0f2118]/38 p-3">
+                {call.outputSummary && (
+                  <div className="font-semibold text-[#f7ead5]">
+                    决策：{call.outputSummary}
+                    {call.target ? ` · 目标 ${call.target.seatId}号` : ""}
+                  </div>
+                )}
+                {call.decisionReason && <div className="text-[#ccefd3]">理由：{call.decisionReason}</div>}
+                {call.matchedPublicLogic.length > 0 && (
+                  <div className="grid gap-1">
+                    <div className="text-[#9ecfac]">关联公开逻辑</div>
+                    {call.matchedPublicLogic.map((fact) => (
+                      <div key={`${call.id}-matched-${fact}`} className="rounded-xl bg-black/22 px-3 py-2 text-[#dff4df]">
+                        {fact}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {call.publicFactBasis.length > 0 && (
               <div className="mt-3 grid gap-1">
@@ -499,10 +527,14 @@ function formatCommandType(type: string): string {
     guardAction: "守护",
     seerCheck: "查验",
     witchAction: "用药",
+    wolfBeautyCharm: "魅惑",
     speak: "发言",
     lastWords: "遗言",
     vote: "投票",
     hunterShoot: "开枪",
+    wolfKingShoot: "狼王枪",
+    whiteWolfKingExplode: "白狼王自爆",
+    knightDuel: "骑士决斗",
     sheriffNominate: "上警",
     sheriffSpeech: "警长发言",
     sheriffWithdraw: "退水",

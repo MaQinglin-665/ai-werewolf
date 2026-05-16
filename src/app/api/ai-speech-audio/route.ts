@@ -3,7 +3,13 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { composeAiSpeechTtsInstruction, composeAiSpeechTtsText, getAiVoiceProfileByName } from "@/ai/voiceProfiles";
-import { generateMimoTtsAudio, getMimoTtsConfig, sanitizeTtsError } from "@/server/mimoTts";
+import {
+  buildMimoChatCompletionsUrl,
+  generateMimoTtsAudio,
+  getMimoTtsConfig,
+  sanitizeTtsError,
+  type MimoTtsConfig,
+} from "@/server/mimoTts";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -14,6 +20,19 @@ const requestSchema = z.object({
   speechKey: z.string().min(1).max(160),
   speakerSeatId: z.number().int().min(1).max(20),
   speakerName: z.string().min(1).max(20),
+  ttsVoice: z.string().min(1).max(80).optional(),
+  ttsConfig: z
+    .object({
+      provider: z.literal("mimo-compatible"),
+      label: z.string().min(1).max(40).optional(),
+      baseUrl: z.string().min(1).max(260),
+      model: z.string().min(1).max(120),
+      voice: z.string().min(1).max(80),
+      format: z.string().min(1).max(16).optional(),
+      authHeader: z.string().min(1).max(80).optional(),
+      apiKey: z.string().min(1).max(4096).optional(),
+    })
+    .optional(),
   text: z.string().min(1).max(1000),
 });
 
@@ -27,12 +46,17 @@ export async function POST(request: Request) {
   }
 
   const profile = getAiVoiceProfileByName(parsed.data.speakerName);
-  const config = getMimoTtsConfig();
+  const config = buildRuntimeMimoTtsConfig(parsed.data.ttsConfig) ?? getMimoTtsConfig();
   if (!config) {
-    return Response.json({ error: "缺少 MIMO_API_KEY 或 MIMO_LLM_API_KEY，无法生成 AI 发言音频。" }, { status: 503 });
+    return Response.json({ error: "缺少这个 AI 的 TTS API Key，无法生成 AI 发言音频。" }, { status: 503 });
   }
 
-  const primaryVoice = readOptionalEnv(profile.voiceEnvKey) ?? readOptionalEnv("MIMO_AI_TTS_VOICE") ?? profile.voice;
+  const primaryVoice =
+    parsed.data.ttsConfig?.voice ??
+    parsed.data.ttsVoice ??
+    readOptionalEnv(profile.voiceEnvKey) ??
+    readOptionalEnv("MIMO_AI_TTS_VOICE") ??
+    profile.voice;
   const voiceCandidates = uniqueValues([primaryVoice, readOptionalEnv("MIMO_AI_TTS_FALLBACK_VOICE"), "mimo_default"]);
   const ttsText = composeAiSpeechTtsText(parsed.data.text, profile);
   const ttsInstructions = composeAiSpeechTtsInstruction(profile);
@@ -42,6 +66,8 @@ export async function POST(request: Request) {
       gameId: parsed.data.gameId,
       speechKey: parsed.data.speechKey,
       speakerSeatId: parsed.data.speakerSeatId,
+      baseUrl: config.baseUrl,
+      authHeader: config.authHeader,
       model: config.model,
       format: config.format,
       voice,
@@ -69,6 +95,8 @@ export async function POST(request: Request) {
         gameId: parsed.data.gameId,
         speechKey: parsed.data.speechKey,
         speakerSeatId: parsed.data.speakerSeatId,
+        baseUrl: config.baseUrl,
+        authHeader: config.authHeader,
         model: config.model,
         format: config.format,
         voice,
@@ -103,6 +131,8 @@ function buildAudioCacheEntry(value: {
   gameId: string;
   speechKey: string;
   speakerSeatId: number;
+  baseUrl: string;
+  authHeader: string;
   model: string;
   format: string;
   voice: string;
@@ -114,6 +144,8 @@ function buildAudioCacheEntry(value: {
     gameId: value.gameId,
     speechKey: value.speechKey,
     speakerSeatId: String(value.speakerSeatId),
+    baseUrl: value.baseUrl,
+    authHeader: value.authHeader,
     model: value.model,
     format: value.format,
     voice: value.voice,
@@ -138,4 +170,29 @@ function uniqueValues(values: Array<string | undefined>): string[] {
 function readOptionalEnv(key: string): string | undefined {
   const value = process.env[key]?.trim();
   return value ? value : undefined;
+}
+
+function buildRuntimeMimoTtsConfig(value: z.infer<typeof requestSchema>["ttsConfig"]): MimoTtsConfig | undefined {
+  const apiKey = value?.apiKey?.trim();
+  if (!value || !apiKey) return undefined;
+  const baseUrl = value.baseUrl.trim().replace(/\s+/g, "").replace(/\/+$/, "");
+  const authHeader = sanitizeAuthHeader(value.authHeader) ?? (baseUrl.includes("cxsee") ? "api-key" : "Authorization");
+  return {
+    apiKey,
+    authHeader,
+    baseUrl,
+    endpoint: buildMimoChatCompletionsUrl(baseUrl),
+    format: sanitizeTtsFormat(value.format) ?? "mp3",
+    model: value.model.trim(),
+  };
+}
+
+function sanitizeTtsFormat(value: string | undefined): string | undefined {
+  const clean = value?.trim().toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 16);
+  return clean || undefined;
+}
+
+function sanitizeAuthHeader(value: string | undefined): string | undefined {
+  const clean = value?.trim().slice(0, 80);
+  return clean && /^[A-Za-z0-9-]+$/.test(clean) ? clean : undefined;
 }

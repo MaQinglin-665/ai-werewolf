@@ -22,11 +22,21 @@ const ROLE_PATTERNS: Array<{ role: Role; pattern: RegExp }> = [
   },
   {
     role: "WITCH",
-    pattern: new RegExp(`(?:我是|我拍|我这里是|我底牌是|明牌|我这张|我作为)${ROLE_CLAIM_GAP}(?:女巫|女巫牌)`),
+    pattern: new RegExp(
+      `(?:我是|我拍|我这里是|我底牌是|明牌|我这张|我作为)${ROLE_CLAIM_GAP}(?:女巫|女巫牌)|我[^。！？!?\\n]{0,18}(?:药还在|解药|毒药|救过|银水)|(?:^|[，,。；;：:\\s])(?:药还在|解药还在|毒药还在)`,
+    ),
   },
   {
     role: "HUNTER",
     pattern: new RegExp(`(?:我是|我拍|我这里是|我底牌是|明牌|我这张|我作为)${ROLE_CLAIM_GAP}(?:猎人|猎人牌)`),
+  },
+  {
+    role: "IDIOT",
+    pattern: new RegExp(`(?:我是|我拍|我这里是|我底牌是|明牌|我这张|我作为)${ROLE_CLAIM_GAP}(?:白痴|白痴牌)`),
+  },
+  {
+    role: "KNIGHT",
+    pattern: new RegExp(`(?:我是|我拍|我这里是|我底牌是|明牌|我这张|我作为)${ROLE_CLAIM_GAP}(?:骑士|骑士牌)`),
   },
   {
     role: "GUARD",
@@ -37,6 +47,18 @@ const ROLE_PATTERNS: Array<{ role: Role; pattern: RegExp }> = [
     pattern: new RegExp(
       `(?:我是|我作为|作为(?:一张|一个)?|我这里是|我底牌是|明牌|我这张)${ROLE_CLAIM_GAP}(?:平民|平民牌|民牌)`,
     ),
+  },
+  {
+    role: "WHITE_WOLF_KING",
+    pattern: new RegExp(`(?:我是|我这里是|我底牌是|明牌|我这张)${ROLE_CLAIM_GAP}(?:白狼王|白狼王牌)`),
+  },
+  {
+    role: "WOLF_BEAUTY",
+    pattern: new RegExp(`(?:我是|我这里是|我底牌是|明牌|我这张)${ROLE_CLAIM_GAP}(?:狼美人|狼美人牌)`),
+  },
+  {
+    role: "WOLF_KING",
+    pattern: new RegExp(`(?:我是|我这里是|我底牌是|明牌|我这张)${ROLE_CLAIM_GAP}(?:狼王|狼王牌)`),
   },
   {
     role: "WEREWOLF",
@@ -128,8 +150,8 @@ function extractClaimChecks(params: {
 }): ClaimCheck[] {
   const checks: ClaimCheck[] = [];
   const patterns = [
-    /(?:查验|查验的是|查了|验了|验的是|摸了|我验|我查|报验).{0,12}?(\d{1,2})\s*号(?:玩家|位|AI|[A-Za-z\u4e00-\u9fa5]{0,12})?[，,：:\s]*(?:是|为|出)?\s*(查杀|金水|狼人|好人)/g,
-    /(\d{1,2})\s*号(?:玩家|位|AI|[A-Za-z\u4e00-\u9fa5]{0,12})?[，,：:\s]*(?:是|为|出)?\s*(查杀|金水|狼人|好人)/g,
+    /(?:查验|查验的是|查了|验了|验的是|摸了|我验|我查|报验).{0,12}?(\d{1,2})\s*号(?:玩家|位|AI|[A-Za-z0-9\u4e00-\u9fa5]{0,12})?[，,：:\s]*(?:是|为|出)?\s*(查杀|金水|狼人|好人)/g,
+    /(\d{1,2})\s*号(?:玩家|位|AI|[A-Za-z0-9\u4e00-\u9fa5]{0,12})?[，,：:\s]*(?:是|为|出)?\s*(查杀|金水|狼人|好人)/g,
   ];
 
   for (const pattern of patterns) {

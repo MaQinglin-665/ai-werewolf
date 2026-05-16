@@ -11,6 +11,7 @@
     "llm:check": "node scripts/check-llm-output.mjs",
     "llm:evaluate": "node scripts/evaluate-llm-game.mjs",
     "simulate:ai": "node scripts/simulate-ai.mjs",
+    "simulate:diagnose": "node scripts/diagnose-simulation-balance.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "prisma:generate": "prisma generate",

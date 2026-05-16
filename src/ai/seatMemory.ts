@@ -67,7 +67,13 @@ export function rememberAiDecision(
     }
   }
 
-  if (command.type === "seerCheck" || command.type === "wolfKill" || command.type === "hunterShoot") {
+  if (
+    command.type === "seerCheck" ||
+    command.type === "wolfKill" ||
+    command.type === "hunterShoot" ||
+    command.type === "wolfKingShoot" ||
+    command.type === "whiteWolfKingExplode"
+  ) {
     if (command.targetSeatId) {
       next.focusSeatId = command.targetSeatId;
     }

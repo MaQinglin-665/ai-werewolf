@@ -134,7 +134,7 @@ export function sanitizeTtsError(message: string): string {
   return message.replace(/sk-[A-Za-z0-9_-]+/g, "sk-***").replace(/tp-[A-Za-z0-9_-]+/g, "tp-***");
 }
 
-function buildMimoChatCompletionsUrl(baseUrl: string): string {
+export function buildMimoChatCompletionsUrl(baseUrl: string): string {
   const cleanBaseUrl = baseUrl.replace(/\/+$/, "");
   const versionedBaseUrl = cleanBaseUrl.endsWith("/v1") ? cleanBaseUrl : `${cleanBaseUrl}/v1`;
   return `${versionedBaseUrl}/chat/completions`;

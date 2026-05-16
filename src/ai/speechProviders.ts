@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { extractRoleClaimFromSpeech } from "@/game/claims";
 import { ROLE_LABELS } from "@/game/labels";
+import { isWolfRole } from "@/game/roleUtils";
 import { stripSpeechStageDirections } from "@/game/speechText";
-import type { ActionTarget, AgentView, ClaimCheck, Role, SpeechPlan, TableMemory } from "@/game/types";
+import type { ActionTarget, AgentView, AiFriendRuntimeLlmConfig, ClaimCheck, Role, SpeechPlan, TableMemory } from "@/game/types";
 import {
-  callRoutedModelJson,
+  callRoutedModelJsonWithFallbacks,
   isModelLlmRoutingAvailable,
   packLlmOutputAttempts,
   parseLlmJsonOutput,
@@ -16,6 +17,7 @@ import {
   type LlmOutputStabilityHint,
   type RoutedLlmResponse,
 } from "./modelLlms";
+import { buildExpertStrategyNotes } from "./expertStrategy";
 import { createSpeechPlan } from "./tableRead";
 import type { AiSpeechProvider, AiSpeechProviderContext, AiSpeechResult } from "./types";
 
@@ -25,7 +27,7 @@ const SpeechSchema = z.object({
 
 const AI_SPEECH_MAX_CHARS = 800;
 const SPEECH_SYSTEM_PROMPT =
-  "你是狼人杀玩家本人。根据牌桌局势、你的身份信息和你的性格，自由发表这一轮公开发言。优先阅读 input.tableBriefing.text 和 input.publicContext.rules，它们是事实边界和当前板子规则，不是台词模板；再参考 input.playerSpeechGuide，把表达调整得更像桌上的狼人杀玩家。模型特点只是软性的打法倾向：例如 DeepSeek 偏逻辑链，Claude 偏边界审查，豆包偏强压，Kimi 偏长线记忆；不要自称模型，也不要为了表现风格牺牲局势判断。只输出玩家实际说出口的台词，不写括号内动作、神态、语气或旁白描写。发言可以有个人风格和策略，但不能违背事实简报：只能评价本日已经发过言的人；对尚未发言的后置位只能要求稍后表态，不能说他们已经信息少或没回应；天亮死讯只公开谁死亡，不公开狼刀、毒、自刀等死因，除非公开记录写明，不要把死因说死。";
+  "你是狼人杀玩家本人。根据牌桌局势、你的身份信息和你的性格，自由发表这一轮公开发言。优先阅读 input.tableBriefing.text 和 input.publicContext.rules，它们是事实边界和当前板子规则，不是台词模板；再参考 input.expertStrategy 和 input.playerSpeechGuide，expertStrategy 是高质量对局打法原则，不是固定话术。模型特点只是软性的打法倾向：例如 DeepSeek 偏逻辑链，Claude 偏边界审查，豆包偏强压，Kimi 偏长线记忆；不要自称模型，也不要为了表现风格牺牲局势判断。只输出玩家实际说出口的台词，不写括号内动作、神态、语气或旁白描写。发言可以有个人风格和策略，但不能违背事实简报：只能评价本日已经发过言的人；对尚未发言的后置位只能要求稍后表态，不能说他们已经信息少或没回应；天亮死讯只公开谁死亡，不公开狼刀、毒、自刀等死因，除非公开记录写明，不要把死因说死。";
 
 export type SpeechStrictness = "strict" | "guided" | "loose";
 
@@ -110,6 +112,7 @@ export type LlmSpeechInput = {
       publicInstruction: string;
     };
   };
+  expertStrategy: string[];
   playerSpeechGuide: {
     tablePlayerStyle: string[];
     modelStyle: {
@@ -123,6 +126,7 @@ export type LlmSpeechInput = {
   speechPlan?: SpeechPlan;
   speechStrictness: SpeechStrictness;
   constraints?: string[];
+  llmConfig?: AiFriendRuntimeLlmConfig;
   stability?: LlmOutputStabilityHint;
 };
 
@@ -144,7 +148,7 @@ export const mockSpeechProvider: AiSpeechProvider = {
 
 export function createConfiguredSpeechProvider(): AiSpeechProvider {
   if (process.env.AI_SPEECH_PROVIDER === "mock") {
-    return mockSpeechProvider;
+    return createCustomAwareSpeechProvider(mockSpeechProvider);
   }
 
   if (isModelLlmRoutingAvailable()) {
@@ -152,10 +156,21 @@ export function createConfiguredSpeechProvider(): AiSpeechProvider {
   }
 
   if (process.env.AI_SPEECH_PROVIDER === "openai" && process.env.OPENAI_API_KEY) {
-    return openAiSpeechProvider;
+    return createCustomAwareSpeechProvider(openAiSpeechProvider);
   }
 
-  return mockSpeechProvider;
+  return createCustomAwareSpeechProvider(mockSpeechProvider);
+}
+
+function createCustomAwareSpeechProvider(defaultProvider: AiSpeechProvider): AiSpeechProvider {
+  return {
+    providerId: "custom-aware-speech",
+    generateSpeech(view, plan, context) {
+      return view.llmConfig
+        ? routedModelSpeechProvider.generateSpeech(view, plan, context)
+        : defaultProvider.generateSpeech(view, plan, context);
+    },
+  };
 }
 
 export function readSpeechStrictness(): SpeechStrictness {
@@ -281,8 +296,10 @@ export function buildConstrainedSpeechInput(
       },
     },
     privateContext: buildPrivateSpeechContext(view),
+    expertStrategy: buildExpertStrategyNotes(view),
     playerSpeechGuide: buildPlayerSpeechGuide(view, plan, speechOrder),
     speechStrictness: strictness,
+    llmConfig: view.llmConfig,
     ...(strictSpeechPlan ? { speechPlan: strictSpeechPlan } : {}),
     ...(constraints.length > 0 ? { constraints } : {}),
   };
@@ -600,11 +617,22 @@ function buildPrivateBriefingLines(view: AgentView): string[] {
       if (witch?.poisonedTarget) lines.push(`你昨夜毒过${seatText(witch.poisonedTarget)}。`);
       return lines;
     }
-    case "WEREWOLF": {
+    case "WEREWOLF":
+    case "WOLF_KING":
+    case "WHITE_WOLF_KING":
+    case "WOLF_BEAUTY": {
       const teammates = view.privateKnowledge.wolfTeammates ?? [];
       const assignment = view.privateKnowledge.wolfTeamPlan?.assignments.find((item) => item.seat.seatId === view.mySeatId);
+      const roleLabel =
+        view.myRole === "WOLF_KING"
+          ? "狼王"
+          : view.myRole === "WHITE_WOLF_KING"
+            ? "白狼王"
+            : view.myRole === "WOLF_BEAUTY"
+              ? "狼美人"
+              : "狼人";
       return [
-        `你是狼人，狼队友是${formatSeatList(teammates)}；公开发言绝不能暴露狼队视角。`,
+        `你是${roleLabel}，狼队友是${formatSeatList(teammates)}；公开发言绝不能暴露狼队视角。`,
         assignment
           ? `你的狼队任务倾向：${assignment.taskLabel}，但理由必须伪装成公开发言、身份声明、票型或死讯判断。`
           : "你可以伪装好人、倒钩或带票，但理由只能来自公开信息。",
@@ -612,6 +640,10 @@ function buildPrivateBriefingLines(view: AgentView): string[] {
     }
     case "HUNTER":
       return ["你是真猎人，可以选择是否拍身份；没必要时可以只用闭眼好人口吻盘逻辑。"];
+    case "IDIOT":
+      return ["你是真白痴，被白天放逐会翻牌免死并失去投票权；发言要把抗推压力转成公开逻辑。"];
+    case "KNIGHT":
+      return ["你是真骑士，可以选择是否拍身份；决斗前必须先用公开证据把目标狼面讲清楚。"];
     case "GUARD":
       return ["你是真守卫，守护信息只有你自己知道；没跳身份前，别人不能确定守卫守护目标。"];
     case "VILLAGER":
@@ -637,12 +669,19 @@ function buildPrivateBoundaryLines(view: AgentView): string[] {
         "药瓶、刀口和用药信息只有你知道；未跳身份前不要说成全桌都知道的事实。",
       ];
     case "WEREWOLF":
+    case "WOLF_KING":
+    case "WHITE_WOLF_KING":
+    case "WOLF_BEAUTY":
       return [
         ...common,
-        "狼队友、狼队计划和夜间刀口不能以确定信息说出口，只能伪装成公开逻辑。",
+        "狼队友、狼队计划、夜间刀口和狼队特殊技能不能以私密信息说出口，只能伪装成公开逻辑。",
       ];
     case "HUNTER":
       return [...common, "猎人身份可以选择拍出或隐藏，但不能虚构夜间信息。"];
+    case "IDIOT":
+      return [...common, "白痴身份可以选择拍出或隐藏；翻牌免死是公开规则，不代表你能代替其他好人投票。"];
+    case "KNIGHT":
+      return [...common, "骑士身份可以选择拍出或隐藏；决斗判断必须包装成公开发言、身份声明和票型证据。"];
     case "GUARD":
       return [...common, "守卫身份可以选择拍出或隐藏，但不能把守护目标说成全桌公开事实。"];
     case "VILLAGER":
@@ -660,6 +699,10 @@ function clipBriefingText(text: string, limit: number): string {
 }
 
 function parseSpeechDecision(rawOutput: string): { success: true; speech: string } | { success: false; issue: string } {
+  if (looksLikeTransportArtifact(rawOutput)) {
+    return { success: false, issue: "LLM speech output contained transport metadata instead of speech." };
+  }
+
   try {
     const candidate = parseLlmJsonOutput(rawOutput);
     const coerced = coerceSpeechPayload(candidate);
@@ -682,6 +725,15 @@ function parseSpeechDecision(rawOutput: string): { success: true; speech: string
   }
 
   return { success: false, issue: "LLM 输出格式不合法。" };
+}
+
+function looksLikeTransportArtifact(rawOutput: string): boolean {
+  const clean = rawOutput.trim();
+  return (
+    /^data:\s*[{[]/i.test(clean) ||
+    /"object"\s*:\s*"chat\.completion\.chunk"/i.test(clean) ||
+    /"system_fingerprint"\s*:|"prompt_tokens"\s*:|"completion_tokens"\s*:/i.test(clean)
+  );
 }
 
 function coerceSpeechPayload(value: unknown): { speech: string } | undefined {
@@ -795,7 +847,11 @@ export function validateRenderedSpeech(
     errors.push("猎人软声明没有保留底牌视角");
   }
 
-  if (strictness === "strict" && view.myRole === "WEREWOLF" && mentionsWolfTeammateAsBlack(view, normalized)) {
+  if (strictness === "strict" && plan.claimIntent?.claimedRole === "KNIGHT" && !/骑士|决斗|底牌不虚|拍身份/.test(normalized)) {
+    errors.push("骑士软声明没有保留底牌视角");
+  }
+
+  if (strictness === "strict" && isWolfRole(view.myRole, view.rules.wolfRoles) && mentionsWolfTeammateAsBlack(view, normalized)) {
     errors.push("狼人发言把狼队友伪造成查杀");
   }
 
@@ -869,7 +925,7 @@ function buildPrivateSpeechContext(view: AgentView): LlmSpeechInput["privateCont
     };
   }
 
-  if (view.myRole === "WEREWOLF") {
+  if (isWolfRole(view.myRole, view.rules.wolfRoles)) {
     const assignment = view.privateKnowledge.wolfTeamPlan?.assignments.find((item) => item.seat.seatId === view.mySeatId);
     if (assignment) {
       context.wolfSpeechAssignment = {
@@ -924,6 +980,7 @@ function buildSpeechConstraints(view: AgentView, plan: SpeechPlan, strictness: S
       "发言只像桌上玩家一样引用公开发言、死讯、票型和身份声明；不要解释信息来自哪里。",
       "可以质疑或站边公开声明，但必须写成公开判断，不写成确定真相。",
       "不要套固定模板；每句话都要服务于当前局面里的一个判断、保留、追问或身份动作。",
+      "参考 expertStrategy 的博弈原则组织逻辑，但不要逐字复述成攻略。",
     ];
 
     if (plan.claimIntent?.claimedRole === "SEER" && plan.claimIntent.check) {
@@ -937,7 +994,7 @@ function buildSpeechConstraints(view: AgentView, plan: SpeechPlan, strictness: S
       }
     }
 
-    if (view.myRole === "WEREWOLF") {
+    if (isWolfRole(view.myRole, view.rules.wolfRoles)) {
       strictConstraints.push("狼人视角只用于表达策略，不得在发言里暴露狼队或把狼队友报成查杀。");
     }
 
@@ -961,7 +1018,7 @@ function describeWolfAssignmentForSpeech(taskLabel: string): string {
 }
 
 function sanitizeSpeechPlanForLlm(view: AgentView, plan: SpeechPlan): SpeechPlan {
-  if (view.myRole !== "WEREWOLF") return plan;
+  if (!isWolfRole(view.myRole, view.rules.wolfRoles)) return plan;
   return {
     ...plan,
     stance: sanitizePrivateStrategyText(plan.stance),
@@ -989,7 +1046,7 @@ function sanitizePrivateStrategyText(text: string): string {
     .replace(/狼队倒钩位对/g, "我对")
     .replace(/狼队/g, "公开")
     .replace(/队友/g, "同边玩家")
-    .replace(/WEREWOLF|VILLAGER|SEER|WITCH|HUNTER|GUARD/gi, "");
+    .replace(/WHITE_WOLF_KING|WOLF_BEAUTY|WEREWOLF|WOLF_KING|VILLAGER|SEER|WITCH|HUNTER|KNIGHT|GUARD/gi, "");
 }
 
 function toTargetFromSeatId(view: AgentView, seatId: number): ActionTarget {
@@ -1145,15 +1202,38 @@ async function callRoutedModelSpeech(
   input: LlmSpeechInput,
   context?: AiSpeechProviderContext,
 ): Promise<RoutedLlmResponse> {
-  return callRoutedModelJson({
+  const modelInput = stripSpeechRuntimeLlm(input);
+  return callRoutedModelJsonWithFallbacks({
     personaName: input.persona?.name,
+    fallbackPersonaNames: readSpeechFallbackPersonaNames(input.persona?.name),
     task: "speech",
     system: SPEECH_SYSTEM_PROMPT,
-    input,
+    input: modelInput,
     maxTokens: 900,
+    customLlm: input.llmConfig,
     onTextDelta: context?.onTextDelta,
     onTextSnapshot: context?.onTextSnapshot,
   });
+}
+
+function stripSpeechRuntimeLlm(input: LlmSpeechInput): Omit<LlmSpeechInput, "llmConfig"> {
+  const modelInput = { ...input };
+  delete modelInput.llmConfig;
+  return modelInput;
+}
+
+function readSpeechFallbackPersonaNames(primaryPersonaName: string | undefined): string[] {
+  const configured = process.env.AI_LLM_SPEECH_FALLBACK_PERSONAS?.trim();
+  const values =
+    configured && !/^(off|none|false|0)$/i.test(configured)
+      ? configured.split(",")
+      : ["GPT", "Claude", "GLM"];
+  const primary = primaryPersonaName?.trim().toLowerCase();
+  return values
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, array) => array.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index)
+    .filter((value) => value.toLowerCase() !== primary);
 }
 
 function createStructuredMockSpeech(view: AgentView, plan = createSpeechPlan(view)): string | undefined {
@@ -1200,7 +1280,7 @@ function createStructuredMockSpeech(view: AgentView, plan = createSpeechPlan(vie
     }
   }
 
-  if (view.myRole === "WEREWOLF" && plan.claimIntent?.claimedRole === "SEER" && plan.claimIntent.check) {
+  if (isWolfRole(view.myRole, view.rules.wolfRoles) && plan.claimIntent?.claimedRole === "SEER" && plan.claimIntent.check) {
     const resultText = plan.claimIntent.check.result === "WEREWOLF" ? "查杀" : "金水";
     const checkedTarget = toTargetFromSeatId(view, plan.claimIntent.check.targetSeatId);
     const checkedText = seatText(checkedTarget);
@@ -1222,6 +1302,10 @@ function createStructuredMockSpeech(view: AgentView, plan = createSpeechPlan(vie
 
   if (view.myRole === "HUNTER" && plan.claimIntent?.claimedRole === "HUNTER" && plan.claimIntent.strength === "hard") {
     return compactSpeech(`${opener}，我拍猎人，先把归票收住。${dynamicSentence}${evidenceText}${condition}`);
+  }
+
+  if (view.myRole === "KNIGHT" && plan.claimIntent?.claimedRole === "KNIGHT" && plan.claimIntent.strength === "hard") {
+    return compactSpeech(`${opener}，我拍骑士，决斗不会替代推理，今天先把公开狼面说清楚。${dynamicSentence}${evidenceText}${condition}`);
   }
 
   if (view.myRole === "VILLAGER" && plan.claimIntent?.claimedRole === "WITCH") {
@@ -1248,7 +1332,11 @@ function createStructuredMockSpeech(view: AgentView, plan = createSpeechPlan(vie
     return reasonedSpeech("我不急着拍身份，先看发言链条。");
   }
 
-  if (view.myRole === "WEREWOLF") {
+  if (view.myRole === "KNIGHT") {
+    return reasonedSpeech("我不急着交身份，先把能不能决斗的公开证据盘清楚。");
+  }
+
+  if (isWolfRole(view.myRole, view.rules.wolfRoles)) {
     return reasonedSpeech("我先按公开信息盘。");
   }
 
@@ -1468,7 +1556,7 @@ function createMockSpeech(view: AgentView, plan = createSpeechPlan(view)): strin
     return compactSpeech(`${opener}，我先不急着给死结论。${dynamicText ? `${dynamicText}。` : ""}${previousSpeaker ? `上一位 ${previousSpeaker.name} 的发言我会对照后面站边。` : ""}重点看谁回避昨夜信息和今天的焦点。`);
   }
 
-  if (view.myRole === "WEREWOLF") {
+  if (isWolfRole(view.myRole, view.rules.wolfRoles)) {
     if (plan.claimIntent?.claimedRole === "SEER" && plan.claimIntent.check) {
       const resultText = plan.claimIntent.check.result === "WEREWOLF" ? "查杀" : "金水";
       const counterText = plan.claimIntent.isCounterclaim ? "外置预言家我不认，" : "";
@@ -1508,6 +1596,13 @@ function createMockSpeech(view: AgentView, plan = createSpeechPlan(view)): strin
       return compactSpeech(`${opener}，我拍猎人，今天不要分票。${dynamicText ? `${dynamicText}。` : ""}${talkingPointText || `${targetName} 如果只给结论，我会把票压过去。`}`);
     }
     return compactSpeech(`${opener}，我底牌不虚但不乱拍身份。${dynamicText ? `${dynamicText}。` : ""}${targetName} 如果只给结论不给过程，我会把票压过去。${previousSpeaker ? `也要回看 ${previousSpeaker.name} 有没有跟风。` : ""}`);
+  }
+
+  if (view.myRole === "KNIGHT") {
+    if (plan.claimIntent?.claimedRole === "KNIGHT" && plan.claimIntent.strength === "hard") {
+      return compactSpeech(`${opener}，我拍骑士，今天先把公开狼面说清楚。${dynamicText ? `${dynamicText}。` : ""}${talkingPointText || `${targetName} 如果解释不了，我会考虑决斗。`}`);
+    }
+    return compactSpeech(`${opener}，我底牌不虚但不急着交技能。${dynamicText ? `${dynamicText}。` : ""}${targetName} 的狼面必须从公开发言和票型坐实，证据不够我不会乱决斗。`);
   }
 
   if (view.myRole === "VILLAGER" && plan.claimIntent?.claimedRole === "WITCH") {
@@ -1649,7 +1744,7 @@ function createLooseFallbackSpeech(view: AgentView, plan: SpeechPlan): string {
   if (blackCheckOnMe) {
     const claimant = blackCheckOnMe.claimant;
     const responseLine =
-      view.myRole === "WEREWOLF"
+      isWolfRole(view.myRole, view.rules.wolfRoles)
         ? "我不接这个查杀，先要求他把起跳时机和验人理由讲完整。"
         : "我不认这个查杀，我的票会先看他这张预言家牌能不能讲出完整验人链。";
     const nextLine =

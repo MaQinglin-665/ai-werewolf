@@ -1,136 +1,119 @@
-# 单人 AI 狼人杀
+# AI 狼人杀 Alpha
 
-一个本地可玩的单人 AI 狼人杀 MVP：1 个真人玩家和 8/11 个 AI 玩家进行完整狼人杀对局。
+一个本地可玩的 AI 狼人杀试玩版。你可以和一桌 AI 玩家完成一局狼人杀，也可以选择“无真人”只观看 AI 自动对局。
 
-## 当前能力
+当前公开试玩版暂不包含多人房间，适合单机体验、演示 AI 发言和测试不同板子。
 
-- 可选板子：9 人预女猎，或 12 人预女猎守卫警长局。
-- 真人身份随机，首版只做单真人局。
-- 规则引擎负责状态机、合法动作、女巫药品、猎人开枪、警徽流转和屠边胜负。
-- mock AI 可自动推进非真人阶段，支持 1000 局模拟测试。
-- Prisma + SQLite 持久化当前快照、座位、事件日志和 AI 调用记录。
-- Next.js 页面提供本地牌桌 UI。
+## 界面预览
 
-## 本地运行
+### 开局入口
 
-```bash
+![AI 狼人杀开局入口](docs/assets/ai-werewolf-home.png)
+
+### AI 池配置
+
+![AI 池配置](docs/assets/ai-werewolf-ai-pool.png)
+
+### 牌桌对局
+
+![AI 狼人杀牌桌对局](docs/assets/ai-werewolf-table.png)
+
+## 快速试玩
+
+### Windows 推荐方式
+
+1. 安装 Node.js 20 或更新版本。
+2. 在 GitHub 页面点击 `Code` -> `Download ZIP`，解压到本地。
+3. 双击根目录的 `start-alpha.bat`。
+4. 启动模式选择 `2. Local mock mode (fast, no API key)`。
+5. 等脚本自动安装依赖、初始化 SQLite 数据库并打开浏览器。
+
+mock 模式不需要 API Key，也不需要配置 TTS，最适合第一次试玩。
+
+### 命令行方式
+
+```powershell
+git clone -b codex/share-alpha-without-rooms https://github.com/MaQinglin-665/ai-werewolf.git
+cd ai-werewolf
+Copy-Item .env.example .env
 npm install
 npm run prisma:generate
 npm run db:push
 npm run dev
 ```
 
-打开 http://localhost:3000 进入牌桌。
+然后打开 http://localhost:3000。
 
-## 本地试玩流程
+## Mock 模式
 
-1. 选择板子，点击“进入牌桌”创建一局。
-2. 按当前阶段完成你的动作：夜刀、查验、用药、发言、投票或猎人开枪。
-3. 其他 8 个 AI 会自动行动，对局会推进到下一次需要你操作的位置。
-4. 终局后查看复盘，确认身份、夜晚行动、投票和胜负原因。
-5. 点击“新开一局”继续测试不同身份视角。
+如果你手动编辑 `.env`，确认这几项是：
 
-## 当前规则边界
-
-- 只支持单真人局，不支持多真人、匹配和账号；语音输入仅覆盖真人发言/遗言草稿。
-- 支持 9 人预女猎和 12 人预女猎守卫警长局，暂不支持白痴、骑士或更多复杂板子。
-- 胜负采用屠边：狼人全出局则好人胜，平民或神职全出局则狼人胜。
-- 女巫采用简化规则：可自救，每晚最多用一瓶药，毒死猎人不可开枪；12 人局守卫同守同救会死亡。
-- AI 默认使用本地策略；也可开启真实 LLM 发言和行动决策，规则引擎负责合法性校验。
-
-## AI 发言模式
-
-默认使用本地 mock 发言，不需要 API key。若要试用 LLM 发言：
-
-```bash
-AI_SPEECH_PROVIDER="openai"
-AI_ACTION_PROVIDER="openai"
-OPENAI_API_KEY="你的 API Key"
-OPENAI_MODEL="gpt-4.1-mini"
+```env
+AI_SPEECH_PROVIDER="mock"
+AI_ACTION_PROVIDER="mock"
+AI_LLM_PROVIDER="mock"
 ```
 
-`AI_ACTION_PROVIDER="openai"` 会让 LLM 在合法候选动作中决定夜刀、查验、用药、投票和猎人开枪；规则引擎仍然负责校验和兜底。
-LLM 只会收到当前 AI 玩家允许知道的信息，并且只能返回受约束的发言或动作选择。
+这个模式会使用本地 AI 策略和本地发言，不会调用真实大模型。
 
-发言约束可用 `AI_SPEECH_STRICTNESS` 调整：
+## 当前能力
 
-- `guided`：默认模式。`speechPlan` 只是桌面读法，LLM 可以临场换焦点、起跳、藏身份或反打；引擎只拦截隐藏信息泄露、真实预言家改报查验、狼人把队友报查杀等硬边界。
-- `strict`：旧模式。LLM 必须严格照 `speechPlan` 发言，适合做稳定回归测试。
-- `loose`：更强调自然博弈感，提示词会鼓励更大胆的语气和临场转向，但硬边界仍然保留。
+- 支持 6 人新手局、9 人预女猎，以及多种 12 人警长板子。
+- 支持真人随机身份、指定座位，或选择“无真人”进入 AI 观战局。
+- 支持预言家、女巫、猎人、守卫、白痴、狼王、白狼王、狼美人、骑士等规则链路。
+- 规则引擎负责状态机、合法动作、药品、开枪、警徽流转和屠边胜负。
+- AI 可自动推进非真人阶段，支持复盘、公开逻辑线索和模拟测试。
+- 页面提供本地牌桌 UI、AI 池、自定义大模型和声音配置。
 
-若要让 8 个 AI 分别使用同名模型，把 `.env` 设为：
+## 真实大模型
 
-```bash
-AI_LLM_PROVIDER="models"
-AI_LLM_BASE_URL="你的 OpenAI-compatible 网关"
-AI_LLM_API_KEY="你的通用网关 Key"
-MIMO_LLM_API_KEY="你的 tp- Mimo Key"
-ARK_API_KEY="你的火山方舟 Key"
-KIMI_API_KEY="你的 Moonshot Key"
-KIMI_BASE_URL="https://api.moonshot.cn/v1"
-```
+真实大模型是可选项。想让不同 AI 使用不同模型时，打开 `/ai-pool`：
 
-默认映射为 DeepSeek、Claude、GPT、豆包、Mimo、Gemini、GLM、Kimi，可用 `AI_MODEL_*` 或对应的 `*_MODEL` 环境变量覆盖具体模型名。Mimo 如果使用 `tp-` key 且未设置 `MIMO_LLM_BASE_URL`，会自动走 Token Plan 的 Mimo 域名；豆包和 GLM 如果设置了 `ARK_API_KEY`，会优先走火山方舟 Ark；Kimi 如果设置了 `KIMI_API_KEY`，会优先走 Moonshot 官方 OpenAI-compatible 接口。
+1. 展开左侧 AI 卡片。
+2. 填写 OpenAI-compatible `Base URL`、模型名和 API Key。
+3. 点击“保存到这个 AI”。
+4. 回到首页开局。
 
-为保证真实模型输出稳定，LLM 结果会先做 JSON 提取和轻量修复；仍不合格时会带上失败原因重试，最后才回退到本地策略。可用 `AI_LLM_MAX_RETRIES` 控制失败后的重试次数，默认 `1` 次；行动默认温度更低，可用 `AI_LLM_ACTION_TEMPERATURE` 和 `AI_LLM_SPEECH_TEMPERATURE` 分别调节。
-行动决策会先尝试当前 persona 的模型与备用模型；如果上游失败，还会按 `AI_LLM_ACTION_FALLBACK_PERSONAS` 尝试其他 persona 的行动模型，默认 `GPT,Claude,GLM`，再回退到本地策略。GPT 默认备用模型包含 `gpt-5.5`。
+API Key 只保存在你自己的浏览器本地，不会写入 GitHub，也不会导出到对局配置里。
 
-## 语音输入
+## TTS 语音
 
-真人发言和遗言输入区支持浏览器语音输入。点击“语音输入”后允许麦克风权限，说完点击“停止录音”；识别结果会先填入草稿，再由服务端结合当前桌面语境整理成可发送发言。系统不会自动提交，确认前仍可手动编辑。
+TTS 不是必填项。
 
-语音转文字使用浏览器 Web Speech API，优先在 Chrome / Edge 验收。语义整理复用 `AI_LLM_*` 路由；没有可用 LLM key 或整理失败时，页面会保留浏览器原始转写草稿。可用 `VOICE_INPUT_MAX_TRANSCRIPT_CHARS`、`VOICE_INPUT_REWRITE_PERSONA` 和 `VOICE_INPUT_REWRITE_TEMPERATURE` 调整整理限制和模型风格。
+- 不配置 TTS：游戏仍然可以正常玩；主持流程会播放仓库内置音频片段，AI 发言以文字为主。
+- 配置 TTS：打开 `/ai-pool`，给单个 AI 填写 TTS Base URL、TTS API Key、模型和 voice。
 
-## 主持音频
+建议第一次试玩先不要配置 TTS，确认能顺利开局、推进和复盘后再尝试真实语音。
 
-流程播报使用固定本地音频，不使用浏览器 TTS。把授权后的 `mp3` 文件放到 `public/audio/host/`，文件名见该目录的 README。页面顶部的“主持音频”开关会按流程播放对应片段；缺失的片段会被静默跳过，不影响游戏。
+## 试玩流程
 
-也可以用 OpenAI TTS 离线生成一次：
-
-```bash
-npm run audio:host
-```
-
-或使用 Mimo TTS：
-
-```bash
-npm run audio:host -- --provider=mimo
-```
-
-脚本会读取 `.env` 中的 `OPENAI_API_KEY`、`OPENAI_TTS_MODEL`、`OPENAI_TTS_VOICE`，或 Mimo 的 `MIMO_API_KEY`、`MIMO_TTS_BASE_URL`、`MIMO_TTS_MODEL`、`MIMO_TTS_VOICE`、`MIMO_TTS_FORMAT`、`MIMO_TTS_STYLE`。`tp-` 开头的 Mimo key 会自动使用 Token Plan 域名。生成后运行时只播放本地 mp3/wav。
-
-Mimo 默认使用 `mimo-v2.5-tts`。试音时可以临时覆盖：
-
-```bash
-npm run audio:host -- --provider=mimo --only=night-wolves --force --voice=mimo_default --style="低沉 悬疑 变慢"
-```
-
-AI 发言音频在游戏里按需生成并缓存到 `public/audio/ai-speech/`，缓存文件已加入 git 忽略。打开页面右上角 `AI 语音` 后，每条 AI 发言会走 Mimo TTS，并等音频播放完再推进流程。每个 AI 的声音档案在 `src/ai/voiceProfiles.ts`，可用 `.env` 里的 `MIMO_AI_VOICE_*` 覆盖对应 Mimo voice；节奏、情绪和断句由每个档案的 `style` 与提示词固定控制。
+1. 选择板子。
+2. 选择真人座位，或选择“无真人”观看 AI 对局。
+3. 点击进入牌桌。
+4. 按当前阶段完成行动：夜刀、查验、用药、发言、投票或开枪。
+5. 其他 AI 会自动行动，对局会推进到下一次需要你操作的位置。
+6. 终局后查看复盘，确认身份、夜晚行动、投票和胜负原因。
 
 ## 常用命令
 
-```bash
-npm run test
+```powershell
 npm run lint
+npm run test
+npx tsc --noEmit
 npm run build
-npm run audio:host -- --dry-run
 npm run simulate:ai
 ```
 
-## Alpha 验收清单
+## 当前限制
 
-- 功能分支：`codex/alpha-playable-loop`。
-- 本地入口：启动后打开 http://localhost:3000。
-- 当前已覆盖：终局复盘、AI persona、多模型发言/行动 provider、最近对局入口、阶段化操作区、主持/AI 发言音频、真人发言语音草稿。
-- 推荐验收：至少试玩狼人、预言家、女巫、猎人、平民各一局；12 人局补跑守卫和警长流程，确认未终局时不会暴露其他玩家身份。
+- 这是 Alpha 试玩版，不是公网运营版本。
+- 当前公开分支不包含多人房间、账号、匹配、限流和额度保护。
+- 真实大模型和云 TTS 会增加等待时间，也可能产生 API 费用。
+- AI 表现会随模型、配置和随机种子变化，规则引擎仍然是最终裁判。
 
 ## API
 
 - `POST /api/games` 创建新局。
-- `GET /api/games/:gameId` 获取真人玩家的脱敏视角。
-- `POST /api/games/:gameId/commands` 提交真人玩家当前动作。
-- `POST /api/games/:gameId/voice-input` 将真人语音转写整理为发言/遗言草稿，不推进游戏状态。
-
-## 下一步
-
-继续打磨 AI 票型、怀疑值和复盘解释。规则引擎仍是唯一裁判，AI 输出永远需要校验。
+- `GET /api/games/:gameId` 获取当前真人玩家的脱敏视角。
+- `POST /api/games/:gameId/commands` 提交当前动作。
+- `POST /api/games/:gameId/voice-input` 将真人语音转写整理为发言或遗言草稿，不推进游戏状态。

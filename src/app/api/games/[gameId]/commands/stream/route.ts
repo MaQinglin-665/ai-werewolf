@@ -1,4 +1,5 @@
 import { HumanCommandInputSchema } from "@/game/commandSchemas";
+import { sanitizeRuntimeAiLlmConfigMap } from "@/game/llmConfig";
 import { continueGameWithSpeechStream } from "@/server/gameService";
 
 export const runtime = "nodejs";
@@ -13,6 +14,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
     return Response.json({ error: "流式接口只支持继续流程。" }, { status: 400 });
   }
 
+  const runtimeAiLlmConfigs = sanitizeRuntimeAiLlmConfigMap(isRecord(body) ? body.aiLlmConfigs : undefined);
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -20,9 +22,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
 
-      void continueGameWithSpeechStream(gameId, {
-        onTextSnapshot: (text) => send("speech", { text }),
-      })
+      void continueGameWithSpeechStream(
+        gameId,
+        {
+          onTextSnapshot: (text) => send("speech", { text }),
+        },
+        { runtimeAiLlmConfigs },
+      )
         .then((view) => {
           send("done", { view });
           controller.close();
@@ -41,4 +47,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
       "Content-Type": "text/event-stream; charset=utf-8",
     },
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

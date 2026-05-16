@@ -8,10 +8,12 @@ import type {
   BrowserSpeechRecognition,
   CommandPayload,
   HumanSpeechActionType,
+  KnightDuelAction,
   SeerCheckAction,
   SheriffVoteAction,
   VoteAction,
   VoiceInputState,
+  WolfBeautyCharmAction,
   WitchAction,
 } from "./clientTypes";
 import {
@@ -25,11 +27,13 @@ export function ActionPanel({
   loading,
   onSubmit,
   onNewGame,
+  voiceInputEnabled = true,
 }: {
   game: HumanGameView;
   loading: boolean;
   onNewGame: () => Promise<void>;
   onSubmit: (payload: CommandPayload) => Promise<void>;
+  voiceInputEnabled?: boolean;
 }) {
   if (game.result) {
     return (
@@ -112,7 +116,14 @@ export function ActionPanel({
       </div>
       <div className="grid gap-3">
         {game.availableActions.map((action) => (
-          <ActionControl key={action.type} game={game} action={action} loading={loading} onSubmit={onSubmit} />
+          <ActionControl
+            key={action.type}
+            game={game}
+            action={action}
+            loading={loading}
+            onSubmit={onSubmit}
+            voiceInputEnabled={voiceInputEnabled}
+          />
         ))}
       </div>
     </section>
@@ -128,11 +139,13 @@ function ActionControl({
   action,
   loading,
   onSubmit,
+  voiceInputEnabled,
 }: {
   game: HumanGameView;
   action: AvailableHumanAction;
   loading: boolean;
   onSubmit: (payload: CommandPayload) => Promise<void>;
+  voiceInputEnabled: boolean;
 }) {
   const [message, setMessage] = useState("");
   const [voiceInputAvailable, setVoiceInputAvailable] = useState(false);
@@ -145,6 +158,7 @@ function ActionControl({
     action.type === "speak" || action.type === "lastWords" ? action.type : undefined;
 
   useEffect(() => {
+    if (!voiceInputEnabled) return;
     const timer = window.setTimeout(() => {
       setVoiceInputAvailable(Boolean(getSpeechRecognitionConstructor()));
     }, 0);
@@ -154,7 +168,7 @@ function ActionControl({
       speechRecognitionRef.current = null;
       recognition?.abort();
     };
-  }, []);
+  }, [voiceInputEnabled]);
 
   const rewriteVoiceTranscript = useCallback(
     async (transcript: string) => {
@@ -301,27 +315,29 @@ function ActionControl({
           className="min-h-28 resize-none rounded-2xl border border-[#f1c76e]/25 bg-black/30 px-4 py-3 text-sm text-[#f7ead5] outline-none transition placeholder:text-[#8f8065] focus:border-[#f1d796]"
           placeholder={isLastWords ? "输入遗言" : isSheriffSpeech ? "输入警长竞选发言" : "输入本轮发言"}
         />
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled={loading || voiceInputState === "processing" || !voiceInputAvailable}
-            aria-pressed={voiceInputState === "listening"}
-            onClick={voiceInputState === "listening" ? stopVoiceInput : startVoiceInput}
-            className={[
-              "rounded-full border px-4 py-2 text-xs font-semibold transition disabled:opacity-60",
-              voiceInputState === "listening"
-                ? "border-[#e46d55]/45 bg-[#572017]/60 text-[#ffb1a4] hover:bg-[#6f271b]/72"
-                : "border-[#f1c76e]/25 bg-black/18 text-[#f1d796] hover:bg-[#f1c76e]/10",
-            ].join(" ")}
-          >
-            {voiceButtonText}
-          </button>
-          {voiceInputMessage && (
-            <span aria-live="polite" className="text-xs leading-5 text-[#ad9c7d]">
-              {voiceInputMessage}
-            </span>
-          )}
-        </div>
+        {voiceInputEnabled && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={loading || voiceInputState === "processing" || !voiceInputAvailable}
+              aria-pressed={voiceInputState === "listening"}
+              onClick={voiceInputState === "listening" ? stopVoiceInput : startVoiceInput}
+              className={[
+                "rounded-full border px-4 py-2 text-xs font-semibold transition disabled:opacity-60",
+                voiceInputState === "listening"
+                  ? "border-[#e46d55]/45 bg-[#572017]/60 text-[#ffb1a4] hover:bg-[#6f271b]/72"
+                  : "border-[#f1c76e]/25 bg-black/18 text-[#f1d796] hover:bg-[#f1c76e]/10",
+              ].join(" ")}
+            >
+              {voiceButtonText}
+            </button>
+            {voiceInputMessage && (
+              <span aria-live="polite" className="text-xs leading-5 text-[#ad9c7d]">
+                {voiceInputMessage}
+              </span>
+            )}
+          </div>
+        )}
         <button
           type="button"
           disabled={loading || voiceInputState !== "idle" || message.trim().length === 0}
@@ -354,6 +370,10 @@ function ActionControl({
 
   if (action.type === "witchAction") {
     return <WitchActionPanel game={game} action={action} loading={loading} onSubmit={onSubmit} />;
+  }
+
+  if (action.type === "wolfBeautyCharm") {
+    return <WolfBeautyCharmPanel game={game} action={action} loading={loading} onSubmit={onSubmit} />;
   }
 
   if (action.type === "guardAction") {
@@ -418,6 +438,10 @@ function ActionControl({
     return <VoteActionPanel game={game} action={action} loading={loading} onSubmit={onSubmit} />;
   }
 
+  if (action.type === "knightDuel") {
+    return <KnightDuelActionPanel game={game} action={action} loading={loading} onSubmit={onSubmit} />;
+  }
+
   if (action.type === "hunterShoot") {
     return (
       <div className="flex flex-wrap gap-2">
@@ -434,6 +458,48 @@ function ActionControl({
         <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "hunterShoot" })}>
           不开枪
         </ActionButton>
+      </div>
+    );
+  }
+
+  if (action.type === "wolfKingShoot") {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {action.targets.map((target) => (
+          <ActionButton
+            key={target.seatId}
+            disabled={loading}
+            tone="red"
+            onClick={() => onSubmit({ type: "wolfKingShoot", targetSeatId: target.seatId })}
+          >
+            带走 {target.seatId}号
+          </ActionButton>
+        ))}
+        <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "wolfKingShoot" })}>
+          不开枪
+        </ActionButton>
+      </div>
+    );
+  }
+
+  if (action.type === "whiteWolfKingExplode") {
+    return (
+      <div className="rounded-2xl border border-[#b74332]/28 bg-[#2a1110]/45 p-3">
+        <div className="mb-3 text-sm leading-6 text-[#ffcabd]">
+          白狼王可以在自己的白天发言窗口自爆，并带走一名存活玩家；发动后今日直接结算并进入夜晚。
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {action.targets.map((target) => (
+            <ActionButton
+              key={target.seatId}
+              disabled={loading}
+              tone="red"
+              onClick={() => onSubmit({ type: "whiteWolfKingExplode", targetSeatId: target.seatId })}
+            >
+              自爆带走 {target.seatId}号
+            </ActionButton>
+          ))}
+        </div>
       </div>
     );
   }
@@ -506,17 +572,22 @@ function WitchActionPanel({
   loading: boolean;
   onSubmit: (payload: CommandPayload) => Promise<void>;
 }) {
+  const medicineHint = action.saveTarget
+    ? "确认当前刀口，再决定是否交药。"
+    : "当前没有可见刀口；解药已用或本夜没有可救目标。";
+  const antidoteLabel = action.canSave ? "解药可用" : action.saveTarget ? "不能救此刀口" : "解药不可用";
+
   return (
     <div className="night-action-shell grid gap-4">
       <div className="grid gap-2 rounded-2xl border border-[#7da8e3]/20 bg-[#0d1623]/62 p-3">
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#9dbbe6]">Medicine Case</div>
-            <div className="mt-1 text-sm text-[#d8e6f7]">先确认刀口，再决定是否交药。</div>
+            <div className="mt-1 text-sm text-[#d8e6f7]">{medicineHint}</div>
           </div>
           <div className="flex shrink-0 gap-1 text-[11px]">
             <span className={action.canSave ? "rounded-full bg-[#2f8157]/45 px-2 py-1 text-[#a8f0b6]" : "rounded-full bg-white/8 px-2 py-1 text-white/45"}>
-              解药{action.canSave ? "可用" : "不可用"}
+              {antidoteLabel}
             </span>
             <span className={action.canPoison ? "rounded-full bg-[#b74332]/45 px-2 py-1 text-[#ffb1a4]" : "rounded-full bg-white/8 px-2 py-1 text-white/45"}>
               毒药{action.canPoison ? "可用" : "已用"}
@@ -542,7 +613,14 @@ function WitchActionPanel({
             </div>
           </button>
         ) : (
-          <div className="rounded-2xl border border-white/10 bg-black/18 p-3 text-sm text-white/45">今晚没有可救目标，或解药已经用完。</div>
+          <div className="rounded-2xl border border-white/10 bg-black/18 p-3 text-sm leading-5 text-white/45">
+            <div>{action.saveBlockedReason ?? "今晚没有可救目标，或解药已经用完；解药用完后不再显示后续刀口。"}</div>
+            {action.saveTarget ? (
+              <div className="mt-1 text-xs text-white/38">
+                今夜刀口：{action.saveTarget.seatId}号 · {action.saveTarget.name}
+              </div>
+            ) : null}
+          </div>
         )}
       </div>
 
@@ -581,6 +659,55 @@ function WitchActionPanel({
       >
         本夜不用药
       </button>
+    </div>
+  );
+}
+
+function WolfBeautyCharmPanel({
+  game,
+  action,
+  loading,
+  onSubmit,
+}: {
+  game: HumanGameView;
+  action: WolfBeautyCharmAction;
+  loading: boolean;
+  onSubmit: (payload: CommandPayload) => Promise<void>;
+}) {
+  return (
+    <div className="night-action-shell grid gap-3">
+      <div className="rounded-2xl border border-[#d885c7]/24 bg-[#2b1128]/58 p-3 text-sm leading-6 text-[#ffd6f7]">
+        选择今晚魅惑的玩家。狼美人白天出局时，当前魅惑目标会殉情出局；夜间死亡不触发。
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {action.targets.map((target, index) => (
+          <NightTargetButton
+            key={target.seatId}
+            game={game}
+            target={target}
+            disabled={loading}
+            index={index}
+            tone="charm"
+            actionLabel="魅惑"
+            onClick={() => onSubmit({ type: "wolfBeautyCharm", targetSeatId: target.seatId })}
+          />
+        ))}
+        {action.canSkip && (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => onSubmit({ type: "wolfBeautyCharm" })}
+            className="min-h-[92px] rounded-2xl border border-[#f1c76e]/25 bg-black/18 p-3 text-left text-[#f1d796] shadow-lg shadow-black/18 transition hover:bg-[#f1c76e]/10 disabled:opacity-60"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className="rounded-full bg-black/28 px-2 py-0.5 text-xs font-semibold">不魅惑</span>
+              <span className="text-[11px] opacity-64">跳过</span>
+            </div>
+            <div className="mt-3 text-sm font-semibold">本夜不选择目标</div>
+            <div className="mt-1 text-[11px] opacity-72">保留白天发言空间</div>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -627,6 +754,55 @@ function VoteActionPanel({
             </div>
             <div className="mt-3 text-sm font-semibold">本轮不投任何人</div>
             <div className="mt-1 text-[11px] opacity-72">仍会锁定你的投票状态</div>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function KnightDuelActionPanel({
+  game,
+  action,
+  loading,
+  onSubmit,
+}: {
+  game: HumanGameView;
+  action: KnightDuelAction;
+  loading: boolean;
+  onSubmit: (payload: CommandPayload) => Promise<void>;
+}) {
+  return (
+    <div className="vote-action-panel grid gap-3">
+      <div className="rounded-2xl border border-[#f1c76e]/24 bg-[#3a2412]/48 px-3 py-2 text-sm leading-6 text-[#f1d796]">
+        骑士可以发动一次决斗。目标是狼人阵营则目标出局并结束白天；目标是好人阵营则骑士出局，随后继续投票。
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {action.targets.map((target, index) => (
+          <NightTargetButton
+            key={target.seatId}
+            game={game}
+            target={target}
+            disabled={loading}
+            index={index}
+            tone="knight"
+            actionLabel="决斗"
+            onClick={() => onSubmit({ type: "knightDuel", targetSeatId: target.seatId })}
+          />
+        ))}
+        {action.canSkip && (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => onSubmit({ type: "knightDuel" })}
+            className="min-h-[92px] rounded-2xl border border-[#f1c76e]/25 bg-black/18 p-3 text-left text-[#f1d796] shadow-lg shadow-black/18 transition hover:bg-[#f1c76e]/10 disabled:opacity-60"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className="rounded-full bg-black/28 px-2 py-0.5 text-xs font-semibold">保留</span>
+              <span className="text-[11px] opacity-64">不决斗</span>
+            </div>
+            <div className="mt-3 text-sm font-semibold">进入正常投票</div>
+            <div className="mt-1 text-[11px] opacity-72">技能仍可留到后续白天</div>
           </button>
         )}
       </div>
@@ -747,7 +923,7 @@ function NightTargetButton({
   target: ActionTargetView;
   disabled: boolean;
   index: number;
-  tone: "seer" | "poison" | "vote" | "guard" | "sheriff";
+  tone: "seer" | "poison" | "vote" | "guard" | "sheriff" | "charm" | "knight";
   actionLabel: string;
   onClick: () => void;
 }) {
@@ -758,6 +934,8 @@ function NightTargetButton({
     vote: "border-[#e46d55]/24 bg-[#2b1110]/62 text-[#ffd8cf] hover:border-[#ff9a6b]/58 hover:bg-[#3a1713]/78",
     guard: "border-[#77d898]/24 bg-[#14311f]/62 text-[#dff4df] hover:border-[#a8f0b6]/58 hover:bg-[#1d4e33]/78",
     sheriff: "border-[#f1c76e]/24 bg-[#3a2412]/62 text-[#f1d796] hover:border-[#f1d796]/58 hover:bg-[#4a2d12]/78",
+    charm: "border-[#d885c7]/24 bg-[#2b1128]/66 text-[#ffd6f7] hover:border-[#f5a9e8]/58 hover:bg-[#3d1838]/82",
+    knight: "border-[#f1c76e]/30 bg-[#2b2110]/66 text-[#fff0bf] hover:border-[#fff0bf]/62 hover:bg-[#3b2d13]/82",
   }[tone];
 
   return (
@@ -823,6 +1001,8 @@ export function getActionMeta(action: AvailableHumanAction) {
       return { title: "预言家查验", description: "选择一名存活玩家，系统会私下告诉你阵营结果。" };
     case "witchAction":
       return { title: "女巫用药", description: "选择救人、毒人，或保留药品跳过本夜。" };
+    case "wolfBeautyCharm":
+      return { title: "狼美人魅惑", description: "选择今晚魅惑目标，或跳过本夜魅惑。" };
     case "speak":
       return { title: "轮到你发言", description: "公开发言会进入所有 AI 的公开信息流。" };
     case "sheriffSpeech":
@@ -839,8 +1019,14 @@ export function getActionMeta(action: AvailableHumanAction) {
       return { title: "发表遗言", description: "出局前留下最后公开视角，遗言结束后继续结算。" };
     case "vote":
       return { title: "投票放逐", description: "选择一名存活玩家投票，所有人投完后进入结算。" };
+    case "knightDuel":
+      return { title: "骑士决斗", description: "选择是否发动决斗；证据不足时可以保留技能进入投票。" };
     case "hunterShoot":
       return { title: "猎人开枪", description: "你可以带走一名存活玩家，也可以选择不开枪。" };
+    case "wolfKingShoot":
+      return { title: "狼王开枪", description: "你可以发动狼王枪带走一名存活玩家，也可以选择不开枪。" };
+    case "whiteWolfKingExplode":
+      return { title: "白狼王自爆", description: "你可以立即自爆并带走一名存活玩家，或继续正常发言。" };
     case "continue":
       return { title: action.label, description: action.description };
   }

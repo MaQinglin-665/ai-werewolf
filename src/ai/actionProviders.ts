@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
   ActionTarget,
   AgentView,
+  AiFriendRuntimeLlmConfig,
   AiTableRead,
   AvailableHumanAction,
   Command,
@@ -10,6 +11,7 @@ import type {
   TableMemory,
   VotePlan,
 } from "@/game/types";
+import { isWolfRole } from "@/game/roleUtils";
 import {
   callRoutedModelJsonWithFallbacks,
   isModelLlmRoutingAvailable,
@@ -23,6 +25,7 @@ import {
   type LlmOutputStabilityHint,
   type RoutedLlmResponse,
 } from "./modelLlms";
+import { buildExpertStrategyNotes } from "./expertStrategy";
 import type { AiActionProvider, AiActionProviderContext, AiActionResult } from "./types";
 
 const ActionDecisionSchema = z
@@ -90,6 +93,7 @@ export type LlmActionInput = {
     wolfTeammateSeatIds: number[];
     witch?: AgentView["privateKnowledge"]["witch"];
     pendingHunterShot?: AgentView["privateKnowledge"]["pendingHunterShot"];
+    pendingWolfKingShot?: AgentView["privateKnowledge"]["pendingWolfKingShot"];
     wolfPlan?: {
       strategy: NonNullable<AgentView["privateKnowledge"]["wolfTeamPlan"]>["strategy"];
       summary: string;
@@ -109,10 +113,12 @@ export type LlmActionInput = {
     backupFocus?: CompactSeatRead;
     seats: CompactSeatRead[];
   };
+  expertStrategy: string[];
   votePlan?: VotePlan;
   fallbackCandidateId?: string;
   candidates: LlmActionCandidate[];
   constraints: string[];
+  llmConfig?: AiFriendRuntimeLlmConfig;
   stability?: LlmOutputStabilityHint;
 };
 
@@ -131,7 +137,7 @@ type CompactSeatRead = ActionTarget & {
 
 export function createConfiguredActionProvider(defaultProvider: AiActionProvider): AiActionProvider {
   if (process.env.AI_ACTION_PROVIDER === "mock" || process.env.AI_DECISION_PROVIDER === "mock") {
-    return defaultProvider;
+    return createCustomAwareActionProvider(defaultProvider);
   }
 
   if (isModelLlmRoutingAvailable()) {
@@ -139,22 +145,34 @@ export function createConfiguredActionProvider(defaultProvider: AiActionProvider
   }
 
   if ((process.env.AI_ACTION_PROVIDER === "openai" || process.env.AI_DECISION_PROVIDER === "openai") && process.env.OPENAI_API_KEY) {
-    return openAiActionProvider;
+    return createCustomAwareActionProvider(openAiActionProvider);
   }
 
-  return defaultProvider;
+  return createCustomAwareActionProvider(defaultProvider);
+}
+
+function createCustomAwareActionProvider(defaultProvider: AiActionProvider): AiActionProvider {
+  return {
+    providerId: "custom-aware-action",
+    generateCommand(view, context) {
+      return view.llmConfig
+        ? routedModelActionProvider.generateCommand(view, context)
+        : defaultProvider.generateCommand(view, context);
+    },
+  };
 }
 
 export function createConstrainedLlmActionProvider(options: {
   providerId: string;
   render: LlmActionRenderer;
+  maxAttempts?: (input: LlmActionInput) => number;
 }): AiActionProvider {
   return {
     providerId: options.providerId,
     async generateCommand(view, context) {
       const input = buildConstrainedActionInput(view, context);
       const attempts: LlmOutputAttemptLog[] = [];
-      const maxAttempts = readLlmOutputMaxAttempts();
+      const maxAttempts = options.maxAttempts?.(input) ?? readLlmOutputMaxAttempts();
       let providerId = options.providerId;
       let lastIssue = "LLM action failed.";
       let lastValidationErrors: string[] | undefined;
@@ -223,6 +241,7 @@ export const openAiActionProvider: AiActionProvider = createConstrainedLlmAction
 export const routedModelActionProvider: AiActionProvider = createConstrainedLlmActionProvider({
   providerId: "model-routed-action",
   render: callRoutedModelAction,
+  maxAttempts: readRoutedActionOutputMaxAttempts,
 });
 
 export function buildConstrainedActionInput(view: AgentView, context: AiActionProviderContext): LlmActionInput {
@@ -264,10 +283,12 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
       backupFocus: context.tableRead.backupFocus ? compactSeatRead(context.tableRead.backupFocus) : undefined,
       seats: context.tableRead.seats.map(compactSeatRead),
     },
+    expertStrategy: buildExpertStrategyNotes(view),
     votePlan: context.votePlan,
     fallbackCandidateId,
     candidates,
     constraints: buildActionConstraints(view),
+    llmConfig: view.llmConfig,
   };
 }
 
@@ -545,8 +566,13 @@ export function validateActionDecision(view: AgentView, input: LlmActionInput, d
     errors.push("candidate actor does not match current AI seat");
   }
 
-  if (candidate.command.type === "speak") {
+  if (candidate.command.type === "speak" && !getAction(view, "whiteWolfKingExplode")) {
     errors.push("action provider cannot select speech commands");
+  }
+
+  const reasonIssue = validateActionReasonQuality(decision.reason);
+  if (reasonIssue) {
+    errors.push(reasonIssue);
   }
 
   if (candidate.command.type === "lastWords" && message && containsActionPrivateLeak(message)) {
@@ -568,6 +594,7 @@ function buildSelfActionContext(view: AgentView, tableRead: AiTableRead): LlmAct
     wolfTeammateSeatIds: tableRead.wolfTeammateSeatIds,
     witch: view.privateKnowledge.witch,
     pendingHunterShot: view.privateKnowledge.pendingHunterShot,
+    pendingWolfKingShot: view.privateKnowledge.pendingWolfKingShot,
     wolfPlan: wolfPlan
       ? {
           strategy: wolfPlan.strategy,
@@ -600,6 +627,34 @@ function buildActionCandidates(
   };
 
   switch (view.phase) {
+    case "DAY_SPEECH": {
+      add({
+        id: "speech:continue",
+        label: "Continue public speech",
+        command: {
+          type: "speak",
+          actorSeatId: view.mySeatId,
+          message: "我先继续发言，把当前公开信息和票型压力说清楚。",
+        },
+        reasonHint: "keep the white wolf king ability hidden and continue normal public speech",
+      });
+      const action = getAction(view, "whiteWolfKingExplode");
+      const targets = action?.targets ?? [];
+      const nonTeammateTargets = targets.filter(
+        (target) => !(view.privateKnowledge.wolfTeammates ?? []).some((teammate) => teammate.seatId === target.seatId),
+      );
+      const targetPool = nonTeammateTargets.length > 0 ? nonTeammateTargets : targets;
+      for (const target of sortTargets(targetPool, tableRead, whiteWolfKingExplodeTargetScore)) {
+        add({
+          id: `whiteWolfKing:explode:${target.seatId}`,
+          label: `Explode and take ${target.name}`,
+          command: { type: "whiteWolfKingExplode", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
+          target,
+          reasonHint: targetReasonHint(tableRead, target, "best public-value target for white wolf king self-explosion"),
+        });
+      }
+      break;
+    }
     case "NIGHT_WOLVES": {
       const action = getAction(view, "wolfKill");
       for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => seat.trust - seat.suspicion * 0.25)) {
@@ -610,6 +665,30 @@ function buildActionCandidates(
           command: { type: "wolfKill", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
           reasonHint: privateWolfTarget ? "potion-bait night line" : targetReasonHint(tableRead, target, "high public trust or role pressure"),
+        });
+      }
+      break;
+    }
+    case "NIGHT_WOLF_BEAUTY": {
+      const action = getAction(view, "wolfBeautyCharm");
+      const targets = (action?.targets ?? []).filter(
+        (target) => !(view.privateKnowledge.wolfTeammates ?? []).some((teammate) => teammate.seatId === target.seatId),
+      );
+      for (const target of sortTargets(targets, tableRead, wolfBeautyCharmTargetScore)) {
+        add({
+          id: `wolfBeauty:charm:${target.seatId}`,
+          label: `Charm ${target.name}`,
+          command: { type: "wolfBeautyCharm", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
+          target,
+          reasonHint: targetReasonHint(tableRead, target, "high-value charm target"),
+        });
+      }
+      if (action?.canSkip) {
+        add({
+          id: "wolfBeauty:skip",
+          label: "Skip charm",
+          command: { type: "wolfBeautyCharm", actorSeatId: view.mySeatId },
+          reasonHint: "hold charm value because no target is decisive",
         });
       }
       break;
@@ -774,6 +853,27 @@ function buildActionCandidates(
       }
       break;
     }
+    case "KNIGHT_DUEL": {
+      const action = getAction(view, "knightDuel");
+      if (action?.canSkip) {
+        add({
+          id: "knight:skip",
+          label: "Skip knight duel",
+          command: { type: "knightDuel", actorSeatId: view.mySeatId },
+          reasonHint: "public evidence is not strong enough for a duel",
+        });
+      }
+      for (const target of sortTargets(action?.targets ?? [], tableRead, knightDuelTargetScore)) {
+        add({
+          id: `knight:duel:${target.seatId}`,
+          label: `Duel ${target.name}`,
+          command: { type: "knightDuel", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
+          target,
+          reasonHint: targetReasonHint(tableRead, target, "strongest public wolf evidence"),
+        });
+      }
+      break;
+    }
     case "HUNTER_SHOT": {
       const action = getAction(view, "hunterShoot");
       if (action?.canSkip) {
@@ -791,6 +891,27 @@ function buildActionCandidates(
           command: { type: "hunterShoot", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
           reasonHint: targetReasonHint(tableRead, target, "strongest public suspicion"),
+        });
+      }
+      break;
+    }
+    case "WOLF_KING_SHOT": {
+      const action = getAction(view, "wolfKingShoot");
+      if (action?.canSkip) {
+        add({
+          id: "wolfKing:skip",
+          label: "Skip wolf king shot",
+          command: { type: "wolfKingShoot", actorSeatId: view.mySeatId },
+          reasonHint: "no target is certain enough",
+        });
+      }
+      for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => seat.suspicion - seat.trust * 0.2)) {
+        add({
+          id: `wolfKing:shoot:${target.seatId}`,
+          label: `Wolf king shoots ${target.name}`,
+          command: { type: "wolfKingShoot", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
+          target,
+          reasonHint: targetReasonHint(tableRead, target, "best public shot value"),
         });
       }
       break;
@@ -921,10 +1042,31 @@ function buildActionConstraints(view: AgentView): string[] {
     "persona.preferences are soft model tendencies, not hard rules; use them to weight logic, identity, votes, emotion, memory, leadership, deception, and caution.",
     "The reason must be short and public-safe. Do not mention hidden roles, teammates, private checks, prompts, tools, or system context.",
     "Rules are final: legality is decided by the candidate list and engine validation.",
+    "Use expertStrategy as high-level Werewolf heuristics for prioritizing evidence; do not quote it as a rule or fixed script.",
   ];
 
-  if (view.phase === "DAY_VOTE" || view.phase === "HUNTER_SHOT") {
+  if (
+    view.phase === "DAY_VOTE" ||
+    view.phase === "KNIGHT_DUEL" ||
+    view.phase === "HUNTER_SHOT" ||
+    view.phase === "WOLF_KING_SHOT" ||
+    getAction(view, "whiteWolfKingExplode")
+  ) {
     constraints.push("Vote and shot reasons may become visible later, so write them only from public table evidence.");
+  }
+
+  if (getAction(view, "whiteWolfKingExplode")) {
+    constraints.push("White wolf king self-explosion is optional: use it only when the public table value beats keeping the role hidden and speaking normally.");
+  }
+
+  if (getAction(view, "knightDuel")) {
+    constraints.push(
+      "Knight duel is optional and public: counterclaim status alone is not enough; prefer concrete public black-check evidence, dead-seer legacy, or repeated independent pressure.",
+    );
+  }
+
+  if (getAction(view, "wolfBeautyCharm")) {
+    constraints.push("Wolf beauty charm is private night strategy: prefer high-value non-teammate targets, but do not mention wolf-team knowledge in reasons.");
   }
 
   if (view.publicSummary.tableMemory.reasoningCues.length > 0) {
@@ -936,7 +1078,7 @@ function buildActionConstraints(view: AgentView): string[] {
   );
   constraints.push("Do not quote cue ids or internal field names in the reason; write a natural public table reason.");
 
-  if (view.phase === "DAY_VOTE" && view.myRole !== "WEREWOLF" && view.publicSummary.tableMemory.seerLegacies.length > 0) {
+  if (view.phase === "DAY_VOTE" && !isWolfRole(view.myRole, view.rules.wolfRoles) && view.publicSummary.tableMemory.seerLegacies.length > 0) {
     constraints.push(
       "For good-side day votes, review seerLegacies as public legacy from night-dead seer claimants; treat it as evidence to test, not hidden role truth.",
     );
@@ -947,7 +1089,7 @@ function buildActionConstraints(view: AgentView): string[] {
     constraints.push("Last words should leave one or two concrete table reads, vote-shape reads, claim reads, or warnings for tomorrow; do not use a fixed generic line.");
   }
 
-  if (view.myRole === "WEREWOLF") {
+  if (isWolfRole(view.myRole, view.rules.wolfRoles)) {
     if (view.phase === "NIGHT_WOLVES") {
       constraints.push("Night kills may legally target any alive seat, including self or a wolf partner, for potion-bait strategy.");
       constraints.push("Even when choosing a wolf target at night, the reason must not expose wolf-team knowledge.");
@@ -997,6 +1139,42 @@ function sortTargets(
   });
 }
 
+function whiteWolfKingExplodeTargetScore(seat: SeatRead): number {
+  const claimValue = seat.publicClaims.reduce((score, claim) => {
+    if (claim.claimedRole === "SEER") return Math.max(score, 38);
+    if (claim.claimedRole === "WITCH" || claim.claimedRole === "HUNTER" || claim.claimedRole === "IDIOT" || claim.claimedRole === "KNIGHT" || claim.claimedRole === "GUARD") return Math.max(score, 26);
+    if (claim.claimedRole === "VILLAGER") return Math.max(score, 8);
+    return score;
+  }, 0);
+  const checkedGoodValue = seat.publicChecksAgainst.some((check) => check.result === "GOOD") ? 14 : 0;
+  return seat.trust * 0.85 - seat.suspicion * 0.15 + claimValue + checkedGoodValue;
+}
+
+function wolfBeautyCharmTargetScore(seat: SeatRead): number {
+  const claimValue = seat.publicClaims.reduce((score, claim) => {
+    if (claim.claimedRole === "SEER") return Math.max(score, 24);
+    if (claim.claimedRole === "WITCH" || claim.claimedRole === "HUNTER" || claim.claimedRole === "IDIOT" || claim.claimedRole === "KNIGHT") return Math.max(score, 18);
+    return score;
+  }, 0);
+  return seat.trust - seat.suspicion * 0.18 + claimValue;
+}
+
+function knightDuelTargetScore(seat: SeatRead): number {
+  const wolfCheckBonus = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ? 18 : 0;
+  const counterclaimBonus =
+    seat.publicClaims.some((claim) => claim.claimedRole === "SEER") &&
+    seat.pressure.some((item) => item.includes("后置查杀已跳预言家") || item.includes("夜死后遗留查杀"))
+      ? 8
+      : 0;
+  const weakBlackCheckPenalty =
+    seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") &&
+    !seat.pressure.some((item) => item.includes("后置查杀已跳预言家") || item.includes("夜死后遗留查杀"))
+      ? 10
+      : 0;
+  const protectedClaimPenalty = seat.pressure.some((item) => item.includes("未对跳") || item.includes("被后置预言家查杀")) ? 28 : 0;
+  return seat.suspicion - seat.trust * 0.12 + wolfCheckBonus + counterclaimBonus - weakBlackCheckPenalty - protectedClaimPenalty;
+}
+
 function targetReasonHint(tableRead: AiTableRead, target: ActionTarget, fallback: string): string {
   const read = tableRead.seats.find((seat) => seat.seatId === target.seatId);
   return read?.pressure[0] ?? fallback;
@@ -1036,7 +1214,9 @@ function sameCommand(left: Command, right: Command): boolean {
     case "wolfKill":
     case "guardAction":
     case "seerCheck":
+    case "wolfBeautyCharm":
     case "vote":
+    case "knightDuel":
     case "sheriffVote":
     case "sheriffHandoff":
       return "targetSeatId" in right && left.targetSeatId === right.targetSeatId;
@@ -1044,6 +1224,10 @@ function sameCommand(left: Command, right: Command): boolean {
       return right.type === "witchAction" && left.mode === right.mode && left.targetSeatId === right.targetSeatId;
     case "hunterShoot":
       return right.type === "hunterShoot" && left.targetSeatId === right.targetSeatId;
+    case "wolfKingShoot":
+      return right.type === "wolfKingShoot" && left.targetSeatId === right.targetSeatId;
+    case "whiteWolfKingExplode":
+      return right.type === "whiteWolfKingExplode" && left.targetSeatId === right.targetSeatId;
     case "sheriffNominate":
       return right.type === "sheriffNominate" && left.run === right.run;
     case "sheriffWithdraw":
@@ -1061,7 +1245,7 @@ function sameCommand(left: Command, right: Command): boolean {
 
 function isPrivateWolfTarget(view: AgentView, target: ActionTarget): boolean {
   return (
-    view.myRole === "WEREWOLF" &&
+    isWolfRole(view.myRole, view.rules.wolfRoles) &&
     (target.seatId === view.mySeatId ||
       (view.privateKnowledge.wolfTeammates ?? []).some((teammate) => teammate.seatId === target.seatId))
   );
@@ -1098,9 +1282,25 @@ function publicSafeActionReason(reason: string | undefined, fallbackReason: stri
   return fallback && !containsActionPrivateLeak(fallback) ? fallback : undefined;
 }
 
+function validateActionReasonQuality(reason: string | undefined): string | undefined {
+  const clean = cleanActionReason(reason);
+  if (!clean) return "reason is empty";
+  if (looksLikeMalformedActionReason(clean)) return "reason is malformed";
+  return undefined;
+}
+
+function looksLikeMalformedActionReason(reason: string): boolean {
+  const meaningful = reason.replace(/[^A-Za-z0-9\u4e00-\u9fff]/g, "");
+  if (meaningful.length < 4) return true;
+  if (/^[\s"'`{}[\]:：,，.。;；!?！？-]+/.test(reason) && meaningful.length < 8) return true;
+  if (/^(current|none|null|undefined|n\/a|ok)$/i.test(reason)) return true;
+  if (/^[\s"'`{}[\]:：,，.。;；!?！？-]+$/.test(reason)) return true;
+  return false;
+}
+
 function containsActionPrivateLeak(reason: string): boolean {
   if (!reason) return false;
-  return /privateKnowledge|wolfTeamPlan|wolfPlan|system|prompt|hidden role|true role|WEREWOLF|VILLAGER|SEER|WITCH|HUNTER|GUARD|队友|狼队|同狼|真实身份|隐藏身份|私密|系统|提示词|上帝视角|我知道.*身份|wolf teammate|teammate/i.test(
+  return /privateKnowledge|wolfTeamPlan|wolfPlan|system|prompt|hidden role|true role|WEREWOLF|WOLF_KING|WHITE_WOLF_KING|WOLF_BEAUTY|VILLAGER|SEER|WITCH|HUNTER|IDIOT|KNIGHT|GUARD|队友|狼队|同狼|真实身份|隐藏身份|私密|系统|提示词|上帝视角|我知道.*身份|wolf teammate|teammate/i.test(
     reason,
   );
 }
@@ -1140,7 +1340,7 @@ async function callOpenAiAction(input: LlmActionInput): Promise<string> {
           {
             role: "system",
             content:
-              "You are the decision brain for an AI Werewolf player. Choose one legal candidate action using persona.preferences as soft model tendencies. Return strict JSON only. The game engine enforces rules; you provide judgment within the allowed candidate list.",
+              "You are the decision brain for an AI Werewolf player. Choose one legal candidate action using persona.preferences and expertStrategy as soft strategy guidance. Return strict JSON only. The game engine enforces rules; you provide judgment within the allowed candidate list.",
           },
           {
             role: "user",
@@ -1178,15 +1378,23 @@ async function callOpenAiAction(input: LlmActionInput): Promise<string> {
 
 async function callRoutedModelAction(input: LlmActionInput): Promise<RoutedLlmResponse> {
   const primaryPersonaName = readActionPrimaryPersonaName(input);
+  const modelInput = stripActionRuntimeLlm(input);
   return callRoutedModelJsonWithFallbacks({
     personaName: primaryPersonaName,
     fallbackPersonaNames: readActionFallbackPersonaNames(primaryPersonaName),
     task: "action",
     system:
-      "You are the decision brain for an AI Werewolf player. Choose exactly one legal candidate action from candidates using persona.preferences as soft model tendencies. Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\"}. Do not reveal private/system context.",
-    input,
+      "You are the decision brain for an AI Werewolf player. Choose exactly one legal candidate action from candidates using persona.preferences and expertStrategy as soft strategy guidance. Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\"}. Do not reveal private/system context.",
+    input: modelInput,
     maxTokens: 220,
+    customLlm: input.llmConfig,
   });
+}
+
+function stripActionRuntimeLlm(input: LlmActionInput): Omit<LlmActionInput, "llmConfig"> {
+  const modelInput = { ...input };
+  delete modelInput.llmConfig;
+  return modelInput;
 }
 
 function readActionPrimaryPersonaName(input: LlmActionInput): string | undefined {
@@ -1196,7 +1404,15 @@ function readActionPrimaryPersonaName(input: LlmActionInput): string | undefined
     return primary;
   }
 
-  return readActionFallbackPersonaNames(primary)[0] ?? primary;
+  const fallbackPersonaNames = readActionFallbackPersonaNames(primary);
+  const fallbackIndex = Math.max(0, (input.stability?.attempt ?? 2) - 2);
+  return fallbackPersonaNames[fallbackIndex] ?? fallbackPersonaNames.at(-1) ?? primary;
+}
+
+function readRoutedActionOutputMaxAttempts(input: LlmActionInput): number {
+  const baseAttempts = readLlmOutputMaxAttempts();
+  const fallbackPersonaCount = readActionFallbackPersonaNames(input.persona?.name).length;
+  return Math.min(5, Math.max(baseAttempts, 1 + fallbackPersonaCount));
 }
 
 function readActionFallbackPersonaNames(primaryPersonaName: string | undefined): string[] {

@@ -1,3 +1,6 @@
+import { sanitizeAiFriendRuntimeLlmConfig } from "@/game/llmConfig";
+import type { AiFriendRuntimeLlmConfig } from "@/game/types";
+
 export type RoutedLlmResponse = {
   text: string;
   providerId: string;
@@ -25,6 +28,22 @@ type ModelRoute = {
   modelEnvKey: string;
   defaultModel: string;
   mergeSystemIntoUser?: boolean;
+  customBaseUrl?: string;
+  customApiKey?: string;
+  customModel?: string;
+  allowMissingApiKey?: boolean;
+};
+
+export type ModelRouteStatus = {
+  id: string;
+  personaName: string;
+  modelEnvKey: string;
+  defaultModel: string;
+  resolvedModel: string;
+  providerMode: string;
+  routingEnabled: boolean;
+  connected: boolean;
+  apiKeySource?: string;
 };
 
 type RoutedJsonOptions = {
@@ -33,6 +52,7 @@ type RoutedJsonOptions = {
   system: string;
   input: unknown;
   maxTokens: number;
+  customLlm?: AiFriendRuntimeLlmConfig;
   onTextDelta?: (text: string) => void;
   onTextSnapshot?: (text: string) => void;
 };
@@ -62,7 +82,7 @@ const MODEL_ROUTES: ModelRoute[] = [
     personaName: "GPT",
     envPrefix: "GPT",
     modelEnvKey: "AI_MODEL_GPT",
-    defaultModel: "gpt-5.4",
+    defaultModel: "gpt-5.5",
   },
   {
     id: "doubao",
@@ -113,14 +133,39 @@ export function isModelLlmRoutingAvailable(): boolean {
   return wantsRouting && MODEL_ROUTES.some((route) => Boolean(resolveRouteApiKey(route)));
 }
 
+export function listModelRouteStatuses(): ModelRouteStatus[] {
+  const providerMode = readOptionalEnv("AI_LLM_PROVIDER") ?? readOptionalEnv("AI_PROVIDER") ?? "mock";
+  const routingEnabled =
+    providerMode === "models" ||
+    providerMode === "multi" ||
+    providerMode === "routed";
+
+  return MODEL_ROUTES.map((route) => {
+    const resolvedModel = readOptionalEnv(route.modelEnvKey) ?? readRouteEnv(route, "MODEL") ?? route.defaultModel;
+    const apiKeySource = resolveRouteApiKeySource(route);
+    return {
+      id: route.id,
+      personaName: route.personaName,
+      modelEnvKey: route.modelEnvKey,
+      defaultModel: route.defaultModel,
+      resolvedModel,
+      providerMode,
+      routingEnabled,
+      connected: routingEnabled && Boolean(apiKeySource),
+      apiKeySource,
+    };
+  });
+}
+
 export async function callRoutedModelJson(options: RoutedJsonOptions): Promise<RoutedLlmResponse> {
-  const route = getModelRoute(options.personaName);
+  const customLlm = sanitizeAiFriendRuntimeLlmConfig(options.customLlm);
+  const route = customLlm ? buildCustomModelRoute(customLlm) : getModelRoute(options.personaName);
   const apiKey = resolveRouteApiKey(route);
   const baseUrl = resolveRouteBaseUrl(route, apiKey);
-  const primaryModel = readOptionalEnv(route.modelEnvKey) ?? readRouteEnv(route, "MODEL") ?? route.defaultModel;
-  const modelCandidates = resolveModelCandidates(route, primaryModel);
+  const primaryModel = route.customModel ?? readRouteModelEnv(route) ?? readRouteEnv(route, "MODEL") ?? route.defaultModel;
+  const modelCandidates = route.customModel ? [route.customModel] : resolveModelCandidates(route, primaryModel);
 
-  if (!apiKey) {
+  if (!apiKey && !route.allowMissingApiKey) {
     throw new Error("Missing AI_LLM_API_KEY.");
   }
 
@@ -155,10 +200,7 @@ export async function callRoutedModelJson(options: RoutedJsonOptions): Promise<R
         response = await fetch(buildChatCompletionsUrl(baseUrl), {
           method: "POST",
           signal: controller.signal,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
+          headers: buildChatHeaders(apiKey),
           body: JSON.stringify(body),
         });
 
@@ -168,10 +210,7 @@ export async function callRoutedModelJson(options: RoutedJsonOptions): Promise<R
           response = await fetch(buildChatCompletionsUrl(baseUrl), {
             method: "POST",
             signal: controller.signal,
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`,
-            },
+            headers: buildChatHeaders(apiKey),
             body: JSON.stringify(body),
           });
           raw = await response.text();
@@ -181,10 +220,7 @@ export async function callRoutedModelJson(options: RoutedJsonOptions): Promise<R
           response = await fetch(buildChatCompletionsUrl(baseUrl), {
             method: "POST",
             signal: controller.signal,
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`,
-            },
+            headers: buildChatHeaders(apiKey),
             body: JSON.stringify(body),
           });
           raw = await response.text();
@@ -195,10 +231,7 @@ export async function callRoutedModelJson(options: RoutedJsonOptions): Promise<R
           response = await fetch(buildChatCompletionsUrl(baseUrl), {
             method: "POST",
             signal: controller.signal,
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`,
-            },
+            headers: buildChatHeaders(apiKey),
             body: JSON.stringify(body),
           });
           raw = await response.text();
@@ -218,7 +251,7 @@ export async function callRoutedModelJson(options: RoutedJsonOptions): Promise<R
         };
       }
 
-      lastError = new Error(`LLM ${route.personaName} ${model} request failed: ${response.status} ${sanitizeLlmError(raw)}`);
+      lastError = new Error(`LLM ${route.personaName} ${model} request failed: ${response.status} ${sanitizeLlmError(raw, apiKey)}`);
       if (isLastCandidate || !shouldTryNextModel(response.status, raw)) {
         throw lastError;
       }
@@ -231,6 +264,10 @@ export async function callRoutedModelJson(options: RoutedJsonOptions): Promise<R
 }
 
 export async function callRoutedModelJsonWithFallbacks(options: RoutedJsonFallbackOptions): Promise<RoutedLlmResponse> {
+  if (options.customLlm) {
+    return callRoutedModelJson(options);
+  }
+
   const primaryRoute = getModelRoute(options.personaName);
   const routes = uniqueRoutes([
     primaryRoute,
@@ -379,6 +416,21 @@ function getModelRoute(personaName: string | undefined): ModelRoute {
   return MODEL_ROUTES.find((route) => route.personaName === personaName) ?? FALLBACK_ROUTE;
 }
 
+function buildCustomModelRoute(config: AiFriendRuntimeLlmConfig): ModelRoute {
+  return {
+    id: "custom",
+    personaName: config.label ?? "自定义大模型",
+    envPrefix: "",
+    modelEnvKey: "",
+    defaultModel: config.model,
+    mergeSystemIntoUser: config.mergeSystemIntoUser,
+    customBaseUrl: config.baseUrl,
+    customApiKey: config.apiKey,
+    customModel: config.model,
+    allowMissingApiKey: true,
+  };
+}
+
 function getModelRouteByNameOrId(value: string | undefined): ModelRoute | undefined {
   const normalized = value?.trim().toLowerCase();
   if (!normalized) return undefined;
@@ -402,7 +454,7 @@ function resolveModelCandidates(route: ModelRoute, primaryModel: string): string
 
 function defaultFallbackModels(route: ModelRoute): string {
   if (route.id === "gemini") return "gemini-3.1-pro,gemini-3.1-pro-preview";
-  if (route.id === "gpt") return "gpt-5.5";
+  if (route.id === "gpt") return "gpt-5.5,gpt-5.4";
   return "";
 }
 
@@ -427,7 +479,12 @@ function isAbortLikeError(error: unknown): boolean {
 }
 
 function readRouteEnv(route: ModelRoute, suffix: string): string | undefined {
+  if (!route.envPrefix) return undefined;
   return readOptionalEnv(`${route.envPrefix}_${suffix}`);
+}
+
+function readRouteModelEnv(route: ModelRoute): string | undefined {
+  return route.modelEnvKey ? readOptionalEnv(route.modelEnvKey) : undefined;
 }
 
 function buildMessages(route: ModelRoute, system: string, input: unknown): Array<{ role: "system" | "user"; content: string }> {
@@ -596,6 +653,7 @@ function readNumber(value: string, fallback: number): number {
 
 function resolveRouteApiKey(route: ModelRoute): string | undefined {
   return (
+    route.customApiKey ??
     readRouteEnv(route, "API_KEY") ??
     (isArkRoute(route) ? readOptionalEnv("ARK_API_KEY") : undefined) ??
     readOptionalEnv("AI_LLM_API_KEY") ??
@@ -603,12 +661,31 @@ function resolveRouteApiKey(route: ModelRoute): string | undefined {
   );
 }
 
+function resolveRouteApiKeySource(route: ModelRoute): string | undefined {
+  if (readRouteEnv(route, "API_KEY")) return `${route.envPrefix}_API_KEY`;
+  if (isArkRoute(route) && readOptionalEnv("ARK_API_KEY")) return "ARK_API_KEY";
+  if (readOptionalEnv("AI_LLM_API_KEY")) return "AI_LLM_API_KEY";
+  if (readOptionalEnv("OPENAI_API_KEY")) return "OPENAI_API_KEY";
+  return undefined;
+}
+
 function resolveRouteBaseUrl(route: ModelRoute, apiKey: string | undefined): string {
+  if (route.customBaseUrl) return route.customBaseUrl;
   const routeBaseUrl = readRouteEnv(route, "BASE_URL");
   if (routeBaseUrl) return routeBaseUrl;
   if (route.id === "mimo" && apiKey?.startsWith("tp-")) return "https://token-plan-cn.xiaomimimo.com";
   if (isArkRoute(route) && apiKey?.startsWith("ark-")) return "https://ark.cn-beijing.volces.com/api/v3";
   return readOptionalEnv("AI_LLM_BASE_URL") ?? readOptionalEnv("OPENAI_BASE_URL") ?? "https://api.openai.com";
+}
+
+function buildChatHeaders(apiKey: string | undefined): HeadersInit {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+  return headers;
 }
 
 function buildChatCompletionsUrl(baseUrl: string): string {
@@ -624,6 +701,9 @@ function isArkRoute(route: ModelRoute): boolean {
 }
 
 function extractTextFromResponse(raw: string): string {
+  const sseText = extractTextFromServerSentEvents(raw);
+  if (sseText !== undefined) return sseText;
+
   let data: unknown;
   try {
     data = JSON.parse(raw);
@@ -668,6 +748,40 @@ function extractTextFromResponse(raw: string): string {
   throw new Error("LLM response did not contain text.");
 }
 
+function extractTextFromServerSentEvents(raw: string): string | undefined {
+  if (!/^\s*data:/m.test(raw)) return undefined;
+
+  let output = "";
+  for (const line of raw.split(/\r?\n/)) {
+    const clean = line.trim();
+    if (!clean.startsWith("data:")) continue;
+    const data = clean.slice("data:".length).trim();
+    if (!data || data === "[DONE]") continue;
+    try {
+      const parsed = JSON.parse(data) as {
+        choices?: Array<{
+          delta?: { content?: string };
+          message?: { content?: string };
+          text?: string;
+        }>;
+        output_text?: string;
+      };
+      const delta =
+        parsed.choices?.map((choice) => choice.delta?.content ?? choice.message?.content ?? choice.text ?? "").join("") ??
+        parsed.output_text ??
+        "";
+      output += delta;
+    } catch {
+      // Ignore non-JSON stream control lines from OpenAI-compatible gateways.
+    }
+  }
+
+  if (!output.trim()) {
+    throw new Error("LLM SSE response did not contain text.");
+  }
+  return output;
+}
+
 function readOptionalEnv(key: string): string | undefined {
   const value = process.env[key]?.trim();
   return value ? value : undefined;
@@ -687,8 +801,12 @@ function readNonNegativeNumberEnv(key: string, fallback: number): number {
   return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
-function sanitizeLlmError(message: string): string {
-  return message.replace(/sk-[A-Za-z0-9_-]+/g, "sk-***").replace(/tp-[A-Za-z0-9_-]+/g, "tp-***");
+function sanitizeLlmError(message: string, apiKey?: string): string {
+  let clean = message.replace(/sk-[A-Za-z0-9_-]+/g, "sk-***").replace(/tp-[A-Za-z0-9_-]+/g, "tp-***");
+  if (apiKey && apiKey.length >= 8) {
+    clean = clean.split(apiKey).join("***");
+  }
+  return clean;
 }
 
 function isResponseFormatUnsupported(raw: string): boolean {

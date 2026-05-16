@@ -157,6 +157,8 @@ describe("game api routes", () => {
     expect(view.review?.voteImpacts.some((impact) => impact.description.includes("终局身份") || impact.outcome === "tie")).toBe(true);
     expect(view.reviewDebug?.aiCalls.length).toBeGreaterThan(0);
     expect(view.reviewDebug?.aiCalls.some((call) => call.publicFactBasis.length > 0)).toBe(true);
+    expect(view.reviewDebug?.aiCalls.some((call) => call.outputSummary || call.decisionReason)).toBe(true);
+    expect(view.reviewDebug?.matchedPublicLogicCount).toBeGreaterThanOrEqual(0);
     expect(JSON.stringify(view.reviewDebug?.aiCalls.flatMap((call) => call.publicFactBasis))).not.toMatch(
       /真实身份|狼队友|privateKnowledge|ROLE_ASSIGNED/,
     );
@@ -204,6 +206,8 @@ function commandFromAction(action: AvailableHumanAction): Record<string, unknown
         return { type: "witchAction", mode: "poison", targetSeatId: action.poisonTargets[0].seatId };
       }
       return { type: "witchAction", mode: "skip" };
+    case "wolfBeautyCharm":
+      return action.targets[0] ? { type: "wolfBeautyCharm", targetSeatId: action.targets[0].seatId } : { type: "wolfBeautyCharm" };
     case "speak":
       return { type: "speak", message: "我先按公开发言和票型判断，重点看谁在回避信息。" };
     case "sheriffSpeech":
@@ -222,7 +226,17 @@ function commandFromAction(action: AvailableHumanAction): Record<string, unknown
       return action.targets[0]
         ? { type: "hunterShoot", targetSeatId: action.targets[0].seatId }
         : { type: "hunterShoot" };
+    case "wolfKingShoot":
+      return action.targets[0]
+        ? { type: "wolfKingShoot", targetSeatId: action.targets[0].seatId }
+        : { type: "wolfKingShoot" };
+    case "whiteWolfKingExplode":
+      return { type: "whiteWolfKingExplode", targetSeatId: action.targets[0].seatId };
+    case "knightDuel":
+      return action.targets[0] ? { type: "knightDuel", targetSeatId: action.targets[0].seatId } : { type: "knightDuel" };
     case "continue":
       return { type: "continue" };
   }
+
+  throw new Error(`Unsupported action type: ${(action as { type: string }).type}`);
 }
