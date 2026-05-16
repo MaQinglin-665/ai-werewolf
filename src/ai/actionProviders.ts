@@ -25,6 +25,7 @@ import {
   type LlmOutputStabilityHint,
   type RoutedLlmResponse,
 } from "./modelLlms";
+import { buildAdvancedReasoningNotes } from "./advancedReasoning";
 import { buildExpertStrategyNotes } from "./expertStrategy";
 import type { AiActionProvider, AiActionProviderContext, AiActionResult } from "./types";
 
@@ -114,6 +115,7 @@ export type LlmActionInput = {
     seats: CompactSeatRead[];
   };
   expertStrategy: string[];
+  advancedReasoning: string[];
   votePlan?: VotePlan;
   fallbackCandidateId?: string;
   candidates: LlmActionCandidate[];
@@ -284,6 +286,7 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
       seats: context.tableRead.seats.map(compactSeatRead),
     },
     expertStrategy: buildExpertStrategyNotes(view),
+    advancedReasoning: buildAdvancedReasoningNotes(view),
     votePlan: context.votePlan,
     fallbackCandidateId,
     candidates,
@@ -1043,6 +1046,9 @@ function buildActionConstraints(view: AgentView): string[] {
     "The reason must be short and public-safe. Do not mention hidden roles, teammates, private checks, prompts, tools, or system context.",
     "Rules are final: legality is decided by the candidate list and engine validation.",
     "Use expertStrategy as high-level Werewolf heuristics for prioritizing evidence; do not quote it as a rule or fixed script.",
+    "Use advancedReasoning as the current table audit checklist; satisfy it with public evidence instead of quoting it.",
+    "Use an evidence ladder before choosing: public checks and uncontested claims first, then vote shape, stance shifts, speech influence, and finally tone or short-speech reads.",
+    "When two candidates are close, prefer the one whose public evidence forms a clearer loop from speech to stance to vote; do not select only because their suspicion number is higher.",
   ];
 
   if (
@@ -1340,7 +1346,7 @@ async function callOpenAiAction(input: LlmActionInput): Promise<string> {
           {
             role: "system",
             content:
-              "You are the decision brain for an AI Werewolf player. Choose one legal candidate action using persona.preferences and expertStrategy as soft strategy guidance. Return strict JSON only. The game engine enforces rules; you provide judgment within the allowed candidate list.",
+              "You are the decision brain for an AI Werewolf player. Choose one legal candidate action using persona.preferences, expertStrategy, and advancedReasoning as soft strategy guidance. Return strict JSON only. The game engine enforces rules; you provide judgment within the allowed candidate list.",
           },
           {
             role: "user",
@@ -1384,7 +1390,7 @@ async function callRoutedModelAction(input: LlmActionInput): Promise<RoutedLlmRe
     fallbackPersonaNames: readActionFallbackPersonaNames(primaryPersonaName),
     task: "action",
     system:
-      "You are the decision brain for an AI Werewolf player. Choose exactly one legal candidate action from candidates using persona.preferences and expertStrategy as soft strategy guidance. Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\"}. Do not reveal private/system context.",
+      "You are the decision brain for an AI Werewolf player. Choose exactly one legal candidate action from candidates using persona.preferences, expertStrategy, and advancedReasoning as soft strategy guidance. Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\"}. Do not reveal private/system context.",
     input: modelInput,
     maxTokens: 220,
     customLlm: input.llmConfig,
