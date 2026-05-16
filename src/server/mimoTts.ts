@@ -136,6 +136,7 @@ export function sanitizeTtsError(message: string): string {
 
 export function buildMimoChatCompletionsUrl(baseUrl: string): string {
   const cleanBaseUrl = baseUrl.replace(/\/+$/, "");
+  if (cleanBaseUrl.endsWith("/chat/completions")) return cleanBaseUrl;
   const versionedBaseUrl = cleanBaseUrl.endsWith("/v1") ? cleanBaseUrl : `${cleanBaseUrl}/v1`;
   return `${versionedBaseUrl}/chat/completions`;
 }
