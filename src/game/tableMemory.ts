@@ -23,7 +23,18 @@ export function buildTableMemory(state: GameState): TableMemory {
   const seerLegacies = buildSeerLegacies(state, claimBoard, stanceBoard, voteHistory);
   const speechInfluence = buildSpeechInfluence(stanceBoard);
   const deathAnnouncements = state.events
-    .filter((event) => event.type === "DAY_STARTED" || event.type === "PLAYER_EXILED" || event.type === "HUNTER_SHOT")
+    .filter(
+      (event) =>
+        event.type === "DAY_STARTED" ||
+        event.type === "PLAYER_EXILED" ||
+        event.type === "IDIOT_REVEALED" ||
+        event.type === "HUNTER_SHOT" ||
+        event.type === "WOLF_KING_SHOT" ||
+        event.type === "WHITE_WOLF_KING_EXPLODED" ||
+        event.type === "WOLF_BEAUTY_CHARM_TRIGGERED" ||
+        event.type === "KNIGHT_DUEL_SUCCESS" ||
+        event.type === "KNIGHT_DUEL_FAILED",
+    )
     .slice(-8)
     .map((event) => event.message);
   const seats = buildSeatMemories(state, claimBoard, stanceBoard);
@@ -143,35 +154,87 @@ function buildStanceShifts(stanceBoard: StanceBoardItem[]): StanceShiftItem[] {
   }
 
   const shifts: StanceShiftItem[] = [];
+  const shiftKeys = new Set<string>();
+  const pushShift = (previous: StanceBoardItem, current: StanceBoardItem) => {
+    const key = [
+      previous.actor.seatId,
+      previous.target.seatId,
+      current.target.seatId,
+      previous.kind,
+      current.kind,
+      previous.day,
+      current.day,
+      previous.sourceSpeechSeq ?? "NA",
+      current.sourceSpeechSeq ?? "NA",
+    ].join(":");
+    if (shiftKeys.has(key)) return;
+    shiftKeys.add(key);
+    shifts.push({
+      actor: previous.actor,
+      target: current.target,
+      fromTarget: previous.target,
+      toTarget: current.target,
+      fromKind: previous.kind,
+      fromKindLabel: previous.kindLabel,
+      toKind: current.kind,
+      toKindLabel: current.kindLabel,
+      fromDay: previous.day,
+      toDay: current.day,
+      summary:
+        previous.target.seatId === current.target.seatId
+          ? `${previous.actor.name}从${previous.kindLabel}${previous.target.name}改为${current.kindLabel}${current.target.name}`
+          : `${previous.actor.name}从${previous.kindLabel}${previous.target.name}转向${current.kindLabel}${current.target.name}`,
+    });
+  };
+
   for (const stances of byActorTarget.values()) {
     const sorted = [...stances].sort((a, b) => a.day - b.day || (a.sourceSpeechSeq ?? 0) - (b.sourceSpeechSeq ?? 0));
     for (let index = 1; index < sorted.length; index += 1) {
       const previous = sorted[index - 1];
       const current = sorted[index];
       if (!previous || !current || previous.kind === current.kind) continue;
+      if (!isLaterStance(previous, current)) continue;
       if (isMeaningfulShift(previous.kind, current.kind)) {
-        shifts.push({
-          actor: previous.actor,
-          target: previous.target,
-          fromKind: previous.kind,
-          fromKindLabel: previous.kindLabel,
-          toKind: current.kind,
-          toKindLabel: current.kindLabel,
-          fromDay: previous.day,
-          toDay: current.day,
-          summary: `${previous.actor.name}从${previous.kindLabel}${previous.target.name}改为${current.kindLabel}${current.target.name}`,
-        });
+        pushShift(previous, current);
       }
     }
   }
 
-  return shifts.slice(-8);
+  const byActorRole = new Map<string, StanceBoardItem[]>();
+  for (const stance of stanceBoard) {
+    if (!stance.targetRole) continue;
+    const key = `${stance.actor.seatId}:${stance.targetRole}`;
+    byActorRole.set(key, [...(byActorRole.get(key) ?? []), stance]);
+  }
+
+  for (const stances of byActorRole.values()) {
+    const sorted = [...stances].sort((a, b) => a.day - b.day || (a.sourceSpeechSeq ?? 0) - (b.sourceSpeechSeq ?? 0));
+    for (let index = 1; index < sorted.length; index += 1) {
+      const previous = sorted[index - 1];
+      const current = sorted[index];
+      if (!previous || !current) continue;
+      if (isRoleSideShift(previous, current)) {
+        pushShift(previous, current);
+      }
+    }
+  }
+
+  return shifts
+    .sort((a, b) => a.toDay - b.toDay || (a.toTarget?.seatId ?? a.target.seatId) - (b.toTarget?.seatId ?? b.target.seatId))
+    .slice(-8);
 }
 
 function buildSeatMemories(state: GameState, claimBoard: ClaimBoardItem[], stanceBoard: StanceBoardItem[]): SeatMemory[] {
   return state.seats.map((seat) => {
     const speeches = state.speeches.filter((speech) => speech.seatId === seat.seatId);
     const lastSpeech = speeches.at(-1);
+    const lastSpeechEvent = [...state.events]
+      .reverse()
+      .find(
+        (event) =>
+          (event.type === "SPEECH_CREATED" || event.type === "LAST_WORDS_CREATED") &&
+          (readNumber(event, "seatId") ?? event.actorSeatId) === seat.seatId,
+      );
     const claims = claimBoard.filter((claim) => claim.claimant.seatId === seat.seatId);
     const stancesGiven = stanceBoard.filter((stance) => stance.actor.seatId === seat.seatId);
     const stancedBy = stanceBoard.filter((stance) => stance.target.seatId === seat.seatId);
@@ -205,6 +268,7 @@ function buildSeatMemories(state: GameState, claimBoard: ClaimBoardItem[], stanc
       evasiveSpeechCount,
       lastSpeech: lastSpeech?.message,
       lastSpeechDay: lastSpeech?.day,
+      lastSpeechSeq: lastSpeechEvent?.seq,
       claims,
       stancesGiven,
       stancedBy,
@@ -360,14 +424,17 @@ function buildReasoningCues(
       evidence: item.followupActors.map((actor) => `${actor.name}后续继续${item.direction === "pressure" ? "施压" : "支持"}${item.target.name}`),
     })),
     ...stanceShifts.slice(-4).map((shift) => ({
-      cueId: `stance-shift:${shift.actor.seatId}:${shift.target.seatId}:${shift.fromDay}:${shift.toDay}`,
+      cueId: `stance-shift:${shift.actor.seatId}:${shift.fromTarget?.seatId ?? shift.target.seatId}:${shift.toTarget?.seatId ?? shift.target.seatId}:${shift.fromDay}:${shift.toDay}`,
       day: shift.toDay,
       kind: "stance_shift" as const,
       weight: "medium" as const,
       summary: shift.summary,
       actor: shift.actor,
-      target: shift.target,
-      evidence: [`D${shift.fromDay}${shift.fromKindLabel}${shift.target.name}`, `D${shift.toDay}改为${shift.toKindLabel}${shift.target.name}`],
+      target: shift.toTarget ?? shift.target,
+      evidence: [
+        `D${shift.fromDay}${shift.fromKindLabel}${shift.fromTarget?.name ?? shift.target.name}`,
+        `D${shift.toDay}改为${shift.toKindLabel}${shift.toTarget?.name ?? shift.target.name}`,
+      ],
     })),
     ...(latestVote
       ? [
@@ -516,6 +583,24 @@ function isMeaningfulShift(fromKind: StanceBoardItem["kind"], toKind: StanceBoar
   return (positive.has(fromKind) && negative.has(toKind)) || (negative.has(fromKind) && positive.has(toKind));
 }
 
+function isRoleSideShift(previous: StanceBoardItem, current: StanceBoardItem): boolean {
+  if (!previous.targetRole || previous.targetRole !== current.targetRole) return false;
+  if (previous.target.seatId === current.target.seatId) return false;
+  if (!isLaterStance(previous, current)) return false;
+
+  const positive = new Set(["SUPPORT", "FOLLOW"]);
+  const negative = new Set(["QUESTION", "PRESSURE"]);
+  if (positive.has(previous.kind) && positive.has(current.kind)) return true;
+  return isMeaningfulShift(previous.kind, current.kind) && (positive.has(previous.kind) || positive.has(current.kind) || negative.has(current.kind));
+}
+
+function isLaterStance(previous: StanceBoardItem, current: StanceBoardItem): boolean {
+  if (current.day > previous.day) return true;
+  if (current.day < previous.day) return false;
+  if (previous.sourceSpeechSeq === undefined || current.sourceSpeechSeq === undefined) return true;
+  return current.sourceSpeechSeq > previous.sourceSpeechSeq;
+}
+
 function readTallyItems(state: GameState, event: GameEvent): TableMemory["voteHistory"][number]["tally"] {
   const rawTally = Array.isArray(event.payload.tally) ? event.payload.tally : [];
   return rawTally
@@ -576,7 +661,7 @@ function summarizeClaim(role: Role, checks: ClaimBoardItem["checks"]): string {
 }
 
 function roleSort(role: Role): number {
-  const order: Role[] = ["SEER", "WITCH", "HUNTER", "VILLAGER", "WEREWOLF"];
+  const order: Role[] = ["SEER", "WITCH", "HUNTER", "IDIOT", "KNIGHT", "GUARD", "VILLAGER", "WHITE_WOLF_KING", "WOLF_BEAUTY", "WOLF_KING", "WEREWOLF"];
   return order.indexOf(role);
 }
 

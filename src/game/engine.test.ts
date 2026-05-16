@@ -13,7 +13,16 @@ import { buildAgentView, buildHumanView } from "./projection";
 import { buildGameReview } from "./review";
 import { stripSpeechStageDirections } from "./speechText";
 import { buildTableMemory } from "./tableMemory";
-import { applyCommand, applySystemStep, createGame, evaluateWinCondition, getSeat, hydrateGameState } from "./engine";
+import {
+  applyCommand,
+  applySystemStep,
+  canSeatVote,
+  createGame,
+  evaluateWinCondition,
+  getSeat,
+  hydrateGameState,
+  isIdiotRevealed,
+} from "./engine";
 
 describe("game engine", () => {
   it("assigns the 9-player preset role counts", () => {
@@ -142,6 +151,92 @@ describe("game engine", () => {
     expect(state.phase).toBe("DAY_ANNOUNCEMENT");
   });
 
+  it("allows first-night witch self save", () => {
+    let state = createGame({ seed: 4 });
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    const witch = state.seats.find((seat) => seat.role === "WITCH")!;
+
+    state = applyCommand(state, {
+      type: "wolfKill",
+      actorSeatId: wolf.seatId,
+      targetSeatId: witch.seatId,
+    });
+    state.phase = "NIGHT_WITCH";
+
+    const view = buildAgentView(state, witch.seatId);
+    const action = view.allowedActions.find((item) => item.type === "witchAction");
+    expect(action).toBeDefined();
+    if (!action || action.type !== "witchAction") throw new Error("missing witch action");
+    expect(action.canSave).toBe(true);
+    expect(action.saveTarget?.seatId).toBe(witch.seatId);
+    expect(action.saveBlockedReason).toBeUndefined();
+
+    state = applyCommand(state, { type: "witchAction", actorSeatId: witch.seatId, mode: "save" });
+    expect(state.witch.antidoteAvailable).toBe(false);
+    expect(getSeat(state, witch.seatId).alive).toBe(true);
+  });
+
+  it("forbids witch self save after the first night while still showing the knife target", () => {
+    let state = createGame({ seed: 4 });
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    const witch = state.seats.find((seat) => seat.role === "WITCH")!;
+    state.day = 2;
+
+    state = applyCommand(state, {
+      type: "wolfKill",
+      actorSeatId: wolf.seatId,
+      targetSeatId: witch.seatId,
+    });
+    state.phase = "NIGHT_WITCH";
+
+    const view = buildAgentView(state, witch.seatId);
+    const action = view.allowedActions.find((item) => item.type === "witchAction");
+    expect(action).toBeDefined();
+    if (!action || action.type !== "witchAction") throw new Error("missing witch action");
+    expect(action.canSave).toBe(false);
+    expect(action.saveTarget?.seatId).toBe(witch.seatId);
+    expect(action.saveBlockedReason).toMatch(/第二夜起不能自救/);
+
+    expect(() => applyCommand(state, { type: "witchAction", actorSeatId: witch.seatId, mode: "save" })).toThrow(
+      /第二夜起不能自救/,
+    );
+    expect(state.witch.antidoteAvailable).toBe(true);
+  });
+
+  it("hides the wolf target from witch after the antidote is spent", () => {
+    let state = createGame({ seed: 4 });
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    const witch = state.seats.find((seat) => seat.role === "WITCH")!;
+    const firstVictim = state.seats.find((seat) => seat.role !== "WEREWOLF" && seat.seatId !== witch.seatId)!;
+
+    state = applyCommand(state, {
+      type: "wolfKill",
+      actorSeatId: wolf.seatId,
+      targetSeatId: firstVictim.seatId,
+    });
+    state.phase = "NIGHT_WITCH";
+    state = applyCommand(state, { type: "witchAction", actorSeatId: witch.seatId, mode: "save" });
+
+    state.day = 2;
+    state.phase = "NIGHT_WOLVES";
+    state.night = {};
+    state = applyCommand(state, {
+      type: "wolfKill",
+      actorSeatId: wolf.seatId,
+      targetSeatId: firstVictim.seatId,
+    });
+    state.phase = "NIGHT_WITCH";
+
+    const view = buildAgentView(state, witch.seatId);
+    const action = view.allowedActions.find((item) => item.type === "witchAction");
+    expect(view.privateKnowledge.witch?.currentVictim).toBeUndefined();
+    expect(action).toBeDefined();
+    if (!action || action.type !== "witchAction") throw new Error("missing witch action");
+    expect(action.canSave).toBe(false);
+    expect(action.saveTarget).toBeUndefined();
+    expect(action.canPoison).toBe(true);
+  });
+
   it("enforces guard protection rules and same-target save conflict", () => {
     let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 4 });
     const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
@@ -165,6 +260,111 @@ describe("game engine", () => {
     state = applyCommand(state, { type: "witchAction", actorSeatId: witch.seatId, mode: "save" });
     expect(getSeat(state, victim.seatId).alive).toBe(false);
     expect(getSeat(state, victim.seatId).deathReason).toBe("WOLF_KILL");
+  });
+
+  it("runs wolf beauty after the wolf kill and keeps her on the wolf check result", () => {
+    let state = createGame({ boardId: "12p-sheriff-wolf-beauty-knight", seed: 4 });
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    const wolfBeauty = state.seats.find((seat) => seat.role === "WOLF_BEAUTY")!;
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const witch = state.seats.find((seat) => seat.role === "WITCH")!;
+    const victim = state.seats.find((seat) => seat.role === "VILLAGER")!;
+    const charmTarget = state.seats.find((seat) => seat.role === "VILLAGER" && seat.seatId !== victim.seatId)!;
+
+    state = applyCommand(state, { type: "wolfKill", actorSeatId: wolf.seatId, targetSeatId: victim.seatId });
+    expect(state.phase).toBe("NIGHT_WOLF_BEAUTY");
+
+    const beautyView = buildAgentView(state, wolfBeauty.seatId);
+    const charmAction = beautyView.allowedActions.find((action) => action.type === "wolfBeautyCharm");
+    expect(charmAction).toBeDefined();
+
+    state = applyCommand(state, {
+      type: "wolfBeautyCharm",
+      actorSeatId: wolfBeauty.seatId,
+      targetSeatId: charmTarget.seatId,
+    });
+    expect(state.night.wolfBeautyTargetSeatId).toBe(charmTarget.seatId);
+    expect(state.phase).toBe("NIGHT_SEER");
+
+    state = applyCommand(state, { type: "seerCheck", actorSeatId: seer.seatId, targetSeatId: wolfBeauty.seatId });
+    expect(state.seerChecks.at(-1)).toMatchObject({
+      targetSeatId: wolfBeauty.seatId,
+      result: "WEREWOLF",
+    });
+
+    state = applyCommand(state, { type: "witchAction", actorSeatId: witch.seatId, mode: "skip" });
+    expect(getSeat(state, victim.seatId).alive).toBe(false);
+    expect(getSeat(state, charmTarget.seatId).alive).toBe(true);
+  });
+
+  it("kills the wolf beauty charm target when wolf beauty is exiled", () => {
+    let state = createGame({ boardId: "12p-sheriff-wolf-beauty-knight", seed: 5 });
+    const wolfBeauty = state.seats.find((seat) => seat.role === "WOLF_BEAUTY")!;
+    const charmTarget = state.seats.find((seat) => seat.role === "VILLAGER")!;
+
+    state.night.wolfBeautyTargetSeatId = charmTarget.seatId;
+    state.sheriff!.resolved = true;
+    state.phase = "EXILE_RESOLUTION";
+    state.votes = Object.fromEntries(
+      state.seats.filter((seat) => seat.alive).map((seat) => [String(seat.seatId), wolfBeauty.seatId]),
+    );
+
+    state = applySystemStep(state);
+
+    expect(getSeat(state, wolfBeauty.seatId).alive).toBe(false);
+    expect(getSeat(state, wolfBeauty.seatId).deathReason).toBe("EXILED");
+    expect(getSeat(state, charmTarget.seatId).alive).toBe(false);
+    expect(getSeat(state, charmTarget.seatId).deathReason).toBe("WOLF_BEAUTY_CHARM");
+    expect(state.events.at(-1)).toMatchObject({
+      type: "WOLF_BEAUTY_CHARM_TRIGGERED",
+      payload: { wolfBeautySeatId: wolfBeauty.seatId, targetSeatId: charmTarget.seatId },
+    });
+  });
+
+  it("offers knight duel after speeches and kills a wolf on success", () => {
+    let state = createGame({ boardId: "12p-sheriff-wolf-beauty-knight", seed: 6 });
+    const knight = state.seats.find((seat) => seat.role === "KNIGHT")!;
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+
+    state.sheriff!.resolved = true;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [knight.seatId];
+    state.speechIndex = 0;
+
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: knight.seatId,
+      message: "我最后发言，下一步需要给骑士一个决斗窗口。",
+    });
+    state = applySystemStep(state);
+
+    expect(state.phase).toBe("KNIGHT_DUEL");
+    expect(buildAgentView(state, knight.seatId).allowedActions.some((action) => action.type === "knightDuel")).toBe(true);
+
+    state = applyCommand(state, { type: "knightDuel", actorSeatId: knight.seatId, targetSeatId: wolf.seatId });
+
+    expect(state.knight?.used).toBe(true);
+    expect(getSeat(state, knight.seatId).alive).toBe(true);
+    expect(getSeat(state, wolf.seatId).alive).toBe(false);
+    expect(getSeat(state, wolf.seatId).deathReason).toBe("KNIGHT_DUEL");
+    expect(state.phase).toBe("NIGHT_WOLVES");
+  });
+
+  it("kills the knight and continues to voting when the duel target is good", () => {
+    let state = createGame({ boardId: "12p-sheriff-wolf-beauty-knight", seed: 7 });
+    const knight = state.seats.find((seat) => seat.role === "KNIGHT")!;
+    const villager = state.seats.find((seat) => seat.role === "VILLAGER")!;
+
+    state.sheriff!.resolved = true;
+    state.phase = "KNIGHT_DUEL";
+
+    state = applyCommand(state, { type: "knightDuel", actorSeatId: knight.seatId, targetSeatId: villager.seatId });
+
+    expect(state.knight?.used).toBe(true);
+    expect(getSeat(state, knight.seatId).alive).toBe(false);
+    expect(getSeat(state, knight.seatId).deathReason).toBe("KNIGHT_DUEL_FAILED");
+    expect(getSeat(state, villager.seatId).alive).toBe(true);
+    expect(state.phase).toBe("DAY_VOTE");
   });
 
   it("settles a guarded night as peaceful before sheriff nomination", () => {
@@ -267,6 +467,212 @@ describe("game engine", () => {
     };
     voteState = applySystemStep(voteState);
     expect(getSeat(voteState, target.seatId).alive).toBe(false);
+  });
+
+  it("keeps sheriff speeches in the speech feed without duplicating them in the public log", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 22 });
+    state.phase = "SHERIFF_SPEECH";
+    state.sheriff = {
+      candidates: [1, 2],
+      nominationDecisions: {},
+      withdrawnSeatIds: [],
+      withdrawalDecisions: {},
+      votes: {},
+      speechQueue: [1, 2],
+      speechIndex: 0,
+      resolved: false,
+    };
+
+    state = applyCommand(state, { type: "sheriffSpeech", actorSeatId: 1, message: "我先上警拿警徽。" });
+    const view = buildHumanView(state);
+
+    expect(view.tableSummary.recentSpeeches.at(-1)).toMatchObject({
+      speaker: { seatId: 1 },
+      message: "我先上警拿警徽。",
+    });
+    expect(view.publicEvents.some((event) => event.type === "SPEECH_CREATED" && event.payload.sheriffSpeech === true)).toBe(false);
+  });
+
+  it("records role claims made during sheriff speeches", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 22 });
+    state.phase = "SHERIFF_SPEECH";
+    state.sheriff = {
+      candidates: [1],
+      nominationDecisions: {},
+      withdrawnSeatIds: [],
+      withdrawalDecisions: {},
+      votes: {},
+      speechQueue: [1],
+      speechIndex: 0,
+      resolved: false,
+    };
+
+    state = applyCommand(state, { type: "sheriffSpeech", actorSeatId: 1, message: "我拍猎人，警上先压住归票。" });
+
+    expect(state.roleClaims[0]).toMatchObject({
+      claimantSeatId: 1,
+      claimedRole: "HUNTER",
+      strength: "hard",
+    });
+    expect(state.events.at(-1)).toMatchObject({ type: "ROLE_CLAIMED", actorSeatId: 1 });
+  });
+
+  it("renders AI sheriff speeches through the speech provider", async () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", humanSeatId: null, seed: 25 });
+    state.phase = "SHERIFF_SPEECH";
+    state.sheriff = {
+      candidates: [1, 2],
+      nominationDecisions: {},
+      withdrawnSeatIds: [],
+      withdrawalDecisions: {},
+      votes: {},
+      speechQueue: [1, 2],
+      speechIndex: 0,
+      resolved: false,
+    };
+
+    const advanced = await advanceOneAiStep(state, {
+      speechProvider: {
+        providerId: "test-sheriff-speech",
+        async generateSpeech() {
+          return {
+            speech: "我警上发言会围绕昨夜情况和后续票型来拿警徽。",
+            provider: "test-sheriff-speech",
+            isFallback: false,
+          };
+        },
+      },
+    });
+
+    expect(advanced.state.events.at(-1)).toMatchObject({
+      type: "SPEECH_CREATED",
+      payload: { sheriffSpeech: true, message: "我警上发言会围绕昨夜情况和后续票型来拿警徽。" },
+    });
+    expect(advanced.aiLogs[0]).toMatchObject({
+      provider: "test-sheriff-speech",
+      output: { type: "sheriffSpeech", message: "我警上发言会围绕昨夜情况和后续票型来拿警徽。" },
+    });
+  });
+
+  it("projects sheriff vote results and keeps the dawn report after the election", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 26 });
+    const victim = state.seats.find((seat) => seat.role !== "HUNTER")!;
+    state = applyCommand(state, { type: "wolfKill", actorSeatId: state.seats.find((seat) => seat.role === "WEREWOLF")!.seatId, targetSeatId: victim.seatId });
+    state = applyCommand(state, { type: "guardAction", actorSeatId: state.seats.find((seat) => seat.role === "GUARD")!.seatId });
+    state = applyCommand(state, { type: "seerCheck", actorSeatId: state.seats.find((seat) => seat.role === "SEER")!.seatId, targetSeatId: 2 });
+    state = applyCommand(state, { type: "witchAction", actorSeatId: state.seats.find((seat) => seat.role === "WITCH")!.seatId, mode: "skip" });
+    state = applySystemStep(state);
+
+    const candidates = state.seats.filter((seat) => seat.alive).slice(0, 2).map((seat) => seat.seatId);
+    state.phase = "SHERIFF_VOTE";
+    state.sheriff = {
+      candidates,
+      nominationDecisions: { [String(candidates[0])]: true, [String(candidates[1])]: true },
+      withdrawnSeatIds: [],
+      withdrawalDecisions: {},
+      votes: {},
+      speechQueue: [],
+      speechIndex: 0,
+      resolved: false,
+    };
+    const voters = state.seats.filter((seat) => seat.alive && !candidates.includes(seat.seatId));
+    for (const [index, voter] of voters.entries()) {
+      state = applyCommand(state, {
+        type: "sheriffVote",
+        actorSeatId: voter.seatId,
+        targetSeatId: index < voters.length - 1 ? candidates[0] : candidates[1],
+      });
+    }
+    const view = buildHumanView(state);
+
+    expect(view.phase).toBe("DAY_SPEECH");
+    expect(view.sheriff?.badgeHolder?.seatId).toBe(candidates[0]);
+    expect(view.tableSummary.sheriffVoteSnapshot).toMatchObject({
+      revealed: true,
+      tally: [
+        { target: { seatId: candidates[0] }, count: voters.length - 1 },
+        { target: { seatId: candidates[1] }, count: 1 },
+      ],
+      leaders: [{ seatId: candidates[0] }],
+    });
+    expect(view.tableSummary.sheriffVoteSnapshot?.votes).toHaveLength(voters.length);
+    expect(view.tableSummary.sheriffVoteSnapshot?.votes.at(0)).toMatchObject({
+      voter: { seatId: voters[0].seatId },
+      target: { seatId: candidates[0] },
+    });
+    const dawnEvent = view.publicEvents.find((event) => event.type === "DAY_STARTED");
+    expect(dawnEvent?.message).toBeTruthy();
+  });
+
+  it("publicizes sheriff withdrawals only when a candidate actually withdraws", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 23 });
+    state.phase = "SHERIFF_WITHDRAWAL";
+    state.sheriff = {
+      candidates: [1, 2],
+      nominationDecisions: {},
+      withdrawnSeatIds: [],
+      withdrawalDecisions: {},
+      votes: {},
+      speechQueue: [],
+      speechIndex: 0,
+      resolved: false,
+    };
+
+    state = applyCommand(state, { type: "sheriffWithdraw", actorSeatId: 1, withdraw: false });
+    state = applyCommand(state, { type: "sheriffWithdraw", actorSeatId: 2, withdraw: true });
+
+    const withdrawalEvents = state.events.filter((event) => event.type === "SHERIFF_WITHDREW");
+    expect(withdrawalEvents[0]).toMatchObject({ visibility: "private", payload: { seatId: 1, withdraw: false } });
+    expect(withdrawalEvents[1]).toMatchObject({
+      visibility: "public",
+      message: "2号 选择退水。",
+      payload: { seatId: 2, withdraw: true },
+    });
+  });
+
+  it("batches AI sheriff voting instead of advancing one voter at a time", async () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", humanSeatId: null, seed: 24 });
+    state.phase = "SHERIFF_VOTE";
+    state.sheriff = {
+      candidates: [1, 2],
+      nominationDecisions: {},
+      withdrawnSeatIds: [],
+      withdrawalDecisions: {},
+      votes: {},
+      speechQueue: [],
+      speechIndex: 0,
+      resolved: false,
+    };
+
+    const advanced = await advanceOneAiStep(state);
+
+    expect(advanced.state.phase).not.toBe("SHERIFF_VOTE");
+    expect(Object.keys(advanced.state.sheriff?.votes ?? {})).toHaveLength(0);
+    expect(advanced.aiLogs.length).toBeGreaterThan(1);
+  });
+
+  it("batches AI sheriff nominations and reveals the stand list once", async () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", humanSeatId: null, seed: 27 });
+    state.phase = "SHERIFF_NOMINATION";
+    state.sheriff = {
+      candidates: [],
+      nominationDecisions: {},
+      withdrawnSeatIds: [],
+      withdrawalDecisions: {},
+      votes: {},
+      speechQueue: [],
+      speechIndex: 0,
+      resolved: false,
+    };
+
+    const advanced = await advanceOneAiStep(state);
+    const view = buildHumanView(advanced.state);
+    const revealEvent = view.publicEvents.find((event) => event.type === "SHERIFF_NOMINATION_REVEALED");
+
+    expect(advanced.state.phase).not.toBe("SHERIFF_NOMINATION");
+    expect(advanced.aiLogs.length).toBeGreaterThan(1);
+    expect(revealEvent?.message).toContain("选择上警");
+    expect(view.publicEvents.some((event) => event.type === "SHERIFF_NOMINATED")).toBe(false);
   });
 
   it("hands off or tears the badge after an exiled sheriff has last words", () => {
@@ -545,6 +951,204 @@ describe("game engine", () => {
     expect(state.events.some((event) => event.type === "LAST_WORDS_CREATED" && event.actorSeatId === target.seatId)).toBe(true);
   });
 
+  it("lets an exiled wolf king shoot before their last words", () => {
+    let state = createGame({ boardId: "12p-sheriff-wolf-king-seer-witch-hunter-guard", seed: 36 });
+    const wolfKing = state.seats.find((seat) => seat.role === "WOLF_KING")!;
+    const target = state.seats.find((seat) => seat.role === "VILLAGER" && seat.seatId !== wolfKing.seatId)!;
+    state.phase = "EXILE_RESOLUTION";
+    state.votes = Object.fromEntries(state.seats.map((seat) => [String(seat.seatId), wolfKing.seatId]));
+
+    state = applySystemStep(state);
+
+    expect(state.phase).toBe("WOLF_KING_SHOT");
+    expect(state.pendingWolfKingShot?.shooterSeatId).toBe(wolfKing.seatId);
+    expect(state.lastWordsQueue).toEqual([wolfKing.seatId]);
+    expect(buildHumanView(state).availableActions[0]?.type).toBe(
+      state.humanSeatId === wolfKing.seatId ? "wolfKingShoot" : "continue",
+    );
+
+    state = applyCommand(state, {
+      type: "wolfKingShoot",
+      actorSeatId: wolfKing.seatId,
+      targetSeatId: target.seatId,
+    });
+
+    expect(getSeat(state, target.seatId).deathReason).toBe("WOLF_KING_SHOT");
+    expect(state.phase).toBe("LAST_WORDS");
+    expect(state.lastWordsSeatId).toBe(wolfKing.seatId);
+    expect(state.lastWordsQueue).toEqual([target.seatId]);
+  });
+
+  it("treats wolf king as a wolf role for night actions and seer checks", () => {
+    let state = createGame({ boardId: "12p-sheriff-wolf-king-seer-witch-hunter-guard", seed: 37 });
+    const wolfKing = state.seats.find((seat) => seat.role === "WOLF_KING")!;
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const victim = state.seats.find((seat) => seat.role === "VILLAGER")!;
+
+    state = applyCommand(state, {
+      type: "wolfKill",
+      actorSeatId: wolfKing.seatId,
+      targetSeatId: victim.seatId,
+    });
+    expect(state.night.wolfTargetSeatId).toBe(victim.seatId);
+
+    state.phase = "NIGHT_SEER";
+    state = applyCommand(state, {
+      type: "seerCheck",
+      actorSeatId: seer.seatId,
+      targetSeatId: wolfKing.seatId,
+    });
+
+    expect(state.seerChecks.at(-1)).toEqual(
+      expect.objectContaining({
+        targetSeatId: wolfKing.seatId,
+        result: "WEREWOLF",
+      }),
+    );
+  });
+
+  it("lets the white wolf king self-explode during their day speech and immediately end the day", () => {
+    let state = createGame({ boardId: "12p-sheriff-white-wolf-king-seer-witch-hunter-guard", seed: 38 });
+    const whiteWolfKing = state.seats.find((seat) => seat.role === "WHITE_WOLF_KING")!;
+    const target = state.seats.find((seat) => seat.role === "SEER")!;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [whiteWolfKing.seatId, target.seatId];
+    state.speechIndex = 0;
+    state.humanSeatId = whiteWolfKing.seatId;
+    state.seats = state.seats.map((seat) => ({ ...seat, isAi: seat.seatId !== whiteWolfKing.seatId }));
+
+    expect(buildHumanView(state).availableActions.map((action) => action.type)).toEqual([
+      "speak",
+      "whiteWolfKingExplode",
+    ]);
+
+    state = applyCommand(state, {
+      type: "whiteWolfKingExplode",
+      actorSeatId: whiteWolfKing.seatId,
+      targetSeatId: target.seatId,
+      reason: "公开身份收益最高。",
+    });
+
+    expect(getSeat(state, whiteWolfKing.seatId).deathReason).toBe("WHITE_WOLF_KING_EXPLODE");
+    expect(getSeat(state, target.seatId).deathReason).toBe("WHITE_WOLF_KING_SHOT");
+    expect(state.events.some((event) => event.type === "WHITE_WOLF_KING_EXPLODED")).toBe(true);
+    expect(state.phase).toBe("NIGHT_WOLVES");
+    expect(state.day).toBe(2);
+    expect(state.lastWordsSeatId).toBeUndefined();
+  });
+
+  it("reveals the idiot instead of killing them when they are exiled", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-idiot", seed: 40 });
+    const idiot = state.seats.find((seat) => seat.role === "IDIOT")!;
+    state.phase = "EXILE_RESOLUTION";
+    state.votes = Object.fromEntries(state.seats.map((seat) => [String(seat.seatId), idiot.seatId]));
+
+    state = applySystemStep(state);
+
+    expect(getSeat(state, idiot.seatId).alive).toBe(true);
+    expect(getSeat(state, idiot.seatId).deathReason).toBeUndefined();
+    expect(isIdiotRevealed(state, idiot.seatId)).toBe(true);
+    expect(canSeatVote(state, idiot.seatId)).toBe(false);
+    expect(state.events.some((event) => event.type === "IDIOT_REVEALED" && event.actorSeatId === idiot.seatId)).toBe(true);
+    expect(state.events.some((event) => event.type === "PLAYER_EXILED" && event.payload.seatId === idiot.seatId)).toBe(false);
+    expect(state.phase).toBe("NIGHT_WOLVES");
+  });
+
+  it("keeps a revealed idiot in speeches but removes their vote and exile target actions", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-idiot", seed: 40 });
+    const idiot = state.seats.find((seat) => seat.role === "IDIOT")!;
+    const voter = state.seats.find((seat) => seat.role === "VILLAGER" && seat.seatId !== idiot.seatId)!;
+    state.idiot = { revealedSeatIds: [idiot.seatId] };
+    state.phase = "DAY_VOTE";
+    state.votes = {};
+    state.humanSeatId = voter.seatId;
+    state.seats = state.seats.map((seat) => ({ ...seat, isAi: seat.seatId !== voter.seatId }));
+
+    const view = buildHumanView(state);
+    expect(view.seats.find((seat) => seat.seatId === idiot.seatId)).toMatchObject({
+      role: "IDIOT",
+      roleLabel: "白痴",
+      voteDisabled: true,
+    });
+    expect(view.availableActions[0]).toMatchObject({ type: "vote" });
+    expect(view.availableActions[0]?.type === "vote" ? view.availableActions[0].targets.map((target) => target.seatId) : []).not.toContain(idiot.seatId);
+
+    expect(() =>
+      applyCommand(state, {
+        type: "vote",
+        actorSeatId: idiot.seatId,
+        targetSeatId: voter.seatId,
+      }),
+    ).toThrow("白痴翻牌后不能投票。");
+  });
+
+  it("kills the idiot normally from night deaths", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-idiot", seed: 40 });
+    const idiot = state.seats.find((seat) => seat.role === "IDIOT")!;
+    state.phase = "DAY_ANNOUNCEMENT";
+    state.night.wolfTargetSeatId = idiot.seatId;
+
+    state = applySystemStep(state);
+
+    expect(getSeat(state, idiot.seatId).alive).toBe(false);
+    expect(getSeat(state, idiot.seatId).deathReason).toBe("WOLF_KILL");
+    expect(state.events.some((event) => event.type === "IDIOT_REVEALED")).toBe(false);
+  });
+
+  it("triggers wolf beauty charm when white wolf king explodes into wolf beauty during the day", () => {
+    let state = createGame({ boardId: "12p-sheriff-white-wolf-king-seer-witch-hunter-guard", seed: 38 });
+    const whiteWolfKing = state.seats.find((seat) => seat.role === "WHITE_WOLF_KING")!;
+    const wolfBeauty = state.seats.find((seat) => seat.role === "WEREWOLF" && seat.seatId !== whiteWolfKing.seatId)!;
+    const charmTarget = state.seats.find((seat) => seat.role === "SEER")!;
+    wolfBeauty.role = "WOLF_BEAUTY";
+    state.rules.hasWolfBeauty = true;
+    if (!state.rules.wolfRoles.includes("WOLF_BEAUTY")) {
+      state.rules.wolfRoles.push("WOLF_BEAUTY");
+    }
+    state.night.wolfBeautyTargetSeatId = charmTarget.seatId;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [whiteWolfKing.seatId];
+    state.speechIndex = 0;
+
+    state = applyCommand(state, {
+      type: "whiteWolfKingExplode",
+      actorSeatId: whiteWolfKing.seatId,
+      targetSeatId: wolfBeauty.seatId,
+    });
+
+    expect(getSeat(state, wolfBeauty.seatId).deathReason).toBe("WHITE_WOLF_KING_SHOT");
+    expect(getSeat(state, charmTarget.seatId).deathReason).toBe("WOLF_BEAUTY_CHARM");
+    expect(state.events.some((event) => event.type === "WOLF_BEAUTY_CHARM_TRIGGERED")).toBe(true);
+  });
+
+  it("treats white wolf king as a wolf role for night actions and seer checks", () => {
+    let state = createGame({ boardId: "12p-sheriff-white-wolf-king-seer-witch-hunter-guard", seed: 39 });
+    const whiteWolfKing = state.seats.find((seat) => seat.role === "WHITE_WOLF_KING")!;
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const victim = state.seats.find((seat) => seat.role === "VILLAGER")!;
+
+    state = applyCommand(state, {
+      type: "wolfKill",
+      actorSeatId: whiteWolfKing.seatId,
+      targetSeatId: victim.seatId,
+    });
+    expect(state.night.wolfTargetSeatId).toBe(victim.seatId);
+
+    state.phase = "NIGHT_SEER";
+    state = applyCommand(state, {
+      type: "seerCheck",
+      actorSeatId: seer.seatId,
+      targetSeatId: whiteWolfKing.seatId,
+    });
+
+    expect(state.seerChecks.at(-1)).toEqual(
+      expect.objectContaining({
+        targetSeatId: whiteWolfKing.seatId,
+        result: "WEREWOLF",
+      }),
+    );
+  });
+
   it("offers the human vote immediately during simultaneous voting", () => {
     const state = createGame({ seed: 31 });
     state.phase = "DAY_VOTE";
@@ -724,6 +1328,7 @@ describe("game engine", () => {
       id: "strong-leader",
       name: "测试强势位",
       label: "强势带队型",
+      modelLabel: "测试模型",
       style: "表达直接，会主动归票和压迫可疑玩家。",
       goal: "抢占白天节奏。",
       riskTolerance: 0.68,
@@ -938,6 +1543,7 @@ describe("game engine", () => {
       id: "logic-checker",
       name: "DeepSeek",
       label: "逻辑校验型",
+      modelLabel: "测试模型",
       style: "先拆因果，再给结论。",
       goal: "校验公开信息。",
       riskTolerance: 0.42,
@@ -947,6 +1553,7 @@ describe("game engine", () => {
       id: "strong-leader",
       name: "豆包",
       label: "强势带队型",
+      modelLabel: "测试模型",
       style: "主动施压，要求回应。",
       goal: "收束票型。",
       riskTolerance: 0.72,
@@ -1053,7 +1660,7 @@ describe("game engine", () => {
     const view = buildAgentView(state, witch.seatId);
     const input = buildConstrainedSpeechInput(view, createSpeechPlan(view));
 
-    expect(input.privateContext.witch?.currentVictim?.seatId).toBe(victim.seatId);
+    expect(input.privateContext.witch?.currentVictim).toBeUndefined();
     expect(input.privateContext.witch?.savedTarget?.seatId).toBe(victim.seatId);
     expect(input.privateContext.witch?.antidoteUsedTonight).toBe(true);
     expect(input.speechPlan).toBeUndefined();
@@ -1068,6 +1675,7 @@ describe("game engine", () => {
       id: "god-leader-witch",
       name: "测试女巫",
       label: "强势带队型",
+      modelLabel: "测试模型",
       style: "会在关键身份压力下拍身份带队。",
       goal: "收束票型。",
       riskTolerance: 0.9,
@@ -1162,6 +1770,7 @@ describe("game engine", () => {
       id: "fake-god-villager",
       name: "测试挡刀民",
       label: "冒险挡刀型",
+      modelLabel: "测试模型",
       style: "会用身份口径替真神吸引夜刀。",
       goal: "保护神职空间。",
       riskTolerance: 0.92,
@@ -1677,6 +2286,20 @@ describe("game engine", () => {
     expect(seerState.roleClaims[0]?.checks).toEqual([
       expect.objectContaining({ targetSeatId: 9, result: "WEREWOLF" }),
     ]);
+
+    let numberedNameState = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 412 });
+    numberedNameState.phase = "DAY_SPEECH";
+    numberedNameState.speechQueue = [numberedNameState.humanSeatId];
+    numberedNameState.speechIndex = 0;
+    numberedNameState = applyCommand(numberedNameState, {
+      type: "speak",
+      actorSeatId: numberedNameState.humanSeatId,
+      message: "我跳预言家，10号Claude2是金水。",
+    });
+
+    expect(numberedNameState.roleClaims[0]?.checks).toEqual([
+      expect.objectContaining({ targetSeatId: 10, result: "GOOD" }),
+    ]);
   });
 
   it("does not treat discussing witch actions as a self witch claim", () => {
@@ -1692,6 +2315,25 @@ describe("game engine", () => {
     });
 
     expect(state.roleClaims).toHaveLength(0);
+  });
+
+  it("recognizes first-person potion wording as a soft witch claim", () => {
+    let state = createGame({ seed: 414 });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [state.humanSeatId];
+    state.speechIndex = 0;
+
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: state.humanSeatId,
+      message: "我先不急着拍身份。药还在，今天票型先别冲神坑。",
+    });
+
+    expect(state.roleClaims[0]).toMatchObject({
+      claimantSeatId: state.humanSeatId,
+      claimedRole: "WITCH",
+      strength: "soft",
+    });
   });
 
   it("does not treat confidence wording as a hunter claim", () => {
@@ -2166,6 +2808,7 @@ describe("game engine", () => {
       id: "bold-distance-wolf",
       name: "测试倒钩狼",
       label: "高风险倒钩型",
+      modelLabel: "测试模型",
       style: "敢卖队友做身份。",
       goal: "用公开身份线切割同边感。",
       riskTolerance: 0.95,
@@ -2226,5 +2869,5 @@ describe("game engine", () => {
     expect(stats.totalDays / 1000).toBeGreaterThan(0);
     expect(stats.fallbackCount).toBe(0);
     expect(stats.tiedVotes).toBeGreaterThanOrEqual(0);
-  }, 40000);
+  }, 90000);
 });

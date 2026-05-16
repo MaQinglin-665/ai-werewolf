@@ -80,6 +80,75 @@ button:disabled {
   z-index: 1;
 }
 
+.idiot-reveal-backdrop {
+  animation: idiot-reveal-fade 4200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.idiot-reveal-table {
+  background:
+    linear-gradient(180deg, rgba(8, 6, 5, 0.28), rgba(8, 6, 5, 0.86)),
+    url("/images/werewolf-table-bg.jpg") center / cover;
+  inset: 0;
+  opacity: 0.48;
+  position: absolute;
+  transform: scale(1.04);
+}
+
+.idiot-reveal-table::after {
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.64), transparent 34%, transparent 66%, rgba(0, 0, 0, 0.64)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0.74));
+  content: "";
+  inset: 0;
+  position: absolute;
+}
+
+.idiot-reveal-stage {
+  animation: idiot-reveal-stage 4200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.idiot-reveal-copy {
+  animation: idiot-reveal-copy 4200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  text-shadow: 0 18px 48px rgba(0, 0, 0, 0.72);
+}
+
+.idiot-reveal-card-scene {
+  aspect-ratio: 0.69;
+  max-height: min(58vh, 420px);
+  perspective: 1300px;
+  width: min(72vw, 290px);
+}
+
+.idiot-reveal-card {
+  animation: idiot-card-flip 4200ms cubic-bezier(0.18, 0.78, 0.22, 1) both;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  width: 100%;
+}
+
+.idiot-reveal-face {
+  backface-visibility: hidden;
+  background: #120c0a;
+  border-radius: 20px;
+  inset: 0;
+  overflow: hidden;
+  position: absolute;
+}
+
+.idiot-reveal-card-back {
+  border: 1px solid rgba(241, 199, 110, 0.36);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.64);
+}
+
+.idiot-reveal-card-front {
+  transform: rotateY(180deg);
+}
+
+.idiot-reveal-seat {
+  animation: idiot-reveal-seat 4200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .phase-curtain {
   --curtain-duration: 1300ms;
   --curtain-base: #0b101a;
@@ -403,6 +472,26 @@ button:disabled {
   box-shadow: 0 0 18px rgba(119, 216, 152, 0.55);
 }
 
+.table-stage {
+  contain: paint;
+}
+
+.table-stage-light {
+  animation: table-light-drift 14000ms cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  background:
+    radial-gradient(circle at 50% 43%, rgba(243, 192, 104, 0.2), transparent 40%),
+    radial-gradient(ellipse at 50% 50%, rgba(119, 216, 152, 0.08), transparent 46%),
+    linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.38));
+}
+
+.table-orbit {
+  perspective: 1200px;
+}
+
+.table-phase-core {
+  animation: table-core-settle 680ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .table-speech-feed {
   background:
     linear-gradient(180deg, rgba(15, 33, 24, 0.9), rgba(8, 20, 14, 0.86)),
@@ -503,6 +592,30 @@ button:disabled {
   scrollbar-color: rgba(119, 216, 152, 0.32) transparent;
 }
 
+.soft-scrollbar {
+  scrollbar-color: rgba(119, 216, 152, 0.34) rgba(4, 10, 7, 0.32);
+  scrollbar-width: thin;
+}
+
+.soft-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.soft-scrollbar::-webkit-scrollbar-track {
+  background: rgba(4, 10, 7, 0.32);
+  border-radius: 999px;
+}
+
+.soft-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(119, 216, 152, 0.34);
+  border: 2px solid rgba(4, 10, 7, 0.62);
+  border-radius: 999px;
+}
+
+.soft-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(119, 216, 152, 0.52);
+}
+
 .review-debug-pre {
   max-height: 220px;
   overflow: auto;
@@ -512,7 +625,29 @@ button:disabled {
 }
 
 .seat-token {
-  will-change: transform, box-shadow, border-color;
+  will-change: transform;
+}
+
+.seat-token-shell {
+  animation: seat-token-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--seat-index, 0) * 38ms);
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  transition:
+    border-color 220ms ease,
+    box-shadow 260ms ease,
+    filter 260ms ease,
+    opacity 220ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, box-shadow, border-color, filter;
+}
+
+.seat-token:hover .seat-token-shell {
+  border-color: rgba(241, 199, 110, 0.52);
+  box-shadow:
+    0 20px 42px rgba(0, 0, 0, 0.42),
+    0 0 22px rgba(241, 199, 110, 0.14);
+  transform: translateY(-4px) scale(1.015) translateZ(0);
 }
 
 .seat-token-active {
@@ -603,6 +738,92 @@ button:disabled {
   to {
     opacity: 1;
     transform: translateY(0) scale(1) rotateZ(0deg);
+  }
+}
+
+@keyframes idiot-reveal-fade {
+  0% {
+    opacity: 0;
+  }
+  8%,
+  84% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes idiot-reveal-stage {
+  0% {
+    filter: saturate(0.85) brightness(0.78);
+    transform: translateY(34px) scale(0.94);
+  }
+  16%,
+  76% {
+    filter: saturate(1.08) brightness(1);
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    filter: saturate(0.92) brightness(0.86);
+    transform: translateY(-18px) scale(0.98);
+  }
+}
+
+@keyframes idiot-reveal-copy {
+  0%,
+  12% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  24%,
+  78% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes idiot-card-flip {
+  0% {
+    opacity: 0;
+    transform: translateY(54px) rotateY(0deg) rotateZ(-4deg) scale(0.84);
+  }
+  16% {
+    opacity: 1;
+    transform: translateY(0) rotateY(0deg) rotateZ(-2deg) scale(0.98);
+  }
+  42% {
+    opacity: 1;
+    transform: translateY(0) rotateY(180deg) rotateZ(1deg) scale(1.05);
+  }
+  78% {
+    opacity: 1;
+    transform: translateY(0) rotateY(180deg) rotateZ(0deg) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px) rotateY(180deg) rotateZ(0deg) scale(0.98);
+  }
+}
+
+@keyframes idiot-reveal-seat {
+  0%,
+  42% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  54%,
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
   }
 }
 
@@ -923,6 +1144,47 @@ button:disabled {
   }
 }
 
+@keyframes table-light-drift {
+  0% {
+    opacity: 0.82;
+    scale: 1;
+    translate: -0.6% -0.4%;
+  }
+  100% {
+    opacity: 1;
+    scale: 1.025;
+    translate: 0.6% 0.4%;
+  }
+}
+
+@keyframes table-core-settle {
+  from {
+    opacity: 0;
+    scale: 0.96;
+    translate: 0 10px;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes seat-token-enter {
+  from {
+    filter: blur(2px) brightness(0.8);
+    opacity: 0;
+    scale: 0.96;
+    translate: 0 12px;
+  }
+  to {
+    filter: blur(0) brightness(1);
+    opacity: 1;
+    scale: 1;
+    translate: 0 0;
+  }
+}
+
 @keyframes seat-token-lift {
   0%,
   100% {
@@ -1031,12 +1293,19 @@ button:disabled {
   .phase-signal-eyebrow,
   .phase-signal-title,
   .phase-signal-subtitle,
+  .idiot-reveal-backdrop,
+  .idiot-reveal-stage,
+  .idiot-reveal-copy,
+  .idiot-reveal-card,
+  .idiot-reveal-seat,
   .phase-rhythm-panel,
   .flow-panel,
   .flow-status-bar,
   .flow-status-pulse,
   .phase-step,
   .phase-step-current .phase-step-dot,
+  .table-stage-light,
+  .table-phase-core,
   .flow-detail-card,
   .flow-track-item,
   .flow-track-current,
@@ -1054,6 +1323,7 @@ button:disabled {
   .vote-ledger-item,
   .vote-ledger-item::before,
   .seat-token-active,
+  .seat-token-shell,
   .voice-wave span,
   .speech-stream-cursor {
     animation: none !important;
@@ -1062,7 +1332,8 @@ button:disabled {
   .phase-rhythm-progress,
   .phase-step-dot,
   .phase-step-connector,
-  .seat-token {
+  .seat-token,
+  .seat-token-shell {
     transition-duration: 0.01ms !important;
   }
 }

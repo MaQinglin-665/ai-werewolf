@@ -1,5 +1,6 @@
 import { buildTableMemory } from "./tableMemory";
 import { clampProbability, stableRoll } from "./decisionNoise";
+import { isWolfRole } from "./roleUtils";
 import type { ActionTarget, GameState, Seat, WolfTeamAssignment, WolfTeamPlan, WolfTeamTask } from "./types";
 
 const TASK_LABELS: Record<WolfTeamTask, string> = {
@@ -11,7 +12,7 @@ const TASK_LABELS: Record<WolfTeamTask, string> = {
 
 export function buildWolfTeamPlan(state: GameState): WolfTeamPlan {
   const wolves = state.seats
-    .filter((seat) => seat.role === "WEREWOLF" && seat.alive)
+    .filter((seat) => isWolfRole(seat.role, state.rules.wolfRoles) && seat.alive)
     .sort((a, b) => b.seatId - a.seatId);
   const memory = buildTableMemory(state);
   const wolfSeatIds = new Set(wolves.map((seat) => seat.seatId));

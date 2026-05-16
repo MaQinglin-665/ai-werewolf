@@ -1,8 +1,19 @@
-import { getAliveSeats, getCurrentSpeakerSeatId, getSeat, getTurnRequirement } from "./engine";
+import {
+  canSeatVote,
+  canWitchSaveCurrentVictim,
+  canWitchSeeCurrentVictim,
+  getAliveSeats,
+  getCurrentSpeakerSeatId,
+  getSeat,
+  getTurnRequirement,
+  isIdiotRevealed,
+  isWitchSelfSaveBlocked,
+} from "./engine";
 import { buildWolfTeamPlan } from "./campStrategy";
 import { isSupportedRoleClaim } from "./claims";
 import { PHASE_LABELS, ROLE_LABELS } from "./labels";
 import { buildGameReview } from "./review";
+import { isWolfRole } from "./roleUtils";
 import { buildTableMemory } from "./tableMemory";
 import type {
   ActionTarget,
@@ -15,10 +26,25 @@ import type {
   PublicSpeechItem,
   PublicVoteItem,
   PublicVoteSnapshot,
+  AiFriendRuntimeLlmConfig,
 } from "./types";
 
+type HumanViewOptions = {
+  allowFlowControls?: boolean;
+};
+
 export function buildHumanView(state: GameState): HumanGameView {
-  const human = getSeat(state, state.humanSeatId);
+  return buildPlayerView(state, state.spectatorMode ? null : state.humanSeatId, {
+    allowFlowControls: true,
+  });
+}
+
+export function buildPlayerView(
+  state: GameState,
+  viewerSeatId: number | null,
+  options: HumanViewOptions = {},
+): HumanGameView {
+  const human = viewerSeatId == null ? undefined : getSeat(state, viewerSeatId);
   const requirement = getTurnRequirement(state);
   const gameOver = Boolean(state.result);
 
@@ -30,54 +56,66 @@ export function buildHumanView(state: GameState): HumanGameView {
     phase: state.phase,
     phaseLabel: PHASE_LABELS[state.phase],
     board: state.board,
-    humanSeatId: state.humanSeatId,
-    myRole: human.role,
-    myRoleLabel: ROLE_LABELS[human.role],
+    humanSeatId: human?.seatId ?? null,
+    myRole: human?.role,
+    myRoleLabel: human ? ROLE_LABELS[human.role] : undefined,
+    setup: state.setup,
     seats: state.seats.map((seat) => {
       const canSeeRole =
         gameOver ||
-        seat.seatId === human.seatId ||
-        (human.role === "WEREWOLF" && seat.role === "WEREWOLF");
+        (human && seat.seatId === human.seatId) ||
+        (isWolfRole(human?.role, state.rules.wolfRoles) && isWolfRole(seat.role, state.rules.wolfRoles)) ||
+        isIdiotRevealed(state, seat.seatId);
       return {
         seatId: seat.seatId,
         name: seat.name,
         isAi: seat.isAi,
-        isHuman: seat.seatId === human.seatId,
+        isHuman: Boolean(human && seat.seatId === human.seatId),
         alive: seat.alive,
         role: canSeeRole ? seat.role : undefined,
         roleLabel: canSeeRole ? ROLE_LABELS[seat.role] : undefined,
         deathReason: gameOver ? seat.deathReason : undefined,
+        voteDisabled: isIdiotRevealed(state, seat.seatId),
         personaLabel: seat.isAi ? seat.persona?.label : undefined,
         personaStyle: seat.isAi ? seat.persona?.style : undefined,
+        personaName: seat.isAi ? seat.persona?.name : undefined,
+        personaModelLabel: seat.isAi ? seat.persona?.modelLabel : undefined,
+        aiFriendId: seat.isAi ? seat.aiFriendId : undefined,
+        avatarDataUrl: seat.isAi ? seat.avatarDataUrl : undefined,
+        ttsVoice: seat.isAi ? seat.ttsVoice : undefined,
+        ttsConfig: seat.isAi ? seat.ttsConfig : undefined,
       };
     }),
     publicEvents: state.events.filter((event) => isVisiblePublicEvent(state, event)).map(toEventView),
-    privateEvents: state.events
-      .filter((event) => event.visibility === "private" && event.actorSeatId === human.seatId)
-      .map(toEventView),
-    availableActions: getAvailableActionsForHuman(state),
-    currentActorSeatId: visibleCurrentActorSeatId(state, requirement),
-    currentSpeakerSeatId: getCurrentSpeakerSeatId(state),
+    privateEvents: human
+      ? state.events
+          .filter((event) => event.visibility === "private" && event.actorSeatId === human.seatId)
+          .map(toEventView)
+      : [],
+    availableActions: getAvailableActionsForViewer(state, human?.seatId ?? null, options),
+    currentActorSeatId: visibleCurrentActorSeatId(state, requirement, human?.seatId ?? null),
+    currentSpeakerSeatId: getVisibleCurrentSpeakerSeatId(state),
     wolfTeammates:
-      human.role === "WEREWOLF"
+      human && isWolfRole(human.role, state.rules.wolfRoles)
         ? state.seats
-            .filter((seat) => seat.role === "WEREWOLF" && seat.seatId !== human.seatId)
+            .filter((seat) => isWolfRole(seat.role, state.rules.wolfRoles) && seat.seatId !== human.seatId)
             .map(toTarget)
         : [],
-    seerChecks: state.seerChecks.filter((check) => check.seerSeatId === human.seatId),
+    seerChecks: human ? state.seerChecks.filter((check) => check.seerSeatId === human.seatId) : [],
     guard:
-      human.role === "GUARD"
+      human?.role === "GUARD"
         ? {
             ...state.guard,
             guardedTarget: state.night.guardTargetSeatId ? toTarget(getSeat(state, state.night.guardTargetSeatId)) : undefined,
           }
         : undefined,
-    witch: state.witch,
+    witch: human?.role === "WITCH" ? state.witch : undefined,
     sheriff: buildSheriffView(state),
     votes: state.phase === "DAY_VOTE" ? {} : state.votes,
     tableSummary: {
       recentSpeeches: publicSummary.recentSpeeches,
       voteSnapshot: publicSummary.voteSnapshot,
+      sheriffVoteSnapshot: publicSummary.sheriffVoteSnapshot,
       claimBoard: publicSummary.claimBoard,
       tableMemory: publicSummary.tableMemory,
       aiReasonHighlights: publicSummary.tableMemory.publicSignals,
@@ -88,35 +126,47 @@ export function buildHumanView(state: GameState): HumanGameView {
   };
 }
 
-export function buildAgentView(state: GameState, seatId: number): AgentView {
+export function buildAgentView(
+  state: GameState,
+  seatId: number,
+  runtimeAiLlmConfigs?: Record<string, AiFriendRuntimeLlmConfig>,
+): AgentView {
   const seat = getSeat(state, seatId);
+  const visibleWolfTargetSeatId = canWitchSeeCurrentVictim(state) ? state.night.wolfTargetSeatId : undefined;
   return {
     gameId: state.id,
     day: state.day,
     phase: state.phase,
+    rules: {
+      hasGuard: state.rules.hasGuard,
+      guardSaveConflictKills: state.rules.guardSaveConflictKills,
+      wolfRoles: state.rules.wolfRoles,
+      hasWolfBeauty: state.rules.hasWolfBeauty,
+      hasKnight: state.rules.hasKnight,
+      hasIdiot: state.rules.hasIdiot,
+    },
     mySeatId: seatId,
     myRole: seat.role,
     persona: seat.persona,
+    llmConfig: resolveSeatRuntimeLlmConfig(seat, runtimeAiLlmConfigs),
     aliveSeats: getAliveSeats(state).map(toTarget),
     publicEvents: state.events.filter((event) => isVisiblePublicEvent(state, event)).map(toEventView),
     publicSummary: buildPublicSummary(state),
     privateKnowledge: {
       wolfTeammates:
-        seat.role === "WEREWOLF"
+        isWolfRole(seat.role, state.rules.wolfRoles)
           ? state.seats
-              .filter((item) => item.role === "WEREWOLF" && item.seatId !== seatId)
+              .filter((item) => isWolfRole(item.role, state.rules.wolfRoles) && item.seatId !== seatId)
               .map(toTarget)
           : undefined,
-      wolfTeamPlan: seat.role === "WEREWOLF" ? buildWolfTeamPlan(state) : undefined,
+      wolfTeamPlan: isWolfRole(seat.role, state.rules.wolfRoles) ? buildWolfTeamPlan(state) : undefined,
       seerChecks:
         seat.role === "SEER" ? state.seerChecks.filter((check) => check.seerSeatId === seatId) : undefined,
       witch:
         seat.role === "WITCH"
           ? {
               ...state.witch,
-              currentVictim: state.night.wolfTargetSeatId
-                ? toTarget(getSeat(state, state.night.wolfTargetSeatId))
-                : undefined,
+              currentVictim: visibleWolfTargetSeatId ? toTarget(getSeat(state, visibleWolfTargetSeatId)) : undefined,
               savedTarget: state.night.witchSavedSeatId ? toTarget(getSeat(state, state.night.witchSavedSeatId)) : undefined,
               poisonedTarget: state.night.witchPoisonTargetSeatId
                 ? toTarget(getSeat(state, state.night.witchPoisonTargetSeatId))
@@ -126,6 +176,8 @@ export function buildAgentView(state: GameState, seatId: number): AgentView {
             }
           : undefined,
       pendingHunterShot: state.pendingHunterShot?.shooterSeatId === seatId ? state.pendingHunterShot : undefined,
+      pendingWolfKingShot:
+        state.pendingWolfKingShot?.shooterSeatId === seatId ? state.pendingWolfKingShot : undefined,
       guard:
         seat.role === "GUARD"
           ? {
@@ -140,12 +192,31 @@ export function buildAgentView(state: GameState, seatId: number): AgentView {
   };
 }
 
+function resolveSeatRuntimeLlmConfig(
+  seat: Pick<ReturnType<typeof getSeat>, "aiFriendId" | "llmConfig">,
+  runtimeAiLlmConfigs: Record<string, AiFriendRuntimeLlmConfig> | undefined,
+): AiFriendRuntimeLlmConfig | undefined {
+  if (!seat.aiFriendId) return seat.llmConfig;
+  return runtimeAiLlmConfigs?.[seat.aiFriendId] ?? seat.llmConfig;
+}
+
 function buildPublicSummary(state: GameState): AgentView["publicSummary"] {
   const tableMemory = buildTableMemory(state);
   const recentSpeeches = buildRecentSpeeches(state);
   const recentVotes = buildRecentVotes(state);
   const recentDeaths = state.events
-    .filter((event) => event.type === "DAY_STARTED" || event.type === "PLAYER_EXILED" || event.type === "HUNTER_SHOT")
+    .filter(
+      (event) =>
+        event.type === "DAY_STARTED" ||
+        event.type === "PLAYER_EXILED" ||
+        event.type === "IDIOT_REVEALED" ||
+        event.type === "HUNTER_SHOT" ||
+        event.type === "WOLF_KING_SHOT" ||
+        event.type === "WHITE_WOLF_KING_EXPLODED" ||
+        event.type === "WOLF_BEAUTY_CHARM_TRIGGERED" ||
+        event.type === "KNIGHT_DUEL_SUCCESS" ||
+        event.type === "KNIGHT_DUEL_FAILED"
+    )
     .slice(-6)
     .map((event) => event.message);
 
@@ -153,6 +224,7 @@ function buildPublicSummary(state: GameState): AgentView["publicSummary"] {
     recentSpeeches,
     recentVotes,
     voteSnapshot: buildVoteSnapshot(state),
+    sheriffVoteSnapshot: buildSheriffVoteSnapshot(state),
     recentDeaths,
     deathSummary: recentDeaths,
     claimBoard: tableMemory.claimBoard,
@@ -183,6 +255,41 @@ function buildRecentVotes(state: GameState): PublicVoteItem[] {
   return state.events
     .filter((event) => event.type === "VOTE_CAST" && revealedDays.has(event.day))
     .slice(-12)
+    .map((event) => {
+      const voterSeatId = readNumber(event.payload, "voterSeatId") ?? event.actorSeatId;
+      const targetSeatId = readNumber(event.payload, "targetSeatId");
+      if (!voterSeatId) return undefined;
+      const item: PublicVoteItem = {
+        seq: event.seq,
+        day: event.day,
+        voter: toTarget(getSeat(state, voterSeatId)),
+        ...(targetSeatId ? { target: toTarget(getSeat(state, targetSeatId)) } : { abstained: true }),
+        reason: typeof event.payload.reason === "string" ? event.payload.reason : undefined,
+      };
+      return item;
+    })
+    .filter((vote): vote is PublicVoteItem => Boolean(vote));
+}
+
+function buildRecentSheriffVotes(state: GameState, revealEvent: GameEvent | undefined): PublicVoteItem[] {
+  if (!revealEvent) return [];
+
+  const previousBoundarySeq =
+    [...state.events]
+      .reverse()
+      .find(
+        (event) =>
+          event.seq < revealEvent.seq && (event.type === "SHERIFF_VOTE_REVEALED" || event.type === "SHERIFF_PK_STARTED"),
+      )?.seq ?? 0;
+
+  return state.events
+    .filter(
+      (event) =>
+        event.type === "SHERIFF_VOTE_CAST" &&
+        event.day === revealEvent.day &&
+        event.seq > previousBoundarySeq &&
+        event.seq < revealEvent.seq,
+    )
     .map((event) => {
       const voterSeatId = readNumber(event.payload, "voterSeatId") ?? event.actorSeatId;
       const targetSeatId = readNumber(event.payload, "targetSeatId");
@@ -236,10 +343,54 @@ function buildVoteSnapshot(state: GameState): PublicVoteSnapshot {
   };
 }
 
+function buildSheriffVoteSnapshot(state: GameState): PublicVoteSnapshot | undefined {
+  if (!state.rules.hasSheriff) return undefined;
+  if (state.phase === "SHERIFF_VOTE" || state.phase === "SHERIFF_PK_VOTE") {
+    return {
+      votes: [],
+      tally: [],
+      leaders: [],
+      revealed: false,
+    };
+  }
+
+  const revealEvent = [...state.events].reverse().find((event) => event.type === "SHERIFF_VOTE_REVEALED");
+  if (!revealEvent) return undefined;
+
+  const rawTally = Array.isArray(revealEvent.payload.tally) ? revealEvent.payload.tally : [];
+  const tally = rawTally
+    .map((item) => {
+      if (!item || typeof item !== "object") return undefined;
+      const targetSeatId = "targetSeatId" in item && typeof item.targetSeatId === "number" ? item.targetSeatId : undefined;
+      const count = "votes" in item && typeof item.votes === "number" ? item.votes : undefined;
+      if (!targetSeatId || count === undefined) return undefined;
+      return {
+        target: toTarget(getSeat(state, targetSeatId)),
+        count,
+      };
+    })
+    .filter((item): item is { target: ActionTarget; count: number } => Boolean(item))
+    .sort((a, b) => b.count - a.count || a.target.seatId - b.target.seatId);
+  const topCount = tally[0]?.count ?? 0;
+
+  return {
+    votes: buildRecentSheriffVotes(state, revealEvent),
+    tally,
+    abstainCount:
+      typeof revealEvent.payload.abstainCount === "number" ? revealEvent.payload.abstainCount : undefined,
+    leaders: tally.filter((item) => item.count === topCount && topCount > 0).map((item) => item.target),
+    revealed: true,
+  };
+}
+
 function buildPhaseSteps(state: GameState): HumanGameView["tableSummary"]["phaseSteps"] {
   const phase = state.phase;
   const steps: Array<{ key: Phase; label: string; phases: Phase[] }> = [
-    { key: "NIGHT_WOLVES", label: "夜晚", phases: ["NIGHT_WOLVES", "NIGHT_GUARD", "NIGHT_SEER", "NIGHT_WITCH"] },
+    {
+      key: "NIGHT_WOLVES",
+      label: "夜晚",
+      phases: ["NIGHT_WOLVES", "NIGHT_WOLF_BEAUTY", "NIGHT_GUARD", "NIGHT_SEER", "NIGHT_WITCH"],
+    },
     ...(state.rules.hasSheriff
       ? [
           {
@@ -257,8 +408,12 @@ function buildPhaseSteps(state: GameState): HumanGameView["tableSummary"]["phase
         ]
       : []),
     { key: "DAY_SPEECH", label: "发言", phases: ["DAY_ANNOUNCEMENT", "DAY_SPEECH"] },
-    { key: "DAY_VOTE", label: "投票", phases: ["DAY_VOTE"] },
-    { key: "EXILE_RESOLUTION", label: "放逐", phases: ["EXILE_RESOLUTION", "LAST_WORDS", "HUNTER_SHOT", "SHERIFF_HANDOFF"] },
+    { key: "DAY_VOTE", label: "投票", phases: ["KNIGHT_DUEL", "DAY_VOTE"] },
+    {
+      key: "EXILE_RESOLUTION",
+      label: "放逐",
+      phases: ["EXILE_RESOLUTION", "LAST_WORDS", "HUNTER_SHOT", "WOLF_KING_SHOT", "SHERIFF_HANDOFF"],
+    },
     { key: "GAME_OVER", label: "复盘", phases: ["GAME_OVER"] },
   ];
   const currentIndex = Math.max(
@@ -275,17 +430,34 @@ function buildPhaseSteps(state: GameState): HumanGameView["tableSummary"]["phase
 
 export function getAvailableActionsForSeat(state: GameState, seatId: number): AvailableHumanAction[] {
   const seat = getSeat(state, seatId);
-  if (!seat.alive && state.phase !== "LAST_WORDS" && state.phase !== "HUNTER_SHOT" && state.phase !== "SHERIFF_HANDOFF") {
+  if (
+    !seat.alive &&
+    state.phase !== "LAST_WORDS" &&
+    state.phase !== "HUNTER_SHOT" &&
+    state.phase !== "WOLF_KING_SHOT" &&
+    state.phase !== "SHERIFF_HANDOFF"
+  ) {
     return [];
   }
 
   switch (state.phase) {
     case "NIGHT_WOLVES":
-      if (seat.role !== "WEREWOLF") return [];
+      if (!isWolfRole(seat.role, state.rules.wolfRoles)) return [];
       return [
         {
           type: "wolfKill",
           targets: getAliveSeats(state).map(toTarget),
+        },
+      ];
+    case "NIGHT_WOLF_BEAUTY":
+      if (seat.role !== "WOLF_BEAUTY") return [];
+      return [
+        {
+          type: "wolfBeautyCharm",
+          targets: getAliveSeats(state)
+            .filter((target) => target.seatId !== seatId)
+            .map(toTarget),
+          canSkip: true,
         },
       ];
     case "NIGHT_GUARD":
@@ -312,13 +484,16 @@ export function getAvailableActionsForSeat(state: GameState, seatId: number): Av
       ];
     case "NIGHT_WITCH":
       if (seat.role !== "WITCH") return [];
+      const visibleWolfTargetSeatId = canWitchSeeCurrentVictim(state) ? state.night.wolfTargetSeatId : undefined;
+      const saveTarget =
+        visibleWolfTargetSeatId ? toTarget(getSeat(state, visibleWolfTargetSeatId)) : undefined;
+      const selfSaveBlocked = isWitchSelfSaveBlocked(state, seatId, state.night.wolfTargetSeatId);
       return [
         {
           type: "witchAction",
-          canSave: state.witch.antidoteAvailable && Boolean(state.night.wolfTargetSeatId),
-          saveTarget: state.night.wolfTargetSeatId
-            ? toTarget(getSeat(state, state.night.wolfTargetSeatId))
-            : undefined,
+          canSave: canWitchSaveCurrentVictim(state, seatId),
+          saveTarget,
+          saveBlockedReason: selfSaveBlocked ? "女巫第二夜起不能自救。" : undefined,
           canPoison: state.witch.poisonAvailable,
           poisonTargets: getAliveSeats(state)
             .filter((target) => target.seatId !== seatId)
@@ -326,18 +501,43 @@ export function getAvailableActionsForSeat(state: GameState, seatId: number): Av
         },
       ];
     case "DAY_SPEECH":
-      return getCurrentSpeakerSeatId(state) === seatId ? [{ type: "speak" }] : [];
+      if (getCurrentSpeakerSeatId(state) !== seatId) return [];
+      return [
+        { type: "speak" },
+        ...(seat.role === "WHITE_WOLF_KING"
+          ? [
+              {
+                type: "whiteWolfKingExplode" as const,
+                targets: getAliveSeats(state)
+                  .filter((target) => target.seatId !== seatId)
+                  .map(toTarget),
+              },
+            ]
+          : []),
+      ];
     case "LAST_WORDS":
       return state.lastWordsSeatId === seatId ? [{ type: "lastWords" }] : [];
     case "DAY_VOTE":
+      if (!canSeatVote(state, seatId)) return [];
       if (hasVoted(state, seatId)) return [];
       return [
         {
           type: "vote",
           targets: getAliveSeats(state)
-            .filter((target) => target.seatId !== seatId)
+            .filter((target) => target.seatId !== seatId && !isIdiotRevealed(state, target.seatId))
             .map(toTarget),
           canAbstain: true,
+        },
+      ];
+    case "KNIGHT_DUEL":
+      if (seat.role !== "KNIGHT" || state.knight?.used) return [];
+      return [
+        {
+          type: "knightDuel",
+          targets: getAliveSeats(state)
+            .filter((target) => target.seatId !== seatId)
+            .map(toTarget),
+          canSkip: true,
         },
       ];
     case "HUNTER_SHOT":
@@ -345,6 +545,17 @@ export function getAvailableActionsForSeat(state: GameState, seatId: number): Av
       return [
         {
           type: "hunterShoot",
+          targets: getAliveSeats(state)
+            .filter((target) => target.seatId !== seatId)
+            .map(toTarget),
+          canSkip: true,
+        },
+      ];
+    case "WOLF_KING_SHOT":
+      if (state.pendingWolfKingShot?.shooterSeatId !== seatId) return [];
+      return [
+        {
+          type: "wolfKingShoot",
           targets: getAliveSeats(state)
             .filter((target) => target.seatId !== seatId)
             .map(toTarget),
@@ -392,17 +603,21 @@ export function getAvailableActionsForSeat(state: GameState, seatId: number): Av
   }
 }
 
-function getAvailableActionsForHuman(state: GameState): AvailableHumanAction[] {
+function getAvailableActionsForViewer(
+  state: GameState,
+  viewerSeatId: number | null,
+  options: HumanViewOptions = {},
+): AvailableHumanAction[] {
   if (state.result) {
     return [];
   }
 
   const requirement = getTurnRequirement(state);
-  if (requirement.type === "human" && requirement.actorSeatId === state.humanSeatId) {
-    return getAvailableActionsForSeat(state, state.humanSeatId);
+  if (viewerSeatId != null && requirement.type === "human" && requirement.actorSeatId === viewerSeatId) {
+    return getAvailableActionsForSeat(state, viewerSeatId);
   }
 
-  return [buildContinueAction(state)];
+  return options.allowFlowControls ? [buildContinueAction(state)] : [];
 }
 
 function buildContinueAction(state: GameState): AvailableHumanAction {
@@ -437,33 +652,55 @@ function buildContinueAction(state: GameState): AvailableHumanAction {
   };
 }
 
-function visibleCurrentActorSeatId(state: GameState, requirement: ReturnType<typeof getTurnRequirement>): number | undefined {
+function visibleCurrentActorSeatId(
+  state: GameState,
+  requirement: ReturnType<typeof getTurnRequirement>,
+  viewerSeatId: number | null,
+): number | undefined {
   if (requirement.type === "human") {
-    return requirement.actorSeatId;
+    if (requirement.actorSeatId === viewerSeatId || isPublicActorPhase(state.phase)) {
+      return requirement.actorSeatId;
+    }
+    return undefined;
   }
 
-  if (
-    requirement.type === "ai" &&
-    (state.phase === "DAY_SPEECH" ||
-      state.phase === "LAST_WORDS" ||
-      state.phase === "SHERIFF_NOMINATION" ||
-      state.phase === "SHERIFF_SPEECH" ||
-      state.phase === "SHERIFF_WITHDRAWAL" ||
-      state.phase === "SHERIFF_VOTE" ||
-      state.phase === "SHERIFF_PK_SPEECH" ||
-      state.phase === "SHERIFF_PK_VOTE" ||
-      state.phase === "SHERIFF_HANDOFF")
-  ) {
+  if (requirement.type === "ai" && isPublicActorPhase(state.phase)) {
     return requirement.actorSeatId;
   }
 
   return undefined;
 }
 
+function isPublicActorPhase(phase: Phase): boolean {
+  return (
+    phase === "DAY_SPEECH" ||
+    phase === "KNIGHT_DUEL" ||
+    phase === "DAY_VOTE" ||
+    phase === "LAST_WORDS" ||
+    phase === "WOLF_KING_SHOT" ||
+    phase === "SHERIFF_NOMINATION" ||
+    phase === "SHERIFF_SPEECH" ||
+    phase === "SHERIFF_WITHDRAWAL" ||
+    phase === "SHERIFF_VOTE" ||
+    phase === "SHERIFF_PK_SPEECH" ||
+    phase === "SHERIFF_PK_VOTE" ||
+    phase === "SHERIFF_HANDOFF"
+  );
+}
+
+function getVisibleCurrentSpeakerSeatId(state: GameState): number | undefined {
+  if (state.phase === "SHERIFF_SPEECH" || state.phase === "SHERIFF_PK_SPEECH") {
+    return getCurrentSheriffSpeakerSeatId(state);
+  }
+  return getCurrentSpeakerSeatId(state);
+}
+
 function hiddenRoleActionLabel(phase: Phase): string {
   switch (phase) {
     case "NIGHT_WOLVES":
       return "狼人行动中";
+    case "NIGHT_WOLF_BEAUTY":
+      return "狼美人行动中";
     case "NIGHT_GUARD":
       return "守卫行动中";
     case "NIGHT_SEER":
@@ -472,6 +709,10 @@ function hiddenRoleActionLabel(phase: Phase): string {
       return "女巫行动中";
     case "HUNTER_SHOT":
       return "猎人行动中";
+    case "WOLF_KING_SHOT":
+      return "狼王行动中";
+    case "KNIGHT_DUEL":
+      return "骑士行动中";
     case "SHERIFF_NOMINATION":
       return "上警选择中";
     case "SHERIFF_SPEECH":
@@ -507,10 +748,14 @@ function continueLabel(phase: Phase): string {
       return "继续警长投票";
     case "EXILE_RESOLUTION":
       return "公布投票结果";
+    case "KNIGHT_DUEL":
+      return "骑士决斗";
     case "LAST_WORDS":
       return "发表遗言";
     case "HUNTER_SHOT":
       return "结算猎人阶段";
+    case "WOLF_KING_SHOT":
+      return "结算狼王阶段";
     case "SHERIFF_HANDOFF":
       return "移交警徽";
     default:
@@ -522,6 +767,8 @@ function phaseNarration(phase: Phase): string {
   switch (phase) {
     case "NIGHT_WOLVES":
       return "天黑请闭眼，狼人请睁眼并选择击杀目标。";
+    case "NIGHT_WOLF_BEAUTY":
+      return "狼美人请睁眼，选择今晚魅惑的玩家，也可以不魅惑。";
     case "NIGHT_GUARD":
       return "守卫请睁眼，选择一名玩家守护，也可以空守。";
     case "NIGHT_SEER":
@@ -544,6 +791,8 @@ function phaseNarration(phase: Phase): string {
       return "非 PK 玩家进行警长 PK 复投。";
     case "DAY_SPEECH":
       return "白天发言阶段，玩家按座位依次发言。";
+    case "KNIGHT_DUEL":
+      return "骑士可以选择是否发动决斗，成功带走狼人，失败自己出局并继续投票。";
     case "DAY_VOTE":
       return "投票阶段同时进行，所有投票在统一开票前保密。";
     case "EXILE_RESOLUTION":
@@ -552,6 +801,8 @@ function phaseNarration(phase: Phase): string {
       return "出局玩家发表遗言，遗言结束后继续结算后续流程。";
     case "HUNTER_SHOT":
       return "猎人出局后进入开枪窗口。";
+    case "WOLF_KING_SHOT":
+      return "狼王出局后进入开枪窗口。";
     case "SHERIFF_HANDOFF":
       return "警长出局后选择移交警徽或撕掉警徽。";
     default:
@@ -565,6 +816,7 @@ function isPublicEvent(event: GameEvent): boolean {
 
 function isVisiblePublicEvent(state: GameState, event: GameEvent): boolean {
   if (!isPublicEvent(event)) return false;
+  if (event.type === "SPEECH_CREATED" && event.payload.sheriffSpeech === true) return false;
   if (event.type !== "ROLE_CLAIMED") return true;
 
   const claimId = typeof event.payload.claimId === "string" ? event.payload.claimId : undefined;

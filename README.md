@@ -1,17 +1,23 @@
-# 单人 AI 狼人杀
+# AI 狼人杀
 
-一个本地可玩的单人 AI 狼人杀 MVP：1 个真人玩家和 8/11 个 AI 玩家进行完整狼人杀对局。
+一个本地可玩的 AI 狼人杀 MVP：可由 1 个真人玩家和 8/11 个 AI 玩家对局，也可以去掉真人座位，只观看 AI 自动对局。
 
 ## 当前能力
 
 - 可选板子：9 人预女猎，或 12 人预女猎守卫警长局。
-- 真人身份随机，首版只做单真人局。
+- 真人身份可随机、指定座位，或选择“无真人”进入 AI 观战局。
 - 规则引擎负责状态机、合法动作、女巫药品、猎人开枪、警徽流转和屠边胜负。
 - mock AI 可自动推进非真人阶段，支持 1000 局模拟测试。
 - Prisma + SQLite 持久化当前快照、座位、事件日志和 AI 调用记录。
-- Next.js 页面提供本地牌桌 UI。
+- Next.js 页面提供本地牌桌 UI、AI 池、自定义 AI 大模型和声音配置。
 
 ## 本地运行
+
+Windows 小范围测试者可以直接双击根目录的 `start-alpha.bat`。脚本会检查 Node.js、创建 `.env`、安装依赖、初始化 SQLite 数据库、启动本地服务并自动打开浏览器。
+
+默认启动模式会打开 `/ai-pool`。在左侧 AI 池里逐个展开 AI 卡片，分别填写大模型 Base URL、模型名和 API Key，点击“保存到这个 AI”后该 AI 会使用真实 OpenAI-compatible 模型。每张卡还可以单独填写 TTS Base URL、TTS API Key、TTS 模型、格式、鉴权 Header 和 voice。若多个 AI 共用同一个网关，可以在每张卡里填相同 Base URL 和 Key，只改模型名或 voice。
+
+命令行手动运行：
 
 ```bash
 npm install
@@ -26,17 +32,40 @@ npm run dev
 
 1. 选择板子，点击“进入牌桌”创建一局。
 2. 按当前阶段完成你的动作：夜刀、查验、用药、发言、投票或猎人开枪。
-3. 其他 8 个 AI 会自动行动，对局会推进到下一次需要你操作的位置。
+3. 其他 AI 会自动行动，对局会推进到下一次需要你操作的位置。
 4. 终局后查看复盘，确认身份、夜晚行动、投票和胜负原因。
 5. 点击“新开一局”继续测试不同身份视角。
 
+若只想看 AI 互相玩，在“真人座位”里选择“无真人 · 只看 AI 对局”。这种模式没有真人操作，系统会持续推进 AI 行动，适合演示 AI 发言、投票和复盘。
+
+## 分享给别人试玩
+
+当前适合小范围 Alpha 试玩。推荐先用本地 mock 模式，启动快、无 API 费用，也不会因为真实模型等待时间影响第一印象：
+
+```bash
+AI_SPEECH_PROVIDER="mock"
+AI_ACTION_PROVIDER="mock"
+AI_LLM_PROVIDER="mock"
+```
+
+分享前建议跑：
+
+```bash
+npm run lint
+npm run test
+npx tsc --noEmit
+npm run build
+```
+
+如果要让别人自己填大模型和云 TTS，不需要让他们编辑 JSON。打开 `/ai-pool`，在左侧 AI 池逐个展开 AI 卡片，分别保存大模型配置和 TTS 配置即可。大模型 Key 与 TTS Key 只保存在本机浏览器，不会写入导出的 AI 配置。
+
 ## 当前规则边界
 
-- 只支持单真人局，不支持多真人、匹配和账号；语音输入仅覆盖真人发言/遗言草稿。
+- 支持单真人局和无真人 AI 观战局；不支持多真人、匹配和账号；语音输入仅覆盖真人发言/遗言草稿。
 - 支持 9 人预女猎和 12 人预女猎守卫警长局，暂不支持白痴、骑士或更多复杂板子。
 - 胜负采用屠边：狼人全出局则好人胜，平民或神职全出局则狼人胜。
-- 女巫采用简化规则：可自救，每晚最多用一瓶药，毒死猎人不可开枪；12 人局守卫同守同救会死亡。
-- AI 默认使用本地策略；也可开启真实 LLM 发言和行动决策，规则引擎负责合法性校验。
+- 女巫采用常见 12 人局规则：首夜可以自救，第二夜起不能自救；解药用完后不再获知后续刀口；每晚最多用一瓶药，毒死猎人不可开枪；12 人局守卫同守同救会死亡。
+- AI 默认可使用本地策略；也可开启真实 LLM 发言和行动决策，规则引擎负责合法性校验。
 
 ## AI 发言模式
 
@@ -105,13 +134,14 @@ Mimo 默认使用 `mimo-v2.5-tts`。试音时可以临时覆盖：
 npm run audio:host -- --provider=mimo --only=night-wolves --force --voice=mimo_default --style="低沉 悬疑 变慢"
 ```
 
-AI 发言音频在游戏里按需生成并缓存到 `public/audio/ai-speech/`，缓存文件已加入 git 忽略。打开页面右上角 `AI 语音` 后，每条 AI 发言会走 Mimo TTS，并等音频播放完再推进流程。每个 AI 的声音档案在 `src/ai/voiceProfiles.ts`，可用 `.env` 里的 `MIMO_AI_VOICE_*` 覆盖对应 Mimo voice；节奏、情绪和断句由每个档案的 `style` 与提示词固定控制。
+AI 发言音频在游戏里按需生成并缓存到 `public/audio/ai-speech/`，缓存文件已加入 git 忽略。打开页面右上角 `AI 语音` 后，每条 AI 发言会走 Mimo-compatible TTS，并等音频播放完再推进流程。每个 AI 可以在 `/ai-pool` 配自己的 TTS Base URL、Key、模型和 voice；未配置时才使用 `.env` 的 Mimo TTS。每个 AI 的声音档案在 `src/ai/voiceProfiles.ts`，节奏、情绪和断句由每个档案的 `style` 与提示词固定控制。
 
 ## 常用命令
 
 ```bash
 npm run test
 npm run lint
+npx tsc --noEmit
 npm run build
 npm run audio:host -- --dry-run
 npm run simulate:ai
@@ -121,7 +151,7 @@ npm run simulate:ai
 
 - 功能分支：`codex/alpha-playable-loop`。
 - 本地入口：启动后打开 http://localhost:3000。
-- 当前已覆盖：终局复盘、AI persona、多模型发言/行动 provider、最近对局入口、阶段化操作区、主持/AI 发言音频、真人发言语音草稿。
+- 当前已覆盖：终局复盘、AI persona、多模型发言/行动 provider、AI 池、自定义大模型、无真人观战、最近对局入口、阶段化操作区、主持/AI 发言音频、真人发言语音草稿。
 - 推荐验收：至少试玩狼人、预言家、女巫、猎人、平民各一局；12 人局补跑守卫和警长流程，确认未终局时不会暴露其他玩家身份。
 
 ## API
@@ -130,6 +160,8 @@ npm run simulate:ai
 - `GET /api/games/:gameId` 获取真人玩家的脱敏视角。
 - `POST /api/games/:gameId/commands` 提交真人玩家当前动作。
 - `POST /api/games/:gameId/voice-input` 将真人语音转写整理为发言/遗言草稿，不推进游戏状态。
+
+`POST /api/games` 可传 `humanSeatId: null` 创建无真人观战局，也可传 `aiFriends` 指定本局 AI 队列和每个 AI 的自定义大模型/TTS 配置。运行时 API Key 和 TTS Key 不会通过创建对局接口持久化。
 
 ## 下一步
 

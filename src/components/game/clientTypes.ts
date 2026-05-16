@@ -1,14 +1,19 @@
-import type { AvailableHumanAction, HumanGameView } from "@/game/types";
+import type { AiFriendRuntimeTtsConfig, AvailableHumanAction, HumanGameView } from "@/game/types";
+import type { AiFriendConfig } from "@/game/types";
 
 export type CommandPayload =
   | { type: "wolfKill"; targetSeatId: number }
   | { type: "guardAction"; targetSeatId?: number }
   | { type: "seerCheck"; targetSeatId: number }
   | { type: "witchAction"; mode: "save" | "poison" | "skip"; targetSeatId?: number }
+  | { type: "wolfBeautyCharm"; targetSeatId?: number }
   | { type: "speak"; message: string }
   | { type: "lastWords"; message: string }
   | { type: "vote"; targetSeatId?: number }
   | { type: "hunterShoot"; targetSeatId?: number }
+  | { type: "wolfKingShoot"; targetSeatId?: number }
+  | { type: "whiteWolfKingExplode"; targetSeatId: number }
+  | { type: "knightDuel"; targetSeatId?: number }
   | { type: "sheriffNominate"; run: boolean }
   | { type: "sheriffSpeech"; message: string }
   | { type: "sheriffWithdraw"; withdraw: boolean }
@@ -46,16 +51,39 @@ export type AiSpeechAudioTextCue = {
   gameId: string;
   speechKey: string;
   speaker: NonNullable<SpeechItem["speaker"]>;
+  voicePersonaName?: string;
+  ttsVoice?: string;
+  ttsConfig?: AiFriendRuntimeTtsConfig;
   text: string;
 };
 
 export type SeerCheckAction = Extract<AvailableHumanAction, { type: "seerCheck" }>;
 export type WitchAction = Extract<AvailableHumanAction, { type: "witchAction" }>;
+export type WolfBeautyCharmAction = Extract<AvailableHumanAction, { type: "wolfBeautyCharm" }>;
 export type VoteAction = Extract<AvailableHumanAction, { type: "vote" }>;
+export type KnightDuelAction = Extract<AvailableHumanAction, { type: "knightDuel" }>;
 export type SheriffVoteAction = Extract<AvailableHumanAction, { type: "sheriffVote" }>;
 export type ActionTargetView = SeerCheckAction["targets"][number];
 export type HumanSpeechActionType = Extract<AvailableHumanAction["type"], "speak" | "lastWords" | "sheriffSpeech">;
 export type BoardOption = HumanGameView["board"];
+export type AiFriendOption = AiFriendConfig & {
+  isDefault: boolean;
+  basePersonaName: string;
+  basePersonaModelLabel?: string;
+  basePersonaLabel: string;
+};
+export type AiLineupPreviewItem = {
+  seatId: number;
+  nickname: string;
+  personaName?: string;
+  modelLabel?: string;
+  avatarDataUrl?: string;
+  ttsVoice?: string;
+  ttsConfig?: HumanGameView["seats"][number]["ttsConfig"];
+  isHuman: boolean;
+  autoFilled: boolean;
+};
+export type HumanSeatMode = "random" | "fixed" | "none";
 export type VoiceInputState = "idle" | "listening" | "processing";
 
 export type BrowserSpeechRecognitionAlternative = {

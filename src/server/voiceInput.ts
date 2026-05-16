@@ -206,7 +206,7 @@ async function rewriteVoiceInputDraft(input: {
 function buildVoiceInputContext(game: GameState): {
   day: number;
   phase: HumanGameView["phase"];
-  humanSeatId: number;
+  humanSeatId: number | null;
   aliveSeats: Array<{ seatId: number; name: string; alive: boolean }>;
   recentSpeeches: HumanGameView["tableSummary"]["recentSpeeches"];
   voteSnapshot: HumanGameView["tableSummary"]["voteSnapshot"];

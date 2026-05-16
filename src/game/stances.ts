@@ -53,14 +53,14 @@ function extractSupportStances(
 ): StanceDraft[] {
   const stances: StanceDraft[] = [];
   const patterns = [
-    /(我认|认下|认|我站|站边|相信|保一下|先放)\s*(\d{1,2})\s*号(?:玩家|位|AI)?(?:的)?(预言家|真预言家|预|身份|视角|守卫)?/g,
-    /(\d{1,2})\s*号(?:玩家|位|AI)?(?:的)?(预言家|真预言家|预|身份|视角|守卫).{0,8}(我认|可信|先放|别出)/g,
+    /(我认|认下|(?<!不)认|我站|站边|相信|保一下|先放)\s*(\d{1,2})\s*号(?:玩家|位|AI)?(?:的)?(预言家|真预言家|预|身份|视角|守卫|白痴)?/g,
+    /(\d{1,2})\s*号(?:玩家|位|AI)?(?:的)?(预言家|真预言家|预|身份|视角|守卫|白痴).{0,8}(我认|可信|先放|别出)/g,
   ];
 
   for (const pattern of patterns) {
     for (const match of message.matchAll(pattern)) {
       const targetSeatId = firstSeatId(match);
-      const roleText = [...match].find((item) => item && /预言家|真预言家|预|身份|视角|守卫/.test(item));
+      const roleText = [...match].find((item) => item && /预言家|真预言家|预|身份|视角|守卫|白痴/.test(item));
       const targetRole = readTargetRole(roleText);
       if (!targetSeatId || !isValidTarget(params, targetSeatId)) continue;
       stances.push(buildDraft(params, targetSeatId, "SUPPORT", targetRole, "公开表示认可这个位置"));
@@ -76,14 +76,14 @@ function extractQuestionStances(
 ): StanceDraft[] {
   const stances: StanceDraft[] = [];
   const patterns = [
-    /(不认|不信|质疑|怀疑|不太信)\s*(\d{1,2})\s*号(?:玩家|位|AI)?(?:的)?(预言家|真预言家|预|身份|视角|守卫)?/g,
+    /(不认|不信|质疑|怀疑|不太信)\s*(\d{1,2})\s*号(?:玩家|位|AI)?(?:的)?(预言家|真预言家|预|身份|视角|守卫|白痴)?/g,
     /(\d{1,2})\s*号(?:玩家|位|AI)?.{0,10}(不做好|可疑|像狼|逻辑不顺|回避|矛盾)/g,
   ];
 
   for (const pattern of patterns) {
     for (const match of message.matchAll(pattern)) {
       const targetSeatId = firstSeatId(match);
-      const roleText = [...match].find((item) => item && /预言家|真预言家|预|身份|视角|守卫/.test(item));
+      const roleText = [...match].find((item) => item && /预言家|真预言家|预|身份|视角|守卫|白痴/.test(item));
       const targetRole = readTargetRole(roleText);
       if (!targetSeatId || !isValidTarget(params, targetSeatId)) continue;
       stances.push(buildDraft(params, targetSeatId, "QUESTION", targetRole, "公开质疑这个位置"));
@@ -155,6 +155,7 @@ function readTargetRole(text: string | undefined): Role | undefined {
   if (/预言家|真预言家|预/.test(text)) return "SEER";
   if (/女巫/.test(text)) return "WITCH";
   if (/猎人/.test(text)) return "HUNTER";
+  if (/白痴/.test(text)) return "IDIOT";
   if (/守卫/.test(text)) return "GUARD";
   if (/平民|民牌/.test(text)) return "VILLAGER";
   return undefined;

@@ -1,13 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { resolveAiFriendsForGame } from "@/game/aiFriends";
 import { stripSpeechStageDirections } from "@/game/speechText";
-import type { AvailableHumanAction, HumanGameView } from "@/game/types";
+import type {
+  AiFriendConfig,
+  AiFriendRuntimeLlmConfig,
+  AiFriendRuntimeTtsConfig,
+  AvailableHumanAction,
+  HumanGameView,
+} from "@/game/types";
 import {
   ActionPanel,
   AuxiliaryInfoPanel,
   FlowStatusBar,
+  GlossaryOverlay,
   HostStage,
+  IdentityBookOverlay,
+  IdiotRevealOverlay,
   LandingPanel,
   PhaseCurtain,
   PhaseRhythm,
@@ -16,14 +26,28 @@ import {
   RoomHeader,
   SeatBoard,
   VoteTable,
+  buildIdiotRevealCue,
   getPhaseCurtainCue,
 } from "./game/GamePanels";
-import type { PhaseCurtainCue } from "./game/GamePanels";
+import {
+  buildAiFriendOptions,
+  buildRuntimeAiLlmConfigs,
+  buildRuntimeAiTtsConfigs,
+  getDefaultSelectedAiFriendIds,
+  readStoredAiFriendLlmSecrets,
+  readStoredCustomAiFriends,
+  readStoredSelectedAiFriendIds,
+  resolveSelectedAiFriends,
+  type AiFriendLlmSecretMap,
+} from "./game/aiFriendStorage";
+import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
 import type {
   AiSpeechAudioStatus,
   AiSpeechAudioTextCue,
+  AiLineupPreviewItem,
   BoardOption,
   CommandPayload,
+  HumanSeatMode,
   HostAudioStatus,
   LiveAiSpeech,
   SpeechItem,
@@ -45,6 +69,12 @@ const AI_SPEECH_AUDIO_PLAYBACK_RATE = 1.12;
 const AI_SPEECH_TTS_MIN_CHUNK_CHARS = 12;
 const AI_SPEECH_TTS_SOFT_CHUNK_CHARS = 28;
 const AI_SPEECH_TTS_MAX_CHUNK_CHARS = 62;
+const EMPTY_CUSTOM_AI_FRIENDS: AiFriendConfig[] = [];
+const IDIOT_REVEAL_EVENT_TYPES = new Set(["IDIOT_REVEALED"]);
+
+function randomSeatId(seatCount: number): number {
+  return 1 + Math.floor(Math.random() * seatCount);
+}
 
 class AiSpeechAudioUnavailableError extends Error {
   constructor(message: string) {
@@ -57,6 +87,28 @@ function isAiSpeechAudioUnavailableError(error: unknown): boolean {
   if (error instanceof AiSpeechAudioUnavailableError) return true;
   const message = error instanceof Error ? error.message : String(error);
   return /缺少|missing|unavailable|503|无法生成 AI 发言音频/i.test(message);
+}
+
+function getSeatPersonaName(game: HumanGameView, seatId: number | undefined): string | undefined {
+  if (!seatId) return undefined;
+  return game.seats.find((seat) => seat.seatId === seatId)?.personaName;
+}
+
+function getSeatTtsVoice(game: HumanGameView, seatId: number | undefined): string | undefined {
+  if (!seatId) return undefined;
+  const seat = game.seats.find((item) => item.seatId === seatId);
+  return seat?.ttsConfig?.voice ?? seat?.ttsVoice;
+}
+
+function getSeatTtsConfig(
+  game: HumanGameView,
+  seatId: number | undefined,
+  runtimeAiTtsConfigs: Record<string, AiFriendRuntimeTtsConfig> | undefined,
+): AiFriendRuntimeTtsConfig | undefined {
+  if (!seatId) return undefined;
+  const seat = game.seats.find((item) => item.seatId === seatId);
+  if (!seat) return undefined;
+  return (seat.aiFriendId ? runtimeAiTtsConfigs?.[seat.aiFriendId] : undefined) ?? seat.ttsConfig;
 }
 
 function getAutoAdvanceDelay(game: HumanGameView, action: AvailableHumanAction, speechToRead?: SpeechItem): number {
@@ -94,6 +146,23 @@ function latestPublicEvent(game: HumanGameView): HumanGameView["publicEvents"][n
   return game.publicEvents.at(-1);
 }
 
+function findLatestUnplayedPublicEvent(
+  game: HumanGameView,
+  completedKeys: ReadonlySet<string>,
+  types: ReadonlySet<string>,
+): HumanGameView["publicEvents"][number] | undefined {
+  return [...game.publicEvents]
+    .reverse()
+    .find((event) => {
+      const canCrossDayBoundary = event.type === "IDIOT_REVEALED";
+      return (
+        (event.day === game.day || canCrossDayBoundary) &&
+        types.has(event.type) &&
+        !completedKeys.has(`${game.id}:${event.seq}:${event.type}`)
+      );
+    });
+}
+
 type HostAudioClip =
   | string
   | {
@@ -112,6 +181,9 @@ type AiSpeechAudioCue = {
   key: string;
   gameId: string;
   speech: SpeechItem;
+  voicePersonaName?: string;
+  ttsVoice?: string;
+  ttsConfig?: AiFriendRuntimeTtsConfig;
 };
 
 function hostClip(name: string, options?: Omit<Extract<HostAudioClip, { src: string }>, "src">): HostAudioClip {
@@ -167,12 +239,17 @@ function buildDawnAudioCue(game: HumanGameView): HostAudioCue | undefined {
 function readEventSeatId(
   game: HumanGameView,
   event: HumanGameView["publicEvents"][number],
-  key: "seatId" | "targetSeatId",
+  key: "seatId" | "targetSeatId" | "wolfBeautySeatId" | "knightSeatId",
 ): number | undefined {
   const payloadSeatId = event.payload[key];
   return typeof payloadSeatId === "number"
     ? payloadSeatId
     : extractSeatNumbers(formatSystemMessage(game, event.message)).at(key === "targetSeatId" ? 1 : 0);
+}
+
+function readEventSeatIds(event: HumanGameView["publicEvents"][number], key: string): number[] {
+  const value = event.payload[key];
+  return Array.isArray(value) ? value.filter((item): item is number => typeof item === "number") : [];
 }
 
 function buildLastWordsAudioCue(game: HumanGameView, completedKeys: ReadonlySet<string>): HostAudioCue | undefined {
@@ -184,6 +261,7 @@ function buildLastWordsAudioCue(game: HumanGameView, completedKeys: ReadonlySet<
     .find((event) => {
       if (event.type === "PLAYER_EXILED") return readEventSeatId(game, event, "seatId") === actorSeatId;
       if (event.type === "HUNTER_SHOT") return readEventSeatId(game, event, "targetSeatId") === actorSeatId;
+      if (event.type === "WOLF_KING_SHOT") return readEventSeatId(game, event, "targetSeatId") === actorSeatId;
       return false;
     });
   if (!sourceEvent) return undefined;
@@ -191,10 +269,208 @@ function buildLastWordsAudioCue(game: HumanGameView, completedKeys: ReadonlySet<
   const key = `${game.id}:${sourceEvent.seq}:last-words:${actorSeatId}`;
   if (completedKeys.has(key)) return undefined;
 
-  const resultClip = sourceEvent.type === "HUNTER_SHOT" ? hostClip("hunter-taken") : hostClip("exiled");
+  const resultClip =
+    sourceEvent.type === "HUNTER_SHOT"
+      ? hostClip("hunter-taken")
+      : sourceEvent.type === "WOLF_KING_SHOT"
+        ? hostClip("wolf-king-taken")
+        : hostClip("exiled");
   return {
     key,
     clips: [seatClip(actorSeatId), resultClip, hostClip("last-words", { playbackRate: 1.08, volume: 0.9 })],
+  };
+}
+
+function decisionCount(decisions: Record<string, unknown> | undefined): number {
+  return Object.keys(decisions ?? {}).length;
+}
+
+function buildSeatPromptAudioCue({
+  game,
+  cueName,
+  currentActor,
+  includeIntro,
+  introClip,
+  humanClip,
+  promptClip,
+}: {
+  game: HumanGameView;
+  cueName: string;
+  currentActor: HumanGameView["seats"][number] | undefined;
+  includeIntro: boolean;
+  introClip: string;
+  humanClip: string;
+  promptClip: string;
+}): HostAudioCue {
+  const clips: HostAudioClip[] = [];
+  if (includeIntro) {
+    clips.push(hostClip(introClip));
+  }
+  if (currentActor?.isHuman) {
+    clips.push(hostClip(humanClip));
+  } else if (currentActor) {
+    clips.push(hostClip("please"), seatClip(currentActor.seatId), hostClip(promptClip));
+  } else if (!includeIntro) {
+    clips.push(hostClip(introClip));
+  }
+  return {
+    key: `${game.id}:${game.day}:${cueName}:${currentActor?.seatId ?? "host"}:${includeIntro ? "intro" : "prompt"}`,
+    clips,
+  };
+}
+
+function buildPhaseIntroAudioCue(game: HumanGameView, cueName: string, introClip: string): HostAudioCue {
+  return {
+    key: `${game.id}:${game.day}:${cueName}:intro`,
+    clips: [hostClip(introClip)],
+  };
+}
+
+function buildSheriffResultAudioCue(game: HumanGameView, completedKeys: ReadonlySet<string>): HostAudioCue | undefined {
+  const event = findLatestUnplayedPublicEvent(
+    game,
+    completedKeys,
+    new Set(["SHERIFF_NOMINATION_REVEALED", "SHERIFF_WITHDREW"]),
+  );
+  if (!event) return undefined;
+
+  if (event.type === "SHERIFF_NOMINATION_REVEALED") {
+    const candidateSeatIds = readEventSeatIds(event, "candidateSeatIds");
+    return {
+      key: `${game.id}:${event.seq}:${event.type}`,
+      clips:
+        candidateSeatIds.length > 0
+          ? [...candidateSeatIds.map(seatClip), hostClip("sheriff-nominated")]
+          : [hostClip("sheriff-nomination-none")],
+    };
+  }
+
+  if (event.type === "SHERIFF_WITHDREW" && event.payload.withdraw === true) {
+    const seatId = readEventSeatId(game, event, "seatId");
+    if (!seatId) return undefined;
+    return {
+      key: `${game.id}:${event.seq}:${event.type}`,
+      clips: [seatClip(seatId), hostClip("sheriff-withdrew")],
+    };
+  }
+
+  return undefined;
+}
+
+function buildSheriffAudioCue(game: HumanGameView, currentActor: HumanGameView["seats"][number] | undefined): HostAudioCue | undefined {
+  const sheriff = game.sheriff;
+
+  switch (game.phase) {
+    case "SHERIFF_NOMINATION":
+      if (!currentActor?.isHuman) {
+        return decisionCount(sheriff?.nominationDecisions) === 0
+          ? buildPhaseIntroAudioCue(game, "sheriff-nomination", "sheriff-nomination-start")
+          : undefined;
+      }
+      return buildSeatPromptAudioCue({
+        game,
+        cueName: "sheriff-nomination",
+        currentActor,
+        includeIntro: decisionCount(sheriff?.nominationDecisions) === 0,
+        introClip: "sheriff-nomination-start",
+        humanClip: "sheriff-nomination-human",
+        promptClip: "sheriff-nomination-prompt",
+      });
+    case "SHERIFF_SPEECH":
+      return buildSeatPromptAudioCue({
+        game,
+        cueName: "sheriff-speech",
+        currentActor,
+        includeIntro: (sheriff?.speechIndex ?? 0) === 0,
+        introClip: "sheriff-speech-start",
+        humanClip: "sheriff-speech-human",
+        promptClip: "sheriff-speech-prompt",
+      });
+    case "SHERIFF_WITHDRAWAL":
+      return buildPhaseIntroAudioCue(game, "sheriff-withdrawal", "sheriff-withdrawal-start");
+    case "SHERIFF_VOTE":
+      return buildPhaseIntroAudioCue(game, "sheriff-vote", "sheriff-vote-start");
+    case "SHERIFF_PK_SPEECH":
+      return buildSeatPromptAudioCue({
+        game,
+        cueName: "sheriff-pk-speech",
+        currentActor,
+        includeIntro: (sheriff?.speechIndex ?? 0) === 0,
+        introClip: "sheriff-pk-speech-start",
+        humanClip: "sheriff-pk-speech-human",
+        promptClip: "sheriff-pk-speech-prompt",
+      });
+    case "SHERIFF_PK_VOTE":
+      return buildPhaseIntroAudioCue(game, "sheriff-pk-vote", "sheriff-pk-vote-start");
+    case "SHERIFF_HANDOFF":
+      return buildSeatPromptAudioCue({
+        game,
+        cueName: "sheriff-handoff",
+        currentActor,
+        includeIntro: true,
+        introClip: "sheriff-handoff-start",
+        humanClip: "sheriff-handoff-human",
+        promptClip: "sheriff-handoff-prompt",
+      });
+    default:
+      return undefined;
+  }
+}
+
+function buildWhiteWolfKingAudioCue(game: HumanGameView, completedKeys: ReadonlySet<string>): HostAudioCue | undefined {
+  const event = findLatestUnplayedPublicEvent(game, completedKeys, new Set(["WHITE_WOLF_KING_EXPLODED"]));
+  if (!event) return undefined;
+
+  const shooterSeatId = typeof event.payload.shooterSeatId === "number" ? event.payload.shooterSeatId : event.actorSeatId;
+  const targetSeatId = readEventSeatId(game, event, "targetSeatId");
+  return {
+    key: `${game.id}:${event.seq}:${event.type}`,
+    clips: [
+      ...(shooterSeatId ? [seatClip(shooterSeatId), hostClip("white-wolf-king-exploded")] : [hostClip("white-wolf-king-exploded")]),
+      ...(targetSeatId ? [seatClip(targetSeatId), hostClip("white-wolf-king-taken")] : []),
+    ],
+  };
+}
+
+function buildWolfBeautyAudioCue(game: HumanGameView, completedKeys: ReadonlySet<string>): HostAudioCue | undefined {
+  const event = findLatestUnplayedPublicEvent(game, completedKeys, new Set(["WOLF_BEAUTY_CHARM_TRIGGERED"]));
+  if (!event) return undefined;
+
+  const wolfBeautySeatId = readEventSeatId(game, event, "wolfBeautySeatId") ?? event.actorSeatId;
+  const targetSeatId = readEventSeatId(game, event, "targetSeatId");
+  return {
+    key: `${game.id}:${event.seq}:${event.type}`,
+    clips: [
+      ...(wolfBeautySeatId ? [seatClip(wolfBeautySeatId), hostClip("wolf-beauty-charmed")] : [hostClip("wolf-beauty-charmed")]),
+      ...(targetSeatId ? [seatClip(targetSeatId), hostClip("wolf-beauty-taken")] : []),
+    ],
+  };
+}
+
+function buildKnightAudioCue(game: HumanGameView, completedKeys: ReadonlySet<string>): HostAudioCue | undefined {
+  const event = findLatestUnplayedPublicEvent(game, completedKeys, new Set(["KNIGHT_DUEL_SUCCESS", "KNIGHT_DUEL_FAILED"]));
+  if (!event) return undefined;
+
+  const knightSeatId = readEventSeatId(game, event, "knightSeatId") ?? event.actorSeatId;
+  const targetSeatId = readEventSeatId(game, event, "targetSeatId");
+  const resultClip = event.type === "KNIGHT_DUEL_SUCCESS" ? "knight-duel-success" : "knight-duel-failed";
+  return {
+    key: `${game.id}:${event.seq}:${event.type}`,
+    clips: [
+      ...(knightSeatId ? [seatClip(knightSeatId), hostClip(resultClip)] : [hostClip(resultClip)]),
+      ...(targetSeatId && event.type === "KNIGHT_DUEL_SUCCESS" ? [seatClip(targetSeatId), hostClip("knight-duel-taken")] : []),
+    ],
+  };
+}
+
+function buildIdiotAudioCue(game: HumanGameView, completedKeys: ReadonlySet<string>): HostAudioCue | undefined {
+  const event = findLatestUnplayedPublicEvent(game, completedKeys, new Set(["IDIOT_REVEALED"]));
+  if (!event) return undefined;
+
+  const seatId = readEventSeatId(game, event, "seatId") ?? event.actorSeatId;
+  return {
+    key: `${game.id}:${event.seq}:${event.type}`,
+    clips: [...(seatId ? [seatClip(seatId)] : []), hostClip("idiot-revealed")],
   };
 }
 
@@ -207,9 +483,29 @@ function buildHostAudioCue(game: HumanGameView, completedKeys: ReadonlySet<strin
     : undefined;
   const pendingDawnCue = buildDawnAudioCue(game);
   const pendingLastWordsCue = buildLastWordsAudioCue(game, completedKeys);
+  const pendingSheriffResultCue = buildSheriffResultAudioCue(game, completedKeys);
+  const pendingWhiteWolfKingCue = buildWhiteWolfKingAudioCue(game, completedKeys);
+  const pendingWolfBeautyCue = buildWolfBeautyAudioCue(game, completedKeys);
+  const pendingKnightCue = buildKnightAudioCue(game, completedKeys);
+  const pendingIdiotCue = buildIdiotAudioCue(game, completedKeys);
 
   if (pendingLastWordsCue) {
     return pendingLastWordsCue;
+  }
+  if (pendingIdiotCue && !completedKeys.has(pendingIdiotCue.key)) {
+    return pendingIdiotCue;
+  }
+  if (pendingKnightCue && !completedKeys.has(pendingKnightCue.key)) {
+    return pendingKnightCue;
+  }
+  if (pendingWolfBeautyCue && !completedKeys.has(pendingWolfBeautyCue.key)) {
+    return pendingWolfBeautyCue;
+  }
+  if (pendingWhiteWolfKingCue && !completedKeys.has(pendingWhiteWolfKingCue.key)) {
+    return pendingWhiteWolfKingCue;
+  }
+  if (pendingSheriffResultCue && !completedKeys.has(pendingSheriffResultCue.key)) {
+    return pendingSheriffResultCue;
   }
   if (game.phase === "LAST_WORDS") {
     return { key: `${game.id}:${game.day}:last-words:idle:${game.currentActorSeatId ?? "host"}`, clips: [] };
@@ -241,6 +537,11 @@ function buildHostAudioCue(game: HumanGameView, completedKeys: ReadonlySet<strin
     return { key: `${game.id}:${game.day}:vote:start`, clips: [hostClip("day-vote-start")] };
   }
 
+  const pendingSheriffCue = buildSheriffAudioCue(game, currentActor);
+  if (pendingSheriffCue) {
+    return pendingSheriffCue;
+  }
+
   if (game.phase === "DAY_ANNOUNCEMENT") {
     return pendingDawnCue ?? { key: `${game.id}:${game.day}:dawn:pending`, clips: [] };
   }
@@ -267,6 +568,20 @@ function buildHostAudioCue(game: HumanGameView, completedKeys: ReadonlySet<strin
     };
   }
 
+  if (game.phase === "WOLF_KING_SHOT") {
+    return {
+      key: `${game.id}:${game.day}:wolf-king:${currentActor?.isHuman ? "human" : "ai"}`,
+      clips: [hostClip(currentActor?.isHuman ? "wolf-king-shot-human" : "wolf-king-shot")],
+    };
+  }
+
+  if (game.phase === "KNIGHT_DUEL") {
+    return {
+      key: `${game.id}:${game.day}:knight:${currentActor?.isHuman ? "human" : "ai"}`,
+      clips: [hostClip(currentActor?.isHuman ? "knight-duel-human" : "knight-duel")],
+    };
+  }
+
   if (game.phase === "GAME_OVER") {
     return {
       key: `${game.id}:game-over:${game.result?.winner ?? "unknown"}`,
@@ -276,6 +591,8 @@ function buildHostAudioCue(game: HumanGameView, completedKeys: ReadonlySet<strin
 
   const phaseClips: Partial<Record<HumanGameView["phase"], string>> = {
     NIGHT_WOLVES: "night-wolves",
+    NIGHT_WOLF_BEAUTY: "night-wolf-beauty",
+    NIGHT_GUARD: "night-guard",
     NIGHT_SEER: "night-seer",
     NIGHT_WITCH: "night-witch",
   };
@@ -285,13 +602,20 @@ function buildHostAudioCue(game: HumanGameView, completedKeys: ReadonlySet<strin
   };
 }
 
-function buildAiSpeechAudioCue(game: HumanGameView, completedKeys: ReadonlySet<string>): AiSpeechAudioCue | undefined {
+function buildAiSpeechAudioCue(
+  game: HumanGameView,
+  completedKeys: ReadonlySet<string>,
+  runtimeAiTtsConfigs: Record<string, AiFriendRuntimeTtsConfig> | undefined,
+): AiSpeechAudioCue | undefined {
   const speech = getNextPlayableAiSpeech(game, completedKeys);
   if (!speech?.speaker) return undefined;
   return {
     key: speechStreamKey(game.id, speech),
     gameId: game.id,
     speech,
+    voicePersonaName: getSeatPersonaName(game, speech.speaker.seatId),
+    ttsVoice: getSeatTtsVoice(game, speech.speaker.seatId),
+    ttsConfig: getSeatTtsConfig(game, speech.speaker.seatId, runtimeAiTtsConfigs),
   };
 }
 
@@ -312,6 +636,9 @@ function createStreamingAiSpeechTtsQueue(options: {
   gameId: string;
   speechKeyPrefix: string;
   speaker: NonNullable<SpeechItem["speaker"]>;
+  voicePersonaName?: string;
+  ttsVoice?: string;
+  ttsConfig?: AiFriendRuntimeTtsConfig;
   runId: number;
   loadChunk: (cue: AiSpeechAudioTextCue) => Promise<HTMLAudioElement>;
   playLoadedChunk: (audio: HTMLAudioElement, runId: number, cue: AiSpeechAudioTextCue) => Promise<void>;
@@ -390,6 +717,9 @@ function createStreamingAiSpeechTtsQueue(options: {
       gameId: options.gameId,
       speechKey: `${options.speechKeyPrefix}:chunk:${chunkIndex}`,
       speaker: options.speaker,
+      voicePersonaName: options.voicePersonaName,
+      ttsVoice: options.ttsVoice,
+      ttsConfig: options.ttsConfig,
       text: clean,
     };
     chunkIndex += 1;
@@ -549,6 +879,7 @@ async function tryPlayHostClip(audio: HTMLAudioElement, clip: string): Promise<v
 async function submitStreamingContinue(
   game: HumanGameView,
   payload: Extract<CommandPayload, { type: "continue" }>,
+  runtimeAiLlmConfigs: Record<string, AiFriendRuntimeLlmConfig> | undefined,
   setLiveAiSpeech: React.Dispatch<React.SetStateAction<LiveAiSpeech | null>>,
   onSpeechTextSnapshot?: (text: string) => void,
 ): Promise<HumanGameView> {
@@ -567,7 +898,7 @@ async function submitStreamingContinue(
   const response = await fetch(`/api/games/${game.id}/commands/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, aiLlmConfigs: runtimeAiLlmConfigs }),
   });
   if (!response.ok || !response.body) {
     const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -618,10 +949,18 @@ export function GameClient() {
   const [game, setGame] = useState<HumanGameView | null>(null);
   const [boards, setBoards] = useState<BoardOption[]>([]);
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
+  const [humanSeatMode, setHumanSeatMode] = useState<HumanSeatMode>("random");
+  const [selectedHumanSeatId, setSelectedHumanSeatId] = useState<number | null>(null);
+  const [customAiFriends, setCustomAiFriends] = useState<AiFriendConfig[]>(EMPTY_CUSTOM_AI_FRIENDS);
+  const [aiLlmSecrets, setAiLlmSecrets] = useState<AiFriendLlmSecretMap>({});
+  const [selectedAiFriendIds, setSelectedAiFriendIds] = useState<string[]>(getDefaultSelectedAiFriendIds);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roleIntroGameId, setRoleIntroGameId] = useState<string | null>(null);
   const [phaseCurtain, setPhaseCurtain] = useState<PhaseCurtainCue | null>(null);
+  const [idiotReveal, setIdiotReveal] = useState<IdiotRevealCue | null>(null);
+  const [identityBookOpen, setIdentityBookOpen] = useState(false);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [hostAudioEnabled, setHostAudioEnabled] = useState(false);
   const [aiSpeechAudioEnabled, setAiSpeechAudioEnabled] = useState(false);
   const [liveAiSpeech, setLiveAiSpeech] = useState<LiveAiSpeech | null>(null);
@@ -632,6 +971,9 @@ export function GameClient() {
   const [hostAudioCompletionTick, setHostAudioCompletionTick] = useState(0);
   const [aiSpeechAudioCompletionTick, setAiSpeechAudioCompletionTick] = useState(0);
   const lastCurtainKeyRef = useRef<string | null>(null);
+  const activeIdiotRevealKeyRef = useRef<string | null>(null);
+  const completedIdiotRevealKeysRef = useRef<Set<string>>(new Set());
+  const idiotRevealTimerRef = useRef<number | null>(null);
   const autoReadGameIdRef = useRef<string | null>(null);
   const autoReadSpeechKeysRef = useRef<Set<string>>(new Set());
   const lastHostAudioKeyRef = useRef<string | null>(null);
@@ -648,6 +990,97 @@ export function GameClient() {
   const aiSpeechAudioRunRef = useRef(0);
   const recentGameIds = useSyncExternalStore(subscribeRecentGameIds, readRecentGameIds, getRecentGameIdsServerSnapshot);
   const effectiveAiSpeechAudioEnabled = aiSpeechAudioEnabled && !aiSpeechAudioUnavailable;
+  const aiFriendOptions = useMemo(() => buildAiFriendOptions(customAiFriends), [customAiFriends]);
+  const selectedAiFriends = useMemo(
+    () => resolveSelectedAiFriends(aiFriendOptions, selectedAiFriendIds),
+    [aiFriendOptions, selectedAiFriendIds],
+  );
+  const runtimeAiLlmConfigs = useMemo(
+    () => buildRuntimeAiLlmConfigs(customAiFriends, aiLlmSecrets),
+    [aiLlmSecrets, customAiFriends],
+  );
+  const runtimeAiTtsConfigs = useMemo(
+    () => buildRuntimeAiTtsConfigs(customAiFriends, aiLlmSecrets),
+    [aiLlmSecrets, customAiFriends],
+  );
+  const selectedBoard = useMemo(
+    () => (selectedBoardId ? boards.find((board) => board.id === selectedBoardId) : undefined),
+    [boards, selectedBoardId],
+  );
+  const aiLineupPreview = useMemo<AiLineupPreviewItem[]>(() => {
+    const seatCount = selectedBoard?.seatCount ?? 0;
+    const isSpectatorMode = humanSeatMode === "none";
+    if (seatCount <= 0 || (!isSpectatorMode && !selectedHumanSeatId)) return [];
+    const resolvedFriends = resolveAiFriendsForGame(selectedAiFriends, Math.max(0, isSpectatorMode ? seatCount : seatCount - 1));
+    let aiIndex = 0;
+    return Array.from({ length: seatCount }, (_, index) => {
+      const seatId = index + 1;
+      if (!isSpectatorMode && seatId === selectedHumanSeatId) {
+        return {
+          seatId,
+          nickname: "你",
+          isHuman: true,
+          autoFilled: false,
+        };
+      }
+      const friendIndex = aiIndex;
+      const friend = resolvedFriends[friendIndex];
+      aiIndex += 1;
+      return {
+        seatId,
+        nickname: friend?.displayName ?? "AI",
+        personaName: friend?.persona.name,
+        modelLabel: friend?.persona.modelLabel,
+        avatarDataUrl: friend?.config.avatarDataUrl,
+        ttsVoice: friend?.config.ttsVoice,
+        ttsConfig: friend?.config.ttsConfig,
+        isHuman: false,
+        autoFilled: friendIndex >= selectedAiFriends.length,
+      };
+    });
+  }, [humanSeatMode, selectedAiFriends, selectedBoard?.seatCount, selectedHumanSeatId]);
+
+  const selectBoard = useCallback(
+    (boardId: string) => {
+      if (selectedBoardId === boardId) {
+        setSelectedBoardId(null);
+        setHumanSeatMode("random");
+        setSelectedHumanSeatId(null);
+        return;
+      }
+      const board = boards.find((item) => item.id === boardId);
+      setSelectedBoardId(boardId);
+      if (!board) return;
+      if (humanSeatMode === "none") {
+        setSelectedHumanSeatId(null);
+        return;
+      }
+      setSelectedHumanSeatId((current) => {
+        if (humanSeatMode === "fixed" && current && current >= 1 && current <= board.seatCount) return current;
+        return randomSeatId(board.seatCount);
+      });
+      if (humanSeatMode === "fixed" && selectedHumanSeatId && selectedHumanSeatId > board.seatCount) {
+        setHumanSeatMode("random");
+      }
+    },
+    [boards, humanSeatMode, selectedBoardId, selectedHumanSeatId],
+  );
+
+  const selectRandomHumanSeat = useCallback(() => {
+    if (!selectedBoard) return;
+    setHumanSeatMode("random");
+    setSelectedHumanSeatId(randomSeatId(selectedBoard.seatCount));
+  }, [selectedBoard]);
+
+  const selectFixedHumanSeat = useCallback((seatId: number) => {
+    setHumanSeatMode("fixed");
+    setSelectedHumanSeatId(seatId);
+  }, []);
+
+  const selectNoHumanSeat = useCallback(() => {
+    setHumanSeatMode("none");
+    setSelectedHumanSeatId(null);
+  }, []);
 
   const rememberGame = useCallback((gameId: string) => {
     const nextIds = [gameId, ...readRecentGameIds().filter((id) => id !== gameId)].slice(0, 5);
@@ -660,6 +1093,9 @@ export function GameClient() {
     const timer = window.setTimeout(() => {
       setHostAudioEnabled(window.localStorage.getItem(HOST_AUDIO_ENABLED_KEY) === "true");
       setAiSpeechAudioEnabled(window.localStorage.getItem(AI_SPEECH_AUDIO_ENABLED_KEY) === "true");
+      setCustomAiFriends(readStoredCustomAiFriends());
+      setAiLlmSecrets(readStoredAiFriendLlmSecrets());
+      setSelectedAiFriendIds(readStoredSelectedAiFriendIds());
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -673,6 +1109,7 @@ export function GameClient() {
         const nextBoards = data.boards ?? [];
         setBoards(nextBoards);
         setSelectedBoardId((current) => current ?? nextBoards[0]?.id ?? null);
+        setSelectedHumanSeatId((current) => current ?? (nextBoards[0] ? randomSeatId(nextBoards[0].seatCount) : null));
       })
       .catch(() => {
         if (!cancelled) setError("读取板子列表失败。");
@@ -806,7 +1243,9 @@ export function GameClient() {
         gameId: cue.gameId,
         speechKey: cue.speechKey,
         speakerSeatId: cue.speaker.seatId,
-        speakerName: cue.speaker.name,
+        speakerName: cue.voicePersonaName ?? cue.speaker.name,
+        ttsVoice: cue.ttsVoice,
+        ttsConfig: cue.ttsConfig,
         text: cue.text,
       }),
     });
@@ -877,6 +1316,9 @@ export function GameClient() {
           gameId: cue.gameId,
           speechKey: cue.key,
           speaker,
+          voicePersonaName: cue.voicePersonaName,
+          ttsVoice: cue.ttsVoice,
+          ttsConfig: cue.ttsConfig,
           text: cue.speech.message,
         },
         runId,
@@ -912,19 +1354,23 @@ export function GameClient() {
       const response = await fetch("/api/games", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ boardId: boardId ?? selectedBoardId ?? undefined }),
+        body: JSON.stringify({
+          boardId: boardId ?? selectedBoardId ?? undefined,
+          humanSeatId: humanSeatMode === "none" ? null : selectedHumanSeatId ?? undefined,
+          aiFriends: selectedAiFriends,
+        }),
       });
       if (!response.ok) throw new Error("创建对局失败。");
       const view = (await response.json()) as HumanGameView;
       rememberGame(view.id);
-      setRoleIntroGameId(view.id);
+      setRoleIntroGameId(view.humanSeatId === null ? null : view.id);
       setGame(view);
     } catch {
       setError("创建对局失败。");
     } finally {
       setLoading(false);
     }
-  }, [rememberGame, selectedBoardId]);
+  }, [humanSeatMode, rememberGame, selectedAiFriends, selectedBoardId, selectedHumanSeatId]);
 
   const submitCommand = useCallback(async (payload: CommandPayload) => {
     if (!game) return;
@@ -937,7 +1383,7 @@ export function GameClient() {
       if (payload.type === "continue") {
         const previousSpeechKeys = new Set(game.tableSummary.recentSpeeches.map((speech) => speechStreamKey(game.id, speech)));
         const streamingSpeaker = game.currentSpeakerSeatId
-          ? game.tableSummary.tableMemory.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId)
+          ? game.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId)
           : undefined;
         let streamingSpeechKeyPrefix: string | undefined;
         if (effectiveAiSpeechAudioEnabled && streamingSpeaker && streamingSpeaker.seatId !== game.humanSeatId) {
@@ -949,6 +1395,9 @@ export function GameClient() {
             gameId: game.id,
             speechKeyPrefix,
             speaker: streamingSpeaker,
+            voicePersonaName: streamingSpeaker.personaName,
+            ttsVoice: streamingSpeaker.ttsVoice,
+            ttsConfig: getSeatTtsConfig(game, streamingSpeaker.seatId, runtimeAiTtsConfigs),
             runId,
             loadChunk: loadAiSpeechAudioElement,
             playLoadedChunk: playAiSpeechAudioElement,
@@ -960,7 +1409,7 @@ export function GameClient() {
           });
         }
 
-        const streamedView = await submitStreamingContinue(game, payload, setLiveAiSpeech, streamingTts?.push);
+        const streamedView = await submitStreamingContinue(game, payload, runtimeAiLlmConfigs, setLiveAiSpeech, streamingTts?.push);
         const streamedSpeech =
           streamingTts && streamingSpeaker ? findNewAiSpeech(streamedView, previousSpeechKeys, streamingSpeaker.seatId) : undefined;
         if (streamingTts && streamedSpeech) {
@@ -1003,7 +1452,7 @@ export function GameClient() {
       const response = await fetch(`/api/games/${game.id}/commands`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, aiLlmConfigs: runtimeAiLlmConfigs }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -1024,13 +1473,42 @@ export function GameClient() {
     loadAiSpeechAudioElement,
     markAiSpeechAudioUnavailable,
     playAiSpeechAudioElement,
+    runtimeAiLlmConfigs,
+    runtimeAiTtsConfigs,
     stopAiSpeechAudio,
   ]);
 
-  const phaseCurtainActive = Boolean(phaseCurtain);
+  useEffect(() => {
+    if (!game) return;
+    const event = findLatestUnplayedPublicEvent(game, completedIdiotRevealKeysRef.current, IDIOT_REVEAL_EVENT_TYPES);
+    if (!event) return;
+
+    const cue = buildIdiotRevealCue(game, event);
+    if (!cue || activeIdiotRevealKeyRef.current === cue.key) return;
+
+    activeIdiotRevealKeyRef.current = cue.key;
+    window.setTimeout(() => setIdiotReveal(cue), 0);
+    if (idiotRevealTimerRef.current !== null) window.clearTimeout(idiotRevealTimerRef.current);
+    idiotRevealTimerRef.current = window.setTimeout(() => {
+      completedIdiotRevealKeysRef.current.add(cue.key);
+      if (activeIdiotRevealKeyRef.current === cue.key) activeIdiotRevealKeyRef.current = null;
+      setIdiotReveal((current) => (current?.key === cue.key ? null : current));
+      idiotRevealTimerRef.current = null;
+    }, 4200);
+  }, [game]);
 
   useEffect(() => {
-    if (!game || loading || error || game.result || roleIntroGameId === game.id || phaseCurtainActive) return;
+    return () => {
+      if (idiotRevealTimerRef.current !== null) window.clearTimeout(idiotRevealTimerRef.current);
+    };
+  }, []);
+
+  const phaseCurtainActive = Boolean(phaseCurtain);
+  const idiotRevealActive = Boolean(idiotReveal);
+
+  useEffect(() => {
+    if (!game || loading || error || game.result || roleIntroGameId === game.id || phaseCurtainActive || idiotRevealActive) return;
+    if (findLatestUnplayedPublicEvent(game, completedIdiotRevealKeysRef.current, IDIOT_REVEAL_EVENT_TYPES)) return;
 
     const currentSpeechKeys = new Set(game.tableSummary.recentSpeeches.map((speech) => speechStreamKey(game.id, speech)));
     if (autoReadGameIdRef.current !== game.id) {
@@ -1042,7 +1520,7 @@ export function GameClient() {
     const isAutoStep = game.availableActions.length === 1 && action?.type === "continue";
     if (!isAutoStep) return;
 
-    const pendingAiSpeechCue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current);
+    const pendingAiSpeechCue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current, runtimeAiTtsConfigs);
     const latestAiSpeech = getLatestStreamableAiSpeech(game);
     const latestAiSpeechKey = latestAiSpeech ? speechStreamKey(game.id, latestAiSpeech) : undefined;
     if (effectiveAiSpeechAudioEnabled && pendingAiSpeechCue) {
@@ -1077,9 +1555,11 @@ export function GameClient() {
     game,
     hostAudioCompletionTick,
     hostAudioEnabled,
+    idiotRevealActive,
     loading,
     phaseCurtainActive,
     roleIntroGameId,
+    runtimeAiTtsConfigs,
     submitCommand,
   ]);
 
@@ -1112,7 +1592,7 @@ export function GameClient() {
     if (!game || !hostAudioEnabled || roleIntroGameId === game.id) return;
 
     if (effectiveAiSpeechAudioEnabled && game.phase !== "DAY_ANNOUNCEMENT") {
-      const pendingAiSpeechCue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current);
+      const pendingAiSpeechCue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current, runtimeAiTtsConfigs);
       if (pendingAiSpeechCue && !completedAiSpeechAudioKeysRef.current.has(pendingAiSpeechCue.key)) return;
     }
 
@@ -1148,13 +1628,14 @@ export function GameClient() {
     hostAudioEnabled,
     playHostAudioCue,
     roleIntroGameId,
+    runtimeAiTtsConfigs,
     stopHostAudio,
   ]);
 
   useEffect(() => {
     if (!game || !effectiveAiSpeechAudioEnabled || roleIntroGameId === game.id) return;
 
-    const cue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current);
+    const cue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current, runtimeAiTtsConfigs);
     if (!cue) return;
     if (completedAiSpeechAudioKeysRef.current.has(cue.key)) return;
     if (streamingAiSpeechAudioKeysRef.current.has(cue.key)) return;
@@ -1198,6 +1679,7 @@ export function GameClient() {
     markAiSpeechAudioUnavailable,
     playAiSpeechAudioCue,
     roleIntroGameId,
+    runtimeAiTtsConfigs,
     stopAiSpeechAudio,
   ]);
 
@@ -1229,6 +1711,8 @@ export function GameClient() {
           aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
           hostAudioEnabled={hostAudioEnabled}
           onNewGame={startGame}
+          onOpenIdentityBook={() => setIdentityBookOpen(true)}
+          onOpenGlossary={() => setGlossaryOpen(true)}
           onToggleAiSpeechAudio={toggleAiSpeechAudio}
           onToggleHostAudio={toggleHostAudio}
         />
@@ -1244,7 +1728,15 @@ export function GameClient() {
             loading={loading}
             boards={boards}
             selectedBoardId={selectedBoardId}
-            onSelectBoard={setSelectedBoardId}
+            onSelectBoard={selectBoard}
+            humanSeatMode={humanSeatMode}
+            selectedHumanSeatId={selectedHumanSeatId}
+            onSelectRandomHumanSeat={selectRandomHumanSeat}
+            onSelectFixedHumanSeat={selectFixedHumanSeat}
+            onSelectNoHumanSeat={selectNoHumanSeat}
+            selectedAiFriendCount={selectedAiFriends.length}
+            customAiFriendCount={customAiFriends.length}
+            aiLineupPreview={aiLineupPreview}
             recentGameIds={recentGameIds}
             onLoadGame={loadGameById}
             onStartGame={() => startGame(selectedBoardId ?? undefined)}
@@ -1266,8 +1758,8 @@ export function GameClient() {
               onSkipAiSpeechAudio={skipAiSpeechAudio}
               onToggleAiSpeechAudio={toggleAiSpeechAudio}
             />
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,420px)]">
-              <div className="grid gap-4">
+            <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,420px)]">
+              <div className="grid content-start gap-4">
                 <SeatBoard game={game} liveAiSpeech={liveAiSpeech} aiSpeechAudioStatus={aiSpeechAudioStatus} />
                 {game.review && <ReviewPanel game={game} />}
               </div>
@@ -1282,10 +1774,15 @@ export function GameClient() {
         )}
       </div>
 
-      {game && roleIntroGameId === game.id && (
+      {game && game.humanSeatId !== null && roleIntroGameId === game.id && (
         <RoleIntroOverlay game={game} onEnter={() => setRoleIntroGameId(null)} />
       )}
+      {identityBookOpen && (
+        <IdentityBookOverlay game={game} activeBoardId={game?.board.id ?? selectedBoardId ?? undefined} onClose={() => setIdentityBookOpen(false)} />
+      )}
+      {glossaryOpen && <GlossaryOverlay onClose={() => setGlossaryOpen(false)} />}
       {phaseCurtain && <PhaseCurtain cue={phaseCurtain} />}
+      {idiotReveal && <IdiotRevealOverlay key={idiotReveal.key} cue={idiotReveal} />}
     </main>
   );
 }

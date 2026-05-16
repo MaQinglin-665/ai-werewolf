@@ -1,9 +1,22 @@
-export const ROLES = ["WEREWOLF", "VILLAGER", "SEER", "WITCH", "HUNTER", "GUARD"] as const;
+export const ROLES = [
+  "WEREWOLF",
+  "WOLF_KING",
+  "WHITE_WOLF_KING",
+  "WOLF_BEAUTY",
+  "VILLAGER",
+  "SEER",
+  "WITCH",
+  "HUNTER",
+  "IDIOT",
+  "KNIGHT",
+  "GUARD",
+] as const;
 export type Role = (typeof ROLES)[number];
 
 export const PHASES = [
   "SETUP",
   "NIGHT_WOLVES",
+  "NIGHT_WOLF_BEAUTY",
   "NIGHT_GUARD",
   "NIGHT_SEER",
   "NIGHT_WITCH",
@@ -15,10 +28,12 @@ export const PHASES = [
   "SHERIFF_PK_SPEECH",
   "SHERIFF_PK_VOTE",
   "DAY_SPEECH",
+  "KNIGHT_DUEL",
   "DAY_VOTE",
   "EXILE_RESOLUTION",
   "LAST_WORDS",
   "HUNTER_SHOT",
+  "WOLF_KING_SHOT",
   "SHERIFF_HANDOFF",
   "GAME_OVER",
 ] as const;
@@ -31,13 +46,20 @@ export type DeathReason =
   | "WOLF_KILL"
   | "WITCH_POISON"
   | "EXILED"
-  | "HUNTER_SHOT";
+  | "HUNTER_SHOT"
+  | "WOLF_KING_SHOT"
+  | "WHITE_WOLF_KING_EXPLODE"
+  | "WHITE_WOLF_KING_SHOT"
+  | "WOLF_BEAUTY_CHARM"
+  | "KNIGHT_DUEL"
+  | "KNIGHT_DUEL_FAILED";
 
 export type GameEventType =
   | "GAME_CREATED"
   | "ROLE_ASSIGNED"
   | "NIGHT_STARTED"
   | "NIGHT_KILL_SELECTED"
+  | "WOLF_BEAUTY_CHARMED"
   | "GUARD_PROTECTED"
   | "GUARD_SKIPPED"
   | "SEER_CHECKED"
@@ -48,6 +70,7 @@ export type GameEventType =
   | "DAY_STARTED"
   | "SHERIFF_PHASE_STARTED"
   | "SHERIFF_NOMINATED"
+  | "SHERIFF_NOMINATION_REVEALED"
   | "SHERIFF_WITHDREW"
   | "SHERIFF_VOTE_CAST"
   | "SHERIFF_VOTE_REVEALED"
@@ -63,10 +86,18 @@ export type GameEventType =
   | "VOTE_REVEALED"
   | "VOTE_TIED"
   | "PLAYER_EXILED"
+  | "IDIOT_REVEALED"
   | "LAST_WORDS_CREATED"
   | "PLAYER_DIED"
   | "HUNTER_SHOT"
   | "HUNTER_SKIPPED"
+  | "WOLF_KING_SHOT"
+  | "WOLF_KING_SKIPPED"
+  | "WHITE_WOLF_KING_EXPLODED"
+  | "WOLF_BEAUTY_CHARM_TRIGGERED"
+  | "KNIGHT_DUEL_SUCCESS"
+  | "KNIGHT_DUEL_FAILED"
+  | "KNIGHT_DUEL_SKIPPED"
   | "GAME_ENDED";
 
 export type GameEvent = {
@@ -88,6 +119,11 @@ export type Seat = {
   alive: boolean;
   deathReason?: DeathReason;
   persona?: AiPersona;
+  aiFriendId?: string;
+  avatarDataUrl?: string;
+  llmConfig?: AiFriendLlmConfig;
+  ttsVoice?: string;
+  ttsConfig?: AiFriendTtsConfig;
 };
 
 export type SeerCheck = {
@@ -145,12 +181,18 @@ export type HunterShotState = {
   cause: "WOLF_KILL" | "EXILED";
 };
 
+export type WolfKingShotState = {
+  shooterSeatId: number;
+  cause: "EXILED" | "HUNTER_SHOT";
+  nextStep: "DAY_DEATHS" | "NIGHT_DEATHS";
+};
+
 export type GameResult = {
   winner: Camp;
   reason: string;
 };
 
-export type BoardId = "9p-seer-witch-hunter" | "12p-sheriff-seer-witch-hunter-guard";
+export type BoardId = string;
 export type WinCondition = "side-slaughter";
 
 export type BoardSnapshot = {
@@ -169,9 +211,82 @@ export type GameRules = {
   wolfRoles: Role[];
   hasGuard: boolean;
   hasSheriff: boolean;
+  hasWolfBeauty: boolean;
+  hasKnight: boolean;
+  hasIdiot: boolean;
   winCondition: WinCondition;
   sheriffVoteWeight: number;
   guardSaveConflictKills: boolean;
+};
+
+export type AiPersonaPreferences = {
+  logic: number;
+  identity: number;
+  vote: number;
+  emotion: number;
+  memory: number;
+  leadership: number;
+  deception: number;
+  caution: number;
+};
+
+export type AiFriendLlmConfig = {
+  provider: "openai-compatible";
+  label?: string;
+  baseUrl: string;
+  model: string;
+  mergeSystemIntoUser?: boolean;
+};
+
+export type AiFriendRuntimeLlmConfig = AiFriendLlmConfig & {
+  apiKey?: string;
+};
+
+export type AiFriendTtsConfig = {
+  provider: "mimo-compatible";
+  label?: string;
+  baseUrl: string;
+  model: string;
+  voice: string;
+  format?: string;
+  authHeader?: string;
+};
+
+export type AiFriendRuntimeTtsConfig = AiFriendTtsConfig & {
+  apiKey?: string;
+};
+
+export type AiFriendConfig = {
+  id: string;
+  nickname: string;
+  basePersonaId: string;
+  avatarDataUrl?: string;
+  llmConfig?: AiFriendLlmConfig;
+  ttsVoice?: string;
+  ttsConfig?: AiFriendTtsConfig;
+  riskTolerance: number;
+  bluffing: number;
+  preferences: AiPersonaPreferences;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiFriendSeatSetup = {
+  seatId: number;
+  friendId: string;
+  nickname: string;
+  basePersonaId: string;
+  personaName: string;
+  modelLabel?: string;
+  avatarDataUrl?: string;
+  ttsVoice?: string;
+  ttsConfig?: AiFriendTtsConfig;
+  isDefault: boolean;
+};
+
+export type GameSetupSnapshot = {
+  boardId: string;
+  aiFriends: AiFriendSeatSetup[];
 };
 
 export type SheriffState = {
@@ -193,7 +308,15 @@ export type GuardState = {
 
 export type SheriffHandoffState = {
   fromSeatId: number;
-  nextStep: "DAY_DEATHS" | "NIGHT_DEATHS";
+  nextStep: "DAY_DEATHS" | "NIGHT_DEATHS" | "DAY_VOTE";
+};
+
+export type KnightState = {
+  used: boolean;
+};
+
+export type IdiotState = {
+  revealedSeatIds: number[];
 };
 
 export type ReviewSeat = {
@@ -347,8 +470,12 @@ export type ReviewAiDebugEntry = {
   phase: Phase;
   provider: string;
   actionType?: Command["type"];
+  outputSummary?: string;
+  decisionReason?: string;
+  target?: ReviewSeat;
   isFallback: boolean;
   publicFactBasis: string[];
+  matchedPublicLogic: string[];
   rawOutput?: unknown;
   error?: string;
   validationErrors: string[];
@@ -359,6 +486,7 @@ export type ReviewDebugInfo = {
   fallbackCount: number;
   providers: string[];
   publicFactBasisCount: number;
+  matchedPublicLogicCount: number;
 };
 
 export type GameReview = {
@@ -382,17 +510,22 @@ export type GameState = {
   day: number;
   phase: Phase;
   humanSeatId: number;
+  spectatorMode?: boolean;
   board: BoardSnapshot;
   rules: GameRules;
+  setup?: GameSetupSnapshot;
   seats: Seat[];
   events: GameEvent[];
   night: {
     wolfTargetSeatId?: number;
+    wolfBeautyTargetSeatId?: number;
     guardTargetSeatId?: number;
     witchSavedSeatId?: number;
     witchPoisonTargetSeatId?: number;
   };
   guard?: GuardState;
+  knight?: KnightState;
+  idiot?: IdiotState;
   witch: {
     antidoteAvailable: boolean;
     poisonAvailable: boolean;
@@ -410,6 +543,7 @@ export type GameState = {
   lastWordsQueue?: number[];
   lastWordsNextStep?: "DAY_DEATHS" | "NIGHT_DEATHS";
   pendingHunterShot?: HunterShotState;
+  pendingWolfKingShot?: WolfKingShotState;
   pendingSheriffHandoff?: SheriffHandoffState;
   result?: GameResult;
   createdAt: string;
@@ -430,10 +564,14 @@ export type Command =
       mode: "save" | "poison" | "skip";
       targetSeatId?: number;
     } & CommandReason)
+  | ({ type: "wolfBeautyCharm"; actorSeatId: number; targetSeatId?: number } & CommandReason)
   | ({ type: "speak"; actorSeatId: number; message: string } & CommandReason)
   | ({ type: "lastWords"; actorSeatId: number; message: string } & CommandReason)
   | ({ type: "vote"; actorSeatId: number; targetSeatId?: number } & CommandReason)
   | ({ type: "hunterShoot"; actorSeatId: number; targetSeatId?: number } & CommandReason)
+  | ({ type: "wolfKingShoot"; actorSeatId: number; targetSeatId?: number } & CommandReason)
+  | ({ type: "whiteWolfKingExplode"; actorSeatId: number; targetSeatId: number } & CommandReason)
+  | ({ type: "knightDuel"; actorSeatId: number; targetSeatId?: number } & CommandReason)
   | ({ type: "sheriffNominate"; actorSeatId: number; run: boolean } & CommandReason)
   | ({ type: "sheriffSpeech"; actorSeatId: number; message: string } & CommandReason)
   | ({ type: "sheriffWithdraw"; actorSeatId: number; withdraw: boolean } & CommandReason)
@@ -454,21 +592,13 @@ export type ActionTarget = {
 export type AiPersona = {
   id: string;
   name: string;
+  modelLabel: string;
   label: string;
   style: string;
   goal: string;
   riskTolerance: number;
   bluffing: number;
-  preferences?: {
-    logic: number;
-    identity: number;
-    vote: number;
-    emotion: number;
-    memory: number;
-    leadership: number;
-    deception: number;
-    caution: number;
-  };
+  preferences?: AiPersonaPreferences;
 };
 
 export type AiSeatBelief = {
@@ -551,6 +681,8 @@ export type StanceBoardItem = {
 export type StanceShiftItem = {
   actor: ActionTarget;
   target: ActionTarget;
+  fromTarget?: ActionTarget;
+  toTarget?: ActionTarget;
   fromKind: StanceKind;
   fromKindLabel: string;
   toKind: StanceKind;
@@ -602,6 +734,7 @@ export type SeatMemory = ActionTarget & {
   evasiveSpeechCount: number;
   lastSpeech?: string;
   lastSpeechDay?: number;
+  lastSpeechSeq?: number;
   claims: ClaimBoardItem[];
   stancesGiven: StanceBoardItem[];
   stancedBy: StanceBoardItem[];
@@ -679,6 +812,7 @@ export type SeatRead = ActionTarget & {
   speechCount: number;
   lastSpeech?: string;
   lastSpeechDay?: number;
+  lastSpeechSeq?: number;
   votedFor?: ActionTarget;
   votesReceived: number;
   publicClaims: ClaimBoardItem[];
@@ -752,13 +886,18 @@ export type AvailableHumanAction =
       type: "witchAction";
       canSave: boolean;
       saveTarget?: ActionTarget;
+      saveBlockedReason?: string;
       canPoison: boolean;
       poisonTargets: ActionTarget[];
     }
+  | { type: "wolfBeautyCharm"; targets: ActionTarget[]; canSkip: boolean }
   | { type: "speak" }
   | { type: "lastWords" }
   | { type: "vote"; targets: ActionTarget[]; canAbstain: boolean }
   | { type: "hunterShoot"; targets: ActionTarget[]; canSkip: boolean }
+  | { type: "wolfKingShoot"; targets: ActionTarget[]; canSkip: boolean }
+  | { type: "whiteWolfKingExplode"; targets: ActionTarget[] }
+  | { type: "knightDuel"; targets: ActionTarget[]; canSkip: boolean }
   | { type: "sheriffNominate"; canRun: boolean }
   | { type: "sheriffSpeech" }
   | { type: "sheriffWithdraw"; canWithdraw: boolean }
@@ -772,9 +911,9 @@ export type HumanGameView = {
   phase: Phase;
   phaseLabel: string;
   board: BoardSnapshot;
-  humanSeatId: number;
-  myRole: Role;
-  myRoleLabel: string;
+  humanSeatId: number | null;
+  myRole?: Role;
+  myRoleLabel?: string;
   seats: Array<{
     seatId: number;
     name: string;
@@ -784,8 +923,15 @@ export type HumanGameView = {
     role?: Role;
     roleLabel?: string;
     deathReason?: DeathReason;
+    voteDisabled?: boolean;
     personaLabel?: string;
     personaStyle?: string;
+    personaName?: string;
+    personaModelLabel?: string;
+    aiFriendId?: string;
+    avatarDataUrl?: string;
+    ttsVoice?: string;
+    ttsConfig?: AiFriendTtsConfig;
   }>;
   publicEvents: Array<Pick<GameEvent, "seq" | "type" | "day" | "phase" | "actorSeatId" | "message" | "payload">>;
   privateEvents: Array<Pick<GameEvent, "seq" | "type" | "day" | "phase" | "actorSeatId" | "message" | "payload">>;
@@ -797,7 +943,7 @@ export type HumanGameView = {
   guard?: GameState["guard"] & {
     guardedTarget?: ActionTarget;
   };
-  witch: GameState["witch"];
+  witch?: GameState["witch"];
   sheriff?: Omit<NonNullable<GameState["sheriff"]>, "candidates" | "pkCandidates"> & {
     badgeHolder?: ActionTarget;
     candidates: ActionTarget[];
@@ -807,6 +953,7 @@ export type HumanGameView = {
   tableSummary: {
     recentSpeeches: PublicSpeechItem[];
     voteSnapshot: PublicVoteSnapshot;
+    sheriffVoteSnapshot?: PublicVoteSnapshot;
     claimBoard: ClaimBoardItem[];
     tableMemory: TableMemory;
     aiReasonHighlights: string[];
@@ -819,21 +966,28 @@ export type HumanGameView = {
   result?: GameResult;
   review?: GameReview;
   reviewDebug?: ReviewDebugInfo;
+  setup?: GameSetupSnapshot;
 };
 
 export type AgentView = {
   gameId: string;
   day: number;
   phase: Phase;
+  rules: Pick<GameRules, "hasGuard" | "guardSaveConflictKills" | "hasWolfBeauty" | "hasKnight"> & {
+    hasIdiot?: GameRules["hasIdiot"];
+    wolfRoles?: GameRules["wolfRoles"];
+  };
   mySeatId: number;
   myRole: Role;
   persona?: AiPersona;
+  llmConfig?: AiFriendRuntimeLlmConfig;
   aliveSeats: ActionTarget[];
   publicEvents: HumanGameView["publicEvents"];
   publicSummary: {
     recentSpeeches: PublicSpeechItem[];
     recentVotes: PublicVoteItem[];
     voteSnapshot: PublicVoteSnapshot;
+    sheriffVoteSnapshot?: PublicVoteSnapshot;
     recentDeaths: string[];
     deathSummary: string[];
     claimBoard: ClaimBoardItem[];
@@ -850,6 +1004,7 @@ export type AgentView = {
       poisonUsedTonight?: boolean;
     };
     pendingHunterShot?: HunterShotState;
+    pendingWolfKingShot?: WolfKingShotState;
     guard?: GameState["guard"] & {
       guardedTarget?: ActionTarget;
     };

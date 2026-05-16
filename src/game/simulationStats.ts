@@ -2,6 +2,7 @@ import { advanceWithMockAi } from "@/ai/mockAgent";
 import type { AiDecisionLog } from "@/ai/types";
 import { buildTableMemory } from "./tableMemory";
 import { createGame, getCamp, getSeat } from "./engine";
+import { isWolfRole } from "./roleUtils";
 import type { Camp, DeathReason, GameEvent, GameState, Phase, Role } from "./types";
 
 export type SimulationOptions = {
@@ -22,8 +23,11 @@ export type SimulationGameStats = {
   fallbackCount: number;
   tiedVotes: number;
   voteRounds: number;
+  fragmentedVoteRounds: number;
   averageTopVoteShare: number;
   totalVotes: number;
+  reasonedVotes: number;
+  publicLogicVotes: number;
   goodVotes: number;
   goodVotesOnWolves: number;
   wolfVotes: number;
@@ -61,6 +65,14 @@ export type SimulationGameStats = {
   seerDied: boolean;
   seerDeathReason?: DeathReason;
   trueSeerClaimed: boolean;
+  seerFirstClaimDay?: number;
+  seerClaimedByDay2: boolean;
+  seerGoldClaims: number;
+  goldWaterVotes: number;
+  goldWaterVotesOnWolves: number;
+  guardProtectUses: number;
+  guardBlocks: number;
+  guardBlocksPower: number;
   phaseActionCounts: Partial<Record<Phase, number>>;
   humanRole: Role;
 };
@@ -91,8 +103,13 @@ export type SimulationSummary = {
   tiedVotes: number;
   tiedVoteGames: number;
   voteRounds: number;
+  fragmentedVoteRounds: number;
+  fragmentedVoteGames: number;
   averageTopVoteShare: number;
   totalVotes: number;
+  reasonedVotes: number;
+  publicLogicVotes: number;
+  publicLogicVoteRate: number;
   goodVotes: number;
   goodVotesOnWolves: number;
   goodVoteAccuracy: number;
@@ -142,6 +159,16 @@ export type SimulationSummary = {
   seerDeathGames: number;
   seerDeathsByReason: SeerDeathBucket;
   trueSeerClaimGames: number;
+  seerClaimedByDay2Games: number;
+  seerGoldClaims: number;
+  seerGoldPublicRate: number;
+  goldWaterVotes: number;
+  goldWaterVotesOnWolves: number;
+  goldWaterVoteAccuracy: number;
+  guardProtectUses: number;
+  guardBlocks: number;
+  guardBlockRate: number;
+  guardBlocksPower: number;
   phaseActionCounts: Partial<Record<Phase, number>>;
   humanRoleBuckets: Record<Role, RoleBucket>;
   games: SimulationGameStats[];
@@ -155,7 +182,19 @@ export type AcceptanceCheck = {
   detail: string;
 };
 
-const ROLES: Role[] = ["WEREWOLF", "VILLAGER", "SEER", "WITCH", "HUNTER", "GUARD"];
+const ROLES: Role[] = [
+  "WEREWOLF",
+  "WOLF_KING",
+  "WHITE_WOLF_KING",
+  "WOLF_BEAUTY",
+  "VILLAGER",
+  "SEER",
+  "WITCH",
+  "HUNTER",
+  "IDIOT",
+  "KNIGHT",
+  "GUARD",
+];
 
 export async function runMockGameSimulation(options: SimulationOptions = {}): Promise<SimulationSummary> {
   const gameCount = options.gameCount ?? 1000;
@@ -203,10 +242,15 @@ export function summarizeSimulatedGame(
     fallbackCount,
     tiedVotes: state.events.filter((event) => event.type === "VOTE_TIED").length,
     voteRounds: voteStats.voteRounds,
+    fragmentedVoteRounds: voteStats.fragmentedVoteRounds,
     averageTopVoteShare: voteStats.averageTopVoteShare,
     totalVotes: voteStats.totalVotes,
+    reasonedVotes: voteStats.reasonedVotes,
+    publicLogicVotes: voteStats.publicLogicVotes,
     goodVotes: voteStats.goodVotes,
     goodVotesOnWolves: voteStats.goodVotesOnWolves,
+    goldWaterVotes: voteStats.goldWaterVotes,
+    goldWaterVotesOnWolves: voteStats.goldWaterVotesOnWolves,
     wolfVotes: voteStats.wolfVotes,
     wolfVotesOnTeammates: voteStats.wolfVotesOnTeammates,
     exiles: exileStats.exiles,
@@ -218,6 +262,9 @@ export function summarizeSimulatedGame(
     seerClaims: claimStats.seerClaims,
     wolfSeerClaims: claimStats.wolfSeerClaims,
     counterclaimRoles: claimStats.counterclaimRoles,
+    seerFirstClaimDay: claimStats.seerFirstClaimDay,
+    seerClaimedByDay2: claimStats.seerClaimedByDay2,
+    seerGoldClaims: claimStats.seerGoldClaims,
     stanceCount: state.stances.length,
     stanceShiftCount: tableMemory.stanceShifts.length,
     speechCount: state.speeches.length,
@@ -252,7 +299,10 @@ export function summarizeSimulation(
   const fallbackCount = sum(games, (game) => game.fallbackCount);
   const tiedVotes = sum(games, (game) => game.tiedVotes);
   const voteRounds = sum(games, (game) => game.voteRounds);
+  const fragmentedVoteRounds = sum(games, (game) => game.fragmentedVoteRounds);
   const totalVotes = sum(games, (game) => game.totalVotes);
+  const reasonedVotes = sum(games, (game) => game.reasonedVotes);
+  const publicLogicVotes = sum(games, (game) => game.publicLogicVotes);
   const goodVotes = sum(games, (game) => game.goodVotes);
   const goodVotesOnWolves = sum(games, (game) => game.goodVotesOnWolves);
   const wolfVotes = sum(games, (game) => game.wolfVotes);
@@ -268,6 +318,10 @@ export function summarizeSimulation(
   const witchPoisonUses = sum(games, (game) => game.witchPoisonUses);
   const hunterShots = sum(games, (game) => game.hunterShots);
   const seerChecks = sum(games, (game) => game.seerChecks);
+  const seerGoodChecks = sum(games, (game) => game.seerGoodChecks);
+  const seerGoldClaims = sum(games, (game) => game.seerGoldClaims);
+  const goldWaterVotes = sum(games, (game) => game.goldWaterVotes);
+  const guardProtectUses = sum(games, (game) => game.guardProtectUses);
   const topVoteShareTotal = sum(games, (game) => game.averageTopVoteShare * game.voteRounds);
 
   return {
@@ -291,8 +345,13 @@ export function summarizeSimulation(
     tiedVotes,
     tiedVoteGames: games.filter((game) => game.tiedVotes > 0).length,
     voteRounds,
+    fragmentedVoteRounds,
+    fragmentedVoteGames: games.filter((game) => game.fragmentedVoteRounds > 0).length,
     averageTopVoteShare: ratio(topVoteShareTotal, voteRounds),
     totalVotes,
+    reasonedVotes,
+    publicLogicVotes,
+    publicLogicVoteRate: ratio(publicLogicVotes, reasonedVotes),
     goodVotes,
     goodVotesOnWolves,
     goodVoteAccuracy: ratio(goodVotesOnWolves, goodVotes),
@@ -335,13 +394,23 @@ export function summarizeSimulation(
     hunterShotWolfHitRate: ratio(sum(games, (game) => game.hunterHitsWolves), hunterShots),
     seerChecks,
     seerWolfChecks: sum(games, (game) => game.seerWolfChecks),
-    seerGoodChecks: sum(games, (game) => game.seerGoodChecks),
+    seerGoodChecks,
     seerWolfCheckRate: ratio(sum(games, (game) => game.seerWolfChecks), seerChecks),
     averageSeerChecks: ratio(seerChecks, games.length),
     averageSeerSurvivalDays: ratio(sum(games, (game) => game.seerSurvivalDays), games.length),
     seerDeathGames: games.filter((game) => game.seerDied).length,
     seerDeathsByReason: buildSeerDeathBuckets(games),
     trueSeerClaimGames: games.filter((game) => game.trueSeerClaimed).length,
+    seerClaimedByDay2Games: games.filter((game) => game.seerClaimedByDay2).length,
+    seerGoldClaims,
+    seerGoldPublicRate: ratio(seerGoldClaims, seerGoodChecks),
+    goldWaterVotes,
+    goldWaterVotesOnWolves: sum(games, (game) => game.goldWaterVotesOnWolves),
+    goldWaterVoteAccuracy: ratio(sum(games, (game) => game.goldWaterVotesOnWolves), goldWaterVotes),
+    guardProtectUses,
+    guardBlocks: sum(games, (game) => game.guardBlocks),
+    guardBlockRate: ratio(sum(games, (game) => game.guardBlocks), guardProtectUses),
+    guardBlocksPower: sum(games, (game) => game.guardBlocksPower),
     phaseActionCounts,
     humanRoleBuckets,
     games,
@@ -396,7 +465,8 @@ export function formatSimulationReport(summary: SimulationSummary): string {
     "",
     "Voting",
     `- vote rounds: ${summary.voteRounds}, tied votes: ${summary.tiedVotes} in ${summary.tiedVoteGames} games`,
-    `- top vote share: ${formatPercent(summary.averageTopVoteShare)}`,
+    `- top vote share: ${formatPercent(summary.averageTopVoteShare)}, fragmented rounds: ${summary.fragmentedVoteRounds} in ${summary.fragmentedVoteGames} games`,
+    `- public-logic vote reasons: ${summary.publicLogicVotes}/${summary.reasonedVotes} (${formatPercent(summary.publicLogicVoteRate)})`,
     `- good votes on wolves: ${summary.goodVotesOnWolves}/${summary.goodVotes} (${formatPercent(summary.goodVoteAccuracy)})`,
     `- wolf votes on teammates: ${summary.wolfVotesOnTeammates}/${summary.wolfVotes} (${formatPercent(summary.wolfTeammateVoteRate)})`,
     `- exiles: wolves ${summary.wolfExiles}, good ${summary.goodExiles}, mislynch rate ${formatPercent(summary.mislynchRate)}`,
@@ -415,8 +485,10 @@ export function formatSimulationReport(summary: SimulationSummary): string {
     `- hunter windows: ${summary.hunterShotWindows}, shots ${summary.hunterShots}, skips ${summary.hunterSkips}`,
     `- hunter hits: wolves ${summary.hunterHitsWolves}, good ${summary.hunterHitsGood}, wolf hit rate ${formatPercent(summary.hunterShotWolfHitRate)}`,
     `- seer checks: ${summary.seerChecks}, wolves ${summary.seerWolfChecks}, good ${summary.seerGoodChecks}, wolf check rate ${formatPercent(summary.seerWolfCheckRate)}`,
-    `- seer survival: avg ${formatNumber(summary.averageSeerSurvivalDays)} days, died in ${summary.seerDeathGames} games, claimed in ${summary.trueSeerClaimGames} games`,
-    `- seer deaths: wolf kill ${summary.seerDeathsByReason.WOLF_KILL}, exile ${summary.seerDeathsByReason.EXILED}, witch poison ${summary.seerDeathsByReason.WITCH_POISON}, hunter shot ${summary.seerDeathsByReason.HUNTER_SHOT}, alive ${summary.seerDeathsByReason.ALIVE}`,
+    `- seer survival: avg ${formatNumber(summary.averageSeerSurvivalDays)} days, died in ${summary.seerDeathGames} games, claimed in ${summary.trueSeerClaimGames} games, by day 2 in ${summary.seerClaimedByDay2Games} games`,
+    `- seer gold water: public ${summary.seerGoldClaims}/${summary.seerGoodChecks} (${formatPercent(summary.seerGoldPublicRate)}), gold-water votes on wolves ${summary.goldWaterVotesOnWolves}/${summary.goldWaterVotes} (${formatPercent(summary.goldWaterVoteAccuracy)})`,
+    `- guard protects: ${summary.guardProtectUses}, blocks ${summary.guardBlocks}, power blocks ${summary.guardBlocksPower}, block rate ${formatPercent(summary.guardBlockRate)}`,
+    `- seer deaths: wolf kill ${summary.seerDeathsByReason.WOLF_KILL}, exile ${summary.seerDeathsByReason.EXILED}, witch poison ${summary.seerDeathsByReason.WITCH_POISON}, hunter shot ${summary.seerDeathsByReason.HUNTER_SHOT}, wolf king shot ${summary.seerDeathsByReason.WOLF_KING_SHOT}, white wolf king explode ${summary.seerDeathsByReason.WHITE_WOLF_KING_EXPLODE}, white wolf king shot ${summary.seerDeathsByReason.WHITE_WOLF_KING_SHOT}, wolf beauty charm ${summary.seerDeathsByReason.WOLF_BEAUTY_CHARM}, knight duel ${summary.seerDeathsByReason.KNIGHT_DUEL}, knight failed ${summary.seerDeathsByReason.KNIGHT_DUEL_FAILED}, alive ${summary.seerDeathsByReason.ALIVE}`,
     "",
     "Human-seat role buckets",
     ...formatRoleBuckets(summary.humanRoleBuckets),
@@ -434,19 +506,29 @@ export function formatSimulationReport(summary: SimulationSummary): string {
 function summarizeVotes(state: GameState): Pick<
   SimulationGameStats,
   | "voteRounds"
+  | "fragmentedVoteRounds"
   | "averageTopVoteShare"
   | "totalVotes"
+  | "reasonedVotes"
+  | "publicLogicVotes"
   | "goodVotes"
   | "goodVotesOnWolves"
   | "wolfVotes"
   | "wolfVotesOnTeammates"
+  | "goldWaterVotes"
+  | "goldWaterVotesOnWolves"
 > {
   let totalVotes = 0;
+  let reasonedVotes = 0;
+  let publicLogicVotes = 0;
   let goodVotes = 0;
   let goodVotesOnWolves = 0;
   let wolfVotes = 0;
   let wolfVotesOnTeammates = 0;
+  let goldWaterVotes = 0;
+  let goldWaterVotesOnWolves = 0;
   const topVoteShares: number[] = [];
+  const publishedGoldWaterDays = buildPublishedGoldWaterDays(state);
 
   for (const event of state.events) {
     if (event.type === "VOTE_CAST") {
@@ -456,14 +538,25 @@ function summarizeVotes(state: GameState): Pick<
 
       const voter = getSeat(state, voterSeatId);
       const target = getSeat(state, targetSeatId);
+      const reason = readString(event, "reason");
       totalVotes += 1;
+      if (reason) {
+        reasonedVotes += 1;
+        if (looksLikePublicLogicReason(reason)) publicLogicVotes += 1;
+      }
 
-      if (voter.role === "WEREWOLF") {
+      if (isWolfRole(voter.role)) {
         wolfVotes += 1;
-        if (target.role === "WEREWOLF") wolfVotesOnTeammates += 1;
+        if (isWolfRole(target.role)) wolfVotesOnTeammates += 1;
       } else {
         goodVotes += 1;
-        if (target.role === "WEREWOLF") goodVotesOnWolves += 1;
+        if (isWolfRole(target.role)) goodVotesOnWolves += 1;
+      }
+
+      const goldWaterPublishedDay = publishedGoldWaterDays.get(voter.seatId);
+      if (goldWaterPublishedDay !== undefined && event.day >= goldWaterPublishedDay) {
+        goldWaterVotes += 1;
+        if (isWolfRole(target.role)) goldWaterVotesOnWolves += 1;
       }
     }
 
@@ -477,15 +570,20 @@ function summarizeVotes(state: GameState): Pick<
 
   return {
     voteRounds: topVoteShares.length,
+    fragmentedVoteRounds: topVoteShares.filter((share) => share <= 0.35).length,
     averageTopVoteShare: ratio(
       topVoteShares.reduce((total, share) => total + share, 0),
       topVoteShares.length,
     ),
     totalVotes,
+    reasonedVotes,
+    publicLogicVotes,
     goodVotes,
     goodVotesOnWolves,
     wolfVotes,
     wolfVotesOnTeammates,
+    goldWaterVotes,
+    goldWaterVotesOnWolves,
   };
 }
 
@@ -533,13 +631,21 @@ function summarizeFirstExile(state: GameState): Pick<
   };
 }
 
-function summarizeClaims(
-  state: GameState,
-): Pick<SimulationGameStats, "truthfulClaims" | "seerClaims" | "wolfSeerClaims" | "counterclaimRoles"> {
+function summarizeClaims(state: GameState): Pick<
+  SimulationGameStats,
+  "truthfulClaims" | "seerClaims" | "wolfSeerClaims" | "counterclaimRoles" | "seerFirstClaimDay" | "seerClaimedByDay2" | "seerGoldClaims"
+> {
   const claimsByRole = new Map<Role, number>();
   let truthfulClaims = 0;
   let seerClaims = 0;
   let wolfSeerClaims = 0;
+  let seerGoldClaims = 0;
+  const seerSeatId = state.seats.find((seat) => seat.role === "SEER")?.seatId;
+  const trueSeerClaims = state.roleClaims.filter((claim) => claim.claimantSeatId === seerSeatId && claim.claimedRole === "SEER");
+  const seerFirstClaimDay = trueSeerClaims.reduce<number | undefined>(
+    (firstDay, claim) => (firstDay === undefined ? claim.day : Math.min(firstDay, claim.day)),
+    undefined,
+  );
 
   for (const claim of state.roleClaims) {
     const claimant = getSeat(state, claim.claimantSeatId);
@@ -547,7 +653,10 @@ function summarizeClaims(
     if (claimant.role === claim.claimedRole) truthfulClaims += 1;
     if (claim.claimedRole === "SEER") {
       seerClaims += 1;
-      if (claimant.role === "WEREWOLF") wolfSeerClaims += 1;
+      if (isWolfRole(claimant.role)) wolfSeerClaims += 1;
+      if (claim.claimantSeatId === seerSeatId) {
+        seerGoldClaims += claim.checks.filter((check) => check.result === "GOOD").length;
+      }
     }
   }
 
@@ -556,6 +665,9 @@ function summarizeClaims(
     seerClaims,
     wolfSeerClaims,
     counterclaimRoles: Array.from(claimsByRole.values()).filter((count) => count > 1).length,
+    seerFirstClaimDay,
+    seerClaimedByDay2: seerFirstClaimDay !== undefined && seerFirstClaimDay <= 2,
+    seerGoldClaims,
   };
 }
 
@@ -580,6 +692,9 @@ function summarizePowerRoles(
   | "seerDied"
   | "seerDeathReason"
   | "trueSeerClaimed"
+  | "guardProtectUses"
+  | "guardBlocks"
+  | "guardBlocksPower"
 > {
   let witchSaveUses = 0;
   let witchSaveGood = 0;
@@ -601,14 +716,14 @@ function summarizePowerRoles(
     if (event.type === "WITCH_USED_POISON") {
       const target = getEventSeat(state, event, "targetSeatId");
       witchPoisonUses += 1;
-      if (target?.role === "WEREWOLF") witchPoisonHitsWolves += 1;
+      if (target && isWolfRole(target.role)) witchPoisonHitsWolves += 1;
       else if (target) witchPoisonHitsGood += 1;
     }
 
     if (event.type === "HUNTER_SHOT") {
       const target = getEventSeat(state, event, "targetSeatId");
       hunterShots += 1;
-      if (target?.role === "WEREWOLF") hunterHitsWolves += 1;
+      if (target && isWolfRole(target.role)) hunterHitsWolves += 1;
       else if (target) hunterHitsGood += 1;
     }
 
@@ -626,6 +741,7 @@ function summarizePowerRoles(
   const trueSeerClaimed = Boolean(
     seer && state.roleClaims.some((claim) => claim.claimantSeatId === seer.seatId && claim.claimedRole === "SEER"),
   );
+  const guardStats = summarizeGuardProtection(state);
 
   return {
     witchSaveUses,
@@ -645,6 +761,7 @@ function summarizePowerRoles(
     seerDied: Boolean(seer && !seer.alive),
     seerDeathReason: seer?.deathReason,
     trueSeerClaimed,
+    ...guardStats,
   };
 }
 
@@ -654,6 +771,12 @@ function buildSeerDeathBuckets(games: SimulationGameStats[]): SeerDeathBucket {
     WITCH_POISON: 0,
     EXILED: 0,
     HUNTER_SHOT: 0,
+    WOLF_KING_SHOT: 0,
+    WHITE_WOLF_KING_EXPLODE: 0,
+    WHITE_WOLF_KING_SHOT: 0,
+    WOLF_BEAUTY_CHARM: 0,
+    KNIGHT_DUEL: 0,
+    KNIGHT_DUEL_FAILED: 0,
     ALIVE: 0,
   };
 
@@ -662,6 +785,64 @@ function buildSeerDeathBuckets(games: SimulationGameStats[]): SeerDeathBucket {
   }
 
   return buckets;
+}
+
+function buildPublishedGoldWaterDays(state: GameState): Map<number, number> {
+  const seerSeatId = state.seats.find((seat) => seat.role === "SEER")?.seatId;
+  const published = new Map<number, number>();
+  if (!seerSeatId) return published;
+
+  for (const claim of state.roleClaims) {
+    if (claim.claimantSeatId !== seerSeatId || claim.claimedRole !== "SEER") continue;
+    for (const check of claim.checks) {
+      if (check.result !== "GOOD") continue;
+      const previousDay = published.get(check.targetSeatId);
+      published.set(check.targetSeatId, previousDay === undefined ? claim.day : Math.min(previousDay, claim.day));
+    }
+  }
+
+  return published;
+}
+
+function summarizeGuardProtection(
+  state: GameState,
+): Pick<SimulationGameStats, "guardProtectUses" | "guardBlocks" | "guardBlocksPower"> {
+  const wolfTargetsByDay = new Map<number, number>();
+  const guardTargetsByDay = new Map<number, number>();
+  const deathsByDay = new Map<number, Set<number>>();
+  const godRoles = new Set(state.rules.godRoles);
+
+  for (const event of state.events) {
+    if (event.type === "NIGHT_KILL_SELECTED") {
+      const targetSeatId = readNumber(event, "targetSeatId");
+      if (targetSeatId) wolfTargetsByDay.set(event.day, targetSeatId);
+    }
+
+    if (event.type === "GUARD_PROTECTED") {
+      const targetSeatId = readNumber(event, "targetSeatId");
+      if (targetSeatId) guardTargetsByDay.set(event.day, targetSeatId);
+    }
+
+    if (event.type === "DAY_STARTED") {
+      deathsByDay.set(event.day, readSeatIdSet(event.payload.deadSeatIds));
+    }
+  }
+
+  let guardBlocks = 0;
+  let guardBlocksPower = 0;
+  for (const [day, guardedSeatId] of guardTargetsByDay) {
+    if (wolfTargetsByDay.get(day) !== guardedSeatId) continue;
+    if (deathsByDay.get(day)?.has(guardedSeatId)) continue;
+    const guardedSeat = getSeat(state, guardedSeatId);
+    guardBlocks += 1;
+    if (godRoles.has(guardedSeat.role)) guardBlocksPower += 1;
+  }
+
+  return {
+    guardProtectUses: guardTargetsByDay.size,
+    guardBlocks,
+    guardBlocksPower,
+  };
 }
 
 function countByPhase(aiLogs: AiDecisionLog[]): Partial<Record<Phase, number>> {
@@ -682,6 +863,24 @@ function readNumber(event: GameEvent, key: string): number | undefined {
   const value = event.payload[key];
   return typeof value === "number" ? value : undefined;
 }
+
+function readString(event: GameEvent, key: string): string | undefined {
+  const value = event.payload[key];
+  const clean = typeof value === "string" ? value.trim() : "";
+  return clean || undefined;
+}
+
+function readSeatIdSet(value: unknown): Set<number> {
+  if (!Array.isArray(value)) return new Set();
+  return new Set(value.filter((seatId): seatId is number => typeof seatId === "number"));
+}
+
+function looksLikePublicLogicReason(reason: string): boolean {
+  return PUBLIC_LOGIC_REASON_PATTERN.test(reason);
+}
+
+const PUBLIC_LOGIC_REASON_PATTERN =
+  /public|vote|speech|claim|check|seer|counter|pressure|stance|logic|focus|\u516c\u5f00|\u7968|\u53d1\u8a00|\u767c\u8a00|\u8eab\u4efd|\u67e5|\u9a8c|\u9a57|\u5bf9\u8df3|\u5c0d\u8df3|\u7126\u70b9|\u7126\u9ede|\u7ad9\u8fb9|\u7ad9\u908a|\u538b\u529b|\u58d3\u529b/i;
 
 function getEventSeat(state: GameState, event: GameEvent, key: string) {
   const seatId = readNumber(event, key);

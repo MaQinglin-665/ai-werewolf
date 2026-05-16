@@ -4,14 +4,46 @@ import type { BrowserSpeechRecognitionConstructor, BrowserSpeechRecognitionError
 
 export const HUMAN_SPEECH_MAX_LENGTH = 800;
 
-export const ROLE_CARD_IMAGES: Record<HumanGameView["myRole"] | "HIDDEN", string> = {
+type RoleCardImageKey = NonNullable<HumanGameView["myRole"]> | "HIDDEN";
+
+export const ROLE_CARD_IMAGES: Record<RoleCardImageKey, string> = {
   WEREWOLF: "/images/role-werewolf.jpg",
+  WOLF_KING: "/images/role-wolf-king.png",
+  WHITE_WOLF_KING: "/images/role-white-wolf-king-v2-book-standard.webp",
+  WOLF_BEAUTY: "/images/role-wolf-beauty-v2-book-standard-v3.webp",
   VILLAGER: "/images/role-villager.jpg",
   SEER: "/images/role-seer.jpg",
   WITCH: "/images/role-witch.jpg",
   HUNTER: "/images/role-hunter.jpg",
+  IDIOT: "/images/role-idiot-book-standard-v6.webp",
+  KNIGHT: "/images/role-knight-v2-book-standard.webp",
   GUARD: "/images/role-guard.png",
   HIDDEN: "/images/role-back.jpg",
+};
+
+export const ROLE_CARD_BOOK_IMAGES: typeof ROLE_CARD_IMAGES = {
+  ...ROLE_CARD_IMAGES,
+  WOLF_KING: "/images/role-wolf-king-book.webp",
+  WHITE_WOLF_KING: "/images/role-white-wolf-king-v2-book-standard.webp",
+  WOLF_BEAUTY: "/images/role-wolf-beauty-v2-book-standard-v3.webp",
+  IDIOT: "/images/role-idiot-book-standard-v6.webp",
+  KNIGHT: "/images/role-knight-v2-book-standard.webp",
+  GUARD: "/images/role-guard-book.webp",
+};
+
+export const ROLE_CARD_ASPECT_RATIOS: Record<RoleCardImageKey, string> = {
+  WEREWOLF: "2 / 3",
+  WOLF_KING: "2 / 3",
+  WHITE_WOLF_KING: "2 / 3",
+  WOLF_BEAUTY: "2 / 3",
+  VILLAGER: "2 / 3",
+  SEER: "2 / 3",
+  WITCH: "2 / 3",
+  HUNTER: "2 / 3",
+  IDIOT: "2 / 3",
+  KNIGHT: "2 / 3",
+  GUARD: "2 / 3",
+  HIDDEN: "2 / 3",
 };
 
 export const MODEL_CARD_IMAGES: Record<string, string> = {
@@ -39,8 +71,24 @@ const SEAT_ORBIT_POINTS: SeatOrbitStyle[] = [
   { "--seat-x": "27%", "--seat-y": "15%" },
 ];
 
+const TWELVE_SEAT_ORBIT_POINTS: SeatOrbitStyle[] = [
+  { "--seat-x": "50%", "--seat-y": "9%" },
+  { "--seat-x": "75%", "--seat-y": "14%" },
+  { "--seat-x": "90%", "--seat-y": "32%" },
+  { "--seat-x": "91%", "--seat-y": "50%" },
+  { "--seat-x": "90%", "--seat-y": "68%" },
+  { "--seat-x": "75%", "--seat-y": "86%" },
+  { "--seat-x": "50%", "--seat-y": "91%" },
+  { "--seat-x": "25%", "--seat-y": "86%" },
+  { "--seat-x": "10%", "--seat-y": "68%" },
+  { "--seat-x": "9%", "--seat-y": "50%" },
+  { "--seat-x": "10%", "--seat-y": "32%" },
+  { "--seat-x": "25%", "--seat-y": "14%" },
+];
+
 export function getSeatOrbitStyle(seatId: number, seatCount: number): SeatOrbitStyle {
   if (seatCount === SEAT_ORBIT_POINTS.length) return SEAT_ORBIT_POINTS[(seatId - 1) % SEAT_ORBIT_POINTS.length];
+  if (seatCount === TWELVE_SEAT_ORBIT_POINTS.length) return TWELVE_SEAT_ORBIT_POINTS[(seatId - 1) % TWELVE_SEAT_ORBIT_POINTS.length];
   const angle = -90 + ((seatId - 1) / seatCount) * 360;
   const radians = (angle * Math.PI) / 180;
   const radiusX = 39;
@@ -85,12 +133,16 @@ function escapeRegExp(value: string): string {
 
 export function formatSystemMessage(game: HumanGameView, message: string): string {
   return game.seats
-    .filter((seat) => seat.name !== "你")
+    .filter((seat) => {
+      const name = seat.name.trim();
+      return name && name !== "你" && name !== seatNumber(seat) && !/^\d+号?$/.test(name);
+    })
     .sort((a, b) => b.name.length - a.name.length)
     .reduce((text, seat) => text.replace(new RegExp(escapeRegExp(seat.name), "g"), seatNumber(seat)), message);
 }
 
 export function getSeatCardImage(seat: HumanGameView["seats"][number]): string {
-  if (seat.isAi) return MODEL_CARD_IMAGES[seat.name] ?? ROLE_CARD_IMAGES.HIDDEN;
+  if (seat.avatarDataUrl) return seat.avatarDataUrl;
+  if (seat.isAi) return MODEL_CARD_IMAGES[seat.personaName ?? seat.name] ?? ROLE_CARD_IMAGES.HIDDEN;
   return ROLE_CARD_IMAGES[seat.role ?? "HIDDEN"];
 }

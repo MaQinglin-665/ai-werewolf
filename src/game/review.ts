@@ -1,6 +1,7 @@
 import { isSupportedRoleClaim } from "./claims";
 import { getCamp, getSeat } from "./engine";
 import { DEATH_LABELS, ROLE_LABELS } from "./labels";
+import { isWolfRole } from "./roleUtils";
 import { buildTableMemory } from "./tableMemory";
 import type {
   DeathReason,
@@ -130,7 +131,7 @@ function buildReviewClaims(state: GameState): GameReview["claims"] {
     const claimant = getSeat(state, claim.claimantSeatId);
     const checks = claim.checks.map((check) => {
       const target = getSeat(state, check.targetSeatId);
-      const actualResult: "WEREWOLF" | "GOOD" = target.role === "WEREWOLF" ? "WEREWOLF" : "GOOD";
+      const actualResult: "WEREWOLF" | "GOOD" = isWolfRole(target.role, state.rules.wolfRoles) ? "WEREWOLF" : "GOOD";
       return {
         target: toReviewSeat(target),
         claimedResult: check.result,
@@ -247,6 +248,18 @@ function buildAiInsights(state: GameState): GameReview["aiInsights"] {
 }
 
 function buildPlayerFeedback(state: GameState): GameReview["playerFeedback"] {
+  if (state.spectatorMode) {
+    return state.result
+      ? [
+          {
+            title: "AI 观战局结束",
+            tone: "neutral",
+            description: `本局没有真人座位，所有行动由 AI 完成。${state.result.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜，原因是${state.result.reason}。`,
+            relatedSeats: [],
+          },
+        ]
+      : [];
+  }
   const human = getSeat(state, state.humanSeatId);
   const humanCamp = getCamp(human.role);
   const feedback: GameReview["playerFeedback"] = [];
@@ -286,9 +299,9 @@ function buildPlayerFeedback(state: GameState): GameReview["playerFeedback"] {
   if (lastVote) {
     const targetCamp = getCamp(lastVote.target.role);
     const voteHelped =
-      human.role === "WEREWOLF"
+      isWolfRole(human.role, state.rules.wolfRoles)
         ? targetCamp === "GOOD"
-        : lastVote.target.role === "WEREWOLF";
+        : isWolfRole(lastVote.target.role, state.rules.wolfRoles);
     feedback.push({
       title: voteHelped ? "最后投票有效" : "最后投票偏离",
       tone: voteHelped ? "positive" : "warning",
@@ -342,7 +355,9 @@ function buildPlayerFeedback(state: GameState): GameReview["playerFeedback"] {
 
 function buildWolfStrategyNotes(state: GameState): GameReview["strategyNotes"] {
   const notes: GameReview["strategyNotes"] = [];
-  const wolfIds = new Set(state.seats.filter((seat) => seat.role === "WEREWOLF").map((seat) => seat.seatId));
+  const wolfIds = new Set(
+    state.seats.filter((seat) => isWolfRole(seat.role, state.rules.wolfRoles)).map((seat) => seat.seatId),
+  );
   const wolfSeerClaims = getSupportedRoleClaims(state).filter(
     (claim) => wolfIds.has(claim.claimantSeatId) && claim.claimedRole === "SEER",
   );
@@ -360,7 +375,7 @@ function buildWolfStrategyNotes(state: GameState): GameReview["strategyNotes"] {
 
   const wolfSupport = (state.stances ?? []).find((stance) => {
     const actor = getSeat(state, stance.actorSeatId);
-    return actor.role === "WEREWOLF" && stance.kind === "SUPPORT" && wolfIds.has(stance.targetSeatId);
+    return isWolfRole(actor.role, state.rules.wolfRoles) && stance.kind === "SUPPORT" && wolfIds.has(stance.targetSeatId);
   });
   if (wolfSupport) {
     const actor = getSeat(state, wolfSupport.actorSeatId);
@@ -376,7 +391,11 @@ function buildWolfStrategyNotes(state: GameState): GameReview["strategyNotes"] {
 
   const wolfDistance = (state.stances ?? []).find((stance) => {
     const actor = getSeat(state, stance.actorSeatId);
-    return actor.role === "WEREWOLF" && (stance.kind === "QUESTION" || stance.kind === "PRESSURE") && wolfIds.has(stance.targetSeatId);
+    return (
+      isWolfRole(actor.role, state.rules.wolfRoles) &&
+      (stance.kind === "QUESTION" || stance.kind === "PRESSURE") &&
+      wolfIds.has(stance.targetSeatId)
+    );
   });
   if (wolfDistance) {
     const actor = getSeat(state, wolfDistance.actorSeatId);
@@ -399,7 +418,7 @@ function buildVoteStrategyNotes(state: GameState): GameReview["strategyNotes"] {
     const target = getSeat(state, group.targetSeatId);
     const voters = group.voterSeatIds.map((seatId) => getSeat(state, seatId));
     const goodVoters = voters.filter((seat) => getCamp(seat.role) === "GOOD");
-    const wolfVoters = voters.filter((seat) => seat.role === "WEREWOLF");
+    const wolfVoters = voters.filter((seat) => isWolfRole(seat.role, state.rules.wolfRoles));
     const notes: GameReview["strategyNotes"] = [];
 
     if (goodVoters.length >= 2) {
@@ -454,7 +473,7 @@ function buildVoteImpacts(state: GameState, dayRounds: ReviewDayRound[]): Review
       const decisiveVotes = round.votes.filter((vote) => vote.target && decisiveTargetIds.has(vote.target.seatId));
       const decisiveSeats = decisiveVotes.map((vote) => getSeat(state, vote.voter.seatId));
       const goodVotes = decisiveSeats.filter((seat) => getCamp(seat.role) === "GOOD").length;
-      const wolfVotes = decisiveSeats.filter((seat) => seat.role === "WEREWOLF").length;
+      const wolfVotes = decisiveSeats.filter((seat) => isWolfRole(seat.role, state.rules.wolfRoles)).length;
       const abstainCount = round.votes.filter((vote) => vote.abstained).length;
       const outcome = exiledSeat ? "exile" : round.tiedSeatIds.length > 0 ? "tie" : "no_exile";
 
@@ -484,7 +503,7 @@ function buildVoteImpacts(state: GameState, dayRounds: ReviewDayRound[]): Review
 function buildVoteImpactTitle(seat: ReturnType<typeof getSeat> | undefined, outcome: ReviewVoteImpact["outcome"]): string {
   if (outcome === "tie") return "平票延后节奏";
   if (!seat) return "票型未形成放逐";
-  return seat.role === "WEREWOLF" ? "票型放逐狼人" : "票型推出好人";
+  return isWolfRole(seat.role) ? "票型放逐狼人" : "票型推出好人";
 }
 
 function buildVoteImpactDescription(
@@ -497,7 +516,7 @@ function buildVoteImpactDescription(
 ): string {
   if (exiledSeat) {
     const campLine =
-      exiledSeat.role === "WEREWOLF"
+      isWolfRole(exiledSeat.role)
         ? "这轮票型给好人阵营带来直接收益。"
         : "这轮票型给狼人阵营留下了推进空间。";
     const leader = leaders.find((item) => item.target.seatId === exiledSeat.seatId);
@@ -677,9 +696,17 @@ function buildKeyEvents(state: GameState): ReviewKeyEvent[] {
     "DAY_STARTED",
     "VOTE_REVEALED",
     "PLAYER_EXILED",
+    "IDIOT_REVEALED",
     "VOTE_TIED",
     "HUNTER_SHOT",
     "HUNTER_SKIPPED",
+    "WOLF_KING_SHOT",
+    "WOLF_KING_SKIPPED",
+    "WHITE_WOLF_KING_EXPLODED",
+    "WOLF_BEAUTY_CHARM_TRIGGERED",
+    "KNIGHT_DUEL_SUCCESS",
+    "KNIGHT_DUEL_FAILED",
+    "KNIGHT_DUEL_SKIPPED",
     "GAME_ENDED",
   ]);
   return state.events
@@ -738,13 +765,13 @@ function describeAiImpact(
   const speechTarget = lastSpeechTargetSeatId ? getSeat(state, lastSpeechTargetSeatId) : undefined;
 
   if (voteTarget) {
-    if (seat.role === "WEREWOLF" && voteTarget.role !== "WEREWOLF") {
+    if (isWolfRole(seat.role, state.rules.wolfRoles) && !isWolfRole(voteTarget.role, state.rules.wolfRoles)) {
       return `最后投向${voteTarget.name}，尝试把白天压力推向好人位。`;
     }
-    if (seat.role === "WEREWOLF" && voteTarget.role === "WEREWOLF") {
+    if (isWolfRole(seat.role, state.rules.wolfRoles) && isWolfRole(voteTarget.role, state.rules.wolfRoles)) {
       return `最后投向狼同伴${voteTarget.name}，属于切割或倒钩方向。`;
     }
-    if (seat.role !== "WEREWOLF" && voteTarget.role === "WEREWOLF") {
+    if (!isWolfRole(seat.role, state.rules.wolfRoles) && isWolfRole(voteTarget.role, state.rules.wolfRoles)) {
       return `最后投向${voteTarget.name}并命中狼人，判断方向有效。`;
     }
     return `最后投向${voteTarget.name}，但终局看该目标并不是狼人。`;
@@ -772,7 +799,16 @@ function readNumber(event: GameEvent, key: string): number | undefined {
 }
 
 function readDeathReason(value: unknown): DeathReason | undefined {
-  return value === "WOLF_KILL" || value === "WITCH_POISON" || value === "EXILED" || value === "HUNTER_SHOT"
+  return value === "WOLF_KILL" ||
+    value === "WITCH_POISON" ||
+    value === "EXILED" ||
+    value === "HUNTER_SHOT" ||
+    value === "WOLF_KING_SHOT" ||
+    value === "WHITE_WOLF_KING_EXPLODE" ||
+    value === "WHITE_WOLF_KING_SHOT" ||
+    value === "WOLF_BEAUTY_CHARM" ||
+    value === "KNIGHT_DUEL" ||
+    value === "KNIGHT_DUEL_FAILED"
     ? value
     : undefined;
 }
