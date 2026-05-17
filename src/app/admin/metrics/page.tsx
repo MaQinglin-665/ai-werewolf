@@ -43,6 +43,9 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
   if (!access.allowed) notFound();
 
   const metrics = await getRoomMetricsSnapshot();
+  const siteGamesStarted = metrics.history.mainGamesStarted + metrics.history.gamesStarted;
+  const siteGamesFinished = metrics.history.mainGamesFinished + metrics.history.gamesFinished;
+  const siteCompletionRate = siteGamesStarted > 0 ? Math.round((siteGamesFinished / siteGamesStarted) * 100) : null;
   const primaryMetrics: PrimaryMetric[] = [
     {
       accent: "#76e4a4",
@@ -53,17 +56,17 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
     },
     {
       accent: "#79b7ff",
-      detail: "主界面单人/观战模式创建的对局",
-      label: "主界面开局",
+      detail: `主界面 ${metrics.history.mainGamesStarted} / 联机房间 ${metrics.history.gamesStarted}`,
+      label: "全站开局",
       tone: "from-[#102b4a] to-[#111f31]",
-      value: metrics.history.mainGamesStarted,
+      value: siteGamesStarted,
     },
     {
       accent: "#f2c56f",
-      detail: `完成率 ${formatPercent(metrics.history.mainCompletionRate)}`,
-      label: "主界面完局",
+      detail: `完成率 ${formatPercent(siteCompletionRate)}；主界面 ${metrics.history.mainGamesFinished} / 联机房间 ${metrics.history.gamesFinished}`,
+      label: "全站完局",
       tone: "from-[#4a3514] to-[#261f14]",
-      value: metrics.history.mainGamesFinished,
+      value: siteGamesFinished,
     },
     {
       accent: "#f27e6f",
@@ -224,6 +227,7 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               <MetricDefinition label="主界面开局" text="用户在主界面点击新开一局并成功创建单人/纯 AI 对局。" />
               <MetricDefinition label="主界面完局" text="主界面对局产生胜负结果。" />
               <MetricDefinition label="主界面时长" text="从主界面开局到产生胜负结果之间的累计和平均用时。" />
+              <MetricDefinition label="全站开局" text="主界面单人/纯 AI 开局 + 联机房间开局。顶部总数用这个口径。" />
               <MetricDefinition label="进行中房间" text="房间已经开局且尚未产生胜负；即使玩家离开，房间也会保留到清理时间。" />
               <MetricDefinition label="联机在线" text="正在联机房间中保持 SSE/presence 连接的人；可能小于进行中房间数。" />
             </div>
