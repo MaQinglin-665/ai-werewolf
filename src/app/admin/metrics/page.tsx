@@ -67,7 +67,7 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
     },
     {
       accent: "#f27e6f",
-      detail: `${metrics.current.onlineConnections} 条联机实时连接`,
+      detail: `${metrics.current.onlineConnections} 条实时连接；不等于进行中房间数`,
       label: "联机在线",
       tone: "from-[#4a1d19] to-[#251817]",
       value: metrics.current.onlinePlayers,
@@ -123,9 +123,9 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               </span>
             </div>
             <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-              <MiniHeaderStat label="大厅" value={metrics.current.rooms.lobby} />
-              <MiniHeaderStat label="游戏中" value={metrics.current.rooms.activeInGame} />
-              <MiniHeaderStat label="未清理" value={metrics.current.rooms.finished} />
+              <MiniHeaderStat label="大厅房间" value={metrics.current.rooms.lobby} />
+              <MiniHeaderStat label="进行中房间" value={metrics.current.rooms.activeInGame} />
+              <MiniHeaderStat label="待清理房间" value={metrics.current.rooms.finished} />
             </div>
           </div>
         </header>
@@ -155,7 +155,7 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
                 />
                 <ProgressRow
                   color="#f2c56f"
-                  label="当前真人玩家"
+                  label="当前房间玩家"
                   max={Math.max(1, metrics.history.totalPlayersEver, metrics.current.humanPlayers)}
                   value={metrics.current.humanPlayers}
                 />
@@ -198,13 +198,13 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               />
               <RoomStatusBar
                 color="#f2c56f"
-                label="游戏中"
+                label="进行中房间"
                 percent={Math.round((metrics.current.rooms.activeInGame / roomStatusTotal) * 100)}
                 value={metrics.current.rooms.activeInGame}
               />
               <RoomStatusBar
                 color="#f27e6f"
-                label="已结束未清理"
+                label="已结束待清理房间"
                 percent={Math.round((metrics.current.rooms.finished / roomStatusTotal) * 100)}
                 value={metrics.current.rooms.finished}
               />
@@ -224,7 +224,8 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               <MetricDefinition label="主界面开局" text="用户在主界面点击新开一局并成功创建单人/纯 AI 对局。" />
               <MetricDefinition label="主界面完局" text="主界面对局产生胜负结果。" />
               <MetricDefinition label="主界面时长" text="从主界面开局到产生胜负结果之间的累计和平均用时。" />
-              <MetricDefinition label="联机在线" text="正在联机房间中保持 SSE/presence 连接的人。" />
+              <MetricDefinition label="进行中房间" text="房间已经开局且尚未产生胜负；即使玩家离开，房间也会保留到清理时间。" />
+              <MetricDefinition label="联机在线" text="正在联机房间中保持 SSE/presence 连接的人；可能小于进行中房间数。" />
             </div>
           </GlassPanel>
         </section>
