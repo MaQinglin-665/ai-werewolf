@@ -6,15 +6,18 @@ const POWER_ROLES: Role[] = ["SEER", "WITCH", "HUNTER", "IDIOT", "KNIGHT", "GUAR
 export function buildAdvancedReasoningNotes(view: AgentView): string[] {
   const notes = [
     buildRoundFrameNote(view),
+    buildEvidenceHardnessNote(view),
+    buildCounterLogicNote(view),
     buildIdentityPitNote(view),
     buildSheriffAuditNote(view),
     buildVoteAuditNote(view),
     buildSeerClaimAuditNote(view),
     buildDeathLegacyNote(view),
+    buildPersuasionIntentNote(view),
     buildRoleTaskNote(view),
   ].filter((note): note is string => Boolean(note));
 
-  return [...new Set(notes)].slice(0, 8);
+  return [...new Set(notes)].slice(0, 11);
 }
 
 function buildRoundFrameNote(view: AgentView): string {
@@ -23,6 +26,39 @@ function buildRoundFrameNote(view: AgentView): string {
   }
 
   return `轮次意识：第${view.day}天要把上一轮票型、夜间倒牌、站边变化和今天发言接起来复盘，解释不了变化的位置优先进狼坑。`;
+}
+
+function buildEvidenceHardnessNote(view: AgentView): string {
+  const hasCounterclaims = view.publicSummary.tableMemory.counterclaims.length > 0;
+  const hasVoteHistory = view.publicSummary.tableMemory.voteHistory.length > 0;
+
+  if (hasCounterclaims && hasVoteHistory) {
+    return "证据硬度：先认对跳身份线、公开验人和上一轮票型闭环，再用听感补充；不要把单句状态、边角位或沉默直接当铁证。";
+  }
+
+  if (hasCounterclaims) {
+    return "证据硬度：对跳身份线是当前硬材料；听感和发言长短只能辅助，关键看验人、起跳时机、站边和后续票口能否互相证明。";
+  }
+
+  if (hasVoteHistory) {
+    return "证据硬度：上一轮票型是硬材料；重点看发言承诺和实际投票是否一致，单独的语气、座位和短发言都只是软材料。";
+  }
+
+  return "证据硬度：当前硬材料不足，先区分铁逻辑、软状态和伪逻辑；没有公开证据时只施压观察，不要提前归死。";
+}
+
+function buildCounterLogicNote(view: AgentView): string {
+  const latestShift = view.publicSummary.tableMemory.stanceShifts.at(-1);
+  if (latestShift) {
+    return `正反逻辑：最新站边变化是${latestShift.summary}；先问这是好人回头、狼人倒钩、冲锋转向还是被票型逼出来，再定验证点。`;
+  }
+
+  const focus = view.publicSummary.tableMemory.focus[0];
+  if (focus) {
+    return `正反逻辑：${seatText(focus.seat)}是当前焦点时，不只问他像不像狼，还要问如果他是好人，谁在借这个焦点做收益。`;
+  }
+
+  return "正反逻辑：同一行为至少给出一个反面解释和一个后续验证点；狼人杀看的是公开因果是否闭环，不是单点结论是否顺耳。";
 }
 
 function buildIdentityPitNote(view: AgentView): string {
@@ -108,6 +144,14 @@ function buildDeathLegacyNote(view: AgentView): string | undefined {
   return latestDeath
     ? `遗言和倒牌审计：最新公开死讯是${latestDeath}；只复盘谁借死讯带节奏，不能擅自断定狼刀、毒或自刀。`
     : undefined;
+}
+
+function buildPersuasionIntentNote(view: AgentView): string {
+  if (isWolfRole(view.myRole, view.rules.wolfRoles)) {
+    return "说服意图：狼人公开发言要选择一种桌面收益，抗推、倒钩、保护队友或分裂站边都可以，但理由必须完全像公开视角生成。";
+  }
+
+  return "说服意图：好人发言不只是找狼，还要让其他好人能跟票；把怀疑对象、证据硬度和改票条件讲清楚，比单纯报怀疑名单更有效。";
 }
 
 function buildRoleTaskNote(view: AgentView): string | undefined {

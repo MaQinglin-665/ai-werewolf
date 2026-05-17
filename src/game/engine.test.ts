@@ -1706,6 +1706,27 @@ describe("game engine", () => {
     expect(plan.talkingPoints.join("。")).toContain("我拍女巫");
   });
 
+  it("lets a day-one hunter hard claim when a prior speaker marks them as the vote pressure", () => {
+    let state = createGame({ seed: 76, humanSeatId: 9 });
+    const hunter = state.seats.find((seat) => seat.role === "HUNTER")!;
+    const priorSpeaker = state.seats.find((seat) => seat.isAi && seat.seatId !== hunter.seatId)!;
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [priorSpeaker.seatId, hunter.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: priorSpeaker.seatId,
+      message: `我先压${hunter.seatId}号，如果后置仍只给结论不给过程，我会把票压过去。`,
+    });
+
+    const plan = createSpeechPlan(buildAgentView(state, hunter.seatId));
+
+    expect(plan.kind).toBe("rally");
+    expect(plan.claimIntent).toEqual(expect.objectContaining({ claimedRole: "HUNTER", strength: "hard" }));
+    expect(plan.talkingPoints.join("。")).toContain("我拍猎人");
+  });
+
   it("keeps the last hidden god from claiming when two god roles are already exposed", () => {
     let state = createGame({ seed: 72, humanSeatId: 9 });
     const seer = state.seats.find((seat) => seat.role === "SEER")!;

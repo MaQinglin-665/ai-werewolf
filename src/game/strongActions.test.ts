@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMockCommand } from "@/ai/mockAgent";
-import type { ActionTarget, AgentView, AiTableRead, SeatRead } from "./types";
+import type { ActionTarget, AgentView, AiTableRead, ClaimBoardItem, SeatRead } from "./types";
 
 describe("mock AI strong actions", () => {
   it("skips a hunter shot when suspicion only comes from personal or vote noise", () => {
@@ -77,7 +77,137 @@ describe("mock AI strong actions", () => {
       targetSeatId: 3,
     });
   });
+
+  it("does not shoot a hard power claim from public black-check pressure alone", () => {
+    const claim = powerClaim({ seatId: 2, name: "Target" }, "WITCH");
+    const command = createMockCommand(
+      hunterView(),
+      tableReadWithTarget({
+        suspicion: 96,
+        trust: 28,
+        pressure: ["Claude施压这里", "被Claude公开报查杀", "公开声称女巫"],
+        publicClaims: [claim],
+        publicChecksAgainst: [{ claimant: { seatId: 3, name: "Claude" }, result: "WEREWOLF", day: 2 }],
+        publicStancedBy: [
+          publicPressure({ seatId: 3, name: "Claude" }, { seatId: 2, name: "Target" }),
+          publicPressure({ seatId: 4, name: "GPT" }, { seatId: 2, name: "Target" }),
+          publicPressure({ seatId: 5, name: "Mimo" }, { seatId: 2, name: "Target" }),
+        ],
+      }),
+    );
+
+    expect(command).toMatchObject({
+      type: "hunterShoot",
+      targetSeatId: undefined,
+    });
+  });
+
+  it("does not shoot a non-claim target from an untrusted public black check alone", () => {
+    const command = createMockCommand(
+      hunterView(),
+      tableReadWithTarget({
+        suspicion: 94,
+        trust: 30,
+        pressure: ["被Claude公开报查杀", "Claude施压这里"],
+        publicChecksAgainst: [{ claimant: { seatId: 3, name: "Claude" }, result: "WEREWOLF", day: 2 }],
+        publicStancedBy: [
+          publicPressure({ seatId: 3, name: "Claude" }, { seatId: 2, name: "Target" }),
+          publicPressure({ seatId: 4, name: "GPT" }, { seatId: 2, name: "Target" }),
+        ],
+      }),
+    );
+
+    expect(command).toMatchObject({
+      type: "hunterShoot",
+      targetSeatId: undefined,
+    });
+  });
+
+  it("does not shoot a non-claim target from an unresolved seer-counterclaim black check alone", () => {
+    const target = { seatId: 2, name: "Target" };
+    const seer = { seatId: 3, name: "Contested Seer" };
+    const otherSeer = { seatId: 4, name: "Other Seer" };
+    const tableRead = tableReadWithTarget({
+      suspicion: 96,
+      trust: 28,
+      pressure: ["被Contested Seer公开报查杀", "Contested Seer施压这里"],
+      publicChecksAgainst: [{ claimant: seer, result: "WEREWOLF", day: 2 }],
+      publicStancedBy: [
+        publicPressure(seer, target),
+        publicPressure({ seatId: 5, name: "Follower" }, target),
+        publicPressure({ seatId: 6, name: "Follower B" }, target),
+      ],
+    });
+    tableRead.tableMemory.counterclaims = [
+      {
+        claimedRole: "SEER",
+        claimedRoleLabel: "预言家",
+        claimants: [seer, otherSeer],
+      },
+    ];
+
+    const command = createMockCommand(hunterView(), tableRead);
+
+    expect(command).toMatchObject({
+      type: "hunterShoot",
+      targetSeatId: undefined,
+    });
+  });
+
+  it("can still shoot a power claim named by a dead seer legacy", () => {
+    const target = { seatId: 2, name: "Target" };
+    const legacySeer = { seatId: 6, name: "Dead Seer" };
+    const claim = powerClaim(target, "WITCH");
+    const tableRead = tableReadWithTarget({
+      suspicion: 90,
+      trust: 36,
+      pressure: ["Dead Seer夜死后遗留查杀", "公开声称女巫"],
+      publicClaims: [claim],
+    });
+    tableRead.tableMemory.seerLegacies = [
+      {
+        claimant: legacySeer,
+        deathDay: 2,
+        summary: "Dead Seer died with a black check.",
+        checks: [{ day: 2, target, result: "WEREWOLF" }],
+        stancesGiven: [],
+      },
+    ];
+
+    const command = createMockCommand(hunterView(), tableRead);
+
+    expect(command).toMatchObject({
+      type: "hunterShoot",
+      targetSeatId: 2,
+    });
+  });
 });
+
+function publicPressure(actor: ActionTarget, target: ActionTarget): SeatRead["publicStancedBy"][number] {
+  return {
+    stanceId: `${actor.seatId}:${target.seatId}:PRESSURE`,
+    day: 2,
+    actor,
+    target,
+    kind: "PRESSURE",
+    kindLabel: "施压",
+    summary: `施压${target.name}`,
+  };
+}
+
+function powerClaim(claimant: ActionTarget, claimedRole: ClaimBoardItem["claimedRole"]): ClaimBoardItem {
+  return {
+    claimId: `${claimant.seatId}:${claimedRole}`,
+    claimant,
+    claimedRole,
+    claimedRoleLabel: claimedRole === "WITCH" ? "女巫" : claimedRole,
+    strength: "hard",
+    checks: [],
+    summary: `声称${claimedRole}`,
+    lastUpdatedDay: 2,
+    sourceSpeechSeq: 10,
+  };
+}
 
 function hunterView(targets: ActionTarget[] = [{ seatId: 2, name: "Target" }]): AgentView {
   return {

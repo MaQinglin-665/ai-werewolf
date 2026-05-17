@@ -3,6 +3,7 @@ import type { AiSpeechProviderContext } from "@/ai/types";
 import type { AiDecisionLog } from "@/ai/types";
 import { getBoardPreset, listBoardPresets } from "@/game/boards";
 import { applyCommand, applySystemStep, createGame, hydrateGameState } from "@/game/engine";
+import type { RuntimeAiProviderMode } from "@/game/llmConfig";
 import { buildHumanView } from "@/game/projection";
 import { PHASES } from "@/game/types";
 import type {
@@ -22,14 +23,20 @@ import { prisma } from "@/lib/prisma";
 import { recordRoomAnalyticsEvent } from "@/server/roomAnalytics";
 
 type RuntimeAiOptions = {
+  aiProviderMode?: RuntimeAiProviderMode;
   runtimeAiLlmConfigs?: Record<string, AiFriendRuntimeLlmConfig>;
   aiRuntimeMode?: AiRuntimeMode;
 };
 
 function createRuntimeAiAdvanceOptions(options: RuntimeAiOptions) {
-  const forceMock = options.aiRuntimeMode === "mock";
+  const providerMode = options.aiRuntimeMode
+    ? options.aiRuntimeMode === "mock"
+      ? "mock"
+      : "models"
+    : options.aiProviderMode;
+  const forceMock = providerMode === "mock";
   return {
-    ...createConfiguredAiOptions({ forceMock }),
+    ...createConfiguredAiOptions(providerMode),
     runtimeAiLlmConfigs: forceMock ? undefined : options.runtimeAiLlmConfigs,
   };
 }

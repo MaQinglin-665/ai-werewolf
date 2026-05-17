@@ -26,7 +26,11 @@ import {
   type RoutedLlmResponse,
 } from "./modelLlms";
 import { buildAdvancedReasoningNotes } from "./advancedReasoning";
+import { buildClaimAudit, type AiClaimAudit } from "./claimAudit";
+import { buildDebateAgenda, type AiDebateAgenda } from "./debateAgenda";
 import { buildExpertStrategyNotes } from "./expertStrategy";
+import { buildReasoningFrame, type AiReasoningFrame } from "./reasoningFrame";
+import { buildRolePlaybook, type AiRolePlaybook } from "./rolePlaybook";
 import type { AiActionProvider, AiActionProviderContext, AiActionResult } from "./types";
 
 const ActionDecisionSchema = z
@@ -116,6 +120,10 @@ export type LlmActionInput = {
   };
   expertStrategy: string[];
   advancedReasoning: string[];
+  reasoningFrame: AiReasoningFrame;
+  rolePlaybook: AiRolePlaybook;
+  claimAudit: AiClaimAudit;
+  debateAgenda: AiDebateAgenda;
   votePlan?: VotePlan;
   fallbackCandidateId?: string;
   candidates: LlmActionCandidate[];
@@ -249,6 +257,7 @@ export const routedModelActionProvider: AiActionProvider = createConstrainedLlmA
 export function buildConstrainedActionInput(view: AgentView, context: AiActionProviderContext): LlmActionInput {
   const candidates = buildActionCandidates(view, context.tableRead, context.votePlan, context.fallbackCommand);
   const fallbackCandidateId = candidates.find((candidate) => sameCommand(candidate.command, context.fallbackCommand))?.id;
+  const debateAgenda = buildDebateAgenda(view, { tableRead: context.tableRead, target: context.votePlan?.target });
 
   return {
     day: view.day,
@@ -287,6 +296,10 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
     },
     expertStrategy: buildExpertStrategyNotes(view),
     advancedReasoning: buildAdvancedReasoningNotes(view),
+    reasoningFrame: buildReasoningFrame(view),
+    rolePlaybook: buildRolePlaybook(view),
+    claimAudit: buildClaimAudit(view),
+    debateAgenda,
     votePlan: context.votePlan,
     fallbackCandidateId,
     candidates,
@@ -1047,7 +1060,13 @@ function buildActionConstraints(view: AgentView): string[] {
     "Rules are final: legality is decided by the candidate list and engine validation.",
     "Use expertStrategy as high-level Werewolf heuristics for prioritizing evidence; do not quote it as a rule or fixed script.",
     "Use advancedReasoning as the current table audit checklist; satisfy it with public evidence instead of quoting it.",
+    "Use reasoningFrame to separate hardEvidence, softSignals, counterHypotheses, validationQuestions, and persuasionGoals before selecting a candidate.",
+    "Use rolePlaybook for role-specific tactics and action forks; choose a diverse legal line that still matches public evidence.",
+    "Use claimAudit to evaluate contested claims, protected claims, public check chains, and follow-up tests before acting.",
+    "Use debateAgenda to prefer actions that create a clear follow-up question, vote commitment, or role-coordination benefit instead of raw suspicion alone.",
     "Use an evidence ladder before choosing: public checks and uncontested claims first, then vote shape, stance shifts, speech influence, and finally tone or short-speech reads.",
+    "Rank evidence hardness before acting: hard public checks, claim conflicts, vote loops, and death legacies beat seat position, tone, short speech, or vague state reads.",
+    "Consider counter-logic: if one behavior can be wolf push, distancing, or good-side mistake, choose the target whose public benefit trail is clearest.",
     "When two candidates are close, prefer the one whose public evidence forms a clearer loop from speech to stance to vote; do not select only because their suspicion number is higher.",
   ];
 

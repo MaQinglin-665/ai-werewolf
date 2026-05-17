@@ -6,6 +6,13 @@ import type {
   AiRuntimeMode,
 } from "./types";
 
+export type RuntimeAiProviderMode = "mock" | "models";
+
+export function sanitizeRuntimeAiProviderMode(value: unknown): RuntimeAiProviderMode | undefined {
+  const clean = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return clean === "mock" || clean === "models" ? clean : undefined;
+}
+
 export function sanitizeAiFriendLlmConfig(value: unknown): AiFriendLlmConfig | undefined {
   if (!isRecord(value) || value.provider !== "openai-compatible") return undefined;
   const model = readString(value.model, 120);

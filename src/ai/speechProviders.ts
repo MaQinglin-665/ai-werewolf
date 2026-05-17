@@ -18,7 +18,11 @@ import {
   type RoutedLlmResponse,
 } from "./modelLlms";
 import { buildAdvancedReasoningNotes } from "./advancedReasoning";
+import { buildClaimAudit, type AiClaimAudit } from "./claimAudit";
+import { buildDebateAgenda, type AiDebateAgenda } from "./debateAgenda";
 import { buildExpertStrategyNotes } from "./expertStrategy";
+import { buildReasoningFrame, type AiReasoningFrame } from "./reasoningFrame";
+import { buildRolePlaybook, type AiRolePlaybook } from "./rolePlaybook";
 import { createSpeechPlan } from "./tableRead";
 import type { AiSpeechProvider, AiSpeechProviderContext, AiSpeechResult } from "./types";
 
@@ -28,7 +32,7 @@ const SpeechSchema = z.object({
 
 const AI_SPEECH_MAX_CHARS = 800;
 const SPEECH_SYSTEM_PROMPT =
-  "你是狼人杀玩家本人。根据牌桌局势、你的身份信息和你的性格，自由发表这一轮公开发言。优先阅读 input.tableBriefing.text 和 input.publicContext.rules，它们是事实边界和当前板子规则，不是台词模板；再参考 input.expertStrategy、input.advancedReasoning 和 input.playerSpeechGuide，expertStrategy 是高质量对局打法原则，advancedReasoning 是本局当前应该核验的逻辑清单，都不是固定话术。发言要像高阶玩家临场盘逻辑：观点先落地，随后给公开依据，再留下可验证的追问、改票条件或票口；优先串联验人、站边、票型、发言顺序和死亡播报，而不是只给情绪听感。模型特点只是软性的打法倾向：例如 DeepSeek 偏逻辑链，Claude 偏边界审查，豆包偏强压，Kimi 偏长线记忆；不要自称模型，也不要为了表现风格牺牲局势判断。只输出玩家实际说出口的台词，不写括号内动作、神态、语气或旁白描写。发言可以有个人风格和策略，但不能违背事实简报：只能评价本日已经发过言的人；对尚未发言的后置位只能要求稍后表态，不能说他们已经信息少或没回应；天亮死讯只公开谁死亡，不公开狼刀、毒、自刀等死因，除非公开记录写明，不要把死因说死。";
+  "你是狼人杀玩家本人。根据牌桌局势、你的身份信息和你的性格，自由发表这一轮公开发言。优先阅读 input.tableBriefing.text 和 input.publicContext.rules，它们是事实边界和当前板子规则，不是台词模板；再参考 input.expertStrategy、input.advancedReasoning、input.reasoningFrame、input.rolePlaybook、input.claimAudit、input.debateAgenda 和 input.playerSpeechGuide，expertStrategy 是高质量对局打法原则，advancedReasoning 是本局当前应该核验的逻辑清单，reasoningFrame 把硬证据、软信号、反面解释和验证问题拆开，rolePlaybook 是你当前角色的玩法分支和行动边界，claimAudit 专门审计身份坑、查验链和未对跳神职，debateAgenda 是本轮可以追问、收票和验证的动态议程，都不是固定话术。发言要像高阶玩家临场盘逻辑：观点先落地，随后给公开依据，补一句证据硬度或反面可能，再留下可验证的追问、改票条件或票口；优先串联验人、站边、票型、发言顺序和死亡播报，而不是只给情绪听感，也不要把座位、语气、短发言这类软信息当铁证。模型特点只是软性的打法倾向：例如 DeepSeek 偏逻辑链，Claude 偏边界审查，豆包偏强压，Kimi 偏长线记忆；不要自称模型，也不要为了表现风格牺牲局势判断。只输出玩家实际说出口的台词，不写括号内动作、神态、语气或旁白描写。发言可以有个人风格和策略，但不能违背事实简报：只能评价本日已经发过言的人；对尚未发言的后置位只能要求稍后表态，不能说他们已经信息少或没回应；天亮死讯只公开谁死亡，不公开狼刀、毒、自刀等死因，除非公开记录写明，不要把死因说死。";
 
 export type SpeechStrictness = "strict" | "guided" | "loose";
 
@@ -115,6 +119,10 @@ export type LlmSpeechInput = {
   };
   expertStrategy: string[];
   advancedReasoning: string[];
+  reasoningFrame: AiReasoningFrame;
+  rolePlaybook: AiRolePlaybook;
+  claimAudit: AiClaimAudit;
+  debateAgenda: AiDebateAgenda;
   playerSpeechGuide: {
     tablePlayerStyle: string[];
     modelStyle: {
@@ -269,13 +277,17 @@ export function buildConstrainedSpeechInput(
   const constraints = buildSpeechConstraints(view, plan, strictness);
   const speechOrder = buildSpeechOrderContext(view);
   const advancedReasoning = buildAdvancedReasoningNotes(view);
+  const reasoningFrame = buildReasoningFrame(view);
+  const rolePlaybook = buildRolePlaybook(view);
+  const claimAudit = buildClaimAudit(view);
+  const debateAgenda = buildDebateAgenda(view, { plan, target: plan.target });
   return {
     day: view.day,
     mySeatId: view.mySeatId,
     myRole: view.myRole,
     persona: view.persona,
     aliveSeats: view.aliveSeats,
-    tableBriefing: buildTableBriefing(view, plan, speechOrder, advancedReasoning),
+    tableBriefing: buildTableBriefing(view, plan, speechOrder, advancedReasoning, reasoningFrame, rolePlaybook, claimAudit, debateAgenda),
     publicContext: {
       rules: buildSpeechRulesContext(view),
       recentSpeeches: view.publicSummary.recentSpeeches.slice(-8),
@@ -301,6 +313,10 @@ export function buildConstrainedSpeechInput(
     privateContext: buildPrivateSpeechContext(view),
     expertStrategy: buildExpertStrategyNotes(view),
     advancedReasoning,
+    reasoningFrame,
+    rolePlaybook,
+    claimAudit,
+    debateAgenda,
     playerSpeechGuide: buildPlayerSpeechGuide(view, plan, speechOrder),
     speechStrictness: strictness,
     llmConfig: view.llmConfig,
@@ -376,6 +392,7 @@ function buildPlayerSpeechGuide(
   return {
     tablePlayerStyle: [
       "像坐在桌边发言：先给当前站边或保留态度，再给1-2个公开理由，最后留下追问、票口或后置位任务。",
+      "尽量形成一条因果链：为什么这样站、这个理由有多硬、反面解释是什么、下一轮看什么验证。",
       "允许短句和牌桌口吻，例如“我先不站死”“这个点先记”“这轮票口先放这里”，但不要堆规则说明。",
       targetLine,
       stageLine,
@@ -399,6 +416,7 @@ function buildPlayerSpeechGuide(
       "不要为了接话强行回应上一位；只有相关时自然承接。",
       "不要把模型特点说成自我介绍、模型名口号或固定模板。",
       "不要机械复述事实简报、公开边界或规则说明。",
+      "不要把边角位、语气、短发言、划水这类软状态直接当铁狼证据。",
       "不要泄露私有身份信息；狼队视角、真实查验和女巫药瓶只能按角色策略决定是否公开。",
     ],
   };
@@ -493,6 +511,10 @@ function buildTableBriefing(
   plan: SpeechPlan,
   speechOrder: LlmSpeechInput["publicContext"]["speechOrder"],
   advancedReasoning: string[],
+  reasoningFrame: AiReasoningFrame,
+  rolePlaybook: AiRolePlaybook,
+  claimAudit: AiClaimAudit,
+  debateAgenda: AiDebateAgenda,
 ): LlmSpeechInput["tableBriefing"] {
   const self = toTargetFromSeatId(view, view.mySeatId);
   const speechProgress = {
@@ -557,6 +579,28 @@ function buildTableBriefing(
       ...publicFacts,
       ...publicReasoningCues.map((line) => `公开推理线索：${line}`),
       ...advancedReasoning.map((line) => `当前推理清单：${line}`),
+      ...reasoningFrame.hardEvidence.map((line) => `推理框架-硬证据：${line}`),
+      ...reasoningFrame.softSignals.map((line) => `推理框架-软信号：${line}`),
+      ...reasoningFrame.counterHypotheses.map((line) => `推理框架-反面解释：${line}`),
+      ...reasoningFrame.validationQuestions.map((line) => `推理框架-验证问题：${line}`),
+      ...reasoningFrame.persuasionGoals.map((line) => `推理框架-说服目标：${line}`),
+      `角色玩法：${rolePlaybook.roleLabel}，${rolePlaybook.tableIdentity}`,
+      ...rolePlaybook.tacticalVariants.map((line) => `角色玩法-变体：${line}`),
+      ...rolePlaybook.reasoningPriorities.map((line) => `角色玩法-推理重点：${line}`),
+      ...rolePlaybook.actionForks.map((line) => `角色玩法-行动分歧：${line}`),
+      ...rolePlaybook.speechAngles.map((line) => `角色玩法-发言角度：${line}`),
+      ...rolePlaybook.avoid.map((line) => `角色玩法-避免：${line}`),
+      ...claimAudit.contestedClaims.map((line) => `身份审计-对跳：${line}`),
+      ...claimAudit.protectedClaims.map((line) => `身份审计-保护：${line}`),
+      ...claimAudit.checkChains.map((line) => `身份审计-查验链：${line}`),
+      ...claimAudit.contradictions.map((line) => `身份审计-矛盾：${line}`),
+      ...claimAudit.followupTests.map((line) => `身份审计-验证：${line}`),
+      ...claimAudit.actionGuidance.map((line) => `身份审计-行动：${line}`),
+      ...debateAgenda.crossExamination.map((line) => `盘问议程-追问：${line}`),
+      ...debateAgenda.voteCommitments.map((line) => `盘问议程-票口：${line}`),
+      ...debateAgenda.roleCoordination.map((line) => `盘问议程-角色联动：${line}`),
+      ...debateAgenda.pressureLines.map((line) => `盘问议程-施压线：${line}`),
+      ...debateAgenda.avoidTraps.map((line) => `盘问议程-避免陷阱：${line}`),
       ...privateFacts.map((line) => `私有视角：${line}`),
       ...unknowns.map((line) => `不能越界：${line}`),
       ...legalSpeechFocus.map((line) => `可发言方向：${line}`),
@@ -1275,12 +1319,13 @@ function readSpeechFallbackPersonaNames(primaryPersonaName: string | undefined):
 function createStructuredMockSpeech(view: AgentView, plan = createSpeechPlan(view)): string | undefined {
   const persona = `${view.persona?.name ?? ""} ${view.persona?.label ?? "稳健型"}`.trim();
   const target = plan.target ?? view.aliveSeats.find((seat) => seat.seatId !== view.mySeatId);
+  const debateAgenda = buildDebateAgenda(view, { plan, target });
   const opener = personaOpener(persona, view.mySeatId + view.day);
   const dynamicText = renderSpeechDynamicText(plan);
   const evidence = buildStructuredMockEvidence(view, plan, target);
   const previous = buildPreviousSpeechReason(view, target);
   const audit = buildMockReasoningAudit(view);
-  const condition = buildVoteCondition(plan, target);
+  const condition = buildVoteCondition(view, plan, target);
   const tallyText = publicTallyText(view);
   const evidenceText = evidence.length > 0 ? `理由是：${evidence.join("；")}。` : "";
   const dynamicSentence = dynamicText ? `${dynamicText}。` : "";
@@ -1313,7 +1358,7 @@ function createStructuredMockSpeech(view: AgentView, plan = createSpeechPlan(vie
             ? "这轮我不围绕金水出人，重点看谁没理由硬踩他。"
             : "";
       return compactSpeech(
-        `${opener}，我跳预言家，${checkedText}是${resultText}。这个结论来自我的夜间查验，不是听感。${checkEvidenceText}${buildSeerCheckCondition(latestCheck.result, checkedTarget)}`,
+        `${opener}，我跳预言家，${checkedText}是${resultText}。这个结论来自我的夜间查验，不是听感。${checkEvidenceText}${buildSeerCheckCondition(latestCheck.result, checkedTarget)}${buildDebateAgendaTail(debateAgenda, mockSpeechSeed(view, checkedTarget, 1))}`,
       );
     }
   }
@@ -1330,20 +1375,20 @@ function createStructuredMockSpeech(view: AgentView, plan = createSpeechPlan(vie
           ? `理由是：${checkEvidence.join("；")}。`
           : "这条查杀线我先压出来，让外置位对照回应。";
     return compactSpeech(
-      `${opener}，我跳预言家，${checkedText}是${resultText}。${plan.claimIntent.isCounterclaim ? "外置预言家我不认，" : ""}${checkEvidenceText}${buildSeerCheckCondition(plan.claimIntent.check.result, checkedTarget)}`,
+      `${opener}，我跳预言家，${checkedText}是${resultText}。${plan.claimIntent.isCounterclaim ? "外置预言家我不认，" : ""}${checkEvidenceText}${buildSeerCheckCondition(plan.claimIntent.check.result, checkedTarget)}${buildDebateAgendaTail(debateAgenda, mockSpeechSeed(view, checkedTarget, 2))}`,
     );
   }
 
   if (view.myRole === "WITCH" && plan.claimIntent?.claimedRole === "WITCH" && plan.claimIntent.strength === "hard") {
-    return compactSpeech(`${opener}，我拍女巫，今天票型别散。${dynamicSentence}${evidenceText}${condition}`);
+    return compactSpeech(`${opener}，我拍女巫，今天票型别散。${dynamicSentence}${evidenceText}${condition}${buildDebateAgendaTail(debateAgenda, mockSpeechSeed(view, target, 3))}`);
   }
 
   if (view.myRole === "HUNTER" && plan.claimIntent?.claimedRole === "HUNTER" && plan.claimIntent.strength === "hard") {
-    return compactSpeech(`${opener}，我拍猎人，先把归票收住。${dynamicSentence}${evidenceText}${condition}`);
+    return compactSpeech(`${opener}，我拍猎人，先把归票收住。${dynamicSentence}${evidenceText}${condition}${buildDebateAgendaTail(debateAgenda, mockSpeechSeed(view, target, 4))}`);
   }
 
   if (view.myRole === "KNIGHT" && plan.claimIntent?.claimedRole === "KNIGHT" && plan.claimIntent.strength === "hard") {
-    return compactSpeech(`${opener}，我拍骑士，决斗不会替代推理，今天先把公开狼面说清楚。${dynamicSentence}${evidenceText}${condition}`);
+    return compactSpeech(`${opener}，我拍骑士，决斗不会替代推理，今天先把公开狼面说清楚。${dynamicSentence}${evidenceText}${condition}${buildDebateAgendaTail(debateAgenda, mockSpeechSeed(view, target, 5))}`);
   }
 
   if (view.myRole === "VILLAGER" && plan.claimIntent?.claimedRole === "WITCH") {
@@ -1402,41 +1447,83 @@ function composeReasonedMockSpeech(args: {
   const dynamicSentence = args.dynamicText ? `${args.dynamicText}。` : "";
   const previousSentence = args.previous ? `${args.previous}。` : "";
   const auditSentence = args.audit ? `${args.audit}。` : "";
+  const agendaTail = buildDebateAgendaTail(
+    buildDebateAgenda(args.view, { plan: args.plan, target: args.target }),
+    mockSpeechSeed(args.view, args.target, 6),
+  );
   const tableSentence = `${buildMockTablePlayerLine(args.view, args.target)}。`;
   const shape = getMockSpeechShape(args.view, args.plan);
 
   switch (shape) {
     case "logic":
       return compactSpeech(
-        `${args.opener}，${args.lead}我先拆因果：第一点，${firstEvidence}${secondEvidence ? `；第二点，${secondEvidence}` : ""}。${auditSentence}${previousSentence}${tableSentence}${args.condition}${args.tallyText}`,
+        `${args.opener}，${args.lead}我先拆因果：第一点，${firstEvidence}${secondEvidence ? `；第二点，${secondEvidence}` : ""}。${auditSentence}${previousSentence}${tableSentence}${args.condition}${agendaTail}${args.tallyText}`,
       );
     case "boundary":
       return compactSpeech(
-        `${args.opener}，${args.lead}我先给边界，不把${targetText}直接打死。${dynamicSentence}${firstEvidence}，这是疑点不是定论。${auditSentence}${previousSentence}${tableSentence}${args.condition}${args.tallyText}`,
+        `${args.opener}，${args.lead}我先给边界，不把${targetText}直接打死。${dynamicSentence}${firstEvidence}，这是疑点不是定论。${auditSentence}${previousSentence}${tableSentence}${args.condition}${agendaTail}${args.tallyText}`,
       );
     case "pressure":
       return compactSpeech(
-        `${args.opener}，${args.lead}${targetText}现在需要正面回答。${dynamicSentence}${firstEvidence}${secondEvidence ? `；${secondEvidence}` : ""}。${auditSentence}${tableSentence}${args.condition}${args.tallyText}`,
+        `${args.opener}，${args.lead}${targetText}现在需要正面回答。${dynamicSentence}${firstEvidence}${secondEvidence ? `；${secondEvidence}` : ""}。${auditSentence}${tableSentence}${args.condition}${agendaTail}${args.tallyText}`,
       );
     case "compare":
       return compactSpeech(
-        `${args.opener}，${args.lead}我把两条线对一下：${args.previous ?? "前置位发言先记样本"}，再看${firstEvidence}。${dynamicSentence}${auditSentence}${tableSentence}${args.condition}${args.tallyText}`,
+        `${args.opener}，${args.lead}我把两条线对一下：${args.previous ?? "前置位发言先记样本"}，再看${firstEvidence}。${dynamicSentence}${auditSentence}${tableSentence}${args.condition}${agendaTail}${args.tallyText}`,
       );
     case "identity":
       return compactSpeech(
-        `${args.opener}，${args.lead}我先看身份和站边是否对得上。${firstEvidence}。${secondEvidence ? `${secondEvidence}。` : ""}${dynamicSentence}${auditSentence}${tableSentence}${args.condition}${args.tallyText}`,
+        `${args.opener}，${args.lead}我先看身份和站边是否对得上。${firstEvidence}。${secondEvidence ? `${secondEvidence}。` : ""}${dynamicSentence}${auditSentence}${tableSentence}${args.condition}${agendaTail}${args.tallyText}`,
       );
     case "emotion":
       return compactSpeech(
-        `${args.opener}，${args.lead}听感上我先保留，但不只凭语气。${firstEvidence}。${auditSentence}${previousSentence}${tableSentence}${args.condition}${args.tallyText}`,
+        `${args.opener}，${args.lead}听感上我先保留，但不只凭语气。${firstEvidence}。${auditSentence}${previousSentence}${tableSentence}${args.condition}${agendaTail}${args.tallyText}`,
       );
   }
 }
 
+function buildDebateAgendaTail(agenda: AiDebateAgenda, seed = 0): string {
+  const ask = cleanAgendaLine(agenda.crossExamination[0]);
+  const vote = cleanAgendaLine(agenda.voteCommitments[0]);
+  if (ask && vote) {
+    return pickBySeat(seed, [
+      `追问先落在这里：${ask}；票口按这个条件走：${vote}。`,
+      `我给后置位的任务是：${ask}。如果答不实，${vote}。`,
+      `这轮别泛泛站边，先把这个追问讲清楚：${ask}。如果解释不闭环，票口再按${vote}收。`,
+    ]);
+  }
+  if (ask) {
+    return pickBySeat(seed, [
+      `我这轮先追问：${ask}。`,
+      `后置位先别空站边，先回答这个点：${ask}。`,
+      `这个问题我先留在桌上：${ask}。`,
+    ]);
+  }
+  if (vote) {
+    return pickBySeat(seed, [
+      `我的票口条件是：${vote}。`,
+      `最后收票按这个标准来：${vote}。`,
+      `这轮不要散，先按${vote}执行。`,
+    ]);
+  }
+  return "";
+}
+
+function cleanAgendaLine(line: string | undefined): string | undefined {
+  const clean = line?.replace(/[。！？；，、,.!\?\s]+$/g, "").trim();
+  return clean || undefined;
+}
+
 function buildMockReasoningAudit(view: AgentView): string | undefined {
+  const claimAudit = buildClaimAudit(view);
   const seerCounterclaim = view.publicSummary.tableMemory.counterclaims.find((group) => group.claimedRole === "SEER");
   if (seerCounterclaim) {
-    return `身份坑先看${formatSeatList(seerCounterclaim.claimants)}这组预言家对跳，不能只听谁声音大`;
+    const chain = claimAudit.checkChains[0] ? `，查验链看${claimAudit.checkChains[0]}` : "";
+    return `身份坑先看${formatSeatList(seerCounterclaim.claimants)}这组预言家对跳，不能只听谁声音大${chain}`;
+  }
+
+  if (claimAudit.protectedClaims.length > 0) {
+    return `身份审计先保护未对跳强身份：${claimAudit.protectedClaims[0]}`;
   }
 
   const sheriffVote = view.publicSummary.sheriffVoteSnapshot;
@@ -1466,19 +1553,41 @@ function buildMockTablePlayerLine(view: AgentView, target: ActionTarget | undefi
   const currentDaySpeeches = view.publicSummary.recentSpeeches.filter(
     (speech) => speech.day === view.day && speech.speaker && speech.speaker.seatId !== view.mySeatId,
   );
-  const previousSpeaker = currentDaySpeeches.at(-1)?.speaker;
+  const previousSpeech = currentDaySpeeches.at(-1);
+  const previousSpeaker = previousSpeech?.speaker;
+  const targetText = target ? seatText(target) : "主焦点";
+  const seed = mockSpeechSeed(view, target, 7);
 
   if (currentDaySpeeches.length === 0) {
-    return target
-      ? `我是前置位，先把${seatText(target)}放进观察位`
-      : "我是前置位，先把观察点摆出来";
+    return pickBySeat(seed, [
+      target ? `我是前置位，先把${targetText}放进观察位` : "我是前置位，先把观察点摆出来",
+      target ? `前面样本少，我先给${targetText}一个可验证任务` : "前面样本少，我先给后置位留任务",
+      target ? `${targetText}先不定死，我只把今天要验的点摆出来` : "我先铺视角，不假装已经听完全场",
+    ]);
+  }
+
+  if (previousSpeaker && target && previousSpeaker.seatId === target.seatId) {
+    const speechGap = previousSpeech ? describeSpeechGap(previousSpeech.message) : "过程还没完全闭合";
+    return pickBySeat(seed, [
+      `${targetText}刚发过言，我先抓他这段里${speechGap}的部分`,
+      `我接着${targetText}刚才的话说，他的结论还要和后面票型对上`,
+      `${targetText}这段我不急着定性，先看他能不能把理由补硬`,
+    ]);
   }
 
   if (previousSpeaker && target && previousSpeaker.seatId !== target.seatId) {
-    return `上一位${previousSpeaker.name}我先记下，但票口暂时不被他带跑`;
+    return pickBySeat(seed, [
+      `刚才${seatText(previousSpeaker)}我先当成一条对照线，等${targetText}回应后再决定票口`,
+      `上一位${previousSpeaker.name}的线我记下，但我不会顺着他直接改票，先看${targetText}能不能补过程`,
+      `前置${previousSpeaker.name}提供了一个方向，我这里把${targetText}的站边和票型放一起核`,
+    ]);
   }
 
-  return target ? `后置位可以反驳我，但要拿公开信息补${target.seatId}号的过程` : "后置位有更硬信息我再改";
+  return pickBySeat(seed, [
+    target ? `后置位可以反驳我，但要拿公开信息补${target.seatId}号的过程` : "后置位有更硬信息我再改",
+    target ? `${targetText}这条线我先不封死，等下一轮用票型回验` : "我先给可改判断，后面看票型回验",
+    target ? `这不是一锤定音，后面谁能把${target.seatId}号的逻辑补上我会听` : "现在先不抢终局结论，等更多公开材料",
+  ]);
 }
 
 function getMockSpeechShape(view: AgentView, plan: SpeechPlan): MockSpeechShape {
@@ -1574,7 +1683,7 @@ function buildPreviousSpeechReason(view: AgentView, target: ActionTarget | undef
   return `上一位${previousText}给过一条线，我会拿后置回应去校验`;
 }
 
-function buildVoteCondition(plan: SpeechPlan, target: ActionTarget | undefined): string {
+function buildVoteCondition(view: AgentView, plan: SpeechPlan, target: ActionTarget | undefined): string {
   if (!target) return "所以这轮我先不散票，等后置位把过程补出来。";
   const plannedCheck = plan.claimIntent?.claimedRole === "SEER" ? plan.claimIntent.check : undefined;
   if (plannedCheck && plannedCheck.targetSeatId === target.seatId) {
@@ -1582,9 +1691,44 @@ function buildVoteCondition(plan: SpeechPlan, target: ActionTarget | undefined):
   }
 
   const targetText = seatText(target);
-  if (plan.kind === "rally") return `如果后置没有更强反证，今天可以先往${targetText}收票。`;
-  if (plan.kind === "defend") return `如果${targetText}能补出清楚逻辑，我会把他从第一焦点往后放。`;
-  return `如果${targetText}后置仍只给结论不给过程，我会把票压过去；如果能补出清楚逻辑，我再换焦点。`;
+  const seed = mockSpeechSeed(view, target, 11);
+  const targetHasSpoken = view.publicSummary.recentSpeeches.some(
+    (speech) => speech.day === view.day && speech.speaker?.seatId === target.seatId,
+  );
+
+  if (plan.kind === "rally") {
+    return pickBySeat(seed, [
+      `如果后置没有更强反证，今天可以先往${targetText}收票。`,
+      `我这轮的票口先往${targetText}靠，后置位要改我就给更硬证据。`,
+      `除非后面有人把这条线打断，不然${targetText}可以进今天主票口。`,
+    ]);
+  }
+
+  if (plan.kind === "defend") {
+    return pickBySeat(seed, [
+      `如果${targetText}能补出清楚逻辑，我会把他从第一焦点往后放。`,
+      `${targetText}只要把动机和票型讲顺，我这边可以先撤压力。`,
+      `我保留可改空间，关键看${targetText}后面能不能把公开过程接上。`,
+    ]);
+  }
+
+  if (targetHasSpoken) {
+    return pickBySeat(seed, [
+      `${targetText}这段我先挂疑问，等投票前再看有没有人能补出反证。`,
+      `我不会只凭一个点出${targetText}，但他刚才的过程需要在票型前补硬。`,
+      `这票可以先压在${targetText}附近，除非后面有人给出更完整的反面解释。`,
+    ]);
+  }
+
+  return pickBySeat(seed, [
+    `等轮到${targetText}发言时，我要听他把站边理由和票口讲完整。`,
+    `${targetText}还没发言，我先把任务丢给他：别只给结论，要把过程补出来。`,
+    `如果${targetText}后面只给态度不给依据，我会把票往他身上收；讲得通我再换焦点。`,
+  ]);
+}
+
+function mockSpeechSeed(view: AgentView, target: ActionTarget | undefined, salt = 0): number {
+  return view.day * 31 + view.mySeatId * 17 + (target?.seatId ?? 0) * 13 + salt;
 }
 
 function buildSeerCheckCondition(result: "WEREWOLF" | "GOOD", target: ActionTarget): string {

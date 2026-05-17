@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createGame } from "@/game/engine";
+import { applyCommand, createGame } from "@/game/engine";
 import { buildAgentView } from "@/game/projection";
+import type { Seat } from "@/game/types";
 import { createSpeechPlan } from "./tableRead";
-import { createConstrainedLlmSpeechProvider, routedModelSpeechProvider } from "./speechProviders";
+import { createConstrainedLlmSpeechProvider, mockSpeechProvider, routedModelSpeechProvider } from "./speechProviders";
 
 const originalEnv = { ...process.env };
 
@@ -94,3 +95,80 @@ describe("routed speech provider", () => {
     expect(result.speech).toContain("投票不要散");
   });
 });
+
+describe("mock speech provider", () => {
+  it("varies adjacent table-player bridge and vote-condition wording", async () => {
+    let state = createGame({ seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+
+    const target = state.seats[0]!;
+    const previous = state.seats[1]!;
+    const gpt = state.seats[2]!;
+    const doubao = state.seats[3]!;
+    setTestPersona(target, "DeepSeek", "logic-checker", 0.42);
+    setTestPersona(previous, "Claude", "careful-follower", 0.36);
+    setTestPersona(gpt, "GPT", "steady-organizer", 0.48);
+    setTestPersona(doubao, "豆包", "emotional-voter", 0.72);
+    gpt.role = "VILLAGER";
+    doubao.role = "VILLAGER";
+    state.speechQueue = [previous.seatId, gpt.seatId, doubao.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: previous.seatId,
+      message: "我先给边界，前置位信息还不够完整，后面要听1号怎么补站边。",
+    });
+
+    const gptView = buildAgentView(state, gpt.seatId);
+    const gptPlan = {
+      ...createSpeechPlan(gptView),
+      kind: "pressure" as const,
+      target,
+      talkingPoints: ["1号的站边还没和票型闭合", "后置位需要给出反证"],
+    };
+    const gptResult = await mockSpeechProvider.generateSpeech(gptView, gptPlan);
+
+    state = applyCommand(state, { type: "speak", actorSeatId: gpt.seatId, message: gptResult.speech });
+
+    const doubaoView = buildAgentView(state, doubao.seatId);
+    const doubaoPlan = {
+      ...createSpeechPlan(doubaoView),
+      kind: "pressure" as const,
+      target,
+      talkingPoints: ["1号的发言任务还没交卷", "我会看他能不能给即时反应"],
+    };
+    const doubaoResult = await mockSpeechProvider.generateSpeech(doubaoView, doubaoPlan);
+
+    for (const speech of [gptResult.speech, doubaoResult.speech]) {
+      expect(speech).not.toContain("票口暂时不被他带跑");
+      expect(speech).not.toContain("后置仍只给结论不给过程");
+    }
+    expect(doubaoResult.speech).toContain("GPT");
+    expect(gptResult.speech).not.toEqual(doubaoResult.speech);
+  });
+});
+
+function setTestPersona(seat: Seat, name: string, id: string, riskTolerance: number): void {
+  seat.name = name;
+  seat.persona = {
+    id,
+    name,
+    modelLabel: name,
+    label: "测试型",
+    style: "按桌面公开信息发言",
+    goal: "给出可验证的票口和追问",
+    riskTolerance,
+    bluffing: 0.3,
+    preferences: {
+      logic: 0.7,
+      identity: 0.55,
+      vote: 0.65,
+      emotion: name === "豆包" ? 0.86 : 0.35,
+      memory: 0.55,
+      leadership: riskTolerance,
+      deception: 0.3,
+      caution: 1 - riskTolerance,
+    },
+  };
+}

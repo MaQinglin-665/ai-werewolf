@@ -1,5 +1,5 @@
 import { HumanCommandInputSchema } from "@/game/commandSchemas";
-import { sanitizeAiRuntimeMode, sanitizeRuntimeAiLlmConfigMap } from "@/game/llmConfig";
+import { sanitizeAiRuntimeMode, sanitizeRuntimeAiLlmConfigMap, sanitizeRuntimeAiProviderMode } from "@/game/llmConfig";
 import { continueGameWithSpeechStream } from "@/server/gameService";
 
 export const runtime = "nodejs";
@@ -16,11 +16,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
 
   const runtimeAiLlmConfigs = sanitizeRuntimeAiLlmConfigMap(isRecord(body) ? body.aiLlmConfigs : undefined);
   const aiRuntimeMode = sanitizeAiRuntimeMode(isRecord(body) ? body.aiRuntimeMode : undefined);
+  const aiProviderMode = sanitizeRuntimeAiProviderMode(isRecord(body) ? body.aiProviderMode : undefined);
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
+      let closed = false;
       const send = (event: string, data: unknown) => {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          closed = true;
+        }
+      };
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          // The mobile browser or tunnel may have already closed the stream.
+        }
       };
 
       void continueGameWithSpeechStream(
@@ -28,16 +44,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
         {
           onTextSnapshot: (text) => send("speech", { text }),
         },
-        { aiRuntimeMode, runtimeAiLlmConfigs },
+        { aiRuntimeMode, aiProviderMode, runtimeAiLlmConfigs },
       )
         .then((view) => {
           send("done", { view });
-          controller.close();
+          close();
         })
         .catch((error) => {
           send("error", { error: error instanceof Error ? error.message : "流式推进失败。" });
-          controller.close();
+          close();
         });
+    },
+    cancel() {
+      // The game advance continues server-side; the client can refresh the latest view.
     },
   });
 
