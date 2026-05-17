@@ -23,6 +23,25 @@ The service starts with `npm run start:production`. On Render, the app can use `
 
 Render Blueprint fields used here are the standard Docker web service fields, `healthCheckPath`, and `fromDatabase` environment references.
 
+## Free Demo Blueprint
+
+If Render asks for payment information while you are only trying to get a public demo link, use `render.free.yaml` as the Blueprint path instead of the default `render.yaml`.
+
+Render setup fields:
+
+- Blueprint Name: `ai-werewolf-free`
+- Branch: `codex/room-render-production-minimum`
+- Blueprint Path: `render.free.yaml`
+
+This creates:
+
+- a free Docker web service named `ai-werewolf-free`;
+- a free Render Postgres database named `ai-werewolf-room-db-free`;
+- the same PostgreSQL-backed room state, realtime fanout, presence, and rate limits;
+- mock AI mode by default.
+
+Use this only for public-link smoke testing. Free Render resources can sleep, have capacity limits, and are not the production target. For a stable public test, switch back to `render.yaml` and use the paid `starter` web service plus `basic-256mb` Postgres.
+
 ## After First Deploy
 
 From your local machine:

@@ -45,6 +45,8 @@ The container command runs `npm run start:production`, which checks the producti
 
 For Render, use the checked-in `render.yaml` Blueprint and follow `docs/render-deploy.md`. The first deploy can use Render's generated `*.onrender.com` HTTPS origin through `RENDER_EXTERNAL_URL`; set `AI_WEREWOLF_PUBLIC_ORIGIN` explicitly when you add a custom domain.
 
+If you only need a no-card public smoke test first, use `render.free.yaml` as the Render Blueprint path. That file keeps the same production-minimum adapters but selects Render free instance types and `-free` resource names so it does not conflict with the stable paid Blueprint. Treat it as a temporary demo environment, not the production target.
+
 ## DNS And HTTPS
 
 1. Point `werewolf.example.com` to the server or platform.
