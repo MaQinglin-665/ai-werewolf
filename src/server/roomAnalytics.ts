@@ -1,17 +1,28 @@
 import { Pool } from "pg";
 
-export type RoomAnalyticsEventType = "room_created" | "player_joined" | "room_started" | "room_finished";
+export type RoomAnalyticsEventType =
+  | "home_view"
+  | "main_game_started"
+  | "main_game_finished"
+  | "room_created"
+  | "player_joined"
+  | "room_started"
+  | "room_finished";
 
 export type RoomAnalyticsEventInput = {
   eventType: RoomAnalyticsEventType;
   roomCode?: string;
-  roomId: string;
+  roomId?: string;
   playerId?: string;
   payload?: Record<string, unknown>;
+  subjectId?: string;
 };
 
 export type RoomAnalyticsDayBucket = {
   date: string;
+  homeViews: number;
+  mainGamesFinished: number;
+  mainGamesStarted: number;
   roomsCreated: number;
   playersJoined: number;
   gamesStarted: number;
@@ -21,16 +32,23 @@ export type RoomAnalyticsDayBucket = {
 export type RoomAnalyticsHistorySnapshot = {
   adapter: "in-process" | "postgres";
   averageFinishedGameMinutes: number | null;
+  averageMainGameMinutes: number | null;
   gamesFinished: number;
   gamesStarted: number;
+  homeViews: number;
+  mainCompletionRate: number | null;
+  mainGamesFinished: number;
+  mainGamesStarted: number;
   recentDays: RoomAnalyticsDayBucket[];
+  totalMainGameMinutes: number;
   totalPlayersEver: number;
   totalRoomsEver: number;
   trackedSince?: string;
 };
 
-type StoredRoomAnalyticsEvent = RoomAnalyticsEventInput & {
+type StoredRoomAnalyticsEvent = Omit<RoomAnalyticsEventInput, "roomId" | "subjectId"> & {
   occurredAt: string;
+  roomId: string;
 };
 
 const POSTGRES_ROOM_ANALYTICS_EVENTS_TABLE = "ai_werewolf_room_analytics_events";
@@ -46,7 +64,9 @@ const roomAnalyticsEvents = globalForRoomAnalytics.aiWerewolfRoomAnalyticsEvents
 globalForRoomAnalytics.aiWerewolfRoomAnalyticsEvents = roomAnalyticsEvents;
 
 export async function recordRoomAnalyticsEvent(input: RoomAnalyticsEventInput): Promise<void> {
-  const event: StoredRoomAnalyticsEvent = {
+  const subjectId = input.roomId ?? input.subjectId;
+  if (!subjectId) return;
+  const event = {
     ...input,
     occurredAt: new Date().toISOString(),
     payload: input.payload ?? {},
@@ -62,12 +82,12 @@ export async function recordRoomAnalyticsEvent(input: RoomAnalyticsEventInput): 
             (event_type, room_id, room_code, player_id, occurred_at, payload)
           values ($1, $2, $3, $4, $5, $6::jsonb)
         `,
-        [event.eventType, event.roomId, event.roomCode ?? null, event.playerId ?? null, event.occurredAt, JSON.stringify(event.payload)],
+        [event.eventType, subjectId, event.roomCode ?? null, event.playerId ?? null, event.occurredAt, JSON.stringify(event.payload)],
       );
       return;
     }
 
-    roomAnalyticsEvents.push(event);
+    roomAnalyticsEvents.push({ ...event, roomId: subjectId });
   } catch (error) {
     console.warn(`记录房间统计事件失败：${error instanceof Error ? error.message : String(error)}`);
   }
@@ -91,15 +111,21 @@ export async function clearRoomAnalyticsForTests(): Promise<void> {
 async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsHistorySnapshot> {
   const pool = getPostgresRoomAnalyticsPool();
   await ensurePostgresRoomAnalyticsSchema(pool);
-  const [totals, duration, days, trackedSince] = await Promise.all([
+  const [totals, duration, mainDuration, days, trackedSince] = await Promise.all([
     pool.query<{
       games_finished: number;
       games_started: number;
+      home_views: number;
+      main_games_finished: number;
+      main_games_started: number;
       total_players_ever: number;
       total_rooms_ever: number;
     }>(
       `
         select
+          count(*) filter (where event_type = 'home_view')::int as home_views,
+          count(distinct room_id) filter (where event_type = 'main_game_started')::int as main_games_started,
+          count(distinct room_id) filter (where event_type = 'main_game_finished')::int as main_games_finished,
           count(distinct room_id) filter (where event_type = 'room_created')::int as total_rooms_ever,
           count(distinct player_id) filter (where event_type in ('room_created', 'player_joined') and player_id is not null)::int as total_players_ever,
           count(distinct room_id) filter (where event_type = 'room_started')::int as games_started,
@@ -127,12 +153,35 @@ async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsH
         where finished.finished_at >= started.started_at
       `,
     ),
+    pool.query<{ average_seconds: number | null; total_seconds: number | null }>(
+      `
+        with started as (
+          select room_id, min(occurred_at) as started_at
+          from ${POSTGRES_ROOM_ANALYTICS_EVENTS_TABLE}
+          where event_type = 'main_game_started'
+          group by room_id
+        ),
+        finished as (
+          select room_id, min(occurred_at) as finished_at
+          from ${POSTGRES_ROOM_ANALYTICS_EVENTS_TABLE}
+          where event_type = 'main_game_finished'
+          group by room_id
+        )
+        select
+          avg(extract(epoch from (finished.finished_at - started.started_at)))::float as average_seconds,
+          coalesce(sum(extract(epoch from (finished.finished_at - started.started_at))), 0)::float as total_seconds
+        from started
+        join finished on finished.room_id = started.room_id
+        where finished.finished_at >= started.started_at
+      `,
+    ),
     pool.query<{ count: number; day: string; event_type: RoomAnalyticsEventType }>(
       `
         select
           to_char(occurred_at at time zone '${METRICS_TIME_ZONE}', 'YYYY-MM-DD') as day,
           event_type,
           case
+            when event_type = 'home_view' then count(*)::int
             when event_type in ('room_created', 'player_joined') then count(distinct player_id)::int
             else count(distinct room_id)::int
           end as count
@@ -148,13 +197,23 @@ async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsH
   ]);
   const totalRow = totals.rows[0];
   const averageSeconds = duration.rows[0]?.average_seconds;
+  const averageMainSeconds = mainDuration.rows[0]?.average_seconds;
+  const totalMainSeconds = mainDuration.rows[0]?.total_seconds;
   const trackedSinceValue = trackedSince.rows[0]?.tracked_since;
+  const mainGamesStarted = totalRow?.main_games_started ?? 0;
+  const mainGamesFinished = totalRow?.main_games_finished ?? 0;
   return {
     adapter: "postgres",
     averageFinishedGameMinutes: typeof averageSeconds === "number" ? roundOneDecimal(averageSeconds / 60) : null,
+    averageMainGameMinutes: typeof averageMainSeconds === "number" ? roundOneDecimal(averageMainSeconds / 60) : null,
     gamesFinished: totalRow?.games_finished ?? 0,
     gamesStarted: totalRow?.games_started ?? 0,
+    homeViews: totalRow?.home_views ?? 0,
+    mainCompletionRate: mainGamesStarted > 0 ? Math.round((mainGamesFinished / mainGamesStarted) * 100) : null,
+    mainGamesFinished,
+    mainGamesStarted,
     recentDays: buildRecentDayBuckets(new Date(), days.rows),
+    totalMainGameMinutes: typeof totalMainSeconds === "number" ? roundOneDecimal(totalMainSeconds / 60) : 0,
     totalPlayersEver: totalRow?.total_players_ever ?? 0,
     totalRoomsEver: totalRow?.total_rooms_ever ?? 0,
     trackedSince: trackedSinceValue ? trackedSinceValue.toISOString() : undefined,
@@ -166,14 +225,36 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
   const playerIds = new Set<string>();
   const startedRoomIds = new Set<string>();
   const finishedRoomIds = new Set<string>();
+  const mainStartedGameIds = new Set<string>();
+  const mainFinishedGameIds = new Set<string>();
   const startedAtByRoom = new Map<string, number>();
+  const mainStartedAtByGame = new Map<string, number>();
   const finishedDurationsSeconds: number[] = [];
+  const mainDurationsSeconds: number[] = [];
+  let totalMainDurationSeconds = 0;
+  let homeViews = 0;
   let trackedSinceMs: number | undefined;
 
   for (const event of events) {
     const occurredAtMs = Date.parse(event.occurredAt);
     if (Number.isFinite(occurredAtMs)) {
       trackedSinceMs = trackedSinceMs === undefined ? occurredAtMs : Math.min(trackedSinceMs, occurredAtMs);
+    }
+    if (event.eventType === "home_view") homeViews += 1;
+    if (event.eventType === "main_game_started" && event.roomId) {
+      mainStartedGameIds.add(event.roomId);
+      if (Number.isFinite(occurredAtMs) && !mainStartedAtByGame.has(event.roomId)) {
+        mainStartedAtByGame.set(event.roomId, occurredAtMs);
+      }
+    }
+    if (event.eventType === "main_game_finished" && event.roomId) {
+      mainFinishedGameIds.add(event.roomId);
+      const startedAt = mainStartedAtByGame.get(event.roomId);
+      if (startedAt !== undefined && Number.isFinite(occurredAtMs) && occurredAtMs >= startedAt) {
+        const durationSeconds = (occurredAtMs - startedAt) / 1000;
+        mainDurationsSeconds.push(durationSeconds);
+        totalMainDurationSeconds += durationSeconds;
+      }
     }
     if (event.eventType === "room_created") roomIds.add(event.roomId);
     if ((event.eventType === "room_created" || event.eventType === "player_joined") && event.playerId) {
@@ -200,8 +281,17 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
       finishedDurationsSeconds.length > 0
         ? roundOneDecimal(finishedDurationsSeconds.reduce((sum, value) => sum + value, 0) / finishedDurationsSeconds.length / 60)
         : null,
+    averageMainGameMinutes:
+      mainDurationsSeconds.length > 0
+        ? roundOneDecimal(mainDurationsSeconds.reduce((sum, value) => sum + value, 0) / mainDurationsSeconds.length / 60)
+        : null,
     gamesFinished: finishedRoomIds.size,
     gamesStarted: startedRoomIds.size,
+    homeViews,
+    mainCompletionRate:
+      mainStartedGameIds.size > 0 ? Math.round((mainFinishedGameIds.size / mainStartedGameIds.size) * 100) : null,
+    mainGamesFinished: mainFinishedGameIds.size,
+    mainGamesStarted: mainStartedGameIds.size,
     recentDays: buildRecentDayBuckets(
       new Date(),
       events.map((event) => ({
@@ -210,6 +300,7 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
         event_type: event.eventType,
       })),
     ),
+    totalMainGameMinutes: roundOneDecimal(totalMainDurationSeconds / 60),
     totalPlayersEver: playerIds.size,
     totalRoomsEver: roomIds.size,
     trackedSince: trackedSinceMs === undefined ? undefined : new Date(trackedSinceMs).toISOString(),
@@ -227,6 +318,9 @@ function buildRecentDayBuckets(
     const key = formatMetricsDay(day);
     buckets.set(key, {
       date: key,
+      homeViews: 0,
+      mainGamesFinished: 0,
+      mainGamesStarted: 0,
       roomsCreated: 0,
       playersJoined: 0,
       gamesStarted: 0,
@@ -238,6 +332,9 @@ function buildRecentDayBuckets(
     const bucket = buckets.get(row.day);
     if (!bucket) continue;
     const count = row.count ?? 0;
+    if (row.event_type === "home_view") bucket.homeViews += count;
+    if (row.event_type === "main_game_started") bucket.mainGamesStarted += count;
+    if (row.event_type === "main_game_finished") bucket.mainGamesFinished += count;
     if (row.event_type === "room_created") bucket.roomsCreated += count;
     if (row.event_type === "player_joined") bucket.playersJoined += count;
     if (row.event_type === "room_started") bucket.gamesStarted += count;

@@ -1,12 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { POST as submitCommand } from "./[gameId]/commands/route";
 import { GET as getGame } from "./[gameId]/route";
 import { POST as submitVoiceInput } from "./[gameId]/voice-input/route";
+import { POST as recordSiteAnalyticsEvent } from "../analytics/events/route";
 import { GET as getBoards } from "./boards/route";
 import { POST as createGame } from "./route";
+import { clearRoomAnalyticsForTests, getRoomAnalyticsHistorySnapshot } from "@/server/roomAnalytics";
+import { GET as getRoomMetrics } from "../rooms/metrics/route";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
 
 describe("game api routes", () => {
+  beforeEach(async () => {
+    await clearRoomAnalyticsForTests();
+  });
+
   it("creates a game and returns a redacted human view", async () => {
     const response = await createGame();
     expect(response.status).toBe(200);
@@ -23,6 +30,61 @@ describe("game api routes", () => {
       params: Promise.resolve({ gameId: view.id }),
     });
     expect(getResponse.status).toBe(200);
+  });
+
+  it("records full-site main-page visits and main-game starts behind metrics token", async () => {
+    const previousMetricsToken = process.env.AI_WEREWOLF_METRICS_TOKEN;
+    process.env.AI_WEREWOLF_METRICS_TOKEN = "test-owner-token";
+
+    try {
+      const visitResponse = await recordSiteAnalyticsEvent(
+        new Request("http://localhost/api/analytics/events", {
+          method: "POST",
+          body: JSON.stringify({ eventType: "home_view", path: "/" }),
+        }),
+      );
+      expect(visitResponse.status).toBe(200);
+
+      const createResponse = await createGame(
+        new Request("http://localhost/api/games", {
+          method: "POST",
+          body: JSON.stringify({ boardId: "9p-seer-witch-hunter" }),
+        }),
+      );
+      expect(createResponse.status).toBe(200);
+
+      const metricsResponse = await getRoomMetrics(new Request("http://localhost/api/rooms/metrics?token=test-owner-token"));
+      expect(metricsResponse.status).toBe(200);
+      const metrics = (await metricsResponse.json()) as {
+        history: {
+          homeViews: number;
+          mainCompletionRate: number | null;
+          mainGamesFinished: number;
+          mainGamesStarted: number;
+          recentDays: Array<{ homeViews: number; mainGamesFinished: number; mainGamesStarted: number }>;
+          totalMainGameMinutes: number;
+        };
+      };
+
+      expect(metrics.history).toMatchObject({
+        homeViews: 1,
+        mainCompletionRate: 0,
+        mainGamesFinished: 0,
+        mainGamesStarted: 1,
+        totalMainGameMinutes: 0,
+      });
+      expect(metrics.history.recentDays[metrics.history.recentDays.length - 1]).toMatchObject({
+        homeViews: 1,
+        mainGamesFinished: 0,
+        mainGamesStarted: 1,
+      });
+    } finally {
+      if (previousMetricsToken === undefined) {
+        delete process.env.AI_WEREWOLF_METRICS_TOKEN;
+      } else {
+        process.env.AI_WEREWOLF_METRICS_TOKEN = previousMetricsToken;
+      }
+    }
   });
 
   it("lists boards and creates a 12-player board when requested", async () => {
@@ -162,6 +224,11 @@ describe("game api routes", () => {
     expect(JSON.stringify(view.reviewDebug?.aiCalls.flatMap((call) => call.publicFactBasis))).not.toMatch(
       /真实身份|狼队友|privateKnowledge|ROLE_ASSIGNED/,
     );
+
+    const analytics = await getRoomAnalyticsHistorySnapshot();
+    expect(analytics.mainGamesStarted).toBe(1);
+    expect(analytics.mainGamesFinished).toBe(1);
+    expect(analytics.mainCompletionRate).toBe(100);
   });
 });
 

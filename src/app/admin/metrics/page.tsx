@@ -46,38 +46,43 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
   const primaryMetrics: PrimaryMetric[] = [
     {
       accent: "#76e4a4",
-      detail: "创建房间和加入房间的去重玩家",
-      label: "累计玩家",
+      detail: "用户打开主界面的次数",
+      label: "首页打开",
       tone: "from-[#0f3727] to-[#12231d]",
-      value: metrics.history.totalPlayersEver,
+      value: metrics.history.homeViews,
     },
     {
       accent: "#79b7ff",
-      detail: "统计开启后记录的房间",
-      label: "累计房间",
+      detail: "主界面单人/观战模式创建的对局",
+      label: "主界面开局",
       tone: "from-[#102b4a] to-[#111f31]",
-      value: metrics.history.totalRoomsEver,
+      value: metrics.history.mainGamesStarted,
     },
     {
       accent: "#f2c56f",
-      detail: `${metrics.current.onlineConnections} 条实时连接`,
-      label: "当前在线",
+      detail: `完成率 ${formatPercent(metrics.history.mainCompletionRate)}`,
+      label: "主界面完局",
       tone: "from-[#4a3514] to-[#261f14]",
-      value: metrics.current.onlinePlayers,
+      value: metrics.history.mainGamesFinished,
     },
     {
       accent: "#f27e6f",
-      detail: "仅统计有开始和结束记录的房间",
-      label: "平均完局时长",
+      detail: `${metrics.current.onlineConnections} 条联机实时连接`,
+      label: "联机在线",
       tone: "from-[#4a1d19] to-[#251817]",
-      value: formatMinutes(metrics.history.averageFinishedGameMinutes),
+      value: metrics.current.onlinePlayers,
     },
   ];
-  const funnelSteps: FunnelStep[] = [
+  const mainFunnelSteps: FunnelStep[] = [
+    { label: "打开", note: "Home View", value: metrics.history.homeViews },
+    { label: "开局", note: "Main Game Started", value: metrics.history.mainGamesStarted },
+    { label: "完局", note: "Main Game Finished", value: metrics.history.mainGamesFinished },
+  ];
+  const roomFunnelSteps: FunnelStep[] = [
     { label: "建房", note: "Room Created", value: metrics.history.totalRoomsEver },
-    { label: "加入", note: "Human Players", value: metrics.history.totalPlayersEver },
-    { label: "开局", note: "Game Started", value: metrics.history.gamesStarted },
-    { label: "完局", note: "Game Finished", value: metrics.history.gamesFinished },
+    { label: "加入", note: "Room Players", value: metrics.history.totalPlayersEver },
+    { label: "开局", note: "Room Started", value: metrics.history.gamesStarted },
+    { label: "完局", note: "Room Finished", value: metrics.history.gamesFinished },
   ];
   const onlinePercent = Math.min(100, Math.round((metrics.current.onlinePlayers / MAX_FREE_ONLINE_TARGET) * 100));
   const roomStatusTotal = Math.max(1, metrics.current.rooms.total);
@@ -102,7 +107,7 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               AI 狼人杀运营驾驶舱
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#aeb8ad]">
-              私有数据面板，只统计房间创建、加入、开局、完局和房间在线 presence；不记录 IP，也不统计普通首页访问。
+              私有数据面板，统计主界面打开、主界面开局/完局、联机房间创建/加入/开局/完局和房间在线 presence；不记录 IP。
             </p>
           </div>
 
@@ -163,11 +168,26 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
           </GlassPanel>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-          <GlassPanel title="试玩转化漏斗" kicker="Flow">
-            <Funnel steps={funnelSteps} />
+        <section className="grid gap-4 xl:grid-cols-2">
+          <GlassPanel title="主界面单人模式" kicker="Main Experience">
+            <Funnel steps={mainFunnelSteps} />
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <InsightTile label="累计游玩时长" value={formatMinutes(metrics.history.totalMainGameMinutes)} />
+              <InsightTile label="平均完局时长" value={formatMinutes(metrics.history.averageMainGameMinutes)} />
+              <InsightTile label="完局率" value={formatPercent(metrics.history.mainCompletionRate)} />
+            </div>
           </GlassPanel>
 
+          <GlassPanel title="联机房间模式" kicker="Rooms Experience">
+            <Funnel steps={roomFunnelSteps} />
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <InsightTile label="累计房间" value={metrics.history.totalRoomsEver} />
+              <InsightTile label="累计联机玩家" value={metrics.history.totalPlayersEver} />
+            </div>
+          </GlassPanel>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
           <GlassPanel title="房间状态分布" kicker="Current Rooms">
             <div className="space-y-4">
               <RoomStatusBar
@@ -195,6 +215,16 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
                 </p>
                 <p className="mt-2 text-xs leading-5 text-[#8f9a90]">历史累计从数据面板部署后的第一条房间事件开始。</p>
               </div>
+            </div>
+          </GlassPanel>
+
+          <GlassPanel title="数据口径" kicker="Definitions">
+            <div className="grid gap-3 text-sm leading-6 text-[#c6d0c2]">
+              <MetricDefinition label="首页打开" text="用户加载主界面 / 的次数，刷新也会计入。" />
+              <MetricDefinition label="主界面开局" text="用户在主界面点击新开一局并成功创建单人/纯 AI 对局。" />
+              <MetricDefinition label="主界面完局" text="主界面对局产生胜负结果。" />
+              <MetricDefinition label="主界面时长" text="从主界面开局到产生胜负结果之间的累计和平均用时。" />
+              <MetricDefinition label="联机在线" text="正在联机房间中保持 SSE/presence 连接的人。" />
             </div>
           </GlassPanel>
         </section>
@@ -276,27 +306,53 @@ function ProgressRow({ color, label, max, value }: { color: string; label: strin
   );
 }
 
+function InsightTile({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-[#0c1119] p-4">
+      <div className="text-2xl font-black text-white">{value}</div>
+      <div className="mt-1 text-xs font-bold text-[#8f9a90]">{label}</div>
+    </div>
+  );
+}
+
 function RecentDaysChart({ metrics }: { metrics: RoomMetricsSnapshot }) {
   const maxValue = Math.max(
     1,
     ...metrics.history.recentDays.map(
-      (day) => day.roomsCreated + day.playersJoined + day.gamesStarted + day.gamesFinished,
+      (day) =>
+        day.homeViews +
+        day.mainGamesStarted +
+        day.mainGamesFinished +
+        day.roomsCreated +
+        day.playersJoined +
+        day.gamesStarted +
+        day.gamesFinished,
     ),
   );
   return (
     <div>
       <div className="grid min-h-72 grid-cols-7 items-end gap-2 border-b border-white/10 pb-4">
         {metrics.history.recentDays.map((day) => {
-          const total = day.roomsCreated + day.playersJoined + day.gamesStarted + day.gamesFinished;
+          const total =
+            day.homeViews +
+            day.mainGamesStarted +
+            day.mainGamesFinished +
+            day.roomsCreated +
+            day.playersJoined +
+            day.gamesStarted +
+            day.gamesFinished;
           return (
             <div key={day.date} className="flex min-w-0 flex-col items-center gap-2">
               <div className="text-xs font-black text-white">{total}</div>
               <div className="flex h-56 w-full max-w-16 items-end rounded-md border border-white/10 bg-white/[0.04] p-1">
                 <div className="flex w-full flex-col justify-end overflow-hidden rounded" style={{ height: `${Math.max(5, (total / maxValue) * 100)}%` }}>
-                  <StackSegment color="#c8553d" total={total} value={day.gamesFinished} />
-                  <StackSegment color="#d89a32" total={total} value={day.gamesStarted} />
+                  <StackSegment color="#f27e6f" total={total} value={day.gamesFinished} />
+                  <StackSegment color="#f2c56f" total={total} value={day.gamesStarted} />
                   <StackSegment color="#3e69a6" total={total} value={day.playersJoined} />
                   <StackSegment color="#2f9f68" total={total} value={day.roomsCreated} />
+                  <StackSegment color="#79b7ff" total={total} value={day.mainGamesFinished} />
+                  <StackSegment color="#76e4a4" total={total} value={day.mainGamesStarted} />
+                  <StackSegment color="#8f9a90" total={total} value={day.homeViews} />
                 </div>
               </div>
               <div className="truncate text-xs font-bold text-[#8f9a90]">{day.date.slice(5)}</div>
@@ -305,10 +361,13 @@ function RecentDaysChart({ metrics }: { metrics: RoomMetricsSnapshot }) {
         })}
       </div>
       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-bold text-[#aeb8ad]">
-        <Legend color="#2f9f68" label="建房" />
-        <Legend color="#3e69a6" label="加入" />
-        <Legend color="#d89a32" label="开局" />
-        <Legend color="#c8553d" label="完局" />
+        <Legend color="#8f9a90" label="首页打开" />
+        <Legend color="#76e4a4" label="主开局" />
+        <Legend color="#79b7ff" label="主完局" />
+        <Legend color="#2f9f68" label="房间建房" />
+        <Legend color="#3e69a6" label="房间加入" />
+        <Legend color="#f2c56f" label="房间开局" />
+        <Legend color="#f27e6f" label="房间完局" />
       </div>
     </div>
   );
@@ -375,6 +434,15 @@ function RoomStatusBar({ color, label, percent, value }: { color: string; label:
   );
 }
 
+function MetricDefinition({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="rounded-md border border-white/10 bg-white/[0.04] p-3">
+      <div className="text-sm font-black text-white">{label}</div>
+      <div className="mt-1 text-xs text-[#8f9a90]">{text}</div>
+    </div>
+  );
+}
+
 function formatAnalyticsAdapter(value: RoomMetricsSnapshot["history"]["adapter"]): string {
   return value === "postgres" ? "PostgreSQL" : "内存";
 }
@@ -402,4 +470,8 @@ function formatDateTime(value: string): string {
 
 function formatMinutes(value: number | null): string {
   return value === null ? "暂无" : `${value} 分钟`;
+}
+
+function formatPercent(value: number | null): string {
+  return value === null ? "暂无" : `${value}%`;
 }

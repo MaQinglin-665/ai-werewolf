@@ -59,14 +59,17 @@ https://your-service.onrender.com/api/rooms/metrics?token=<AI_WEREWOLF_METRICS_T
 
 `render.yaml` and `render.free.yaml` both generate `AI_WEREWOLF_METRICS_TOKEN` through the Render Blueprint. Copy it from the Render service environment variables page. Do not publish this URL publicly.
 
-The metrics track room usage only:
+The metrics track public-test usage:
 
+- homepage opens for the main single-player interface;
+- main-interface game starts and completed games;
+- cumulative and average main-interface game duration;
 - cumulative rooms and players from room create/join events;
-- started and finished games;
+- room started and finished games;
 - current online room players from presence connections;
-- average finished-game duration.
+- average room finished-game duration.
 
-They do not track raw IP addresses or normal homepage visits outside the room flow.
+They do not track raw IP addresses, browser fingerprints, or model/API keys.
 
 ## After First Deploy
 

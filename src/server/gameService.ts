@@ -19,6 +19,7 @@ import type {
   ReviewSeat,
 } from "@/game/types";
 import { prisma } from "@/lib/prisma";
+import { recordRoomAnalyticsEvent } from "@/server/roomAnalytics";
 
 type RuntimeAiOptions = {
   runtimeAiLlmConfigs?: Record<string, AiFriendRuntimeLlmConfig>;
@@ -53,6 +54,16 @@ export async function createGameRecord(options: { boardId?: string; humanSeatId?
     aiFriends: options.aiFriends,
   });
   await saveGameState(state);
+  await recordRoomAnalyticsEvent({
+    eventType: "main_game_started",
+    roomId: state.id,
+    payload: {
+      boardId: state.board.id,
+      humanSeatId: state.humanSeatId,
+      mode: state.humanSeatId === null ? "spectator" : "single-player",
+      seatCount: state.seats.length,
+    },
+  });
   return buildHumanView(state);
 }
 
@@ -79,6 +90,7 @@ export async function submitHumanCommand(
     throw new Error("对局不存在。");
   }
 
+  const wasFinished = Boolean(state.result);
   let nextState = applyCommand(state, command);
   let aiLogs: AiDecisionLog[] = [];
   if (command.type === "vote" || command.type === "sheriffNominate" || command.type === "sheriffWithdraw" || command.type === "sheriffVote") {
@@ -90,6 +102,7 @@ export async function submitHumanCommand(
   }
 
   await saveGameState(nextState, aiLogs);
+  await recordMainGameFinishedIfNeeded(nextState, wasFinished);
   return buildServerHumanView(nextState);
 }
 
@@ -99,6 +112,7 @@ export async function continueGame(gameId: string, options: RuntimeAiOptions = {
     throw new Error("对局不存在。");
   }
 
+  const wasFinished = Boolean(state.result);
   const advanced =
     state.phase === "DAY_VOTE"
       ? await advancePendingAiVotes(state, {
@@ -109,6 +123,7 @@ export async function continueGame(gameId: string, options: RuntimeAiOptions = {
         });
   const nextState = state.phase === "DAY_VOTE" ? revealCompletedVote(advanced.state) : advanced.state;
   await saveGameState(nextState, advanced.aiLogs);
+  await recordMainGameFinishedIfNeeded(nextState, wasFinished);
   return buildServerHumanView(nextState);
 }
 
@@ -122,6 +137,7 @@ export async function continueGameWithSpeechStream(
     throw new Error("对局不存在。");
   }
 
+  const wasFinished = Boolean(state.result);
   const advanced =
     state.phase === "DAY_VOTE"
       ? await advancePendingAiVotes(state, {
@@ -133,11 +149,27 @@ export async function continueGameWithSpeechStream(
         });
   const nextState = state.phase === "DAY_VOTE" ? revealCompletedVote(advanced.state) : advanced.state;
   await saveGameState(nextState, advanced.aiLogs);
+  await recordMainGameFinishedIfNeeded(nextState, wasFinished);
   return buildServerHumanView(nextState);
 }
 
 function revealCompletedVote(state: GameState): GameState {
   return state.phase === "EXILE_RESOLUTION" ? applySystemStep(state) : state;
+}
+
+async function recordMainGameFinishedIfNeeded(state: GameState, wasFinished: boolean): Promise<void> {
+  if (wasFinished || !state.result) return;
+  await recordRoomAnalyticsEvent({
+    eventType: "main_game_finished",
+    roomId: state.id,
+    payload: {
+      boardId: state.board.id,
+      humanSeatId: state.humanSeatId,
+      mode: state.humanSeatId === null ? "spectator" : "single-player",
+      seatCount: state.seats.length,
+      winner: state.result.winner,
+    },
+  });
 }
 
 async function buildServerHumanView(state: GameState): Promise<HumanGameView> {
