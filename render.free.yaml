@@ -53,6 +53,8 @@ services:
         value: "120"
       - key: AI_WEREWOLF_ROOM_DEBUG_LIMIT
         value: "20"
+      - key: AI_WEREWOLF_METRICS_TOKEN
+        generateValue: true
       - key: AI_SPEECH_PROVIDER
         value: mock
       - key: AI_ACTION_PROVIDER

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { clearRoomSessionsForTests, reloadRoomSessionsFromStorageForTests } from "@/server/roomService";
+import { clearRoomAnalyticsForTests } from "@/server/roomAnalytics";
 import { clearRoomRateLimitsForTests } from "@/server/roomRateLimit";
 import type { RoomView } from "@/server/roomService";
 import type { AvailableHumanAction } from "@/game/types";
@@ -16,11 +17,13 @@ import { POST as debugCleanupRooms } from "./debug-cleanup/route";
 import { GET as streamRoom } from "./[roomId]/stream/route";
 import { GET as getRoomView } from "./[roomId]/view/route";
 import { GET as getRoomHealth } from "./health/route";
+import { GET as getRoomMetrics } from "./metrics/route";
 import { POST as createRoom } from "./route";
 
 describe("room api routes", () => {
   beforeEach(async () => {
     await clearRoomSessionsForTests();
+    await clearRoomAnalyticsForTests();
     clearRoomRateLimitsForTests();
   });
 
@@ -207,6 +210,87 @@ describe("room api routes", () => {
       multiInstanceSafe: false,
     });
     expect(health.deployment.warnings).toEqual(expect.arrayContaining([expect.stringContaining("Node 进程")]));
+  });
+
+  it("records private room usage metrics behind an owner token", async () => {
+    const previousMetricsToken = process.env.AI_WEREWOLF_METRICS_TOKEN;
+    process.env.AI_WEREWOLF_METRICS_TOKEN = "test-owner-token";
+
+    try {
+      const createResponse = await createRoom(
+        new Request("http://localhost/api/rooms", {
+          method: "POST",
+          body: JSON.stringify({ boardId: "9p-seer-witch-hunter", hostName: "房主", hostSeatId: 1 }),
+        }),
+      );
+      expect(createResponse.status).toBe(200);
+      const created = (await createResponse.json()) as RoomView;
+
+      const joinResponse = await joinRoom(
+        new Request(`http://localhost/api/rooms/${created.room.code}/join`, {
+          method: "POST",
+          body: JSON.stringify({ playerName: "朋友", seatId: 2 }),
+        }),
+        { params: Promise.resolve({ roomId: created.room.code }) },
+      );
+      expect(joinResponse.status).toBe(200);
+
+      const startResponse = await startRoom(
+        new Request(`http://localhost/api/rooms/${created.room.id}/start`, {
+          method: "POST",
+          body: JSON.stringify({ playerId: created.playerId }),
+        }),
+        { params: Promise.resolve({ roomId: created.room.id }) },
+      );
+      expect(startResponse.status).toBe(200);
+
+      const blockedResponse = await getRoomMetrics(new Request("http://localhost/api/rooms/metrics"));
+      expect(blockedResponse.status).toBe(404);
+
+      const metricsResponse = await getRoomMetrics(new Request("http://localhost/api/rooms/metrics?token=test-owner-token"));
+      expect(metricsResponse.status).toBe(200);
+      const metrics = (await metricsResponse.json()) as {
+        current: {
+          humanPlayers: number;
+          onlinePlayers: number;
+          rooms: { activeInGame: number; lobby: number; total: number };
+        };
+        history: {
+          adapter: string;
+          gamesStarted: number;
+          recentDays: Array<{ gamesStarted: number; playersJoined: number; roomsCreated: number }>;
+          totalPlayersEver: number;
+          totalRoomsEver: number;
+        };
+      };
+
+      expect(metrics.current).toMatchObject({
+        humanPlayers: 2,
+        onlinePlayers: 0,
+        rooms: {
+          activeInGame: 1,
+          lobby: 0,
+          total: 1,
+        },
+      });
+      expect(metrics.history).toMatchObject({
+        adapter: "in-process",
+        gamesStarted: 1,
+        totalPlayersEver: 2,
+        totalRoomsEver: 1,
+      });
+      expect(metrics.history.recentDays[metrics.history.recentDays.length - 1]).toMatchObject({
+        gamesStarted: 1,
+        playersJoined: 1,
+        roomsCreated: 1,
+      });
+    } finally {
+      if (previousMetricsToken === undefined) {
+        delete process.env.AI_WEREWOLF_METRICS_TOKEN;
+      } else {
+        process.env.AI_WEREWOLF_METRICS_TOKEN = previousMetricsToken;
+      }
+    }
   });
 
   it("rate limits repeated room creation from the same client", async () => {

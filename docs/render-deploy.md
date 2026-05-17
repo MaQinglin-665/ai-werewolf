@@ -38,9 +38,35 @@ This creates:
 - a free Docker web service named `ai-werewolf-free`;
 - a free Render Postgres database named `ai-werewolf-room-db-free`;
 - the same PostgreSQL-backed room state, realtime fanout, presence, and rate limits;
+- a generated private metrics token for the admin-only stats page;
 - mock AI mode by default.
 
 Use this only for public-link smoke testing. Free Render resources can sleep, have capacity limits, and are not the production target. For a stable public test, switch back to `render.yaml` and use the paid `starter` web service plus `basic-256mb` Postgres.
+
+## Private Metrics
+
+The app exposes an owner-only usage dashboard at:
+
+```text
+https://your-service.onrender.com/admin/metrics?token=<AI_WEREWOLF_METRICS_TOKEN>
+```
+
+The JSON source is:
+
+```text
+https://your-service.onrender.com/api/rooms/metrics?token=<AI_WEREWOLF_METRICS_TOKEN>
+```
+
+`render.yaml` and `render.free.yaml` both generate `AI_WEREWOLF_METRICS_TOKEN` through the Render Blueprint. Copy it from the Render service environment variables page. Do not publish this URL publicly.
+
+The metrics track room usage only:
+
+- cumulative rooms and players from room create/join events;
+- started and finished games;
+- current online room players from presence connections;
+- average finished-game duration.
+
+They do not track raw IP addresses or normal homepage visits outside the room flow.
 
 ## After First Deploy
 

@@ -47,6 +47,8 @@ For Render, use the checked-in `render.yaml` Blueprint and follow `docs/render-d
 
 If you only need a no-card public smoke test first, use `render.free.yaml` as the Render Blueprint path. That file keeps the same production-minimum adapters but selects Render free instance types and `-free` resource names so it does not conflict with the stable paid Blueprint. Treat it as a temporary demo environment, not the production target.
 
+Both Render Blueprints also create a generated `AI_WEREWOLF_METRICS_TOKEN` for the private owner dashboard at `/admin/metrics?token=<token>`. Keep that token out of public links.
+
 ## DNS And HTTPS
 
 1. Point `werewolf.example.com` to the server or platform.

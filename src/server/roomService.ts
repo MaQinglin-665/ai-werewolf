@@ -8,6 +8,7 @@ import type { HumanCommandInput } from "@/game/commandSchemas";
 import { applyCommand, applySystemStep, createGame, getTurnRequirement } from "@/game/engine";
 import { buildPlayerView } from "@/game/projection";
 import type { AiFriendConfig, BoardSnapshot, GameState, HumanGameView, Phase, TurnRequirement } from "@/game/types";
+import { getRoomAnalyticsHistorySnapshot, recordRoomAnalyticsEvent } from "@/server/roomAnalytics";
 import { getRoomRateLimitStatus } from "@/server/roomRateLimit";
 import { Pool } from "pg";
 
@@ -145,6 +146,22 @@ type RoomRuntimeCounts = {
   lobby: number;
   inGame: number;
   maxRevision: number;
+};
+
+export type RoomMetricsSnapshot = {
+  checkedAt: string;
+  current: {
+    humanPlayers: number;
+    onlineConnections: number;
+    onlinePlayers: number;
+    rooms: {
+      activeInGame: number;
+      finished: number;
+      lobby: number;
+      total: number;
+    };
+  };
+  history: Awaited<ReturnType<typeof getRoomAnalyticsHistorySnapshot>>;
 };
 
 type RoomDeploymentTarget = "single-node" | "single-node-online";
@@ -1003,6 +1020,17 @@ export async function createRoomSession(options: CreateRoomOptions = {}): Promis
   } else {
     await roomStore.persist();
   }
+  await recordRoomAnalyticsEvent({
+    eventType: "room_created",
+    playerId: hostPlayerId,
+    roomCode: room.code,
+    roomId: room.id,
+    payload: {
+      boardId: room.boardId,
+      hostSeatId: options.hostSeatId,
+      playerCount: room.players.length,
+    },
+  });
   return buildRoomView(room, hostPlayerId);
 }
 
@@ -1029,6 +1057,17 @@ export async function joinRoomSession(roomIdOrCode: string, options: JoinRoomOpt
   };
   room.players.push(player);
   await touchRoom(room, { previousRevision });
+  await recordRoomAnalyticsEvent({
+    eventType: "player_joined",
+    playerId: player.playerId,
+    roomCode: room.code,
+    roomId: room.id,
+    payload: {
+      boardId: room.boardId,
+      playerCount: room.players.length,
+      seatId: player.seatId,
+    },
+  });
 
   return buildRoomView(room, player.playerId);
 }
@@ -1167,6 +1206,17 @@ export async function startRoomSession(
   room.gameState = state;
   room.status = "in_game";
   await touchRoom(room, { previousRevision });
+  await recordRoomAnalyticsEvent({
+    eventType: "room_started",
+    playerId: requester.playerId,
+    roomCode: room.code,
+    roomId: room.id,
+    payload: {
+      boardId: room.boardId,
+      humanPlayers: room.players.length,
+      seatCount: getBoardPreset(room.boardId).seatCount,
+    },
+  });
 
   return buildRoomView(room, requester.playerId);
 }
@@ -1256,6 +1306,7 @@ export async function submitRoomPlayerCommand(
   if (!state) {
     throw new RoomSessionError("房间尚未开局。", 409);
   }
+  const wasFinished = Boolean(state.result);
 
   const playerView = buildPlayerView(state, player.seatId, { allowFlowControls: player.isHost });
   const allowedAction = playerView.availableActions.find((action) => action.type === input.type);
@@ -1271,6 +1322,7 @@ export async function submitRoomPlayerCommand(
 
   room.gameState = nextState;
   await touchRoom(room, { previousRevision });
+  await recordRoomFinishedIfNeeded(room, wasFinished);
   return buildRoomView(room, player.playerId);
 }
 
@@ -1326,6 +1378,7 @@ async function applyIdempotentRoomPlayerCommand(
   if (!state) {
     throw new RoomSessionError("房间尚未开局。", 409);
   }
+  const wasFinished = Boolean(state.result);
 
   const playerView = buildPlayerView(state, player.seatId, { allowFlowControls: player.isHost });
   const allowedAction = playerView.availableActions.find((action) => action.type === input.type);
@@ -1342,6 +1395,7 @@ async function applyIdempotentRoomPlayerCommand(
   room.gameState = nextState;
   rememberCompletedRoomIdempotentWrite(room, idempotency);
   await touchRoom(room, { previousRevision });
+  await recordRoomFinishedIfNeeded(room, wasFinished);
   return buildRoomView(room, player.playerId);
 }
 
@@ -1521,6 +1575,47 @@ export async function getRoomRuntimeStatus() {
   };
 }
 
+export async function getRoomMetricsSnapshot(): Promise<RoomMetricsSnapshot> {
+  await ensureRoomRuntimeReady();
+  await cleanupExpiredRoomSessions();
+  const rooms = await roomStore.all();
+  const currentUniquePlayerIds = new Set<string>();
+  const onlinePlayerIds = new Set<string>();
+  let onlineConnections = 0;
+  for (const room of rooms) {
+    for (const player of room.players) {
+      currentUniquePlayerIds.add(player.playerId);
+    }
+    const presence = await readRoomPresence(room);
+    for (const [playerId, value] of presence) {
+      if ((value.connections ?? 0) <= 0) continue;
+      onlinePlayerIds.add(playerId);
+      onlineConnections += value.connections;
+    }
+  }
+
+  const history = await getRoomAnalyticsHistorySnapshot();
+  return {
+    checkedAt: new Date().toISOString(),
+    current: {
+      humanPlayers: currentUniquePlayerIds.size,
+      onlineConnections,
+      onlinePlayers: onlinePlayerIds.size,
+      rooms: {
+        activeInGame: rooms.filter((room) => room.status === "in_game" && !room.gameState?.result).length,
+        finished: rooms.filter((room) => Boolean(room.gameState?.result)).length,
+        lobby: rooms.filter((room) => room.status === "lobby").length,
+        total: rooms.length,
+      },
+    },
+    history: {
+      ...history,
+      totalPlayersEver: Math.max(history.totalPlayersEver, currentUniquePlayerIds.size),
+      totalRoomsEver: Math.max(history.totalRoomsEver, rooms.length),
+    },
+  };
+}
+
 function readRoomDeploymentTarget(): RoomDeploymentTarget {
   return process.env.AI_WEREWOLF_ROOM_DEPLOYMENT === "single-node-online" ? "single-node-online" : "single-node";
 }
@@ -1555,6 +1650,7 @@ async function continueRoom(room: RoomRecord, player: RoomPlayer, idempotency?: 
   if (!state) {
     throw new RoomSessionError("房间尚未开局。", 409);
   }
+  const wasFinished = Boolean(state.result);
 
   const requirement = getTurnRequirement(state);
   if (requirement.type === "human") {
@@ -1570,7 +1666,23 @@ async function continueRoom(room: RoomRecord, player: RoomPlayer, idempotency?: 
     rememberCompletedRoomIdempotentWrite(room, idempotency);
   }
   await touchRoom(room, { previousRevision });
+  await recordRoomFinishedIfNeeded(room, wasFinished);
   return buildRoomView(room, player.playerId);
+}
+
+async function recordRoomFinishedIfNeeded(room: RoomRecord, wasFinished: boolean): Promise<void> {
+  const result = room.gameState?.result;
+  if (wasFinished || !result) return;
+  await recordRoomAnalyticsEvent({
+    eventType: "room_finished",
+    roomCode: room.code,
+    roomId: room.id,
+    payload: {
+      boardId: room.boardId,
+      humanPlayers: room.players.length,
+      winner: result.winner,
+    },
+  });
 }
 
 function revealCompletedVote(state: GameState): GameState {
