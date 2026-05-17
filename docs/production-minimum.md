@@ -41,7 +41,7 @@ docker build -t ai-werewolf .
 docker run --rm -p 3000:3000 --env-file .env.production ai-werewolf
 ```
 
-The container command runs `npm run start:production`, which checks the production environment and then starts Next on `0.0.0.0:$PORT`.
+The container command runs `npm run start:production`, which checks the production environment, initializes the current SQLite Prisma tables for the single-player flow, and then starts Next on `0.0.0.0:$PORT`.
 
 For Render, use the checked-in `render.yaml` Blueprint and follow `docs/render-deploy.md`. The first deploy can use Render's generated `*.onrender.com` HTTPS origin through `RENDER_EXTERNAL_URL`; set `AI_WEREWOLF_PUBLIC_ORIGIN` explicitly when you add a custom domain.
 
@@ -186,7 +186,7 @@ npm run start:production
 
 Set `PORT=3004` if your host does not inject a port automatically.
 
-`npm run db:push` is still needed for the existing Prisma game tables. Room state uses the dedicated PostgreSQL table above and does not require changing the current SQLite Prisma provider for local development.
+`npm run start:production` initializes the existing Prisma game tables for the current SQLite datasource. Room state uses the dedicated PostgreSQL table above and does not require changing the current SQLite Prisma provider for local development.
 
 ## Verify
 

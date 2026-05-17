@@ -11,7 +11,7 @@ This is the quickest hosted production-minimum path for public room testing.
 - PostgreSQL-backed room state, realtime fanout, presence, and rate limits;
 - mock AI mode by default, so infrastructure smoke does not spend model quota.
 
-The service starts with `npm run start:production`. On Render, the app can use `RENDER_EXTERNAL_URL` as the public origin for the initial `*.onrender.com` URL. After you add a custom domain, set `AI_WEREWOLF_PUBLIC_ORIGIN` to that final HTTPS origin.
+The service starts with `npm run start:production`, which also initializes the current SQLite Prisma tables used by the main single-player page. On Render, the app can use `RENDER_EXTERNAL_URL` as the public origin for the initial `*.onrender.com` URL. After you add a custom domain, set `AI_WEREWOLF_PUBLIC_ORIGIN` to that final HTTPS origin.
 
 ## Deploy
 
@@ -97,5 +97,5 @@ If you bind a custom domain:
 
 - Keep one web service instance for the first public test.
 - The room runtime is PostgreSQL-backed, but each browser SSE connection is still held by the Node process.
-- The default `DATABASE_URL=file:./prod.db` is only for the current SQLite Prisma datasource. Room state is stored in PostgreSQL through `AI_WEREWOLF_ROOM_DATABASE_URL`.
+- The default `DATABASE_URL=file:./prod.db` is only for the current SQLite Prisma datasource and is initialized by `npm run start:production`. Room state is stored in PostgreSQL through `AI_WEREWOLF_ROOM_DATABASE_URL`.
 - Switch AI providers from mock only after the public infrastructure smoke is green.

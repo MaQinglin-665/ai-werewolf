@@ -14,7 +14,7 @@ datasource db {
 
 model Game {
   id          String      @id
-  humanSeatId Int
+  humanSeatId Int?
   status      String
   phase       String
   day         Int

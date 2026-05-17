@@ -16,7 +16,7 @@ envCheck.on("exit", (code, signal) => {
     return;
   }
 
-  startNext();
+  ensureSqlitePrismaSchema();
 });
 
 envCheck.on("error", (error) => {
@@ -42,6 +42,30 @@ function startNext() {
 
   child.on("error", (error) => {
     process.stderr.write(`Failed to start Next.js: ${error.message}\n`);
+    process.exit(1);
+  });
+}
+
+function ensureSqlitePrismaSchema() {
+  const schemaCheck = spawn(process.execPath, ["scripts/ensure-sqlite-prisma-schema.mjs"], {
+    stdio: "inherit",
+  });
+
+  schemaCheck.on("exit", (code, signal) => {
+    if (signal) {
+      process.kill(process.pid, signal);
+      return;
+    }
+    if (code !== 0) {
+      process.exit(code ?? 1);
+      return;
+    }
+
+    startNext();
+  });
+
+  schemaCheck.on("error", (error) => {
+    process.stderr.write(`Failed to initialize SQLite Prisma schema: ${error.message}\n`);
     process.exit(1);
   });
 }
