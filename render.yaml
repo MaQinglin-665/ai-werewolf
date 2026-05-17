@@ -1,0 +1,67 @@
+services:
+  - type: web
+    name: ai-werewolf
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    plan: starter
+    healthCheckPath: /api/rooms/health
+    envVars:
+      - key: DATABASE_URL
+        value: file:./prod.db
+      - key: AI_WEREWOLF_ROOM_DEPLOYMENT
+        value: single-node-online
+      - key: AI_WEREWOLF_ROOM_PERSISTENCE
+        value: "1"
+      - key: AI_WEREWOLF_ROOM_DATABASE_URL
+        fromDatabase:
+          name: ai-werewolf-room-db
+          property: connectionString
+      - key: AI_WEREWOLF_ROOM_STORE_ADAPTER
+        value: postgres
+      - key: AI_WEREWOLF_ROOM_REALTIME_ADAPTER
+        value: postgres
+      - key: AI_WEREWOLF_ROOM_PRESENCE_ADAPTER
+        value: postgres
+      - key: AI_WEREWOLF_ROOM_PRESENCE_DATABASE_URL
+        fromDatabase:
+          name: ai-werewolf-room-db
+          property: connectionString
+      - key: AI_WEREWOLF_ROOM_PRESENCE_HEARTBEAT_MS
+        value: "5000"
+      - key: AI_WEREWOLF_ROOM_PRESENCE_TTL_MS
+        value: "20000"
+      - key: AI_WEREWOLF_ROOM_RATE_LIMIT
+        value: "1"
+      - key: AI_WEREWOLF_ROOM_RATE_LIMIT_ADAPTER
+        value: postgres
+      - key: AI_WEREWOLF_ROOM_RATE_LIMIT_DATABASE_URL
+        fromDatabase:
+          name: ai-werewolf-room-db
+          property: connectionString
+      - key: AI_WEREWOLF_ROOM_RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: AI_WEREWOLF_ROOM_CREATE_LIMIT
+        value: "20"
+      - key: AI_WEREWOLF_ROOM_JOIN_LIMIT
+        value: "120"
+      - key: AI_WEREWOLF_ROOM_WRITE_LIMIT
+        value: "240"
+      - key: AI_WEREWOLF_ROOM_READ_LIMIT
+        value: "600"
+      - key: AI_WEREWOLF_ROOM_STREAM_LIMIT
+        value: "120"
+      - key: AI_WEREWOLF_ROOM_DEBUG_LIMIT
+        value: "20"
+      - key: AI_SPEECH_PROVIDER
+        value: mock
+      - key: AI_ACTION_PROVIDER
+        value: mock
+      - key: AI_LLM_PROVIDER
+        value: mock
+
+databases:
+  - name: ai-werewolf-room-db
+    plan: basic-256mb
+    databaseName: ai_werewolf
+    user: ai_werewolf
