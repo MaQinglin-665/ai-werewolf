@@ -46,7 +46,11 @@ export function buildExpertStrategyNotes(view: AgentView): string[] {
   if (hasSeerCounterclaim) {
     notes.push("真假预言家对跳时，优先比较查验结构、起跳先后、是否后置反打、金水是否被保护、以及双方票型是否一致。");
     notes.push("对跳局先剔除可公开坐好的身份和理由清晰的站边好人，再看剩余疑似狼位是否在为某条预言家线打配合、冲票或倒钩。");
-    notes.push("预言家线要盘正反逻辑：真预言家的验人心路是否自然，悍跳狼的查验和警徽流是否服务狼队轮次。");
+    notes.push(
+      hasSheriff
+        ? "预言家线要盘正反逻辑：真预言家的验人心路是否自然，悍跳狼的查验和警徽流是否服务狼队轮次。"
+        : "预言家线要盘正反逻辑：真预言家的验人心路是否自然，悍跳狼的查验和后续验人是否服务狼队轮次。",
+    );
   } else if (view.publicSummary.claimBoard.some((claim) => claim.claimedRole === "SEER")) {
     notes.push("单边预言家线不能只听身份结论，要看验人是否落地、金水是否被乱踩、查杀位是否有回应空间。");
   }
@@ -59,7 +63,11 @@ export function buildExpertStrategyNotes(view: AgentView): string[] {
   }
 
   if (view.myRole === "SEER") {
-    notes.push("预言家要把验人、警徽流和今天的归票逻辑说成一条线；金水不是出人位，查杀也要允许对方回应。");
+    notes.push(
+      hasSheriff
+        ? "预言家要把验人、警徽流和今天的归票逻辑说成一条线；金水不是出人位，查杀也要允许对方回应。"
+        : "预言家要把验人、后续验人和今天的归票逻辑说成一条线；金水不是出人位，查杀也要允许对方回应。",
+    );
   }
 
   if (view.myRole === "WITCH") {

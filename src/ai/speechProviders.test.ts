@@ -143,9 +143,32 @@ describe("mock speech provider", () => {
     for (const speech of [gptResult.speech, doubaoResult.speech]) {
       expect(speech).not.toContain("票口暂时不被他带跑");
       expect(speech).not.toContain("后置仍只给结论不给过程");
+      expect(speech).not.toMatch(/拆因果|第一点|盘问议程|追问先落|票口按这个条件|可改票条件/);
+      expect(speech.length).toBeLessThanOrEqual(380);
     }
     expect(doubaoResult.speech).toContain("GPT");
     expect(gptResult.speech).not.toEqual(doubaoResult.speech);
+  });
+
+  it("renders human-seat pressure without prompt-like agenda labels", async () => {
+    const state = createGame({ seed: 91, humanSeatId: 3 });
+    state.phase = "DAY_SPEECH";
+    const speaker = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const target = state.seats.find((seat) => seat.seatId === 3)!;
+    const view = buildAgentView(state, speaker.seatId);
+    const plan = {
+      ...createSpeechPlan(view),
+      kind: "pressure" as const,
+      target,
+      talkingPoints: ["3号的站边还没和票型闭合", "后面需要给出能改票的反证"],
+    };
+
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(result.speech).toContain("3号");
+    expect(result.speech).not.toContain("3号你");
+    expect(result.speech).not.toMatch(/拆因果|第一点|盘问议程|追问先落|票口按这个条件|可改票条件/);
+    expect(result.speech.length).toBeLessThanOrEqual(380);
   });
 });
 

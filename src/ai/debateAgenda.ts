@@ -29,7 +29,9 @@ export function buildDebateAgenda(
 
   const crossExamination = uniqueLines([
     seerCounterclaim
-      ? `要求${formatSeatList(seerCounterclaim.claimants)}补查验心路、下一验人/警徽流和今天明确票口。`
+      ? `要求${formatSeatList(seerCounterclaim.claimants)}补查验心路、${
+          view.privateKnowledge.sheriff ? "后续警徽流" : "下一验人"
+        }和今天明确票口。`
       : undefined,
     target ? `追问${seatText(target)}：你现在站哪条身份线，今天票准备压谁，什么公开反证会让你改票。` : undefined,
     latestShift

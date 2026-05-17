@@ -57,7 +57,9 @@ export function buildReasoningFrame(view: AgentView): AiReasoningFrame {
       ? `追问${seatText(topFocus.seat)}：你的站边、票口和前面发言能否闭环，是否有可复述的公开理由。`
       : undefined,
     memory.counterclaims[0]
-      ? `让${memory.counterclaims[0].claimants.map(seatText).join("、")}分别补查验心路、警徽流/后续验人和今天票口。`
+      ? `让${memory.counterclaims[0].claimants.map(seatText).join("、")}分别补查验心路、${
+          view.privateKnowledge.sheriff ? "警徽流" : "后续验人"
+        }和今天票口。`
       : undefined,
     latestVote
       ? `复盘上一轮票型：谁先起票，谁补票，谁最后跟票，理由是否和发言一致。`

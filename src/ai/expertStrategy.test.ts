@@ -149,7 +149,7 @@ describe("expert werewolf strategy notes", () => {
     expect(result.speech).toContain("身份坑先看");
     expect(result.speech).toContain("预言家对跳");
     expect(result.speech).toContain("查验链");
-    expect(result.speech).toContain("追问");
+    expect(result.speech).toMatch(/回应|过程补出来|查验心路/);
   });
 
   it("keeps sheriff table briefings available on sheriff boards", () => {
@@ -165,6 +165,45 @@ describe("expert werewolf strategy notes", () => {
     expect(input.tableBriefing.text).toContain("本局有警上、警下、警徽和警长投票");
     expect(input.tableBriefing.text).not.toContain("没有警上、警下、警徽、警长流程，不要使用这些概念");
     expect(input.advancedReasoning.join("\n")).toContain("警长审计");
+  });
+
+  it("does not mention sheriff flow on no-sheriff boards", async () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 1205, humanSeatId: null });
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    const goldTarget = state.seats.find((seat) => seat.role === "VILLAGER")!;
+    state.phase = "DAY_SPEECH";
+    state.roleClaims = [
+      seerClaim({
+        claimantSeatId: seer.seatId,
+        targetSeatId: goldTarget.seatId,
+        result: "GOOD",
+        sourceSpeechSeq: 10,
+      }),
+      seerClaim({
+        claimantSeatId: wolf.seatId,
+        targetSeatId: seer.seatId,
+        result: "WEREWOLF",
+        sourceSpeechSeq: 20,
+      }),
+    ];
+
+    const view = buildAgentView(state, seer.seatId);
+    const plan = createSpeechPlan(view);
+    const input = buildConstrainedSpeechInput(view, plan);
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+    const serialized = JSON.stringify({
+      tableBriefing: input.tableBriefing.text,
+      expertStrategy: input.expertStrategy,
+      rolePlaybook: input.rolePlaybook,
+      reasoningFrame: input.reasoningFrame,
+      debateAgenda: input.debateAgenda,
+      mockSpeech: result.speech,
+    });
+
+    expect(input.tableBriefing.text).toContain("没有警上、警下、警徽、警长流程");
+    expect(serialized).toContain("后续验人");
+    expect(serialized).not.toContain("警徽流");
   });
 
   it("keeps wolf strategy guidance public-safe", () => {

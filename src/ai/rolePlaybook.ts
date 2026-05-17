@@ -42,16 +42,21 @@ export function buildRolePlaybook(view: AgentView): AiRolePlaybook {
 
 function buildSeerPlaybook(view: AgentView): AiRolePlaybook {
   const hasSeerCounterclaim = hasRoleCounterclaim(view, "SEER");
+  const hasSheriff = Boolean(view.privateKnowledge.sheriff);
+  const routeLabel = hasSheriff ? "警徽流" : "后续验人";
+  const routeInstruction = hasSheriff ? "警长局必须交代警徽流。" : "无警长局要把后续验人和今天票口说得更清楚。";
   return basePlaybook(view, {
-    tableIdentity: "信息核心。目标不是每轮都强跳，而是让验人、站边、警徽流和票口连成一条可复盘的链。",
+    tableIdentity: `信息核心。目标不是每轮都强跳，而是让验人、站边、${routeLabel}和票口连成一条可复盘的链。`,
     tacticalVariants: [
       "明跳带队：有查杀、被压、对跳或轮次紧张时，公开验人并给今天票口。",
       "藏金水留生存：首日只有金水且压力不大时，可以先藏查验，用发言质量保护自己。",
-      hasSeerCounterclaim ? "对跳校验：先比双方验人心路、起跳时机、警徽流和外置位站边，不只报身份。" : "单边组织：单边时也要给验人理由、后续验人方向和改票条件。",
+      hasSeerCounterclaim
+        ? `对跳校验：先比双方验人心路、起跳时机、${routeLabel}和外置位站边，不只报身份。`
+        : "单边组织：单边时也要给验人理由、后续验人方向和改票条件。",
     ],
     reasoningPriorities: [
       "验人结构优先于听感，查杀和金水都要落到票型收益上。",
-      "警长局必须交代警徽流；无警长局要把今天票口说得更清楚。",
+      routeInstruction,
       "夜死或出局前把验人、怀疑位、可信位和票型提醒留完整。",
     ],
     actionForks: [
@@ -60,7 +65,9 @@ function buildSeerPlaybook(view: AgentView): AiRolePlaybook {
       "若对跳预言家存在，优先验或压对跳链条中的关键冲突点。",
     ],
     speechAngles: [
-      "按“验人结果 -> 心路 -> 今天票口 -> 后续验人/警徽流”组织。",
+      hasSheriff
+        ? "按“验人结果 -> 心路 -> 今天票口 -> 警徽流”组织。"
+        : "按“验人结果 -> 心路 -> 今天票口 -> 后续验人”组织。",
       "如果暂不跳，仍要给公开逻辑，不要只说“我有信息”。",
     ],
     avoid: [
@@ -128,10 +135,11 @@ function buildHunterPlaybook(view: AgentView): AiRolePlaybook {
 }
 
 function buildGuardPlaybook(view: AgentView): AiRolePlaybook {
+  const publicCore = view.privateKnowledge.sheriff ? "预言家、警长或稳定带队位" : "预言家或稳定带队位";
   return basePlaybook(view, {
     tableIdentity: "夜间保护位。守卫要保护高价值公开信息，同时避开连续守同人和同守同救风险。",
     tacticalVariants: [
-      "守公开核心：预言家、警长或稳定带队位价值高，但要考虑女巫救人冲突。",
+      `守公开核心：${publicCore}价值高，但要考虑女巫救人冲突。`,
       "守节奏位：外置稳定好人比高调焦点有时更值得保。",
       "藏身份发言：白天用公开逻辑帮好人收票，不轻易交守护路线。",
     ],
@@ -291,6 +299,7 @@ function baseWolfPlaybook(
     tacticalVariants: string[];
   },
 ): AiRolePlaybook {
+  const nightCore = view.privateKnowledge.sheriff ? "预言家、女巫、警长或稳定带队位" : "预言家、女巫或稳定带队位";
   return basePlaybook(view, {
     tableIdentity: overrides.tableIdentity,
     tacticalVariants: overrides.tacticalVariants,
@@ -300,7 +309,7 @@ function baseWolfPlaybook(
       "狼队发言要像真实闭眼视角自然生成，而不是先知道答案再硬编。",
     ],
     actionForks: [
-      "夜刀优先拆预言家、女巫、警长或稳定带队位，也可少量反向刀口赌药线。",
+      `夜刀优先拆${nightCore}，也可少量反向刀口赌药线。`,
       "白天投票可以冲锋、倒钩或卖队友，但理由只能用公开材料解释。",
       "特殊狼技能只在轮次收益高于继续隐藏时使用。",
     ],
