@@ -3,7 +3,7 @@ import { applyCommand, createGame } from "@/game/engine";
 import { buildAgentView } from "@/game/projection";
 import type { Seat } from "@/game/types";
 import { createSpeechPlan } from "./tableRead";
-import { createConstrainedLlmSpeechProvider, mockSpeechProvider, routedModelSpeechProvider } from "./speechProviders";
+import { buildConstrainedSpeechInput, createConstrainedLlmSpeechProvider, mockSpeechProvider, routedModelSpeechProvider } from "./speechProviders";
 
 const originalEnv = { ...process.env };
 
@@ -145,6 +145,7 @@ describe("mock speech provider", () => {
       expect(speech).not.toContain("后置仍只给结论不给过程");
       expect(speech).not.toMatch(/拆因果|第一点|盘问议程|追问先落|票口按这个条件|可改票条件/);
       expect(speech.length).toBeLessThanOrEqual(380);
+      expect(countSpeechSentences(speech)).toBeLessThanOrEqual(4);
     }
     expect(doubaoResult.speech).toContain("GPT");
     expect(gptResult.speech).not.toEqual(doubaoResult.speech);
@@ -169,8 +170,26 @@ describe("mock speech provider", () => {
     expect(result.speech).not.toContain("3号你");
     expect(result.speech).not.toMatch(/拆因果|第一点|盘问议程|追问先落|票口按这个条件|可改票条件/);
     expect(result.speech.length).toBeLessThanOrEqual(380);
+    expect(countSpeechSentences(result.speech)).toBeLessThanOrEqual(4);
+  });
+
+  it("guides model speech toward one concise table thread", () => {
+    const state = createGame({ seed: 92, humanSeatId: null });
+    state.phase = "DAY_SPEECH";
+    const speaker = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const view = buildAgentView(state, speaker.seatId);
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view));
+    const guideText = [...input.playerSpeechGuide.tablePlayerStyle, ...input.playerSpeechGuide.avoid].join(" ");
+
+    expect(guideText).toContain("2-4句短句");
+    expect(guideText).toContain("只抓一条主线");
+    expect(guideText).toContain("不要连续多句都用“我先”开头");
   });
 });
+
+function countSpeechSentences(speech: string): number {
+  return speech.split(/[。！？]/).filter((part) => part.trim().length > 0).length;
+}
 
 function setTestPersona(seat: Seat, name: string, id: string, riskTolerance: number): void {
   seat.name = name;

@@ -392,9 +392,9 @@ function buildPlayerSpeechGuide(
 
   return {
     tablePlayerStyle: [
-      "像坐在桌边发言：先给当前站边或保留态度，再给1-2个公开理由，最后留下追问、票口或后置位任务。",
-      "尽量形成一条因果链：为什么这样站、这个理由有多硬、反面解释是什么、下一轮看什么验证。",
-      "允许短句和牌桌口吻，例如“我先不站死”“这个点先记”“这轮票口先放这里”，但不要堆规则说明。",
+      "像坐在桌边发言：2-4句短句，只抓一条主线；先给当前站边或保留态度，再给1个公开理由，最后留下追问、票口或后置位任务。",
+      "尽量形成一条因果链：为什么这样站、这个理由有多硬、下一轮看什么验证；不要把所有审计点都塞进同一段。",
+      "允许牌桌口吻，例如“我先不站死”“这个点先记”“这轮票口先放这里”，但不要连续多句都用“我先”开头。",
       targetLine,
       stageLine,
     ],
@@ -418,6 +418,7 @@ function buildPlayerSpeechGuide(
       "不要把模型特点说成自我介绍、模型名口号或固定模板。",
       "不要机械复述事实简报、公开边界或规则说明。",
       "不要把内部标签说成台词，例如“拆因果”“第一点”“盘问议程”“可改票条件”。",
+      "不要面面俱到；身份坑、票型、发言顺序、死亡播报里选一个最能推进本轮的问题。",
       "不要把边角位、语气、短发言、划水这类软状态直接当铁狼证据。",
       "不要泄露私有身份信息；狼队视角、真实查验和女巫药瓶只能按角色策略决定是否公开。",
     ],
@@ -1457,33 +1458,96 @@ function composeReasonedMockSpeech(args: {
   const tableSentence = `${buildMockTablePlayerLine(args.view, args.target)}。`;
   const shape = getMockSpeechShape(args.view, args.plan);
   const opening = buildMockOpening(args.opener, args.lead);
+  const contextLine = pickMockContextLine(args.view, args.target, auditSentence, previousSentence, tableSentence);
+  const actionLine = pickMockActionLine(args.view, args.target, args.condition, agendaTail);
 
   switch (shape) {
     case "logic":
-      return compactMockSpeech(
-        `${opening}${dynamicSentence}依据是${evidenceSentence}。${auditSentence}${previousSentence}${tableSentence}${args.condition}${agendaTail}${args.tallyText}`,
-      );
+      return composeMockSpeechLines([
+        opening,
+        dynamicSentence ? `${stripTerminalPunctuation(dynamicSentence)}，依据是${evidenceSentence}` : `依据是${evidenceSentence}`,
+        contextLine,
+        actionLine,
+        args.tallyText,
+      ]);
     case "boundary":
-      return compactMockSpeech(
-        `${opening}边界先放清：不把${targetText}直接打死。${dynamicSentence}${firstEvidence}，这是疑点不是定论。${auditSentence}${previousSentence}${tableSentence}${args.condition}${agendaTail}${args.tallyText}`,
-      );
+      return composeMockSpeechLines([
+        opening,
+        `边界放清：不把${targetText}直接打死`,
+        dynamicSentence || `${firstEvidence}，这是疑点不是定论`,
+        actionLine,
+        args.tallyText,
+      ]);
     case "pressure":
-      return compactMockSpeech(
-        `${opening}${targetText}这轮得把话讲实。${dynamicSentence}${firstEvidence}${secondEvidence ? `；${secondEvidence}` : ""}。${auditSentence}${tableSentence}${args.condition}${agendaTail}${args.tallyText}`,
-      );
+      return composeMockSpeechLines([
+        opening,
+        `${targetText}这轮得把话讲实`,
+        dynamicSentence || evidenceSentence,
+        contextLine,
+        actionLine,
+        args.tallyText,
+      ]);
     case "compare":
-      return compactMockSpeech(
-        `${opening}我把前后两条线对一下：${args.previous ?? "前置位发言先记样本"}，再看${firstEvidence}。${dynamicSentence}${auditSentence}${tableSentence}${args.condition}${agendaTail}${args.tallyText}`,
-      );
+      return composeMockSpeechLines([
+        opening,
+        `前后两条线对一下：${args.previous ?? "前置位发言先记样本"}`,
+        `再看${firstEvidence}`,
+        actionLine,
+        args.tallyText,
+      ]);
     case "identity":
-      return compactMockSpeech(
-        `${opening}身份和站边先对一下。${firstEvidence}。${secondEvidence ? `${secondEvidence}。` : ""}${dynamicSentence}${auditSentence}${tableSentence}${args.condition}${agendaTail}${args.tallyText}`,
-      );
+      return composeMockSpeechLines([
+        opening,
+        "身份和站边先对一下",
+        evidenceSentence,
+        actionLine,
+        args.tallyText,
+      ]);
     case "emotion":
-      return compactMockSpeech(
-        `${opening}听感先保留，不只凭语气下结论。${firstEvidence}。${auditSentence}${previousSentence}${tableSentence}${args.condition}${agendaTail}${args.tallyText}`,
-      );
+      return composeMockSpeechLines([
+        opening,
+        "听感先保留，不只凭语气下结论",
+        firstEvidence,
+        actionLine,
+        args.tallyText,
+      ]);
   }
+}
+
+function composeMockSpeechLines(lines: Array<string | undefined>, maxLines = 4): string {
+  const normalized = lines
+    .map((line) => stripTerminalPunctuation(line ?? ""))
+    .filter(Boolean)
+    .filter((line, index, array) => array.findIndex((candidate) => candidate === line) === index)
+    .slice(0, maxLines);
+  return compactMockSpeech(normalized.map((line) => `${line}。`).join(""));
+}
+
+function pickMockContextLine(
+  view: AgentView,
+  target: ActionTarget | undefined,
+  audit: string | undefined,
+  previous: string | undefined,
+  table: string | undefined,
+): string | undefined {
+  const previousSpeaker = view.publicSummary.recentSpeeches.at(-1)?.speaker;
+  if (previousSpeaker && target && previousSpeaker.seatId !== target.seatId) return previous ?? table;
+  if (audit && /(对跳|查验链|票型|焦点)/.test(audit)) return audit;
+  return table ?? previous ?? audit;
+}
+
+function pickMockActionLine(
+  view: AgentView,
+  target: ActionTarget | undefined,
+  condition: string,
+  agendaTail: string,
+): string {
+  const seed = mockSpeechSeed(view, target, 19);
+  const agenda = stripTerminalPunctuation(agendaTail);
+  const fallback = stripTerminalPunctuation(condition);
+  if (!agenda) return fallback;
+  if (!fallback) return agenda;
+  return pickBySeat(seed, [agenda, fallback]);
 }
 
 function buildMockOpening(opener: string, lead: string): string {
@@ -1537,12 +1601,12 @@ function buildMockReasoningAudit(view: AgentView): string | undefined {
   const claimAudit = buildClaimAudit(view);
   const seerCounterclaim = view.publicSummary.tableMemory.counterclaims.find((group) => group.claimedRole === "SEER");
   if (seerCounterclaim) {
-    const chain = claimAudit.checkChains[0] ? `，查验链看${claimAudit.checkChains[0]}` : "";
-    return `身份坑先看${formatSeatList(seerCounterclaim.claimants)}这组预言家对跳，不能只听谁声音大${chain}`;
+    const chain = claimAudit.checkChains[0] ? `，查验链先看${clipBriefingText(claimAudit.checkChains[0], 72)}` : "";
+    return `${formatSeatList(seerCounterclaim.claimants)}这组预言家对跳我先不站死，不能只听谁声音大${chain}`;
   }
 
   if (claimAudit.protectedClaims.length > 0) {
-    return `身份审计先保护未对跳强身份：${claimAudit.protectedClaims[0]}`;
+    return `未对跳强身份先别急着动，${claimAudit.protectedClaims[0]}`;
   }
 
   const sheriffVote = view.publicSummary.sheriffVoteSnapshot;
@@ -1851,7 +1915,7 @@ function createMockSpeech(view: AgentView, plan = createSpeechPlan(view)): strin
 }
 
 function renderSpeechDynamicText(plan: SpeechPlan): string {
-  return [plan.interaction?.line, plan.personaCue?.line].filter(Boolean).join("；");
+  return plan.interaction?.line ?? plan.personaCue?.line ?? "";
 }
 
 function personaOpener(persona: string, seed: number): string {

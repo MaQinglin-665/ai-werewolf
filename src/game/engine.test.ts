@@ -1369,7 +1369,7 @@ describe("game engine", () => {
     const result = await mockSpeechProvider.generateSpeech(view, plan);
 
     expect(result.speech).toMatch(/理由是|依据|公开信息|给边界|正面回答|两条线|身份和站边|听感/);
-    expect(result.speech).toMatch(/如果/);
+    expect(result.speech).toMatch(/如果|需要|票型前|补硬/);
     expect(result.speech).not.toMatch(/拆因果|第一点|盘问议程|追问先落|票口按这个条件|可改票条件/);
     expect(result.speech).not.toMatch(/队友|狼队|真实身份|隐藏身份|系统/);
   });

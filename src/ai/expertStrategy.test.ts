@@ -146,10 +146,10 @@ describe("expert werewolf strategy notes", () => {
 
     const result = await mockSpeechProvider.generateSpeech(view, createSpeechPlan(view));
 
-    expect(result.speech).toContain("身份坑先看");
+    expect(result.speech).toMatch(/对跳我先不站死|对跳/);
     expect(result.speech).toContain("预言家对跳");
     expect(result.speech).toContain("查验链");
-    expect(result.speech).toMatch(/回应|过程补出来|查验心路/);
+    expect(result.speech).toMatch(/讲完整|过程补出来|票型|查验心路/);
   });
 
   it("keeps sheriff table briefings available on sheriff boards", () => {
