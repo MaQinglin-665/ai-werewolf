@@ -163,7 +163,7 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
             </div>
           </GlassPanel>
 
-          <GlassPanel title="最近 7 天趋势" kicker="Daily Activity">
+          <GlassPanel title="可用日期趋势" kicker="Daily Activity">
             <RecentDaysChart metrics={metrics} />
           </GlassPanel>
         </section>
@@ -331,7 +331,10 @@ function RecentDaysChart({ metrics }: { metrics: RoomMetricsSnapshot }) {
   );
   return (
     <div>
-      <div className="grid min-h-72 grid-cols-7 items-end gap-2 border-b border-white/10 pb-4">
+      <div
+        className="grid min-h-72 items-end gap-2 border-b border-white/10 pb-4"
+        style={{ gridTemplateColumns: `repeat(${Math.max(1, metrics.history.recentDays.length)}, minmax(72px, 1fr))` }}
+      >
         {metrics.history.recentDays.map((day) => {
           const total =
             day.homeViews +

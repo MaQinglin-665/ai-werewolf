@@ -212,7 +212,7 @@ async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsH
     mainCompletionRate: mainGamesStarted > 0 ? Math.round((mainGamesFinished / mainGamesStarted) * 100) : null,
     mainGamesFinished,
     mainGamesStarted,
-    recentDays: buildRecentDayBuckets(new Date(), days.rows),
+    recentDays: buildRecentDayBuckets(new Date(), days.rows, trackedSinceValue ?? undefined),
     totalMainGameMinutes: typeof totalMainSeconds === "number" ? roundOneDecimal(totalMainSeconds / 60) : 0,
     totalPlayersEver: totalRow?.total_players_ever ?? 0,
     totalRoomsEver: totalRow?.total_rooms_ever ?? 0,
@@ -299,6 +299,7 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
         day: formatMetricsDay(new Date(event.occurredAt)),
         event_type: event.eventType,
       })),
+      trackedSinceMs === undefined ? undefined : new Date(trackedSinceMs),
     ),
     totalMainGameMinutes: roundOneDecimal(totalMainDurationSeconds / 60),
     totalPlayersEver: playerIds.size,
@@ -310,12 +311,28 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
 function buildRecentDayBuckets(
   now: Date,
   rows: Array<{ count: number; day: string; event_type: RoomAnalyticsEventType }>,
+  trackedSince?: Date,
 ): RoomAnalyticsDayBucket[] {
   const buckets = new Map<string, RoomAnalyticsDayBucket>();
+  const earliestVisibleDay = trackedSince ? formatMetricsDay(trackedSince) : formatMetricsDay(now);
   for (let offset = 6; offset >= 0; offset -= 1) {
     const day = new Date(now);
     day.setDate(now.getDate() - offset);
     const key = formatMetricsDay(day);
+    if (key < earliestVisibleDay) continue;
+    buckets.set(key, {
+      date: key,
+      homeViews: 0,
+      mainGamesFinished: 0,
+      mainGamesStarted: 0,
+      roomsCreated: 0,
+      playersJoined: 0,
+      gamesStarted: 0,
+      gamesFinished: 0,
+    });
+  }
+  if (buckets.size === 0) {
+    const key = formatMetricsDay(now);
     buckets.set(key, {
       date: key,
       homeViews: 0,

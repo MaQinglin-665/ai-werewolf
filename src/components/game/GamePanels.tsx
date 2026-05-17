@@ -87,6 +87,12 @@ export function RoomHeader({
             <StatusPill tone={game.phase.startsWith("NIGHT") ? "blue" : "green"}>{game.phaseLabel}</StatusPill>
           </>
         )}
+        <Link
+          href="/rooms"
+          className="rounded-full border border-[#77d898]/35 bg-[#12301f]/70 px-4 py-2 text-sm font-semibold text-[#a8f0b6] transition hover:bg-[#1d4e33]/75"
+        >
+          联机房间
+        </Link>
         <button
           type="button"
           onClick={onOpenIdentityBook}
@@ -276,13 +282,21 @@ export function LandingPanel({
               <div className="text-xs leading-5 text-[#ad9c7d]">
                 {selectedBoard ? "当前配置会自动补齐 AI 阵容并保存最近对局入口。" : "先选择一个板子，再确认真人座位。"}
               </div>
-              <button
-                onClick={onStartGame}
-                disabled={loading || !selectedBoardId}
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#c64f3c] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/30 transition hover:bg-[#dc5b45] disabled:cursor-not-allowed disabled:bg-[#6f3b31] disabled:text-white/55 sm:w-auto"
-              >
-                {loading ? "创建中" : selectedBoardId ? "进入牌桌" : "先选择板子"}
-              </button>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                <Link
+                  href="/rooms"
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#77d898]/28 bg-[#10271d] px-6 py-3 text-sm font-semibold text-[#a8f0b6] shadow-lg shadow-black/20 transition hover:bg-[#183b2a]"
+                >
+                  进入联机房间
+                </Link>
+                <button
+                  onClick={onStartGame}
+                  disabled={loading || !selectedBoardId}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#c64f3c] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/30 transition hover:bg-[#dc5b45] disabled:cursor-not-allowed disabled:bg-[#6f3b31] disabled:text-white/55"
+                >
+                  {loading ? "创建中" : selectedBoardId ? "进入牌桌" : "先选择板子"}
+                </button>
+              </div>
             </div>
 
             <RulesMiniCard />

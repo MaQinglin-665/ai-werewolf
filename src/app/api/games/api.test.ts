@@ -73,6 +73,7 @@ describe("game api routes", () => {
         mainGamesStarted: 1,
         totalMainGameMinutes: 0,
       });
+      expect(metrics.history.recentDays).toHaveLength(1);
       expect(metrics.history.recentDays[metrics.history.recentDays.length - 1]).toMatchObject({
         homeViews: 1,
         mainGamesFinished: 0,
