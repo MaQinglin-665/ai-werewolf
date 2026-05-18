@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { applyCommand, createGame } from "@/game/engine";
 import { buildAgentView } from "@/game/projection";
-import type { Seat } from "@/game/types";
+import type { PublicReasoningCue, Seat } from "@/game/types";
 import { createSpeechPlan } from "./tableRead";
 import { buildConstrainedSpeechInput, createConstrainedLlmSpeechProvider, mockSpeechProvider, routedModelSpeechProvider } from "./speechProviders";
 
@@ -173,6 +173,32 @@ describe("mock speech provider", () => {
     expect(countSpeechSentences(result.speech)).toBeLessThanOrEqual(4);
   });
 
+  it("anchors mock speech to a public reasoning cue when one exists", async () => {
+    const state = createGame({ seed: 93, humanSeatId: null });
+    state.phase = "DAY_SPEECH";
+    const speaker = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const target = state.seats.find((seat) => seat.isAi && seat.seatId !== speaker.seatId)!;
+    const view = buildAgentView(state, speaker.seatId);
+    view.publicSummary.tableMemory.reasoningCues = [
+      reasoningCue(target, "speech_influence", "strong", "站边和上一轮票型不闭合", [
+        "先质疑预言家又跟票同一边",
+      ]),
+    ];
+    const plan = {
+      ...createSpeechPlan(view),
+      kind: "pressure" as const,
+      target,
+      talkingPoints: ["目标位的站边和票型不闭合"],
+    };
+
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(result.speech).toContain("站边和上一轮票型不闭合");
+    expect(result.speech).toContain("先质疑预言家又跟票同一边");
+    expect(result.speech.length).toBeLessThanOrEqual(380);
+    expect(countSpeechSentences(result.speech)).toBeLessThanOrEqual(4);
+  });
+
   it("guides model speech toward one concise table thread", () => {
     const state = createGame({ seed: 92, humanSeatId: null });
     state.phase = "DAY_SPEECH";
@@ -189,6 +215,24 @@ describe("mock speech provider", () => {
 
 function countSpeechSentences(speech: string): number {
   return speech.split(/[。！？]/).filter((part) => part.trim().length > 0).length;
+}
+
+function reasoningCue(
+  target: { seatId: number; name: string },
+  kind: PublicReasoningCue["kind"],
+  weight: PublicReasoningCue["weight"],
+  summary: string,
+  evidence: string[],
+): PublicReasoningCue {
+  return {
+    cueId: `${kind}:${target.seatId}`,
+    day: 1,
+    kind,
+    weight,
+    summary,
+    target,
+    evidence,
+  };
 }
 
 function setTestPersona(seat: Seat, name: string, id: string, riskTolerance: number): void {

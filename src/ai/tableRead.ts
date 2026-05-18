@@ -1424,6 +1424,12 @@ function buildVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRe
     return `上一轮平票里${target.name}已经是最高票焦点，这轮先收束票型继续检验。`;
   }
 
+  const reasoningCue = targetReasoningCues(tableRead, target)[0];
+  if (reasoningCue) {
+    const cueEvidence = reasoningCue.evidence[0] ? `，依据是${clipVoteReason(reasoningCue.evidence[0], 34)}` : "";
+    return `公开推理线索指向${target.name}：${clipVoteReason(reasoningCue.summary, 42)}${cueEvidence}，这票先检验这条证据链。`;
+  }
+
   const latestNegativeStance = [...target.publicStancedBy]
     .reverse()
     .find((stance) => stance.kind === "QUESTION" || stance.kind === "PRESSURE");
@@ -1537,6 +1543,9 @@ function chooseClaimAwareVoteTarget(view: AgentView, tableRead: AiTableRead, can
   const tiedTarget = chooseTieConsolidationTarget(view, tableRead, candidates);
   if (tiedTarget) return tiedTarget;
 
+  const evidenceLoopTarget = choosePublicEvidenceLoopVoteTarget(view, tableRead, candidates);
+  if (evidenceLoopTarget) return evidenceLoopTarget;
+
   const shifted = view.publicSummary.tableMemory.stanceShifts
     .map((shift) => candidates.find((seat) => seat.seatId === shift.actor.seatId))
     .find((seat): seat is SeatRead => Boolean(seat));
@@ -1593,6 +1602,38 @@ function chooseTrustedGoldWaterFollowTarget(
 
   const focusTarget = choosePublicFocusVoteTarget(view, tableRead, candidates);
   return focusTarget && focusTarget.suspicion >= (view.day >= 3 ? 48 : 54) ? focusTarget : undefined;
+}
+
+function choosePublicEvidenceLoopVoteTarget(
+  view: AgentView,
+  tableRead: AiTableRead,
+  candidates: SeatRead[],
+): SeatRead | undefined {
+  if (isWolfRole(view.myRole, view.rules.wolfRoles)) return undefined;
+
+  const ranked = candidates
+    .filter((seat) => !isProtectedGoodVoteTarget(view, tableRead, seat))
+    .map((seat) => ({
+      seat,
+      score: publicEvidenceLoopVoteScore(view, tableRead, seat),
+    }))
+    .filter((item) => item.score > 0)
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        voteScore(view, tableRead, b.seat) - voteScore(view, tableRead, a.seat) ||
+        a.seat.seatId - b.seat.seatId,
+    );
+  const top = ranked[0];
+  if (!top) return undefined;
+
+  const runnerScore = ranked[1]?.score ?? Number.NEGATIVE_INFINITY;
+  const pressureGap = top.seat.suspicion - top.seat.trust;
+  const threshold = view.day <= 1 ? 38 : 32;
+  const hasHardAnchor = hasHardPublicVoteAnchor(tableRead, top.seat);
+  const clearLead = top.score >= runnerScore + 8;
+
+  return top.score >= threshold && (clearLead || hasHardAnchor || pressureGap >= 22) ? top.seat : undefined;
 }
 
 function choosePublicFocusVoteTarget(
@@ -1766,6 +1807,7 @@ function goodPublicVoteEvidenceScore(view: AgentView, tableRead: AiTableRead, se
       .map((stance) => stance.actor.seatId),
   );
   score += Math.min(18, negativeActors.size * 5);
+  score += publicReasoningCueVoteScore(tableRead, seat);
   score += publicFocusVoteEvidenceScore(tableRead, seat);
 
   if (view.publicSummary.tableMemory.stanceShifts.some((shift) => shift.actor.seatId === seat.seatId)) {
@@ -1780,6 +1822,85 @@ function goodPublicVoteEvidenceScore(view: AgentView, tableRead: AiTableRead, se
   }
 
   return score;
+}
+
+function publicEvidenceLoopVoteScore(view: AgentView, tableRead: AiTableRead, seat: SeatRead): number {
+  const focus = tableRead.tableMemory.focus.find((item) => item.seat.seatId === seat.seatId);
+  const latestVote = tableRead.tableMemory.voteHistory.at(-1);
+  const latestVoteCount = latestVote?.tally.find((item) => item.target.seatId === seat.seatId)?.count ?? 0;
+  const pressureLoopScore = seat.pressure.reduce((score, item) => {
+    if (/查验|对跳|身份|站边|票型|起票|补票|归票|死亡|夜死|悍跳|闭环|施压/.test(item)) return score + 5;
+    if (/发言|过程|理由|解释/.test(item)) return score + 2;
+    return score;
+  }, 0);
+
+  return (
+    Math.max(0, goodPublicVoteEvidenceScore(view, tableRead, seat)) +
+    Math.min(16, publicVotePressureActors(seat).length * 6) +
+    (focus ? Math.min(14, focus.score / 5) : 0) +
+    Math.min(8, latestVoteCount * 2) +
+    pressureLoopScore +
+    (tableRead.tableMemory.stanceShifts.some((shift) => shift.actor.seatId === seat.seatId) ? 10 : 0) -
+    softOnlyVoteNoisePenalty(tableRead, seat)
+  );
+}
+
+function publicReasoningCueVoteScore(tableRead: AiTableRead, seat: SeatRead): number {
+  return Math.min(
+    34,
+    targetReasoningCues(tableRead, seat).reduce((score, cue) => score + reasoningCueWeightScore(cue.weight), 0),
+  );
+}
+
+function targetReasoningCues(
+  tableRead: AiTableRead,
+  seat: SeatRead,
+): Array<AiTableRead["tableMemory"]["reasoningCues"][number]> {
+  return tableRead.tableMemory.reasoningCues
+    .filter((cue) => cue.target?.seatId === seat.seatId)
+    .sort((a, b) => reasoningCueWeightScore(b.weight) - reasoningCueWeightScore(a.weight));
+}
+
+function reasoningCueWeightScore(weight: AiTableRead["tableMemory"]["reasoningCues"][number]["weight"]): number {
+  if (weight === "strong") return 24;
+  if (weight === "medium") return 14;
+  return 6;
+}
+
+function clipVoteReason(text: string, limit: number): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  return clean.length <= limit ? clean : `${clean.slice(0, limit - 1)}…`;
+}
+
+function publicVotePressureActors(seat: SeatRead): ActionTarget[] {
+  const actors = new Map<number, ActionTarget>();
+  for (const stance of seat.publicStancedBy) {
+    if (stance.kind === "QUESTION" || stance.kind === "PRESSURE") {
+      actors.set(stance.actor.seatId, stance.actor);
+    }
+  }
+  return [...actors.values()];
+}
+
+function hasHardPublicVoteAnchor(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (publicReasoningCueVoteScore(tableRead, seat) >= 20) return true;
+  if (seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF")) return true;
+  if (tableRead.tableMemory.seerLegacies.some((legacy) => legacy.checks.some((check) => check.target.seatId === seat.seatId))) {
+    return true;
+  }
+  if (tableRead.tableMemory.stanceShifts.some((shift) => shift.actor.seatId === seat.seatId)) return true;
+  return publicVotePressureActors(seat).length >= 2;
+}
+
+function softOnlyVoteNoisePenalty(tableRead: AiTableRead, seat: SeatRead): number {
+  const cues = targetReasoningCues(tableRead, seat);
+  if (cues.length > 0 || seat.publicClaims.length > 0 || seat.publicChecksAgainst.length > 0) return 0;
+  if (publicVotePressureActors(seat).length >= 2) return 0;
+
+  const pressureText = seat.pressure.join(" ");
+  const hasSoftNoise = /发言偏短|短发言|信息量少|留白|边角|语气|听感|划水/.test(pressureText);
+  const hasLoop = /查验|对跳|身份|站边|票型|起票|补票|死亡|夜死|悍跳|闭环|施压/.test(pressureText);
+  return hasSoftNoise && !hasLoop ? 18 : 0;
 }
 
 function publicFocusVoteEvidenceScore(tableRead: AiTableRead, seat: SeatRead): number {

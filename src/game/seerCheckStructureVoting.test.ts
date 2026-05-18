@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createVotePlan } from "@/ai/tableRead";
-import type { ActionTarget, AgentView, AiTableRead, ClaimBoardItem, Role, SeatRead, TableMemory } from "./types";
+import type { ActionTarget, AgentView, AiTableRead, ClaimBoardItem, PublicReasoningCue, Role, SeatRead, TableMemory } from "./types";
 
 describe("seer counterclaim check-structure voting", () => {
   it("prefers pressuring a black-only seer counterclaim over a gold-water line", () => {
@@ -486,6 +486,48 @@ describe("seer counterclaim check-structure voting", () => {
 
     expect(plan.target.seatId).toBe(4);
   });
+
+  it("prefers a public reasoning loop over soft short-speech suspicion", () => {
+    const softNoise = { seatId: 2, name: "Soft Noise" };
+    const loopTarget = { seatId: 4, name: "Loop Target" };
+    const memory = tableMemory({
+      focus: [
+        { seat: softNoise, reasons: ["发言偏短"], score: 76 },
+        { seat: loopTarget, reasons: ["站边和票型不闭合"], score: 28 },
+      ],
+      reasoningCues: [
+        reasoningCue(loopTarget, "speech_influence", "strong", "4号站边和上一轮票型不闭合", [
+          "先质疑预言家又跟票同一边",
+        ]),
+      ],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [softNoise, loopTarget], 2),
+      tableRead(
+        [
+          seatRead({
+            ...softNoise,
+            suspicion: 94,
+            trust: 24,
+            pressure: ["发言偏短", "信息量少"],
+          }),
+          seatRead({
+            ...loopTarget,
+            suspicion: 58,
+            trust: 44,
+            pressure: ["站边和票型没有闭环"],
+            publicStancedBy: [publicPressure({ seatId: 6, name: "Checker" }, loopTarget)],
+          }),
+        ],
+        memory,
+      ),
+    );
+
+    expect(plan.target.seatId).toBe(4);
+    expect(plan.reason).toContain("公开推理线索");
+    expect(plan.reason).toContain("证据链");
+  });
 });
 
 function voteView(
@@ -617,6 +659,24 @@ function publicPressure(actor: ActionTarget, target: ActionTarget): SeatRead["pu
     kind: "PRESSURE",
     kindLabel: "施压",
     summary: `${actor.name} pressure ${target.name}`,
+  };
+}
+
+function reasoningCue(
+  target: ActionTarget,
+  kind: PublicReasoningCue["kind"],
+  weight: PublicReasoningCue["weight"],
+  summary: string,
+  evidence: string[],
+): PublicReasoningCue {
+  return {
+    cueId: `${kind}-${target.seatId}`,
+    day: 2,
+    kind,
+    weight,
+    summary,
+    target,
+    evidence,
   };
 }
 

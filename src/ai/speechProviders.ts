@@ -3,7 +3,16 @@ import { extractRoleClaimFromSpeech } from "@/game/claims";
 import { ROLE_LABELS } from "@/game/labels";
 import { isWolfRole } from "@/game/roleUtils";
 import { stripSpeechStageDirections } from "@/game/speechText";
-import type { ActionTarget, AgentView, AiFriendRuntimeLlmConfig, ClaimCheck, Role, SpeechPlan, TableMemory } from "@/game/types";
+import type {
+  ActionTarget,
+  AgentView,
+  AiFriendRuntimeLlmConfig,
+  ClaimCheck,
+  PublicReasoningCue,
+  Role,
+  SpeechPlan,
+  TableMemory,
+} from "@/game/types";
 import {
   callRoutedModelJsonWithFallbacks,
   isModelLlmRoutingAvailable,
@@ -1708,10 +1717,17 @@ function buildStructuredMockEvidence(view: AgentView, plan: SpeechPlan, target: 
   const focus = target
     ? view.publicSummary.tableMemory.focus.find((item) => item.seat.seatId === target.seatId)
     : view.publicSummary.tableMemory.focus[0];
+  const reasoningCue = pickReasoningCueForMockSpeech(view.publicSummary.tableMemory, target);
   const targetSpeech = target
     ? [...view.publicSummary.recentSpeeches].reverse().find((speech) => speech.speaker?.seatId === target.seatId)
     : undefined;
 
+  if (reasoningCue) {
+    const cueTarget = reasoningCue.target ?? target;
+    const cueTargetText = cueTarget ? seatText(cueTarget) : "这条公开线";
+    const evidence = reasoningCue.evidence[0] ? `，依据是${clipBriefingText(reasoningCue.evidence[0], 42)}` : "";
+    items.push(`${cueTargetText}的公开线索是${clipBriefingText(reasoningCue.summary, 58)}${evidence}`);
+  }
   if (focus?.reasons.length) {
     items.push(`${seatText(focus.seat)}成为焦点是因为${focus.reasons.slice(0, 2).join("、")}`);
   }
@@ -1741,6 +1757,22 @@ function buildStructuredMockEvidence(view: AgentView, plan: SpeechPlan, target: 
   }
 
   return [...new Set(items)].slice(0, 2);
+}
+
+function pickReasoningCueForMockSpeech(
+  tableMemory: TableMemory,
+  target: ActionTarget | undefined,
+): PublicReasoningCue | undefined {
+  const cues = tableMemory.reasoningCues
+    .filter((cue) => !target || cue.target?.seatId === target.seatId)
+    .sort((a, b) => reasoningCueSpeechWeight(b.weight) - reasoningCueSpeechWeight(a.weight));
+  return cues[0];
+}
+
+function reasoningCueSpeechWeight(weight: PublicReasoningCue["weight"]): number {
+  if (weight === "strong") return 3;
+  if (weight === "medium") return 2;
+  return 1;
 }
 
 function targetTextFromResult(result: "WEREWOLF" | "GOOD"): string {
