@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { applyCommand, createGame } from "@/game/engine";
 import { buildAgentView } from "@/game/projection";
 import type { PublicReasoningCue, Seat } from "@/game/types";
+import { advanceWithMockAi } from "./mockAgent";
 import { createSpeechPlan } from "./tableRead";
 import { buildConstrainedSpeechInput, createConstrainedLlmSpeechProvider, mockSpeechProvider, routedModelSpeechProvider } from "./speechProviders";
 
@@ -197,6 +198,27 @@ describe("mock speech provider", () => {
     expect(result.speech).toContain("先质疑预言家又跟票同一边");
     expect(result.speech.length).toBeLessThanOrEqual(380);
     expect(countSpeechSentences(result.speech)).toBeLessThanOrEqual(4);
+  });
+
+  it("keeps early mock speeches away from prompt-like report wording", async () => {
+    const { aiLogs } = await advanceWithMockAi(createGame({ seed: 91, humanSeatId: null }), {
+      ignoreHuman: true,
+      maxSteps: 80,
+    });
+    const speeches = aiLogs
+      .filter((log) => log.output.type === "speak" || log.output.type === "sheriffSpeech")
+      .slice(0, 9)
+      .map((log) => ("message" in log.output ? log.output.message : ""));
+
+    expect(speeches.length).toBeGreaterThan(0);
+    for (const speech of speeches) {
+      expect(speech).not.toMatch(/理由是：|依据是|这个结论来自|什么公开反证|可改判断/);
+      expect(speech).not.toMatch(/成为焦点是因为|我认这个点，是因为.+是因为|我打他的点是：/);
+      expect(speech).not.toMatch(/被被|被处在身份对跳|被回避站边/);
+      expect(speech).not.toMatch(/(.{4,36})，我认的点是\1/);
+      expect(speech.length).toBeLessThanOrEqual(380);
+      expect(countSpeechSentences(speech)).toBeLessThanOrEqual(4);
+    }
   });
 
   it("guides model speech toward one concise table thread", () => {

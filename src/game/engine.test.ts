@@ -1368,9 +1368,9 @@ describe("game engine", () => {
     const plan = createSpeechPlan(view);
     const result = await mockSpeechProvider.generateSpeech(view, plan);
 
-    expect(result.speech).toMatch(/理由是|依据|公开信息|给边界|正面回答|两条线|身份和站边|听感/);
+    expect(result.speech).toMatch(/卡我的是|公开发言|给边界|正面解释|两条线|身份和站边|听感/);
     expect(result.speech).toMatch(/如果|需要|票型前|补硬/);
-    expect(result.speech).not.toMatch(/拆因果|第一点|盘问议程|追问先落|票口按这个条件|可改票条件/);
+    expect(result.speech).not.toMatch(/理由是：|依据是|这个结论来自|拆因果|第一点|盘问议程|追问先落|票口按这个条件|可改票条件/);
     expect(result.speech).not.toMatch(/队友|狼队|真实身份|隐藏身份|系统/);
   });
 
@@ -1566,8 +1566,8 @@ describe("game engine", () => {
     const logicSpeech = (await mockSpeechProvider.generateSpeech(logicView, createSpeechPlan(logicView))).speech;
     const pressureSpeech = (await mockSpeechProvider.generateSpeech(pressureView, createSpeechPlan(pressureView))).speech;
 
-    expect(logicSpeech).toMatch(/公开信息|依据|能听到的点/);
-    expect(logicSpeech).not.toMatch(/拆因果|第一点|盘问议程|可改票条件/);
+    expect(logicSpeech).toMatch(/公开信息|能听到的点|发言顺序|票型/);
+    expect(logicSpeech).not.toMatch(/理由是：|依据是|拆因果|第一点|盘问议程|可改票条件/);
     expect(pressureSpeech).toMatch(/讲实|过程补出来/);
     expect(pressureSpeech.length).toBeLessThanOrEqual(380);
     expect(logicSpeech).not.toBe(pressureSpeech);
