@@ -198,6 +198,14 @@ https://werewolf.example.com/alpha-health
 
 The page summarizes deployment mode, storage, realtime, presence, rate limiting, room counts, warnings, and the next smoke command for the detected public origin.
 
+After the health checks and smoke commands pass, open the playtest handoff page:
+
+```text
+https://werewolf.example.com/alpha-playtest
+```
+
+This page is the phase-two friend-playtest entry. It links to `/rooms`, gives the host/player steps, lists the real-player checklist, and keeps the current Alpha limitations visible before the link is shared.
+
 For raw JSON health:
 
 ```bash
@@ -247,6 +255,12 @@ These fields are visible in `/alpha-health` and in the raw `/api/rooms/health` J
 
 ```powershell
 $env:ROOM_SMOKE_BASE_URL="https://werewolf.example.com"; npm run smoke:online
+```
+
+For the phase-two real-player handoff, run the vote-chain smoke as well:
+
+```powershell
+$env:ROOM_SMOKE_BASE_URL="https://werewolf.example.com"; npm run smoke:alpha:vote
 ```
 
 ## Current Limits

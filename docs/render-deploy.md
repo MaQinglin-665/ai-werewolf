@@ -20,6 +20,7 @@ The service starts with `npm run start:production`, which also initializes the c
 3. Confirm the service and database from `render.yaml`.
 4. Deploy.
 5. Open the service URL and check `/alpha-health`.
+6. After the health panel is green, open `/alpha-playtest` and use it as the small-group playtest handoff page.
 
 Render Blueprint fields used here are the standard Docker web service fields, `healthCheckPath`, and `fromDatabase` environment references.
 
@@ -81,11 +82,20 @@ https://your-service.onrender.com/alpha-health
 
 The page should show whether the deployment is still local/single-node, online single-node, or production-minimum ready. It also prints the next smoke command for the detected origin.
 
+After the smoke commands pass, open the playtest handoff page:
+
+```text
+https://your-service.onrender.com/alpha-playtest
+```
+
+Use this page when sending the Alpha to friends. It links to `/rooms`, explains the first-room flow, lists the real-player checklist, and calls out the current free-Render and Alpha limitations.
+
 From your local machine:
 
 ```powershell
 $env:ROOM_SMOKE_BASE_URL="https://your-service.onrender.com"; npm run preflight:production
 $env:ROOM_SMOKE_BASE_URL="https://your-service.onrender.com"; npm run smoke:room-sse
+$env:ROOM_SMOKE_BASE_URL="https://your-service.onrender.com"; npm run smoke:alpha:vote
 ```
 
 When testing a Docker container through a local forwarded port while the app is configured with a hosted public origin, pass the expected public origin explicitly:
