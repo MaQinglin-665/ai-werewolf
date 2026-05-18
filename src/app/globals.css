@@ -717,6 +717,301 @@ button:disabled {
   transform: translateY(2px);
 }
 
+.metrics-dashboard {
+  isolation: isolate;
+}
+
+.metrics-bg-grid {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.036) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(8, 11, 18, 0.1), #070a0f 84%),
+    radial-gradient(ellipse at top, rgba(118, 228, 164, 0.12), transparent 46%);
+  background-size:
+    48px 48px,
+    48px 48px,
+    auto,
+    auto;
+  opacity: 0.9;
+}
+
+.metrics-bg-scan {
+  animation: metrics-scan 9800ms linear infinite;
+  background:
+    linear-gradient(180deg, transparent 0 38%, rgba(118, 228, 164, 0.055) 48%, transparent 60%),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 7px);
+  mix-blend-mode: screen;
+  opacity: 0.58;
+}
+
+.metrics-glass-panel,
+.metric-hero-card,
+.metric-mini-tile,
+.metric-insight-tile {
+  animation: metrics-card-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  position: relative;
+}
+
+.metrics-glass-panel {
+  overflow: hidden;
+}
+
+.metrics-glass-panel::before,
+.metric-hero-card::before {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.13), transparent 34%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03), transparent 42%);
+  content: "";
+  inset: 0;
+  opacity: 0.46;
+  pointer-events: none;
+  position: absolute;
+}
+
+.metrics-panel-line {
+  background: linear-gradient(90deg, rgba(118, 228, 164, 0.72), rgba(121, 183, 255, 0.52), transparent);
+  height: 1px;
+  inset: 0 18% auto 0;
+  opacity: 0.46;
+  position: absolute;
+}
+
+.metric-card-sheen {
+  animation: metrics-sheen 3600ms ease-in-out infinite;
+  background: linear-gradient(110deg, transparent, rgba(255, 255, 255, 0.13), transparent);
+  height: 140%;
+  left: -80%;
+  pointer-events: none;
+  position: absolute;
+  top: -20%;
+  transform: rotate(10deg);
+  width: 55%;
+}
+
+.metric-hero-card {
+  transition:
+    border-color 220ms ease,
+    box-shadow 260ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.metric-hero-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 28px 70px rgba(0, 0, 0, 0.34),
+    0 0 32px rgba(118, 228, 164, 0.08);
+  transform: translateY(-2px);
+}
+
+.metric-orbit-dot,
+.radar-node,
+.activity-point-halo {
+  animation: metrics-pulse 1800ms ease-in-out infinite;
+}
+
+.metric-spark-path {
+  animation: metric-path-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  stroke-dasharray: 180;
+  stroke-dashoffset: 180;
+}
+
+.metric-fill {
+  animation: metric-fill-in 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: left;
+}
+
+.completion-gauge {
+  animation: metrics-float 5200ms ease-in-out infinite;
+}
+
+.radar-polygon {
+  animation: radar-settle 860ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: center;
+}
+
+.radar-metric-row,
+.room-signal-row,
+.funnel-row,
+.activity-column {
+  animation: flow-slide-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.room-spectrum-rail {
+  box-shadow:
+    inset 0 0 28px rgba(255, 255, 255, 0.04),
+    0 22px 50px rgba(0, 0, 0, 0.28);
+}
+
+.room-spectrum-segment {
+  animation: spectrum-segment-in 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.16);
+  opacity: 0.86;
+}
+
+.room-spectrum-segment + .room-spectrum-segment {
+  margin-left: 4px;
+}
+
+.room-spectrum-core {
+  animation: metrics-float 6200ms ease-in-out infinite;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(118, 228, 164, 0.18), transparent 42%),
+    #0c1119;
+  box-shadow:
+    inset 0 0 38px rgba(118, 228, 164, 0.06),
+    0 0 34px rgba(118, 228, 164, 0.08);
+}
+
+.activity-chart-shell {
+  position: relative;
+}
+
+.activity-grid {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 70px 44px;
+  inset: 0;
+  mask-image: linear-gradient(180deg, black, transparent 92%);
+  opacity: 0.54;
+  position: absolute;
+}
+
+.activity-area {
+  animation: activity-rise 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: bottom;
+}
+
+.activity-line,
+.activity-line-glow {
+  animation: metric-path-draw 980ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  stroke-dasharray: 900;
+  stroke-dashoffset: 900;
+}
+
+.activity-line-glow {
+  opacity: 0.16;
+}
+
+.activity-stack-segment {
+  animation: metric-fill-up 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: bottom;
+}
+
+@keyframes metrics-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes metrics-scan {
+  from {
+    transform: translateY(-28%);
+  }
+  to {
+    transform: translateY(28%);
+  }
+}
+
+@keyframes metrics-sheen {
+  0%,
+  42% {
+    opacity: 0;
+    transform: translateX(0) rotate(10deg);
+  }
+  56% {
+    opacity: 0.82;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(360%) rotate(10deg);
+  }
+}
+
+@keyframes metrics-pulse {
+  0%,
+  100% {
+    opacity: 0.68;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.28);
+  }
+}
+
+@keyframes metric-path-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes metric-fill-in {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes metric-fill-up {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes metrics-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes radar-settle {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes spectrum-segment-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.72);
+  }
+  to {
+    opacity: 0.86;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes activity-rise {
+  from {
+    opacity: 0;
+    transform: scaleY(0.72);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
 @keyframes role-intro-fade {
   from {
     opacity: 0;
@@ -1325,7 +1620,30 @@ button:disabled {
   .seat-token-active,
   .seat-token-shell,
   .voice-wave span,
-  .speech-stream-cursor {
+  .speech-stream-cursor,
+  .metrics-bg-scan,
+  .metrics-glass-panel,
+  .metric-hero-card,
+  .metric-mini-tile,
+  .metric-insight-tile,
+  .metric-card-sheen,
+  .metric-orbit-dot,
+  .radar-node,
+  .radar-polygon,
+  .radar-metric-row,
+  .room-signal-row,
+  .funnel-row,
+  .activity-column,
+  .activity-point-halo,
+  .activity-area,
+  .activity-line,
+  .activity-line-glow,
+  .activity-stack-segment,
+  .completion-gauge,
+  .room-spectrum-segment,
+  .room-spectrum-core,
+  .metric-spark-path,
+  .metric-fill {
     animation: none !important;
   }
 
@@ -1333,7 +1651,8 @@ button:disabled {
   .phase-step-dot,
   .phase-step-connector,
   .seat-token,
-  .seat-token-shell {
+  .seat-token-shell,
+  .metric-hero-card {
     transition-duration: 0.01ms !important;
   }
 }
