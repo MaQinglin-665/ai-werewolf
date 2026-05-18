@@ -92,7 +92,12 @@
 - 本地生产服务 `http://127.0.0.1:3014/alpha-playtest`：HTTP 200，HTML 包含 `试玩说明`、`/rooms`、`验收清单` 和 `smoke:alpha:vote`。
 - 本地生产服务 `http://127.0.0.1:3014/alpha-health`：HTTP 200，HTML 包含 `/alpha-playtest` 和 `Alpha 健康面板`。
 - Chrome headless 390px 宽度渲染检查：页面首屏可见标题、联机房间按钮、健康面板按钮、朋友链接、发送前确认和房主步骤。
-- 公网部署后验证待回填。
+- PR #13 已合并到 `codex/room-render-production-minimum`，merge commit `b1d4c97`。
+- Render free 环境部署后，`GET https://ai-werewolf-free.onrender.com/alpha-playtest`：HTTP 200，页面包含 `试玩说明`、`/rooms`、`验收清单` 和 `smoke:alpha:vote`。
+- `GET https://ai-werewolf-free.onrender.com/api/rooms/health`：`ok=true`、`deployment.target=single-node-online`、`deployment.productionMinimumReady=true`、`storage=postgres-room-store`、`realtime=postgres-notify`。
+- `$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run preflight:production`：通过，26 项检查全部 passed。
+- `$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run smoke:room-sse`：通过，房间码 `WXTMJ2`，覆盖创建、加入、开局和 SSE 更新。
+- `$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run smoke:alpha:vote`：通过，房间码 `L4132S` / `LFBS6U` / `1MN53C`，覆盖 room SSE、首个真人行动、发言和投票，`voteResolved=true`。
 
 ### 未解决风险
 
