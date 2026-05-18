@@ -92,6 +92,11 @@
 - 本地生产服务 `http://127.0.0.1:3015/alpha-report`：HTTP 200，HTML 包含 `反馈模板`、`房间码`、`复制反馈文本` 和 `不会上传到服务器`。
 - 本地生产服务 `http://127.0.0.1:3015/alpha-playtest`：HTTP 200，HTML 包含 `/alpha-report` 和 `试玩说明`。
 - Chrome headless 390px 宽度渲染检查：页面首屏可见标题、联机房间/试玩说明/健康面板按钮、说明卡片和反馈表单起始字段。
+- PR #15 已合并到 `codex/room-render-production-minimum`，merge commit `7a4938b`。
+- Render free 环境部署后，`GET https://ai-werewolf-free.onrender.com/alpha-report`：HTTP 200，页面包含 `反馈模板`、`复制反馈文本` 和 `不会上传到服务器`。
+- `GET https://ai-werewolf-free.onrender.com/alpha-playtest`：HTTP 200，页面包含 `/alpha-report` 和 `试玩说明`。
+- `GET https://ai-werewolf-free.onrender.com/api/rooms/health`：`ok=true`、`deployment.productionMinimumReady=true`、`realtime=postgres-notify`。
+- `$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run preflight:production`：通过，26 项检查全部 passed。
 
 ### 未解决风险
 
