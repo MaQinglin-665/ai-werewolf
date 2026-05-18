@@ -62,7 +62,9 @@ describe("game api routes", () => {
           mainGamesFinished: number;
           mainGamesStarted: number;
           recentDays: Array<{ homeViews: number; mainGamesFinished: number; mainGamesStarted: number }>;
+          siteCompletionRate: number | null;
           totalMainGameMinutes: number;
+          totalSiteGameMinutes: number;
         };
       };
 
@@ -71,7 +73,9 @@ describe("game api routes", () => {
         mainCompletionRate: 0,
         mainGamesFinished: 0,
         mainGamesStarted: 1,
+        siteCompletionRate: 0,
         totalMainGameMinutes: 0,
+        totalSiteGameMinutes: 0,
       });
       expect(metrics.history.recentDays).toHaveLength(1);
       expect(metrics.history.recentDays[metrics.history.recentDays.length - 1]).toMatchObject({

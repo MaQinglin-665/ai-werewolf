@@ -33,8 +33,6 @@ type FunnelStep = {
   value: number;
 };
 
-const MAX_FREE_ONLINE_TARGET = 10;
-
 export default async function AdminMetricsPage({ searchParams }: AdminMetricsPageProps) {
   const params = await searchParams;
   const tokenParam = params.token;
@@ -45,7 +43,10 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
   const metrics = await getRoomMetricsSnapshot();
   const siteGamesStarted = metrics.history.mainGamesStarted + metrics.history.gamesStarted;
   const siteGamesFinished = metrics.history.mainGamesFinished + metrics.history.gamesFinished;
-  const siteCompletionRate = siteGamesStarted > 0 ? Math.round((siteGamesFinished / siteGamesStarted) * 100) : null;
+  const siteCompletionRate = metrics.history.siteCompletionRate;
+  const mainPendingGames = Math.max(0, metrics.history.mainGamesStarted - metrics.history.mainGamesFinished);
+  const roomPendingGames = Math.max(0, metrics.history.gamesStarted - metrics.history.gamesFinished);
+  const sitePendingGames = Math.max(0, siteGamesStarted - siteGamesFinished);
   const primaryMetrics: PrimaryMetric[] = [
     {
       accent: "#76e4a4",
@@ -70,10 +71,10 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
     },
     {
       accent: "#f27e6f",
-      detail: `${metrics.current.onlineConnections} 条实时连接；不等于进行中房间数`,
-      label: "联机在线",
+      detail: `主界面 ${mainPendingGames} / 联机房间 ${roomPendingGames}；用于观察开局后流失`,
+      label: "待完成局",
       tone: "from-[#4a1d19] to-[#251817]",
-      value: metrics.current.onlinePlayers,
+      value: sitePendingGames,
     },
   ];
   const mainFunnelSteps: FunnelStep[] = [
@@ -87,8 +88,8 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
     { label: "开局", note: "Room Started", value: metrics.history.gamesStarted },
     { label: "完局", note: "Room Finished", value: metrics.history.gamesFinished },
   ];
-  const onlinePercent = Math.min(100, Math.round((metrics.current.onlinePlayers / MAX_FREE_ONLINE_TARGET) * 100));
   const roomStatusTotal = Math.max(1, metrics.current.rooms.total);
+  const activeRoomTotal = Math.max(1, metrics.current.rooms.activeInGame);
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#070a0f] text-[#edf3ea]">
@@ -110,7 +111,7 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               AI 狼人杀运营驾驶舱
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#aeb8ad]">
-              私有数据面板，统计主界面打开、主界面开局/完局、联机房间创建/加入/开局/完局和房间在线 presence；不记录 IP。
+              私有数据面板，统计主界面打开、主界面开局/完局、联机房间创建/加入/开局/完局、完局时长和开局后流失；不记录 IP。
             </p>
           </div>
 
@@ -122,12 +123,13 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               </div>
               <span className="inline-flex items-center gap-2 rounded-full border border-[#76e4a4]/25 bg-[#10271d] px-3 py-1 text-xs font-black text-[#a9f4bf]">
                 <span className="h-2 w-2 rounded-full bg-[#76e4a4] shadow-[0_0_18px_rgba(118,228,164,0.85)]" />
-                在线监测
+                运营快照
               </span>
             </div>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            <div className="mt-4 grid grid-cols-2 gap-2 text-center">
               <MiniHeaderStat label="大厅房间" value={metrics.current.rooms.lobby} />
               <MiniHeaderStat label="进行中房间" value={metrics.current.rooms.activeInGame} />
+              <MiniHeaderStat label="疑似流失" value={metrics.current.rooms.inactiveInGame} />
               <MiniHeaderStat label="待清理房间" value={metrics.current.rooms.finished} />
             </div>
           </div>
@@ -140,28 +142,32 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[380px_1fr]">
-          <GlassPanel title="实时在线容量" kicker="Room Presence">
+          <GlassPanel title="完成缺口" kicker="Completion Gap">
             <div className="grid gap-4 sm:grid-cols-[190px_1fr] xl:grid-cols-1">
-              <OnlineGauge percent={onlinePercent} value={metrics.current.onlinePlayers} />
+              <CompletionGauge percent={siteCompletionRate ?? 0} value={formatPercent(siteCompletionRate)} />
               <div className="space-y-3">
                 <ProgressRow
                   color="#76e4a4"
-                  label="在线玩家"
-                  max={MAX_FREE_ONLINE_TARGET}
-                  value={metrics.current.onlinePlayers}
-                />
-                <ProgressRow
-                  color="#79b7ff"
-                  label="实时连接"
-                  max={Math.max(MAX_FREE_ONLINE_TARGET, metrics.current.onlineConnections)}
-                  value={metrics.current.onlineConnections}
+                  label="全站开局"
+                  max={Math.max(1, siteGamesStarted)}
+                  value={siteGamesStarted}
                 />
                 <ProgressRow
                   color="#f2c56f"
-                  label="当前房间玩家"
-                  max={Math.max(1, metrics.history.totalPlayersEver, metrics.current.humanPlayers)}
-                  value={metrics.current.humanPlayers}
+                  label="全站完局"
+                  max={Math.max(1, siteGamesStarted)}
+                  value={siteGamesFinished}
                 />
+                <ProgressRow
+                  color="#f27e6f"
+                  label="待完成局"
+                  max={Math.max(1, siteGamesStarted)}
+                  value={sitePendingGames}
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <InsightTile label="全站累计时长" value={formatMinutes(metrics.history.totalSiteGameMinutes)} />
+                <InsightTile label="全站平均完局" value={formatMinutes(metrics.history.averageSiteGameMinutes)} />
               </div>
             </div>
           </GlassPanel>
@@ -175,23 +181,27 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
           <GlassPanel title="主界面单人模式" kicker="Main Experience">
             <Funnel steps={mainFunnelSteps} />
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <InsightTile label="累计游玩时长" value={formatMinutes(metrics.history.totalMainGameMinutes)} />
-              <InsightTile label="平均完局时长" value={formatMinutes(metrics.history.averageMainGameMinutes)} />
-              <InsightTile label="完局率" value={formatPercent(metrics.history.mainCompletionRate)} />
+              <InsightTile label="主界面累计时长" value={formatMinutes(metrics.history.totalMainGameMinutes)} />
+              <InsightTile label="主界面平均完局" value={formatMinutes(metrics.history.averageMainGameMinutes)} />
+              <InsightTile label="主界面完局率" value={formatPercent(metrics.history.mainCompletionRate)} />
             </div>
           </GlassPanel>
 
           <GlassPanel title="联机房间模式" kicker="Rooms Experience">
             <Funnel steps={roomFunnelSteps} />
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <InsightTile label="累计房间" value={metrics.history.totalRoomsEver} />
               <InsightTile label="累计联机玩家" value={metrics.history.totalPlayersEver} />
+              <InsightTile label="累计房间时长" value={formatMinutes(metrics.history.totalFinishedGameMinutes)} />
+              <InsightTile label="平均房间完局" value={formatMinutes(metrics.history.averageFinishedGameMinutes)} />
+              <InsightTile label="联机完局率" value={formatPercent(metrics.history.roomCompletionRate)} />
+              <InsightTile label="联机待完成" value={roomPendingGames} />
             </div>
           </GlassPanel>
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-          <GlassPanel title="房间状态分布" kicker="Current Rooms">
+          <GlassPanel title="房间状态和风险" kicker="Current Rooms">
             <div className="space-y-4">
               <RoomStatusBar
                 color="#76e4a4"
@@ -207,6 +217,12 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               />
               <RoomStatusBar
                 color="#f27e6f"
+                label="无人在线的进行中房间"
+                percent={Math.round((metrics.current.rooms.inactiveInGame / activeRoomTotal) * 100)}
+                value={metrics.current.rooms.inactiveInGame}
+              />
+              <RoomStatusBar
+                color="#8f9a90"
                 label="已结束待清理房间"
                 percent={Math.round((metrics.current.rooms.finished / roomStatusTotal) * 100)}
                 value={metrics.current.rooms.finished}
@@ -227,9 +243,12 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               <MetricDefinition label="主界面开局" text="用户在主界面点击新开一局并成功创建单人/纯 AI 对局。" />
               <MetricDefinition label="主界面完局" text="主界面对局产生胜负结果。" />
               <MetricDefinition label="主界面时长" text="从主界面开局到产生胜负结果之间的累计和平均用时。" />
+              <MetricDefinition label="联机房间时长" text="从联机房间开局到产生胜负结果之间的累计和平均用时。" />
+              <MetricDefinition label="全站累计时长" text="主界面完局时长 + 联机房间完局时长；未产生胜负的局不计入时长。" />
               <MetricDefinition label="全站开局" text="主界面单人/纯 AI 开局 + 联机房间开局。顶部总数用这个口径。" />
+              <MetricDefinition label="待完成局" text="已开局但尚未记录完局的局数，主要用于观察中途流失或等待房主继续推进。" />
               <MetricDefinition label="进行中房间" text="房间已经开局且尚未产生胜负；即使玩家离开，房间也会保留到清理时间。" />
-              <MetricDefinition label="联机在线" text="正在联机房间中保持 SSE/presence 连接的人；可能小于进行中房间数。" />
+              <MetricDefinition label="无人在线的进行中房间" text="已经开局、未完局、且当前没有任何 presence 连接的房间，比实时连接数更适合判断疑似流失。" />
             </div>
           </GlassPanel>
         </section>
@@ -277,7 +296,7 @@ function GlassPanel({ children, kicker, title }: { children: ReactNode; kicker: 
   );
 }
 
-function OnlineGauge({ percent, value }: { percent: number; value: number }) {
+function CompletionGauge({ percent, value }: { percent: number; value: string }) {
   return (
     <div className="mx-auto flex h-48 w-48 items-center justify-center rounded-full border border-white/10 bg-[#0c1119] p-4">
       <div
@@ -287,9 +306,9 @@ function OnlineGauge({ percent, value }: { percent: number; value: number }) {
         }}
       >
         <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-[#080c12] text-center">
-          <div className="text-5xl font-black leading-none tracking-normal text-white">{value}</div>
-          <div className="mt-2 text-xs font-black uppercase tracking-normal text-[#a9f4bf]">Online</div>
-          <div className="mt-1 text-xs text-[#7f8a7f]">目标 {MAX_FREE_ONLINE_TARGET} 人内</div>
+          <div className="text-4xl font-black leading-none tracking-normal text-white">{value}</div>
+          <div className="mt-2 text-xs font-black uppercase tracking-normal text-[#a9f4bf]">Finished</div>
+          <div className="mt-1 text-xs text-[#7f8a7f]">全站完局率</div>
         </div>
       </div>
     </div>
