@@ -139,3 +139,26 @@
 - 推到 GitHub 后在 Render 使用 `New Blueprint` 部署。
 - 首次部署成功后，用 Render 默认 `*.onrender.com` 跑 preflight 和 room SSE smoke。
 - 绑定自定义域名后，设置 `AI_WEREWOLF_PUBLIC_ORIGIN`，重新跑同一组 smoke。
+
+### 2026-05-18 公网部署验证
+
+#### 完成内容
+
+- 合并 `/alpha-health` 健康面板到 `codex/room-render-production-minimum`。
+- Render free Blueprint 自动部署最新提交 `8065835` 到 `https://ai-werewolf-free.onrender.com`。
+- 修正 `scripts/alpha-smoke.mjs`，让 Alpha 聚合 smoke 接受生产最小闭环下的 `postgres-notify` realtime 模式，同时保留本地 `sse-in-process` 路径。
+
+#### 验证结果
+
+- `GET https://ai-werewolf-free.onrender.com/alpha-health`：HTTP 200，页面包含 `Alpha 健康面板` 和 `下一条验证命令`。
+- `GET https://ai-werewolf-free.onrender.com/api/rooms/health`：`ok=true`、`deployment.target=single-node-online`、`deployment.productionMinimumReady=true`、`storage=postgres-room-store/postgres`、`realtime=postgres-notify`、`presence=postgres shared=true`、`rateLimit=postgres shared=true`。
+- `$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run preflight:production`：通过，26 项检查全部 passed。
+- `$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run smoke:room-sse`：通过，房间码 `49HF4Z`，覆盖创建、加入、开局和 SSE 更新。
+- `node --check scripts/alpha-smoke.mjs`：通过。
+- `$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run smoke:alpha`：通过，房间码 `MG73RV` / `SMY34D`，覆盖 room SSE 和首个真人行动；投票链路仍按默认跳过。
+- `$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run smoke:alpha:vote`：通过，房间码 `AXFQNL` / `IZNF6Q` / `8W1HQU`，覆盖 room SSE、首个真人行动、发言和投票，`voteResolved=true`。
+
+#### 未解决风险
+
+- Free Render 资源仍可能休眠，首次访问会出现冷启动等待页。
+- 自动 smoke 已覆盖一次夜晚行动和一次投票；还没有完成真实双设备人工体验验证。
