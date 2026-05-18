@@ -34,6 +34,9 @@ export default async function AlphaPlaytestPage() {
             <Link className="rounded-md border border-white/15 px-3 py-2 text-sm font-bold text-zinc-100 hover:bg-white/10" href="/alpha-health">
               健康面板
             </Link>
+            <Link className="rounded-md border border-white/15 px-3 py-2 text-sm font-bold text-zinc-100 hover:bg-white/10" href="/alpha-report">
+              反馈模板
+            </Link>
           </div>
         </header>
 
@@ -123,6 +126,9 @@ export default async function AlphaPlaytestPage() {
               <p className="mt-3 text-zinc-400">如果能复现，再补一句“从创建房间开始的最短复现步骤”。</p>
             </div>
             <div className="mt-3 grid gap-2">
+              <Link className="rounded-md border border-emerald-300/25 bg-emerald-500/10 px-3 py-2 text-center text-sm font-black text-emerald-100 hover:bg-emerald-500/20" href="/alpha-report">
+                打开反馈模板
+              </Link>
               <InfoRow label="健康面板" value={healthUrl} />
               <InfoRow label="preflight" value={preflightCommand} />
               <InfoRow label="投票 smoke" value={voteSmokeCommand} />
