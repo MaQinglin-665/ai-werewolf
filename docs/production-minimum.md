@@ -190,7 +190,15 @@ Set `PORT=3004` if your host does not inject a port automatically.
 
 ## Verify
 
-Check health:
+Open the browser health panel first:
+
+```text
+https://werewolf.example.com/alpha-health
+```
+
+The page summarizes deployment mode, storage, realtime, presence, rate limiting, room counts, warnings, and the next smoke command for the detected public origin.
+
+For raw JSON health:
 
 ```bash
 curl https://werewolf.example.com/api/rooms/health
@@ -235,7 +243,7 @@ For this production minimum loop, the important fields are:
 - `deployment.requirements.sharedRateLimit: true`
 - `deployment.requirements.httpsPublicOrigin: true`
 
-Then run the room smoke script against the fixed domain:
+These fields are visible in `/alpha-health` and in the raw `/api/rooms/health` JSON. Then run the room smoke script against the fixed domain:
 
 ```powershell
 $env:ROOM_SMOKE_BASE_URL="https://werewolf.example.com"; npm run smoke:online
