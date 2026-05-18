@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRoomSessionsForTests, reloadRoomSessionsFromStorageForTests } from "@/server/roomService";
 import { clearRoomAnalyticsForTests } from "@/server/roomAnalytics";
 import { clearRoomRateLimitsForTests } from "@/server/roomRateLimit";
@@ -215,6 +215,8 @@ describe("room api routes", () => {
   it("records private room usage metrics behind an owner token", async () => {
     const previousMetricsToken = process.env.AI_WEREWOLF_METRICS_TOKEN;
     process.env.AI_WEREWOLF_METRICS_TOKEN = "test-owner-token";
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-18T00:00:00.000Z"));
 
     try {
       const createResponse = await createRoom(
@@ -243,6 +245,7 @@ describe("room api routes", () => {
         { params: Promise.resolve({ roomId: created.room.id }) },
       );
       expect(startResponse.status).toBe(200);
+      vi.setSystemTime(new Date("2026-05-18T00:02:30.000Z"));
 
       const blockedResponse = await getRoomMetrics(new Request("http://localhost/api/rooms/metrics"));
       expect(blockedResponse.status).toBe(404);
@@ -256,6 +259,7 @@ describe("room api routes", () => {
           rooms: { activeInGame: number; inactiveInGame: number; lobby: number; total: number };
         };
         history: {
+          activeRoomGameMinutes: number;
           adapter: string;
           gamesStarted: number;
           roomCompletionRate: number | null;
@@ -263,6 +267,7 @@ describe("room api routes", () => {
           siteCompletionRate: number | null;
           totalFinishedGameMinutes: number;
           totalPlayersEver: number;
+          totalRoomGameMinutes: number;
           totalRoomsEver: number;
           totalSiteGameMinutes: number;
         };
@@ -279,14 +284,16 @@ describe("room api routes", () => {
         },
       });
       expect(metrics.history).toMatchObject({
+        activeRoomGameMinutes: 2.5,
         adapter: "in-process",
         gamesStarted: 1,
         roomCompletionRate: 0,
         siteCompletionRate: 0,
         totalFinishedGameMinutes: 0,
         totalPlayersEver: 2,
+        totalRoomGameMinutes: 2.5,
         totalRoomsEver: 1,
-        totalSiteGameMinutes: 0,
+        totalSiteGameMinutes: 2.5,
       });
       expect(metrics.history.recentDays[metrics.history.recentDays.length - 1]).toMatchObject({
         gamesStarted: 1,
@@ -299,6 +306,7 @@ describe("room api routes", () => {
       } else {
         process.env.AI_WEREWOLF_METRICS_TOKEN = previousMetricsToken;
       }
+      vi.useRealTimers();
     }
   });
 

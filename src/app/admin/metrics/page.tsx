@@ -192,7 +192,7 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <InsightTile label="累计房间" value={metrics.history.totalRoomsEver} />
               <InsightTile label="累计联机玩家" value={metrics.history.totalPlayersEver} />
-              <InsightTile label="累计房间时长" value={formatMinutes(metrics.history.totalFinishedGameMinutes)} />
+              <InsightTile label="累计房间时长" value={formatMinutes(metrics.history.totalRoomGameMinutes)} />
               <InsightTile label="平均房间完局" value={formatMinutes(metrics.history.averageFinishedGameMinutes)} />
               <InsightTile label="联机完局率" value={formatPercent(metrics.history.roomCompletionRate)} />
               <InsightTile label="联机待完成" value={roomPendingGames} />
@@ -243,8 +243,8 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               <MetricDefinition label="主界面开局" text="用户在主界面点击新开一局并成功创建单人/纯 AI 对局。" />
               <MetricDefinition label="主界面完局" text="主界面对局产生胜负结果。" />
               <MetricDefinition label="主界面时长" text="从主界面开局到产生胜负结果之间的累计和平均用时。" />
-              <MetricDefinition label="联机房间时长" text="从联机房间开局到产生胜负结果之间的累计和平均用时。" />
-              <MetricDefinition label="全站累计时长" text="主界面完局时长 + 联机房间完局时长；未产生胜负的局不计入时长。" />
+              <MetricDefinition label="联机房间时长" text="累计值包含已完局房间时长和当前进行中房间截至本次快照的运行时长；平均值只统计已完局房间。" />
+              <MetricDefinition label="全站累计时长" text="主界面完局时长 + 联机累计房间时长；联机进行中房间会计入截至本次快照的运行时长。" />
               <MetricDefinition label="全站开局" text="主界面单人/纯 AI 开局 + 联机房间开局。顶部总数用这个口径。" />
               <MetricDefinition label="待完成局" text="已开局但尚未记录完局的局数，主要用于观察中途流失或等待房主继续推进。" />
               <MetricDefinition label="进行中房间" text="房间已经开局且尚未产生胜负；即使玩家离开，房间也会保留到清理时间。" />

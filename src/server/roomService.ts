@@ -1582,8 +1582,10 @@ export async function getRoomMetricsSnapshot(): Promise<RoomMetricsSnapshot> {
   const rooms = await roomStore.all();
   const currentUniquePlayerIds = new Set<string>();
   const onlinePlayerIds = new Set<string>();
+  const checkedAt = new Date();
   let inactiveInGameRooms = 0;
   let onlineConnections = 0;
+  let activeRoomGameSeconds = 0;
   for (const room of rooms) {
     for (const player of room.players) {
       currentUniquePlayerIds.add(player.playerId);
@@ -1599,11 +1601,16 @@ export async function getRoomMetricsSnapshot(): Promise<RoomMetricsSnapshot> {
     if (room.status === "in_game" && !room.gameState?.result && roomOnlinePlayers === 0) {
       inactiveInGameRooms += 1;
     }
+    if (room.status === "in_game" && !room.gameState?.result) {
+      activeRoomGameSeconds += getRoomElapsedSeconds(room, checkedAt);
+    }
   }
 
   const history = await getRoomAnalyticsHistorySnapshot();
+  const activeRoomGameMinutes = roundOneDecimal(activeRoomGameSeconds / 60);
+  const totalRoomGameMinutes = roundOneDecimal(history.totalFinishedGameMinutes + activeRoomGameMinutes);
   return {
-    checkedAt: new Date().toISOString(),
+    checkedAt: checkedAt.toISOString(),
     current: {
       humanPlayers: currentUniquePlayerIds.size,
       onlineConnections,
@@ -1618,10 +1625,23 @@ export async function getRoomMetricsSnapshot(): Promise<RoomMetricsSnapshot> {
     },
     history: {
       ...history,
+      activeRoomGameMinutes,
       totalPlayersEver: Math.max(history.totalPlayersEver, currentUniquePlayerIds.size),
+      totalRoomGameMinutes,
       totalRoomsEver: Math.max(history.totalRoomsEver, rooms.length),
+      totalSiteGameMinutes: roundOneDecimal(history.totalMainGameMinutes + totalRoomGameMinutes),
     },
   };
+}
+
+function getRoomElapsedSeconds(room: RoomRecord, now: Date): number {
+  const startedAtMs = Date.parse(room.gameState?.createdAt ?? room.updatedAt);
+  if (!Number.isFinite(startedAtMs)) return 0;
+  return Math.max(0, (now.getTime() - startedAtMs) / 1000);
+}
+
+function roundOneDecimal(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 function readRoomDeploymentTarget(): RoomDeploymentTarget {

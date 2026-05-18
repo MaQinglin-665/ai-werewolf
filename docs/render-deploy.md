@@ -67,7 +67,7 @@ The metrics track public-test usage:
 - cumulative and average main-interface game duration;
 - cumulative rooms and players from room create/join events;
 - room started and finished games;
-- cumulative and average room finished-game duration;
+- cumulative room duration including currently in-progress rooms, plus average room finished-game duration;
 - sitewide completion rate, pending started games, and in-game rooms with no active presence connection.
 
 They do not track raw IP addresses, browser fingerprints, or model/API keys.
