@@ -19,7 +19,7 @@ The service starts with `npm run start:production`, which also initializes the c
 2. In Render, create a new Blueprint from the repo.
 3. Confirm the service and database from `render.yaml`.
 4. Deploy.
-5. Open the service URL and check `/api/rooms/health`.
+5. Open the service URL and check `/alpha-health`.
 
 Render Blueprint fields used here are the standard Docker web service fields, `healthCheckPath`, and `fromDatabase` environment references.
 
@@ -73,6 +73,14 @@ They do not track raw IP addresses, browser fingerprints, or model/API keys.
 
 ## After First Deploy
 
+First open:
+
+```text
+https://your-service.onrender.com/alpha-health
+```
+
+The page should show whether the deployment is still local/single-node, online single-node, or production-minimum ready. It also prints the next smoke command for the detected origin.
+
 From your local machine:
 
 ```powershell
@@ -91,7 +99,8 @@ If you bind a custom domain:
 1. Add the custom domain in Render.
 2. Set `AI_WEREWOLF_PUBLIC_ORIGIN` in the web service env to the custom HTTPS origin.
 3. Redeploy.
-4. Rerun `preflight:production` and `smoke:room-sse` against the custom domain.
+4. Open `https://your-domain.example/alpha-health`.
+5. Rerun `preflight:production` and `smoke:room-sse` against the custom domain.
 
 ## Current Limits
 

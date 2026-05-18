@@ -8,6 +8,7 @@
 
 - `architecture.md`：当前架构、核心边界和长期拆分方向。
 - `roadmap.md`：近期优先级和阶段目标。
+- `/alpha-health`：部署后优先打开的只读健康面板，用来确认 Alpha/生产最小闭环状态和下一条 smoke 命令。
 - `working-agreements.md`：多线程协作规则。
 - `threads/`：不同协作线程的责任范围。
 - `tasks/`：具体任务说明和任务模板。
