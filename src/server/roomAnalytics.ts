@@ -30,6 +30,7 @@ export type RoomAnalyticsDayBucket = {
 };
 
 export type RoomAnalyticsHistorySnapshot = {
+  activeRoomGameMinutes: number;
   adapter: "in-process" | "postgres";
   averageFinishedGameMinutes: number | null;
   averageMainGameMinutes: number | null;
@@ -45,6 +46,7 @@ export type RoomAnalyticsHistorySnapshot = {
   siteCompletionRate: number | null;
   totalFinishedGameMinutes: number;
   totalMainGameMinutes: number;
+  totalRoomGameMinutes: number;
   totalSiteGameMinutes: number;
   totalPlayersEver: number;
   totalRoomsEver: number;
@@ -216,6 +218,7 @@ async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsH
   const siteGamesFinished = mainGamesFinished + gamesFinished;
   const totalSiteSeconds = totalMainSeconds + totalFinishedSeconds;
   return {
+    activeRoomGameMinutes: 0,
     adapter: "postgres",
     averageFinishedGameMinutes: typeof averageSeconds === "number" ? roundOneDecimal(averageSeconds / 60) : null,
     averageMainGameMinutes: typeof averageMainSeconds === "number" ? roundOneDecimal(averageMainSeconds / 60) : null,
@@ -231,6 +234,7 @@ async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsH
     siteCompletionRate: siteGamesStarted > 0 ? Math.round((siteGamesFinished / siteGamesStarted) * 100) : null,
     totalFinishedGameMinutes: roundOneDecimal(totalFinishedSeconds / 60),
     totalMainGameMinutes: roundOneDecimal(totalMainSeconds / 60),
+    totalRoomGameMinutes: roundOneDecimal(totalFinishedSeconds / 60),
     totalSiteGameMinutes: roundOneDecimal(totalSiteSeconds / 60),
     totalPlayersEver: totalRow?.total_players_ever ?? 0,
     totalRoomsEver: totalRow?.total_rooms_ever ?? 0,
@@ -301,6 +305,7 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
   const totalSiteDurationSeconds = totalMainDurationSeconds + totalFinishedDurationSeconds;
 
   return {
+    activeRoomGameMinutes: 0,
     adapter: "in-process",
     averageFinishedGameMinutes:
       finishedDurationsSeconds.length > 0
@@ -332,6 +337,7 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
     siteCompletionRate: siteGamesStarted > 0 ? Math.round((siteGamesFinished / siteGamesStarted) * 100) : null,
     totalFinishedGameMinutes: roundOneDecimal(totalFinishedDurationSeconds / 60),
     totalMainGameMinutes: roundOneDecimal(totalMainDurationSeconds / 60),
+    totalRoomGameMinutes: roundOneDecimal(totalFinishedDurationSeconds / 60),
     totalSiteGameMinutes: roundOneDecimal(totalSiteDurationSeconds / 60),
     totalPlayersEver: playerIds.size,
     totalRoomsEver: roomIds.size,
