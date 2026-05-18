@@ -14,7 +14,7 @@ try {
   const initialHealth = await readHealth();
   assert(initialHealth.ok === true, "Room health endpoint did not report ok=true.");
   assert(initialHealth.storage?.enabled === true, "Room persistence is not enabled.");
-  assert(initialHealth.realtime?.mode === "sse-in-process", `Unexpected realtime mode: ${initialHealth.realtime?.mode}`);
+  assert(isSupportedAlphaRealtime(initialHealth), `Unexpected realtime mode: ${initialHealth.realtime?.mode}`);
   assert(
     initialHealth.deployment?.target === "single-node" || initialHealth.deployment?.target === "single-node-online",
     `Unexpected deployment target: ${initialHealth.deployment?.target}`,
@@ -114,6 +114,11 @@ function parseArgs(rawArgs) {
     }
   }
   return parsed;
+}
+
+function isSupportedAlphaRealtime(health) {
+  if (health.realtime?.mode === "sse-in-process") return true;
+  return health.deployment?.productionMinimumReady === true && health.realtime?.mode === "postgres-notify";
 }
 
 function assert(condition, message) {
