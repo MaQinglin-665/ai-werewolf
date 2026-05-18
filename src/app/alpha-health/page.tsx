@@ -51,6 +51,9 @@ export default async function AlphaHealthPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link className="rounded-md border border-emerald-300/30 bg-emerald-500/10 px-3 py-2 text-sm font-black text-emerald-100 hover:bg-emerald-500/20" href="/alpha-playtest">
+              试玩说明
+            </Link>
             <Link className="rounded-md border border-white/15 px-3 py-2 text-sm font-bold text-zinc-100 hover:bg-white/10" href="/rooms">
               联机房间
             </Link>
