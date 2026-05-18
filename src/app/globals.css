@@ -803,10 +803,16 @@ button:disabled {
   transform: translateY(-2px);
 }
 
-.metric-orbit-dot,
-.radar-node,
-.activity-point-halo {
+.metric-orbit-dot {
   animation: metrics-pulse 1800ms ease-in-out infinite;
+}
+
+.radar-node {
+  opacity: 0.95;
+}
+
+.activity-point-halo {
+  opacity: 0.68;
 }
 
 .metric-spark-path {
