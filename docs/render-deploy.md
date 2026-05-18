@@ -90,6 +90,14 @@ https://your-service.onrender.com/alpha-playtest
 
 Use this page when sending the Alpha to friends. It links to `/rooms`, explains the first-room flow, lists the real-player checklist, and calls out the current free-Render and Alpha limitations.
 
+If a player hits a problem, send them the local-only feedback template page:
+
+```text
+https://your-service.onrender.com/alpha-report
+```
+
+It generates copyable text in the browser and does not submit data to the server.
+
 From your local machine:
 
 ```powershell

@@ -6,6 +6,7 @@
 
 - 公开服务：https://ai-werewolf-free.onrender.com
 - 试玩说明：https://ai-werewolf-free.onrender.com/alpha-playtest
+- 反馈模板：https://ai-werewolf-free.onrender.com/alpha-report
 - 联机房间：https://ai-werewolf-free.onrender.com/rooms
 - 健康面板：https://ai-werewolf-free.onrender.com/alpha-health
 
@@ -57,6 +58,8 @@ https://ai-werewolf-free.onrender.com/rooms
 - 建议先小房间、少量玩家测试，不要公开扩散链接。
 
 ## 反馈模板
+
+玩家也可以直接打开 `/alpha-report`，填写后复制反馈文本。
 
 记录问题时优先包含：
 
