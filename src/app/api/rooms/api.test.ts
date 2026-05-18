@@ -246,6 +246,8 @@ describe("room api routes", () => {
       );
       expect(startResponse.status).toBe(200);
       vi.setSystemTime(new Date("2026-05-18T00:02:30.000Z"));
+      await readRoomView(created.room.id, created.playerId!);
+      vi.setSystemTime(new Date("2026-05-18T00:30:00.000Z"));
 
       const blockedResponse = await getRoomMetrics(new Request("http://localhost/api/rooms/metrics"));
       expect(blockedResponse.status).toBe(404);

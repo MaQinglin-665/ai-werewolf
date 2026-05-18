@@ -1602,7 +1602,7 @@ export async function getRoomMetricsSnapshot(): Promise<RoomMetricsSnapshot> {
       inactiveInGameRooms += 1;
     }
     if (room.status === "in_game" && !room.gameState?.result) {
-      activeRoomGameSeconds += getRoomElapsedSeconds(room, checkedAt);
+      activeRoomGameSeconds += getRoomObservedElapsedSeconds(room, presence, roomOnlinePlayers > 0, checkedAt);
     }
   }
 
@@ -1634,10 +1634,33 @@ export async function getRoomMetricsSnapshot(): Promise<RoomMetricsSnapshot> {
   };
 }
 
-function getRoomElapsedSeconds(room: RoomRecord, now: Date): number {
+function getRoomObservedElapsedSeconds(
+  room: RoomRecord,
+  presence: Map<string, RoomPlayerPresence>,
+  hasOnlinePlayers: boolean,
+  now: Date,
+): number {
   const startedAtMs = Date.parse(room.gameState?.createdAt ?? room.updatedAt);
   if (!Number.isFinite(startedAtMs)) return 0;
-  return Math.max(0, (now.getTime() - startedAtMs) / 1000);
+  const endAtMs = hasOnlinePlayers ? now.getTime() : getLastObservedRoomActivityMs(room, presence, startedAtMs);
+  return Math.max(0, (endAtMs - startedAtMs) / 1000);
+}
+
+function getLastObservedRoomActivityMs(
+  room: RoomRecord,
+  presence: Map<string, RoomPlayerPresence>,
+  fallbackMs: number,
+): number {
+  const updatedAtMs = Date.parse(room.updatedAt);
+  let latestMs = Number.isFinite(updatedAtMs) ? updatedAtMs : fallbackMs;
+  for (const value of presence.values()) {
+    if (!value.lastSeenAt) continue;
+    const lastSeenAtMs = Date.parse(value.lastSeenAt);
+    if (Number.isFinite(lastSeenAtMs)) {
+      latestMs = Math.max(latestMs, lastSeenAtMs);
+    }
+  }
+  return latestMs;
 }
 
 function roundOneDecimal(value: number): number {
