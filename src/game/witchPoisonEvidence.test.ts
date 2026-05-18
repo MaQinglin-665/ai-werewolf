@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { createMockCommand } from "@/ai/mockAgent";
-import type { ActionTarget, AgentView, AiTableRead, ClaimBoardItem, SeatRead, StanceBoardItem, TableMemory } from "./types";
+import type {
+  ActionTarget,
+  AgentView,
+  AiTableRead,
+  ClaimBoardItem,
+  PublicReasoningCue,
+  SeatRead,
+  StanceBoardItem,
+  TableMemory,
+} from "./types";
 
 describe("mock AI witch poison evidence", () => {
   it("skips poison when a target only has generic public pressure", () => {
@@ -34,6 +43,7 @@ describe("mock AI witch poison evidence", () => {
       trust: 55,
       pressure: ["seer counterclaim", "vote pressure"],
       publicClaims: [targetClaim],
+      publicStancedBy: [stance(4, 2, "PRESSURE"), stance(5, 2, "QUESTION")],
       votesReceived: 3,
     });
 
@@ -114,6 +124,96 @@ describe("mock AI witch poison evidence", () => {
       type: "witchAction",
       mode: "poison",
       targetSeatId: 2,
+    });
+  });
+
+  it("allows poison from a strong public reasoning loop and explains the evidence", () => {
+    const target = { seatId: 2, name: "Target" };
+    const command = createMockCommand(
+      witchView(),
+      tableRead(
+        [
+          seatRead({
+            suspicion: 94,
+            trust: 42,
+            pressure: ["站边和票型没有闭环"],
+            publicStancedBy: [stance(4, 2, "PRESSURE"), stance(5, 2, "QUESTION")],
+          }),
+        ],
+        {
+          reasoningCues: [
+            reasoningCue(target, "vote", "strong", "站边和上一轮票型断开", ["先质疑预言家又跟票同一边"]),
+          ],
+        },
+      ),
+    );
+
+    expect(command).toMatchObject({
+      type: "witchAction",
+      mode: "poison",
+      targetSeatId: 2,
+    });
+    expect(command.reason).toContain("站边和上一轮票型断开");
+    expect(command.reason).toContain("先质疑预言家又跟票同一边");
+  });
+
+  it("skips poison from a lone strong reasoning cue without corroboration", () => {
+    const target = { seatId: 2, name: "Target" };
+    const command = createMockCommand(
+      witchView(),
+      tableRead(
+        [
+          seatRead({
+            suspicion: 96,
+            trust: 42,
+            pressure: ["站边和票型没有闭环"],
+            publicStancedBy: [stance(4, 2, "PRESSURE")],
+          }),
+        ],
+        {
+          reasoningCues: [
+            reasoningCue(target, "vote", "strong", "站边和上一轮票型断开", ["先质疑预言家又跟票同一边"]),
+          ],
+        },
+      ),
+    );
+
+    expect(command).toMatchObject({
+      type: "witchAction",
+      mode: "skip",
+    });
+  });
+
+  it("does not let an untrusted black check become poisonable through public pressure", () => {
+    const fakeClaim = seerClaim({ seatId: 9, name: "Fake Seer" }, 20);
+    const target = { seatId: 2, name: "Target" };
+    const command = createMockCommand(
+      witchView(),
+      tableRead(
+        [
+          seatRead({
+            suspicion: 100,
+            trust: 42,
+            pressure: ["被Fake Seer公开报查杀", "站边和票型没有闭环"],
+            publicChecksAgainst: [{ claimant: fakeClaim.claimant, result: "WEREWOLF", day: 2 }],
+            publicStancedBy: [stance(4, 2, "QUESTION"), stance(5, 2, "PRESSURE"), stance(9, 2, "PRESSURE")],
+          }),
+        ],
+        {
+          claimBoard: [fakeClaim],
+          reasoningCues: [
+            reasoningCue(target, "speech_influence", "strong", "Target被多名后续发言者接住压力", [
+              "Seat 4后续继续施压Target",
+              "Fake Seer后续继续施压Target",
+            ]),
+          ],
+        },
+      ),
+    );
+
+    expect(command).toMatchObject({
+      type: "witchAction",
+      mode: "skip",
     });
   });
 });
@@ -224,6 +324,24 @@ function stance(actorSeatId: number, targetSeatId: number, kind: "QUESTION" | "P
     kind,
     kindLabel: kind === "QUESTION" ? "质疑" : "施压",
     summary: "public pressure",
+  };
+}
+
+function reasoningCue(
+  target: ActionTarget,
+  kind: PublicReasoningCue["kind"],
+  weight: PublicReasoningCue["weight"],
+  summary: string,
+  evidence: string[],
+): PublicReasoningCue {
+  return {
+    cueId: `${kind}:${target.seatId}`,
+    day: 2,
+    kind,
+    weight,
+    summary,
+    target,
+    evidence,
   };
 }
 

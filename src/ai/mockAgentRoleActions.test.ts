@@ -44,6 +44,8 @@ describe("mock AI role action diversity", () => {
       type: "seerCheck",
       targetSeatId: counterSeer.seatId,
     });
+    expect(command.reason).toContain("公开线索");
+    expect(command.reason).toContain("可复盘公开线索");
   });
 
   it("lets guard protection favor a trusted power claim over a generic good seat", () => {

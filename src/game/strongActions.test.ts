@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMockCommand } from "@/ai/mockAgent";
-import type { ActionTarget, AgentView, AiTableRead, ClaimBoardItem, SeatRead } from "./types";
+import type { ActionTarget, AgentView, AiTableRead, ClaimBoardItem, PublicReasoningCue, SeatRead } from "./types";
 
 describe("mock AI strong actions", () => {
   it("skips a hunter shot when suspicion only comes from personal or vote noise", () => {
@@ -35,6 +35,28 @@ describe("mock AI strong actions", () => {
       type: "hunterShoot",
       targetSeatId: 2,
     });
+  });
+
+  it("allows a hunter shot from a strong public reasoning cue and explains the evidence", () => {
+    const target = { seatId: 2, name: "Target" };
+    const tableRead = tableReadWithTarget({
+      suspicion: 92,
+      trust: 42,
+      pressure: ["站边和票型没有闭环"],
+      publicStancedBy: [publicPressure({ seatId: 4, name: "Checker" }, target)],
+    });
+    tableRead.tableMemory.reasoningCues = [
+      reasoningCue(target, "vote", "strong", "站边和上一轮票型断开", ["先质疑预言家又跟票同一边"]),
+    ];
+
+    const command = createMockCommand(hunterView(), tableRead);
+
+    expect(command).toMatchObject({
+      type: "hunterShoot",
+      targetSeatId: 2,
+    });
+    expect(command.reason).toContain("站边和上一轮票型断开");
+    expect(command.reason).toContain("先质疑预言家又跟票同一边");
   });
 
   it("falls through to the best eligible hunter shot target when the top suspicion is only noise", () => {
@@ -206,6 +228,24 @@ function powerClaim(claimant: ActionTarget, claimedRole: ClaimBoardItem["claimed
     summary: `声称${claimedRole}`,
     lastUpdatedDay: 2,
     sourceSpeechSeq: 10,
+  };
+}
+
+function reasoningCue(
+  target: ActionTarget,
+  kind: PublicReasoningCue["kind"],
+  weight: PublicReasoningCue["weight"],
+  summary: string,
+  evidence: string[],
+): PublicReasoningCue {
+  return {
+    cueId: `${kind}:${target.seatId}`,
+    day: 2,
+    kind,
+    weight,
+    summary,
+    target,
+    evidence,
   };
 }
 
