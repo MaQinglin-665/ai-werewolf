@@ -157,6 +157,7 @@ export type RoomMetricsSnapshot = {
     rooms: {
       activeInGame: number;
       finished: number;
+      inactiveInGame: number;
       lobby: number;
       total: number;
     };
@@ -1581,16 +1582,22 @@ export async function getRoomMetricsSnapshot(): Promise<RoomMetricsSnapshot> {
   const rooms = await roomStore.all();
   const currentUniquePlayerIds = new Set<string>();
   const onlinePlayerIds = new Set<string>();
+  let inactiveInGameRooms = 0;
   let onlineConnections = 0;
   for (const room of rooms) {
     for (const player of room.players) {
       currentUniquePlayerIds.add(player.playerId);
     }
     const presence = await readRoomPresence(room);
+    let roomOnlinePlayers = 0;
     for (const [playerId, value] of presence) {
       if ((value.connections ?? 0) <= 0) continue;
       onlinePlayerIds.add(playerId);
+      roomOnlinePlayers += 1;
       onlineConnections += value.connections;
+    }
+    if (room.status === "in_game" && !room.gameState?.result && roomOnlinePlayers === 0) {
+      inactiveInGameRooms += 1;
     }
   }
 
@@ -1604,6 +1611,7 @@ export async function getRoomMetricsSnapshot(): Promise<RoomMetricsSnapshot> {
       rooms: {
         activeInGame: rooms.filter((room) => room.status === "in_game" && !room.gameState?.result).length,
         finished: rooms.filter((room) => Boolean(room.gameState?.result)).length,
+        inactiveInGame: inactiveInGameRooms,
         lobby: rooms.filter((room) => room.status === "lobby").length,
         total: rooms.length,
       },

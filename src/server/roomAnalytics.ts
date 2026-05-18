@@ -33,6 +33,7 @@ export type RoomAnalyticsHistorySnapshot = {
   adapter: "in-process" | "postgres";
   averageFinishedGameMinutes: number | null;
   averageMainGameMinutes: number | null;
+  averageSiteGameMinutes: number | null;
   gamesFinished: number;
   gamesStarted: number;
   homeViews: number;
@@ -40,7 +41,11 @@ export type RoomAnalyticsHistorySnapshot = {
   mainGamesFinished: number;
   mainGamesStarted: number;
   recentDays: RoomAnalyticsDayBucket[];
+  roomCompletionRate: number | null;
+  siteCompletionRate: number | null;
+  totalFinishedGameMinutes: number;
   totalMainGameMinutes: number;
+  totalSiteGameMinutes: number;
   totalPlayersEver: number;
   totalRoomsEver: number;
   trackedSince?: string;
@@ -133,7 +138,7 @@ async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsH
         from ${POSTGRES_ROOM_ANALYTICS_EVENTS_TABLE}
       `,
     ),
-    pool.query<{ average_seconds: number | null }>(
+    pool.query<{ average_seconds: number | null; total_seconds: number | null }>(
       `
         with started as (
           select room_id, min(occurred_at) as started_at
@@ -147,7 +152,9 @@ async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsH
           where event_type = 'room_finished'
           group by room_id
         )
-        select avg(extract(epoch from (finished.finished_at - started.started_at)))::float as average_seconds
+        select
+          avg(extract(epoch from (finished.finished_at - started.started_at)))::float as average_seconds,
+          coalesce(sum(extract(epoch from (finished.finished_at - started.started_at))), 0)::float as total_seconds
         from started
         join finished on finished.room_id = started.room_id
         where finished.finished_at >= started.started_at
@@ -197,23 +204,34 @@ async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsH
   ]);
   const totalRow = totals.rows[0];
   const averageSeconds = duration.rows[0]?.average_seconds;
+  const totalFinishedSeconds = duration.rows[0]?.total_seconds ?? 0;
   const averageMainSeconds = mainDuration.rows[0]?.average_seconds;
-  const totalMainSeconds = mainDuration.rows[0]?.total_seconds;
+  const totalMainSeconds = mainDuration.rows[0]?.total_seconds ?? 0;
   const trackedSinceValue = trackedSince.rows[0]?.tracked_since;
   const mainGamesStarted = totalRow?.main_games_started ?? 0;
   const mainGamesFinished = totalRow?.main_games_finished ?? 0;
+  const gamesStarted = totalRow?.games_started ?? 0;
+  const gamesFinished = totalRow?.games_finished ?? 0;
+  const siteGamesStarted = mainGamesStarted + gamesStarted;
+  const siteGamesFinished = mainGamesFinished + gamesFinished;
+  const totalSiteSeconds = totalMainSeconds + totalFinishedSeconds;
   return {
     adapter: "postgres",
     averageFinishedGameMinutes: typeof averageSeconds === "number" ? roundOneDecimal(averageSeconds / 60) : null,
     averageMainGameMinutes: typeof averageMainSeconds === "number" ? roundOneDecimal(averageMainSeconds / 60) : null,
-    gamesFinished: totalRow?.games_finished ?? 0,
-    gamesStarted: totalRow?.games_started ?? 0,
+    averageSiteGameMinutes: siteGamesFinished > 0 ? roundOneDecimal(totalSiteSeconds / siteGamesFinished / 60) : null,
+    gamesFinished,
+    gamesStarted,
     homeViews: totalRow?.home_views ?? 0,
     mainCompletionRate: mainGamesStarted > 0 ? Math.round((mainGamesFinished / mainGamesStarted) * 100) : null,
     mainGamesFinished,
     mainGamesStarted,
     recentDays: buildRecentDayBuckets(new Date(), days.rows, trackedSinceValue ?? undefined),
-    totalMainGameMinutes: typeof totalMainSeconds === "number" ? roundOneDecimal(totalMainSeconds / 60) : 0,
+    roomCompletionRate: gamesStarted > 0 ? Math.round((gamesFinished / gamesStarted) * 100) : null,
+    siteCompletionRate: siteGamesStarted > 0 ? Math.round((siteGamesFinished / siteGamesStarted) * 100) : null,
+    totalFinishedGameMinutes: roundOneDecimal(totalFinishedSeconds / 60),
+    totalMainGameMinutes: roundOneDecimal(totalMainSeconds / 60),
+    totalSiteGameMinutes: roundOneDecimal(totalSiteSeconds / 60),
     totalPlayersEver: totalRow?.total_players_ever ?? 0,
     totalRoomsEver: totalRow?.total_rooms_ever ?? 0,
     trackedSince: trackedSinceValue ? trackedSinceValue.toISOString() : undefined,
@@ -231,6 +249,7 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
   const mainStartedAtByGame = new Map<string, number>();
   const finishedDurationsSeconds: number[] = [];
   const mainDurationsSeconds: number[] = [];
+  let totalFinishedDurationSeconds = 0;
   let totalMainDurationSeconds = 0;
   let homeViews = 0;
   let trackedSinceMs: number | undefined;
@@ -270,10 +289,16 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
       finishedRoomIds.add(event.roomId);
       const startedAt = startedAtByRoom.get(event.roomId);
       if (startedAt !== undefined && Number.isFinite(occurredAtMs) && occurredAtMs >= startedAt) {
-        finishedDurationsSeconds.push((occurredAtMs - startedAt) / 1000);
+        const durationSeconds = (occurredAtMs - startedAt) / 1000;
+        finishedDurationsSeconds.push(durationSeconds);
+        totalFinishedDurationSeconds += durationSeconds;
       }
     }
   }
+
+  const siteGamesStarted = mainStartedGameIds.size + startedRoomIds.size;
+  const siteGamesFinished = mainFinishedGameIds.size + finishedRoomIds.size;
+  const totalSiteDurationSeconds = totalMainDurationSeconds + totalFinishedDurationSeconds;
 
   return {
     adapter: "in-process",
@@ -285,6 +310,7 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
       mainDurationsSeconds.length > 0
         ? roundOneDecimal(mainDurationsSeconds.reduce((sum, value) => sum + value, 0) / mainDurationsSeconds.length / 60)
         : null,
+    averageSiteGameMinutes: siteGamesFinished > 0 ? roundOneDecimal(totalSiteDurationSeconds / siteGamesFinished / 60) : null,
     gamesFinished: finishedRoomIds.size,
     gamesStarted: startedRoomIds.size,
     homeViews,
@@ -301,7 +327,12 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
       })),
       trackedSinceMs === undefined ? undefined : new Date(trackedSinceMs),
     ),
+    roomCompletionRate:
+      startedRoomIds.size > 0 ? Math.round((finishedRoomIds.size / startedRoomIds.size) * 100) : null,
+    siteCompletionRate: siteGamesStarted > 0 ? Math.round((siteGamesFinished / siteGamesStarted) * 100) : null,
+    totalFinishedGameMinutes: roundOneDecimal(totalFinishedDurationSeconds / 60),
     totalMainGameMinutes: roundOneDecimal(totalMainDurationSeconds / 60),
+    totalSiteGameMinutes: roundOneDecimal(totalSiteDurationSeconds / 60),
     totalPlayersEver: playerIds.size,
     totalRoomsEver: roomIds.size,
     trackedSince: trackedSinceMs === undefined ? undefined : new Date(trackedSinceMs).toISOString(),

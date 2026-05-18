@@ -253,14 +253,18 @@ describe("room api routes", () => {
         current: {
           humanPlayers: number;
           onlinePlayers: number;
-          rooms: { activeInGame: number; lobby: number; total: number };
+          rooms: { activeInGame: number; inactiveInGame: number; lobby: number; total: number };
         };
         history: {
           adapter: string;
           gamesStarted: number;
+          roomCompletionRate: number | null;
           recentDays: Array<{ gamesStarted: number; playersJoined: number; roomsCreated: number }>;
+          siteCompletionRate: number | null;
+          totalFinishedGameMinutes: number;
           totalPlayersEver: number;
           totalRoomsEver: number;
+          totalSiteGameMinutes: number;
         };
       };
 
@@ -269,6 +273,7 @@ describe("room api routes", () => {
         onlinePlayers: 0,
         rooms: {
           activeInGame: 1,
+          inactiveInGame: 1,
           lobby: 0,
           total: 1,
         },
@@ -276,8 +281,12 @@ describe("room api routes", () => {
       expect(metrics.history).toMatchObject({
         adapter: "in-process",
         gamesStarted: 1,
+        roomCompletionRate: 0,
+        siteCompletionRate: 0,
+        totalFinishedGameMinutes: 0,
         totalPlayersEver: 2,
         totalRoomsEver: 1,
+        totalSiteGameMinutes: 0,
       });
       expect(metrics.history.recentDays[metrics.history.recentDays.length - 1]).toMatchObject({
         gamesStarted: 1,
