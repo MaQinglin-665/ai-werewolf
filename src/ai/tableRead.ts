@@ -1768,6 +1768,10 @@ function goodPublicVoteEvidenceScore(view: AgentView, tableRead: AiTableRead, se
     score -= 75;
   }
 
+  if (isProtectedDeadSeerLegacyGoldTarget(tableRead, seat)) {
+    score -= 70;
+  }
+
   for (const legacy of view.publicSummary.tableMemory.seerLegacies) {
     const legacyCheck = legacy.checks.find((check) => check.target.seatId === seat.seatId);
     if (legacyCheck?.result === "WEREWOLF") score += 30;
@@ -2163,6 +2167,28 @@ function findDeadSeerLegacyBlackCheckAgainst(
   );
 }
 
+function findDeadSeerLegacyGoldCheckFor(
+  tableRead: AiTableRead,
+  target: SeatRead,
+): AiTableRead["tableMemory"]["seerLegacies"][number] | undefined {
+  return tableRead.tableMemory.seerLegacies.find((legacy) =>
+    legacy.checks.some((check) => check.target.seatId === target.seatId && check.result === "GOOD"),
+  );
+}
+
+function isProtectedDeadSeerLegacyGoldTarget(tableRead: AiTableRead, target: SeatRead): boolean {
+  const legacy = findDeadSeerLegacyGoldCheckFor(tableRead, target);
+  if (!legacy) return false;
+  if (findDeadSeerLegacyBlackCheckAgainst(tableRead, target)) return false;
+  if (findTrustedSeerCheckAgainst(tableRead, target)) return false;
+
+  return !tableRead.tableMemory.counterclaims.some(
+    (group) =>
+      group.claimedRole === "SEER" &&
+      group.claimants.some((claimant) => claimant.seatId === legacy.claimant.seatId),
+  );
+}
+
 function hasDeadSeerLegacyBlackCheckAgainst(
   tableMemory: AiTableRead["tableMemory"],
   targetSeatId: number,
@@ -2254,6 +2280,7 @@ function isProtectedGoodVoteTarget(view: AgentView, tableRead: AiTableRead, seat
   return Boolean(
     seat.isKnownGood ||
       findTrustedSeerGoldCheckAgainst(tableRead, seat) ||
+      isProtectedDeadSeerLegacyGoldTarget(tableRead, seat) ||
       chooseUnchallengedPowerClaim(view, seat.publicClaims, seat.publicChecksAgainst) ||
       isUnchallengedPowerBlackCheckedOnlyByCounterclaim(tableRead, seat) ||
       isDayOneSoftPowerHintProtectedTarget(tableRead, seat) ||
