@@ -9,6 +9,7 @@ This is the quickest hosted production-minimum path for public room testing.
 - one Docker web service named `ai-werewolf`;
 - one Render Postgres database named `ai-werewolf-room-db`;
 - PostgreSQL-backed room state, realtime fanout, presence, and rate limits;
+- PostgreSQL-backed main single-player snapshots, so mobile backgrounding is not coupled to Render container disk;
 - mock AI mode by default, so infrastructure smoke does not spend model quota.
 
 The service starts with `npm run start:production`, which also initializes the current SQLite Prisma tables used by the main single-player page. On Render, the app can use `RENDER_EXTERNAL_URL` as the public origin for the initial `*.onrender.com` URL. After you add a custom domain, set `AI_WEREWOLF_PUBLIC_ORIGIN` to that final HTTPS origin.
@@ -39,6 +40,7 @@ This creates:
 - a free Docker web service named `ai-werewolf-free`;
 - a free Render Postgres database named `ai-werewolf-room-db-free`;
 - the same PostgreSQL-backed room state, realtime fanout, presence, and rate limits;
+- the same PostgreSQL-backed main single-player snapshots;
 - a generated private metrics token for the admin-only stats page;
 - mock AI mode by default.
 
@@ -124,5 +126,5 @@ If you bind a custom domain:
 
 - Keep one web service instance for the first public test.
 - The room runtime is PostgreSQL-backed, but each browser SSE connection is still held by the Node process.
-- The default `DATABASE_URL=file:./prod.db` is only for the current SQLite Prisma datasource and is initialized by `npm run start:production`. Room state is stored in PostgreSQL through `AI_WEREWOLF_ROOM_DATABASE_URL`.
+- The default `DATABASE_URL=file:./prod.db` is only for the current SQLite Prisma datasource and is initialized by `npm run start:production`. Room state is stored in PostgreSQL through `AI_WEREWOLF_ROOM_DATABASE_URL`; main single-player snapshots are stored through `AI_WEREWOLF_MAIN_GAME_DATABASE_URL` when `AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER=postgres`.
 - Switch AI providers from mock only after the public infrastructure smoke is green.

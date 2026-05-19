@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as submitCommand } from "./[gameId]/commands/route";
 import { GET as getGame } from "./[gameId]/route";
 import { POST as submitVoiceInput } from "./[gameId]/voice-input/route";
@@ -10,6 +10,23 @@ import { GET as getRoomMetrics } from "../rooms/metrics/route";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
 
 describe("game api routes", () => {
+  const originalMainGameStoreAdapter = process.env.AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER;
+  const originalRoomDatabaseUrl = process.env.AI_WEREWOLF_ROOM_DATABASE_URL;
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    if (originalMainGameStoreAdapter === undefined) {
+      delete process.env.AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER;
+    } else {
+      process.env.AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER = originalMainGameStoreAdapter;
+    }
+    if (originalRoomDatabaseUrl === undefined) {
+      delete process.env.AI_WEREWOLF_ROOM_DATABASE_URL;
+    } else {
+      process.env.AI_WEREWOLF_ROOM_DATABASE_URL = originalRoomDatabaseUrl;
+    }
+  });
+
   beforeEach(async () => {
     await clearRoomAnalyticsForTests();
   });
@@ -148,6 +165,32 @@ describe("game api routes", () => {
     expect(response.status).toBe(200);
     expect(nextView.id).toBe(initialView.id);
     expect(nextView.publicEvents.length).toBeGreaterThanOrEqual(initialView.publicEvents.length);
+  });
+
+  it("surfaces a clear recovery message when the single-player server snapshot is missing", async () => {
+    const continueResponse = await submitCommand(
+      new Request("http://localhost/api/games/missing-game-continue/commands", {
+        method: "POST",
+        body: JSON.stringify({ type: "continue" }),
+      }),
+      { params: Promise.resolve({ gameId: "missing-game-continue" }) },
+    );
+    const continuePayload = (await continueResponse.json()) as { error?: string };
+
+    expect(continueResponse.status).toBe(404);
+    expect(continuePayload.error).toContain("当前服务端没有找到这局单机对局");
+
+    const speechResponse = await submitCommand(
+      new Request("http://localhost/api/games/missing-game-speech/commands", {
+        method: "POST",
+        body: JSON.stringify({ type: "sheriffSpeech", message: "我先按警上发言和站边给视角。" }),
+      }),
+      { params: Promise.resolve({ gameId: "missing-game-speech" }) },
+    );
+    const speechPayload = (await speechResponse.json()) as { error?: string };
+
+    expect(speechResponse.status).toBe(404);
+    expect(speechPayload.error).toContain("当前服务端没有找到这局单机对局");
   });
 
   it("rewrites voice transcript drafts without advancing the game", async () => {

@@ -8,6 +8,7 @@ import type { HumanCommandInput } from "@/game/commandSchemas";
 import { applyCommand, applySystemStep, createGame, getTurnRequirement } from "@/game/engine";
 import { buildPlayerView } from "@/game/projection";
 import type { AiFriendConfig, BoardSnapshot, GameState, HumanGameView, Phase, TurnRequirement } from "@/game/types";
+import { getMainGameStorageStatus } from "@/server/gameService";
 import { getRoomAnalyticsHistorySnapshot, recordRoomAnalyticsEvent } from "@/server/roomAnalytics";
 import { getRoomRateLimitStatus } from "@/server/roomRateLimit";
 import { Pool } from "pg";
@@ -1484,10 +1485,12 @@ export async function getRoomRuntimeStatus() {
   const subscriberCount = [...roomEvents.subscribers.values()].reduce((sum, subscribers) => sum + subscribers.size, 0);
   const deploymentTarget = readRoomDeploymentTarget();
   const publicOrigin = readRoomPublicOrigin();
+  const mainGameStorage = getMainGameStorageStatus();
   const deploymentRequirements = {
     atomicRoomWrites: roomStore.atomicWrites,
     basicRateLimit: rateLimit.enabled,
     httpsPublicOrigin: Boolean(publicOrigin?.startsWith("https://")),
+    mainGameDurableStore: mainGameStorage.durableAcrossInstanceRestart,
     persistentRoomStore: storageEnabled,
     postgresRoomState: storageMode === "postgres",
     sharedRateLimit: rateLimit.shared,
@@ -1506,6 +1509,7 @@ export async function getRoomRuntimeStatus() {
   const productionMinimumReady =
     onlineReady &&
     deploymentRequirements.basicRateLimit &&
+    deploymentRequirements.mainGameDurableStore &&
     deploymentRequirements.postgresRoomState &&
     deploymentRequirements.sharedRateLimit &&
     deploymentRequirements.sharedPresence &&
@@ -1536,6 +1540,7 @@ export async function getRoomRuntimeStatus() {
       path: storageEnabled ? storePath : undefined,
       envPathConfigured: Boolean(process.env.AI_WEREWOLF_ROOM_STORE_PATH || process.env.AI_WEREWOLF_ROOM_DATABASE_URL),
     },
+    mainGameStorage,
     realtime: {
       mode: realtimeStatus.mode,
       channel: realtimeStatus.channel,
@@ -1565,6 +1570,7 @@ export async function getRoomRuntimeStatus() {
           : ["房间 SSE 事件当前只在同一个 Node 进程内广播。"]),
         ...(storageMode !== "postgres" ? ["本地 JSON 持久化适合单进程 Alpha，不适合多实例或 Serverless 横向扩容。"] : []),
         ...(storageMode !== "postgres" ? ["生产化最小闭环需要 PostgreSQL 房间状态。"] : []),
+        ...(!mainGameStorage.durableAcrossInstanceRestart ? ["线上单机对局需要 PostgreSQL 存档，否则实例休眠或重启后旧局会丢失。"] : []),
         ...(!realtimeStatus.crossProcessFanout ? ["生产化最小闭环需要 PostgreSQL 房间实时通知。"] : []),
         ...(rateLimit.enabled && !rateLimit.shared
           ? ["基础限流当前仍在单进程内统计，横向扩容前需要换成共享限流。"]

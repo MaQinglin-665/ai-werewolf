@@ -18,6 +18,7 @@ describe("alpha health panel helpers", () => {
           atomicRoomWrites: true,
           basicRateLimit: true,
           httpsPublicOrigin: true,
+          mainGameDurableStore: true,
           persistentRoomStore: true,
           postgresRoomState: true,
           sharedPresence: true,
@@ -53,7 +54,7 @@ describe("alpha health panel helpers", () => {
     ]);
 
     const rows = buildRequirementRows(health);
-    expect(countPassedRequirements(rows)).toEqual({ passed: 10, total: 10 });
+    expect(countPassedRequirements(rows)).toEqual({ passed: 11, total: 11 });
   });
 
   it("keeps online single-node smoke separate from the production minimum", () => {

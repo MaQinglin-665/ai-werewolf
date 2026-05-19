@@ -5,6 +5,7 @@ const warnings = [];
 
 const origin = readEnv("AI_WEREWOLF_PUBLIC_ORIGIN") ?? readEnv("RENDER_EXTERNAL_URL");
 const roomDatabaseUrl = readEnv("AI_WEREWOLF_ROOM_DATABASE_URL");
+const mainGameDatabaseUrl = readEnv("AI_WEREWOLF_MAIN_GAME_DATABASE_URL") ?? roomDatabaseUrl;
 const presenceDatabaseUrl = readEnv("AI_WEREWOLF_ROOM_PRESENCE_DATABASE_URL") ?? roomDatabaseUrl;
 const rateLimitDatabaseUrl = readEnv("AI_WEREWOLF_ROOM_RATE_LIMIT_DATABASE_URL") ?? roomDatabaseUrl;
 
@@ -22,6 +23,11 @@ check(
   "AI_WEREWOLF_ROOM_STORE_ADAPTER",
   readEnv("AI_WEREWOLF_ROOM_STORE_ADAPTER") === "postgres",
   'Set AI_WEREWOLF_ROOM_STORE_ADAPTER="postgres".',
+);
+check(
+  "AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER",
+  readEnv("AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER") === "postgres",
+  'Set AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER="postgres" so single-player games survive instance restarts.',
 );
 check(
   "AI_WEREWOLF_ROOM_REALTIME_ADAPTER",
@@ -44,6 +50,7 @@ check(
   'Set AI_WEREWOLF_ROOM_RATE_LIMIT_ADAPTER="postgres".',
 );
 checkPostgresUrl("AI_WEREWOLF_ROOM_DATABASE_URL", roomDatabaseUrl);
+checkPostgresUrl("AI_WEREWOLF_MAIN_GAME_DATABASE_URL", mainGameDatabaseUrl);
 checkPostgresUrl("AI_WEREWOLF_ROOM_PRESENCE_DATABASE_URL", presenceDatabaseUrl);
 checkPostgresUrl("AI_WEREWOLF_ROOM_RATE_LIMIT_DATABASE_URL", rateLimitDatabaseUrl);
 checkSqlitePrismaUrl();

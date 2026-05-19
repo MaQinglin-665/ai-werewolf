@@ -24,6 +24,12 @@ export type AlphaHealthStatus = {
     warnings?: string[];
   };
   ok: boolean;
+  mainGameStorage?: {
+    adapter?: string;
+    durableAcrossInstanceRestart?: boolean;
+    envConfigured?: boolean;
+    mode?: string;
+  };
   presence?: {
     adapter?: string;
     heartbeatMs?: number;
@@ -85,6 +91,7 @@ const REQUIREMENT_LABELS: Array<[string, string]> = [
   ["atomicRoomWrites", "原子房间写入"],
   ["persistentRoomStore", "房间状态持久化"],
   ["postgresRoomState", "PostgreSQL 房间状态"],
+  ["mainGameDurableStore", "单机对局耐重启"],
   ["sharedRealtime", "跨进程房间通知"],
   ["sharedPresence", "共享在线状态"],
   ["basicRateLimit", "基础限流"],

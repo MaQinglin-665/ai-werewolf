@@ -133,6 +133,7 @@ describe("room api routes", () => {
           atomicRoomWrites: boolean;
           basicRateLimit: boolean;
           httpsPublicOrigin: boolean;
+          mainGameDurableStore: boolean;
           persistentRoomStore: boolean;
           postgresRoomState: boolean;
           sharedPresence: boolean;
@@ -198,6 +199,7 @@ describe("room api routes", () => {
         atomicRoomWrites: true,
         basicRateLimit: true,
         httpsPublicOrigin: false,
+        mainGameDurableStore: false,
         persistentRoomStore: health.storage.enabled,
         postgresRoomState: false,
         sharedPresence: false,
@@ -389,6 +391,7 @@ describe("room api routes", () => {
           requirements: {
             atomicRoomWrites: boolean;
             httpsPublicOrigin: boolean;
+            mainGameDurableStore: boolean;
             persistentRoomStore: boolean;
             singleNodeProcess: boolean;
             sseRealtime: boolean;
@@ -406,6 +409,7 @@ describe("room api routes", () => {
         requirements: {
           atomicRoomWrites: true,
           httpsPublicOrigin: true,
+          mainGameDurableStore: false,
           persistentRoomStore: true,
           singleNodeProcess: true,
           sseRealtime: true,

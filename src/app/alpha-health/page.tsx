@@ -132,13 +132,22 @@ export default async function AlphaHealthPage() {
             <PanelTitle title="存储与同步" />
             <dl className="mt-4 grid gap-3">
               <Metric label="房间存储" value={`${health.storage?.adapter ?? "unknown"} · ${health.storage?.mode ?? "unknown"}`} />
+              <Metric
+                label="单机存档"
+                value={`${health.mainGameStorage?.adapter ?? "unknown"} · ${health.mainGameStorage?.mode ?? "unknown"}`}
+                tone={health.mainGameStorage?.durableAcrossInstanceRestart ? "good" : "warn"}
+              />
               <Metric label="写入模式" value={health.storage?.writeMode ?? "unknown"} tone={health.storage?.atomicWrites ? "good" : "warn"} />
               <Metric
                 label="实时通道"
                 value={`${health.realtime?.mode ?? "unknown"} · ${health.realtime?.subscriberCount ?? 0} subscribers`}
                 tone={health.realtime?.crossProcessFanout ? "good" : "warn"}
               />
-              <Metric label="持久化路径" value={formatBoolean(health.storage?.envPathConfigured, "已配置", "未配置")} />
+              <Metric
+                label="存档耐重启"
+                value={formatBoolean(health.mainGameStorage?.durableAcrossInstanceRestart, "已开启", "未开启")}
+                tone={health.mainGameStorage?.durableAcrossInstanceRestart ? "good" : "warn"}
+              />
             </dl>
           </Panel>
 

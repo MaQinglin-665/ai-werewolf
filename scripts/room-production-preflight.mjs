@@ -6,6 +6,7 @@ if (readFlag("help") || readFlag("h")) {
 Checks /api/rooms/health for the production minimum loop:
   - fixed HTTPS public origin
   - PostgreSQL room state
+  - PostgreSQL main single-player snapshots
   - PostgreSQL realtime fanout
   - PostgreSQL player presence
   - PostgreSQL shared rate limit
@@ -63,6 +64,16 @@ async function runProductionPreflight() {
     check("storage.mode", health.storage?.mode === "postgres", "Room storage mode must be postgres."),
     check("storage.atomicWrites", health.storage?.atomicWrites === true, "Room storage must report atomic writes."),
     check(
+      "mainGameStorage.mode",
+      health.mainGameStorage?.mode === "postgres",
+      "Main single-player game storage must use Postgres so mobile background/instance restart recovery does not lose the active game.",
+    ),
+    check(
+      "mainGameStorage.durableAcrossInstanceRestart",
+      health.mainGameStorage?.durableAcrossInstanceRestart === true,
+      "Main single-player game storage must be durable across instance restarts.",
+    ),
+    check(
       "realtime.mode",
       health.realtime?.mode === "postgres-notify",
       "Realtime adapter must be postgres-notify.",
@@ -109,6 +120,7 @@ async function runProductionPreflight() {
         mode: health.storage?.mode,
         writeMode: health.storage?.writeMode,
       },
+      mainGameStorage: health.mainGameStorage,
     },
   };
 }
@@ -118,6 +130,7 @@ function requiredDeploymentRequirementChecks(requirements) {
     "atomicRoomWrites",
     "basicRateLimit",
     "httpsPublicOrigin",
+    "mainGameDurableStore",
     "persistentRoomStore",
     "postgresRoomState",
     "sharedPresence",

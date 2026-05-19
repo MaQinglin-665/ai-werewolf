@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { advanceOneAiStep, advancePendingAiTurns, advancePendingAiVotes, createConfiguredAiOptions } from "@/ai/mockAgent";
 import type { AiSpeechProviderContext } from "@/ai/types";
 import type { AiDecisionLog } from "@/ai/types";
@@ -21,11 +22,30 @@ import type {
 } from "@/game/types";
 import { prisma } from "@/lib/prisma";
 import { recordRoomAnalyticsEvent } from "@/server/roomAnalytics";
+import { Pool } from "pg";
 
 type RuntimeAiOptions = {
   aiProviderMode?: RuntimeAiProviderMode;
   runtimeAiLlmConfigs?: Record<string, AiFriendRuntimeLlmConfig>;
   aiRuntimeMode?: AiRuntimeMode;
+};
+
+type PersistedAiCallLog = {
+  id: string;
+  seatNumber: number;
+  phase: string;
+  promptJson: unknown;
+  outputJson: unknown;
+  isFallback: boolean;
+  createdAt?: Date | string;
+};
+
+const POSTGRES_MAIN_GAME_TABLE = "ai_werewolf_main_games";
+const POSTGRES_MAIN_GAME_AI_CALL_LOG_TABLE = "ai_werewolf_main_ai_call_logs";
+
+const globalForMainGameStore = globalThis as unknown as {
+  aiWerewolfMainGameStorePool?: Pool;
+  aiWerewolfMainGameStoreReady?: Promise<void>;
 };
 
 function createRuntimeAiAdvanceOptions(options: RuntimeAiOptions) {
@@ -160,6 +180,24 @@ export async function continueGameWithSpeechStream(
   return buildServerHumanView(nextState);
 }
 
+export function getMainGameStorageStatus() {
+  const postgresAdapterSelected = isPostgresMainGameStoreEnabled();
+  const databaseUrl = readPostgresMainGameDatabaseUrl();
+  const hasPostgresDatabaseUrl = isPostgresDatabaseUrl(databaseUrl);
+  return {
+    adapter: postgresAdapterSelected ? "postgres-main-game-store" : "prisma-sqlite",
+    mode: postgresAdapterSelected ? "postgres" : "sqlite",
+    durableAcrossInstanceRestart: postgresAdapterSelected && hasPostgresDatabaseUrl,
+    envConfigured: Boolean(
+      process.env.AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER ||
+        process.env.AI_WEREWOLF_GAME_STORE_ADAPTER ||
+        process.env.AI_WEREWOLF_MAIN_GAME_DATABASE_URL ||
+        process.env.AI_WEREWOLF_GAME_DATABASE_URL ||
+        process.env.AI_WEREWOLF_ROOM_DATABASE_URL,
+    ),
+  };
+}
+
 function revealCompletedVote(state: GameState): GameState {
   return state.phase === "EXILE_RESOLUTION" ? applySystemStep(state) : state;
 }
@@ -188,10 +226,7 @@ async function buildServerHumanView(state: GameState): Promise<HumanGameView> {
 }
 
 async function buildReviewDebugInfo(state: GameState): Promise<ReviewDebugInfo | undefined> {
-  const logs = await prisma.aiCallLog.findMany({
-    where: { gameId: state.id },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-  });
+  const logs = await loadAiCallLogs(state.id);
 
   const aiCalls = logs.map((log): ReviewAiDebugEntry => {
     const prompt = parseJsonRecord(log.promptJson);
@@ -430,15 +465,56 @@ function formatReviewSeat(seat: ReviewSeat): string {
 }
 
 async function loadGameState(gameId: string): Promise<GameState | null> {
+  if (isPostgresMainGameStoreEnabled()) {
+    return loadPostgresGameState(gameId);
+  }
+
   const game = await prisma.game.findUnique({
     where: { id: gameId },
   });
   return game ? hydrateGameState(JSON.parse(game.stateJson) as GameState) : null;
 }
 
-function parseJsonRecord(raw: string): Record<string, unknown> {
+async function loadAiCallLogs(gameId: string): Promise<PersistedAiCallLog[]> {
+  if (isPostgresMainGameStoreEnabled()) {
+    await ensurePostgresMainGameStoreReady();
+    const result = await getPostgresMainGameStorePool().query<{
+      id: string;
+      seat_number: number;
+      phase: string;
+      prompt_json: string;
+      output_json: string;
+      is_fallback: boolean;
+      created_at: Date;
+    }>(
+      `
+        select id, seat_number, phase, prompt_json, output_json, is_fallback, created_at
+        from ${POSTGRES_MAIN_GAME_AI_CALL_LOG_TABLE}
+        where game_id = $1
+        order by created_at asc, id asc
+      `,
+      [gameId],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      seatNumber: row.seat_number,
+      phase: row.phase,
+      promptJson: row.prompt_json,
+      outputJson: row.output_json,
+      isFallback: row.is_fallback,
+      createdAt: row.created_at,
+    }));
+  }
+
+  return prisma.aiCallLog.findMany({
+    where: { gameId },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+}
+
+function parseJsonRecord(raw: unknown): Record<string, unknown> {
   try {
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed = typeof raw === "string" ? (JSON.parse(raw) as unknown) : raw;
     return isRecord(parsed) ? parsed : {};
   } catch {
     return {};
@@ -497,7 +573,164 @@ function coerceCommandType(value: string | undefined): Command["type"] | undefin
   }
 }
 
+function isPostgresMainGameStoreEnabled(): boolean {
+  return (
+    process.env.AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER === "postgres" ||
+    process.env.AI_WEREWOLF_GAME_STORE_ADAPTER === "postgres"
+  );
+}
+
+function readPostgresMainGameDatabaseUrl(): string | undefined {
+  return process.env.AI_WEREWOLF_MAIN_GAME_DATABASE_URL ?? process.env.AI_WEREWOLF_GAME_DATABASE_URL ?? process.env.AI_WEREWOLF_ROOM_DATABASE_URL;
+}
+
+function isPostgresDatabaseUrl(url: string | undefined): boolean {
+  return Boolean(url?.startsWith("postgres://") || url?.startsWith("postgresql://"));
+}
+
+function getPostgresMainGameDatabaseUrl(): string {
+  const url = readPostgresMainGameDatabaseUrl();
+  if (isPostgresDatabaseUrl(url)) return url!;
+  throw new Error(
+    'AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER="postgres" 时必须配置 PostgreSQL 连接串 AI_WEREWOLF_MAIN_GAME_DATABASE_URL 或 AI_WEREWOLF_ROOM_DATABASE_URL。',
+  );
+}
+
+function getPostgresMainGameStorePool(): Pool {
+  globalForMainGameStore.aiWerewolfMainGameStorePool ??= new Pool({
+    connectionString: getPostgresMainGameDatabaseUrl(),
+  });
+  return globalForMainGameStore.aiWerewolfMainGameStorePool;
+}
+
+async function ensurePostgresMainGameStoreReady(): Promise<void> {
+  globalForMainGameStore.aiWerewolfMainGameStoreReady ??= getPostgresMainGameStorePool()
+    .query(
+      `
+        create table if not exists ${POSTGRES_MAIN_GAME_TABLE} (
+          id text primary key,
+          human_seat_id integer,
+          status text not null,
+          phase text not null,
+          day integer not null,
+          state_json jsonb not null,
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now()
+        );
+        create index if not exists ${POSTGRES_MAIN_GAME_TABLE}_updated_at_idx
+          on ${POSTGRES_MAIN_GAME_TABLE} (updated_at desc);
+        create table if not exists ${POSTGRES_MAIN_GAME_AI_CALL_LOG_TABLE} (
+          id text primary key,
+          game_id text not null references ${POSTGRES_MAIN_GAME_TABLE}(id) on delete cascade,
+          seat_number integer not null,
+          phase text not null,
+          prompt_json jsonb not null,
+          output_json jsonb not null,
+          is_fallback boolean not null default false,
+          created_at timestamptz not null default now()
+        );
+        create index if not exists ${POSTGRES_MAIN_GAME_AI_CALL_LOG_TABLE}_game_created_idx
+          on ${POSTGRES_MAIN_GAME_AI_CALL_LOG_TABLE} (game_id, created_at, id);
+      `,
+    )
+    .then(() => undefined);
+  await globalForMainGameStore.aiWerewolfMainGameStoreReady;
+}
+
+async function loadPostgresGameState(gameId: string): Promise<GameState | null> {
+  await ensurePostgresMainGameStoreReady();
+  const result = await getPostgresMainGameStorePool().query<{ state_json: unknown }>(
+    `select state_json from ${POSTGRES_MAIN_GAME_TABLE} where id = $1`,
+    [gameId],
+  );
+  const value = result.rows[0]?.state_json;
+  if (!value) return null;
+  const state = typeof value === "string" ? (JSON.parse(value) as GameState) : (value as GameState);
+  return hydrateGameState(state);
+}
+
+async function savePostgresGameState(state: GameState, aiLogs: AiDecisionLog[] = []): Promise<void> {
+  await ensurePostgresMainGameStoreReady();
+  const pool = getPostgresMainGameStorePool();
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await client.query(
+      `
+        insert into ${POSTGRES_MAIN_GAME_TABLE}
+          (id, human_seat_id, status, phase, day, state_json, updated_at)
+        values ($1, $2, $3, $4, $5, $6::jsonb, now())
+        on conflict (id) do update set
+          human_seat_id = excluded.human_seat_id,
+          status = excluded.status,
+          phase = excluded.phase,
+          day = excluded.day,
+          state_json = excluded.state_json,
+          updated_at = excluded.updated_at
+      `,
+      [
+        state.id,
+        state.humanSeatId,
+        state.result ? "GAME_OVER" : "ACTIVE",
+        state.phase,
+        state.day,
+        JSON.stringify(state),
+      ],
+    );
+
+    if (aiLogs.length > 0) {
+      await client.query(
+        `
+          insert into ${POSTGRES_MAIN_GAME_AI_CALL_LOG_TABLE}
+            (id, game_id, seat_number, phase, prompt_json, output_json, is_fallback)
+          select * from jsonb_to_recordset($1::jsonb) as item(
+            id text,
+            game_id text,
+            seat_number integer,
+            phase text,
+            prompt_json jsonb,
+            output_json jsonb,
+            is_fallback boolean
+          )
+        `,
+        [
+          JSON.stringify(
+            aiLogs.map((log) => ({
+              id: randomUUID(),
+              game_id: state.id,
+              seat_number: log.seatNumber,
+              phase: log.phase,
+              prompt_json: { provider: log.provider, view: log.prompt },
+              output_json: {
+                output: log.output,
+                publicFactBasis: log.publicFactBasis,
+                rawOutput: log.rawOutput,
+                error: log.error,
+                validationErrors: log.validationErrors,
+                isFallback: log.isFallback,
+              },
+              is_fallback: log.isFallback,
+            })),
+          ),
+        ],
+      );
+    }
+
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function saveGameState(state: GameState, aiLogs: AiDecisionLog[] = []): Promise<void> {
+  if (isPostgresMainGameStoreEnabled()) {
+    await savePostgresGameState(state, aiLogs);
+    return;
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.game.upsert({
       where: { id: state.id },

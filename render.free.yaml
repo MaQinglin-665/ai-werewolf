@@ -17,6 +17,12 @@ services:
         fromDatabase:
           name: ai-werewolf-room-db-free
           property: connectionString
+      - key: AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER
+        value: postgres
+      - key: AI_WEREWOLF_MAIN_GAME_DATABASE_URL
+        fromDatabase:
+          name: ai-werewolf-room-db-free
+          property: connectionString
       - key: AI_WEREWOLF_ROOM_STORE_ADAPTER
         value: postgres
       - key: AI_WEREWOLF_ROOM_REALTIME_ADAPTER

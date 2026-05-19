@@ -25,7 +25,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
 
     const view = await getGameView(gameId);
     if (!view) {
-      return Response.json({ error: "对局不存在。" }, { status: 404 });
+      return Response.json({ error: missingMainGameMessage() }, { status: 404 });
     }
     if (view.humanSeatId === null) {
       return Response.json({ error: "观战模式不能提交真人动作。" }, { status: 400 });
@@ -34,8 +34,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
     const nextView = await submitHumanCommand(gameId, command, { aiRuntimeMode, aiProviderMode, runtimeAiLlmConfigs });
     return Response.json(nextView);
   } catch (error) {
+    const message = error instanceof Error ? error.message : "动作执行失败。";
+    if (message.includes("对局不存在")) {
+      return Response.json({ error: missingMainGameMessage() }, { status: 404 });
+    }
+
     return Response.json(
-      { error: error instanceof Error ? error.message : "动作执行失败。" },
+      { error: message },
       { status: 400 },
     );
   }
@@ -43,4 +48,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function missingMainGameMessage(): string {
+  return "当前服务端没有找到这局单机对局，可能是线上实例刚从休眠中恢复或服务重启导致旧临时存档失效。请新开一局；新版线上会把单机对局保存到 PostgreSQL，减少这种情况。";
 }
