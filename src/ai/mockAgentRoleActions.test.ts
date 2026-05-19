@@ -159,7 +159,7 @@ describe("mock AI role action diversity", () => {
     });
   });
 
-  it("lets the true seer reveal a day-one good check when an outside seer has already claimed", () => {
+  it("keeps a day-one good check hidden even when an outside seer has already claimed", () => {
     const checkedSeat = target(2, "Gold");
     const outsideSeer = target(3, "Outside Seer");
     const outsideClaim = roleClaim(outsideSeer, "SEER");
@@ -182,16 +182,9 @@ describe("mock AI role action diversity", () => {
 
     const plan = createSpeechPlan(view, tableRead("SEER", [seatRead(checkedSeat), seatRead(outsideSeer)], tableMemory));
 
-    expect(plan.kind).toBe("claim-check");
-    expect(plan.claimIntent).toMatchObject({
-      claimedRole: "SEER",
-      strength: "hard",
-      check: {
-        targetSeatId: checkedSeat.seatId,
-        result: "GOOD",
-      },
-    });
-    expect(plan.stance).toContain("金水");
+    expect(plan.kind).toBe("defend");
+    expect(plan.claimIntent).toBeUndefined();
+    expect(plan.stance).toContain("首日金水先藏验人");
   });
 
   it("keeps an unpressured day-one good check hidden when no outside seer has claimed", () => {

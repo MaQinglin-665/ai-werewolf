@@ -875,6 +875,7 @@ export type SpeechPlan = {
 
 export type VotePlan = {
   target: ActionTarget;
+  abstain?: boolean;
   reason: string;
   confidence: number;
   alternatives: ActionTarget[];

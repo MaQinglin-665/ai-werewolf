@@ -200,6 +200,26 @@ describe("mock speech provider", () => {
     expect(countSpeechSentences(result.speech)).toBeLessThanOrEqual(4);
   });
 
+  it("does not reveal a hidden seer good check in mock speech", async () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const target = state.seats.find((seat) => seat.seatId !== seer.seatId)!;
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [seer.seatId];
+    state.speechIndex = 0;
+    state.seerChecks = [{ day: 1, seerSeatId: seer.seatId, targetSeatId: target.seatId, result: "GOOD" }];
+
+    const view = buildAgentView(state, seer.seatId);
+    const plan = createSpeechPlan(view);
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(plan.kind).toBe("defend");
+    expect(result.speech).not.toContain("我跳预言家");
+    expect(result.speech).not.toContain(`${target.seatId}号是金水`);
+    expect(result.speech).not.toContain("昨晚验");
+  });
+
   it("keeps early mock speeches away from prompt-like report wording", async () => {
     const { aiLogs } = await advanceWithMockAi(createGame({ seed: 91, humanSeatId: null }), {
       ignoreHuman: true,

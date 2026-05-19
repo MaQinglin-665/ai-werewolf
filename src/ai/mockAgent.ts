@@ -381,6 +381,13 @@ export function createMockCommand(
       };
     case "DAY_VOTE": {
       const plan = votePlan ?? createVotePlan(view, tableRead);
+      if (plan.abstain) {
+        return {
+          type: "vote",
+          actorSeatId,
+          reason: plan.reason,
+        };
+      }
       return {
         type: "vote",
         actorSeatId,

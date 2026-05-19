@@ -1360,6 +1360,11 @@ function createStructuredMockSpeech(view: AgentView, plan = createSpeechPlan(vie
   if (view.myRole === "SEER") {
     const latestCheck = view.privateKnowledge.seerChecks?.at(-1);
     if (latestCheck) {
+      if (plan.kind !== "claim-check" || plan.claimIntent?.claimedRole !== "SEER" || !plan.claimIntent.check) {
+        return compactMockSpeech(
+          `${opener}，我这里先不把身份线打满。${dynamicSentence}${previous ?? ""}${condition}`,
+        );
+      }
       const resultText = latestCheck.result === "WEREWOLF" ? "查杀" : "金水";
       const checkedTarget = toTargetFromSeatId(view, latestCheck.targetSeatId);
       const checkedText = seatText(checkedTarget);
@@ -1771,7 +1776,7 @@ function buildStructuredMockEvidence(view: AgentView, plan: SpeechPlan, target: 
     items.push(`${cueTargetText}的公开线索是${clipBriefingText(reasoningCue.summary, 58)}${evidence}`);
   }
   if (focus?.reasons.length) {
-    items.push(`${seatText(focus.seat)}成为焦点是因为${focus.reasons.slice(0, 2).join("、")}`);
+    items.push(`${seatText(focus.seat)}被放到焦点里，卡我的是${focus.reasons.slice(0, 2).join("、")}`);
   }
   if (targetMemory?.claimedByChecks.length) {
     const check = targetMemory.claimedByChecks.at(-1);
@@ -1918,6 +1923,9 @@ function createMockSpeech(view: AgentView, plan = createSpeechPlan(view)): strin
   if (view.myRole === "SEER") {
     const latestCheck = view.privateKnowledge.seerChecks?.at(-1);
     if (latestCheck) {
+      if (plan.kind !== "claim-check" || plan.claimIntent?.claimedRole !== "SEER" || !plan.claimIntent.check) {
+        return compactSpeech(`${opener}，我先不急着给死结论。${dynamicText ? `${dynamicText}。` : ""}${previousSpeaker ? `上一位 ${previousSpeaker.name} 的发言我会对照后面站边。` : ""}重点看谁回避昨夜信息和今天的焦点。`);
+      }
       const resultText = latestCheck.result === "WEREWOLF" ? "查杀" : "金水";
       const checkedTarget = toTargetFromSeatId(view, latestCheck.targetSeatId);
       return compactSpeech(
@@ -2165,6 +2173,9 @@ function createLooseFallbackSpeech(view: AgentView, plan: SpeechPlan): string {
   if (view.myRole === "SEER") {
     const latestCheck = view.privateKnowledge.seerChecks?.at(-1);
     if (latestCheck) {
+      if (plan.kind !== "claim-check" || plan.claimIntent?.claimedRole !== "SEER" || !plan.claimIntent.check) {
+        return compactSpeech(`${opener}，我先不急着给死结论。${focus ? `我更想听${seatText(focus)}把站边和票型说完整。` : "这轮先让外置位补完整视角。"}`);
+      }
       const target = toTargetFromSeatId(view, latestCheck.targetSeatId);
       const resultText = latestCheck.result === "WEREWOLF" ? "查杀" : "金水";
       const followup =

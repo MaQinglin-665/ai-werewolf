@@ -415,6 +415,9 @@ function cueMatchesOutput(cue, outputText) {
     case "stance_shift":
       return /站边|变|转向|改口|前后|态度/i.test(outputText) && (actorMentioned || targetMentioned || cueSeatMentioned);
     case "seer_legacy":
+      return /夜死|遗言|遗留|预言家|查杀|金水|查验|验人|身份线/i.test(outputText) && (actorMentioned || targetMentioned || cueSeatMentioned);
+    case "death_shape":
+      return /死讯|死亡|倒牌|单死|双死|多死|平安夜|药线|女巫|救|毒|狼刀|刀口|死因|天亮|清晨/i.test(outputText);
     case "claim":
       return /查杀|金水|预言家|查验|验人|身份线/i.test(outputText) && (actorMentioned || targetMentioned || cueSeatMentioned);
     default:

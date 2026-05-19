@@ -1374,7 +1374,7 @@ describe("game engine", () => {
     expect(result.speech).not.toMatch(/队友|狼队|真实身份|隐藏身份|系统/);
   });
 
-  it("does not pressure a reported gold-water target in fallback seer speech", async () => {
+  it("does not leak or pressure a hidden gold-water target in fallback seer speech", async () => {
     const state = Array.from({ length: 30 }, (_, seed) => createGame({ seed: seed + 70, humanSeatId: 9 })).find((candidate) =>
       candidate.seats.some((seat) => seat.isAi && seat.role === "SEER"),
     )!;
@@ -1387,9 +1387,9 @@ describe("game engine", () => {
 
     const result = await mockSpeechProvider.generateSpeech(buildAgentView(state, seer.seatId));
 
-    expect(result.speech).toContain(`${target.seatId}号`);
-    expect(result.speech).toContain("金水");
-    expect(result.speech).toMatch(/硬踩金水|不作为今天出人焦点/);
+    expect(result.speech).not.toContain("我跳预言家");
+    expect(result.speech).not.toContain(`${target.seatId}号是金水`);
+    expect(result.speech).not.toContain("昨晚验");
     expect(result.speech).not.toMatch(new RegExp(`${target.seatId}号[^。]*(正面解释|压过去|只给结论)`));
   });
 

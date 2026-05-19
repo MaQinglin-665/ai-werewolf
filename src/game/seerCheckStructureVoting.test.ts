@@ -261,6 +261,46 @@ describe("seer counterclaim check-structure voting", () => {
     expect(plan.alternatives.map((target) => target.seatId)).not.toContain(4);
   });
 
+  it("abstains instead of falling back onto a protected dead-seer gold-water target", () => {
+    const deadSeer = { seatId: 2, name: "Dead Seer" };
+    const goldTarget = { seatId: 4, name: "Legacy Gold" };
+    const deadClaim = seerClaim(deadSeer, [{ day: 1, target: goldTarget, result: "GOOD" }], 10);
+    const memory = tableMemory({
+      day: 2,
+      claimBoard: [deadClaim],
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 2,
+          checks: deadClaim.checks,
+          stancesGiven: [],
+          summary: "Dead Seer died at night with a gold-water check.",
+        },
+      ],
+      focus: [{ seat: goldTarget, reasons: ["public focus"], score: 95 }],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [goldTarget], 2, true),
+      tableRead(
+        [
+          seatRead({
+            ...goldTarget,
+            suspicion: 99,
+            trust: 10,
+            pressure: ["公开焦点位"],
+          }),
+        ],
+        memory,
+        2,
+      ),
+    );
+
+    expect(plan.abstain).toBe(true);
+    expect(plan.target.seatId).toBe(goldTarget.seatId);
+    expect(plan.reason).toContain("公开金水");
+  });
+
   it("does not consolidate votes onto a trusted public gold-water target", () => {
     const trustedSeerClaim = seerClaim({ seatId: 2, name: "Trusted Seer" }, [
       { day: 2, target: { seatId: 3, name: "Gold Target" }, result: "GOOD" },
@@ -582,6 +622,7 @@ function voteView(
     { seatId: 3, name: "Black-Only Seer" },
   ],
   day = 2,
+  canAbstain = false,
 ): AgentView {
   return {
     gameId: "test",
@@ -606,7 +647,7 @@ function voteView(
       {
         type: "vote",
         targets,
-        canAbstain: false,
+        canAbstain,
       },
     ],
   } as AgentView;

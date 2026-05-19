@@ -846,6 +846,15 @@ function buildActionCandidates(
     }
     case "DAY_VOTE": {
       const action = getAction(view, "vote");
+      if (votePlan?.abstain && action?.canAbstain) {
+        add({
+          id: "vote:abstain",
+          label: "Abstain",
+          command: { type: "vote", actorSeatId: view.mySeatId },
+          reasonHint: votePlan.reason,
+        });
+        break;
+      }
       const targetOrder = orderVoteTargets(tableRead, action?.targets ?? [], votePlan);
       for (const target of targetOrder) {
         add({

@@ -748,7 +748,6 @@ function shouldRevealSeerCheck(
     (claim) => claim.claimedRole === "SEER" && claim.claimant.seatId !== view.mySeatId,
   );
   const revealDay = getGoodSeerCheckRevealDay(view, hasPublicSeerCounterclaim);
-  if (latestCheck.result === "GOOD" && view.day === 1 && hasPublicSeerCounterclaim) return true;
 
   return view.day >= revealDay;
 }
@@ -756,7 +755,7 @@ function shouldRevealSeerCheck(
 function getGoodSeerCheckRevealDay(view: AgentView, hasPublicSeerCounterclaim: boolean): number {
   const wolfRoles = new Set(view.rules.wolfRoles);
   const baseDay = wolfRoles.has("WOLF_KING") || wolfRoles.has("WHITE_WOLF_KING") ? 1 : 3;
-  if (hasPublicSeerCounterclaim && baseDay > 1) return 1;
+  if (hasPublicSeerCounterclaim && baseDay > 1) return 2;
   return baseDay;
 }
 
@@ -1350,6 +1349,9 @@ export function createVotePlan(view: AgentView, tableRead = buildAiTableRead(vie
   const candidatePool = !isWolfRole(view.myRole, view.rules.wolfRoles)
     ? withoutProtectedGoodVoteTargets(view, tableRead, candidates)
     : candidates;
+  const hasVoteTarget = candidatePool.length > 0;
+  const safeReferenceTarget =
+    candidates.find((seat) => isProtectedGoodVoteTarget(view, tableRead, seat)) ?? candidates[0];
   const knownWolf = candidates.find((seat) => seat.isKnownWolf);
   const sorted = rankVoteCandidates(view, tableRead, candidatePool);
   const wolfDistanceTarget = chooseWolfDistanceVoteTarget(view, candidates);
@@ -1358,10 +1360,31 @@ export function createVotePlan(view: AgentView, tableRead = buildAiTableRead(vie
   const picked =
     isWolfRole(view.myRole, view.rules.wolfRoles)
       ? wolfDistanceTarget ?? wolfTeamTarget ?? sorted[0]
-      : knownWolf ?? claimTarget ?? sorted[0] ?? candidates[0];
+      : knownWolf ?? claimTarget ?? sorted[0];
 
   if (!picked) {
-    throw new Error("没有可投票目标。");
+    if (!safeReferenceTarget) {
+      throw new Error("没有可投票目标。");
+    }
+
+    if (!hasVoteTarget && voteAction?.canAbstain) {
+      return {
+        target: { seatId: safeReferenceTarget.seatId, name: safeReferenceTarget.name },
+        abstain: true,
+        reason: buildNoSafeVoteReason(view, tableRead, safeReferenceTarget),
+        confidence: 0.2,
+        alternatives: [],
+      };
+    }
+    return {
+      target: { seatId: safeReferenceTarget.seatId, name: safeReferenceTarget.name },
+      reason: buildNoSafeVoteReason(view, tableRead, safeReferenceTarget),
+      confidence: Math.max(0.3, Math.min(0.75, safeReferenceTarget.suspicion / 100)),
+      alternatives: candidates
+        .filter((seat) => seat.seatId !== safeReferenceTarget.seatId)
+        .slice(0, 2)
+        .map((seat) => ({ seatId: seat.seatId, name: seat.name })),
+    };
   }
 
   return {
@@ -1376,8 +1399,19 @@ export function createVotePlan(view: AgentView, tableRead = buildAiTableRead(vie
 }
 
 function withoutProtectedGoodVoteTargets(view: AgentView, tableRead: AiTableRead, candidates: SeatRead[]): SeatRead[] {
-  const filtered = candidates.filter((seat) => !isProtectedGoodVoteTarget(view, tableRead, seat));
-  return filtered.length > 0 ? filtered : candidates;
+  return candidates.filter((seat) => !isProtectedGoodVoteTarget(view, tableRead, seat));
+}
+
+function buildNoSafeVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRead): string {
+  if (isWolfRole(view.myRole, view.rules.wolfRoles)) {
+    return "公开票型没有合适切口，先按狼队节奏留票。";
+  }
+
+  if (isProtectedGoodVoteTarget(view, tableRead, target)) {
+    return `${target.name} 是被保护的公开金水/身份位，今天先不把票压过去。`;
+  }
+
+  return "今天没有足够安全的归票点，先保留票型。";
 }
 
 function buildVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRead): string {

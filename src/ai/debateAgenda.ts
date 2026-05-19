@@ -59,7 +59,7 @@ export function buildDebateAgenda(
   ]).slice(0, 4);
 
   const roleCoordination = uniqueLines([
-    ...roleSpecificAgenda(view, target),
+    ...roleSpecificAgenda(view, target, options.plan),
     view.rules.hasGuard && view.rules.guardSaveConflictKills
       ? "有守卫且同守同救会出事：公开发言只讲保护边界，不把女巫药线或守人路线说死。"
       : undefined,
@@ -111,13 +111,19 @@ function fallbackFocus(memory: TableMemory, protectedSeatId: number | undefined)
   return memory.focus.find((item) => item.seat.seatId !== protectedSeatId)?.seat;
 }
 
-function roleSpecificAgenda(view: AgentView, target: ActionTarget | undefined): string[] {
+function roleSpecificAgenda(view: AgentView, target: ActionTarget | undefined, plan: SpeechPlan | undefined): string[] {
   const targetText = target ? seatText(target) : "当前焦点位";
   switch (view.myRole) {
     case "SEER": {
       const latestCheck = view.privateKnowledge.seerChecks?.at(-1);
       if (!latestCheck) {
         return ["预言家暂未形成可公开验人时，先准备验人心路和明天查验优先级。"];
+      }
+      if (plan?.kind !== "claim-check" || plan.claimIntent?.claimedRole !== "SEER" || !plan.claimIntent.check) {
+        return [
+          "预言家当前计划是保留查验，不把私密验人说成公开事实。",
+          "发言先用公开身份线、前置发言和票型布置验证点，等压力或轮次需要时再公开验人。",
+        ];
       }
       const checkTarget = toKnownTarget(view, latestCheck.targetSeatId);
       return [
