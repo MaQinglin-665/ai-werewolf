@@ -50,7 +50,8 @@ export function ActionPanel({
             查看复盘
           </a>
           <button
-            onClick={onNewGame}
+            type="button"
+            onClick={() => void onNewGame()}
             disabled={loading}
             className="rounded-full border border-[#f1c76e]/30 px-5 py-2.5 text-sm font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10 disabled:opacity-60"
           >

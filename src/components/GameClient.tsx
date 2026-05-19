@@ -1365,13 +1365,14 @@ export function GameClient() {
           aiFriends: selectedAiFriends,
         }),
       });
-      if (!response.ok) throw new Error("创建对局失败。");
-      const view = (await response.json()) as HumanGameView;
+      const data = (await response.json().catch(() => ({}))) as HumanGameView & { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "创建对局失败。");
+      const view = data as HumanGameView;
       rememberGame(view.id);
       setRoleIntroGameId(view.humanSeatId === null ? null : view.id);
       setGame(view);
-    } catch {
-      setError("创建对局失败。");
+    } catch (startError) {
+      setError(startError instanceof Error ? startError.message : "创建对局失败。");
     } finally {
       setLoading(false);
     }

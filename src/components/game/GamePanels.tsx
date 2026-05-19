@@ -136,7 +136,8 @@ export function RoomHeader({
           {aiSpeechAudioUnavailable ? "AI 语音转文字" : aiSpeechAudioEnabled ? "AI 语音开" : "AI 语音关"}
         </button>
         <button
-          onClick={onNewGame}
+          type="button"
+          onClick={() => void onNewGame()}
           disabled={loading}
           className="rounded-full bg-[#b74332] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#220806]/35 transition hover:bg-[#cf513d] disabled:opacity-60"
         >
