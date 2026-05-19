@@ -1717,7 +1717,7 @@ function buildMockTablePlayerLine(view: AgentView, target: ActionTarget | undefi
   if (previousSpeaker && target && previousSpeaker.seatId !== target.seatId) {
     return pickBySeat(seed, [
       `刚才${seatText(previousSpeaker)}我先当成一条对照线，等${targetText}回应后再决定票口`,
-      `上一位${previousSpeaker.name}的线我记下，但我不会顺着他直接改票，先看${targetText}能不能补过程`,
+      `上一位${previousSpeaker.name}的线我记下，但我不会顺着他直接改票，轮到${targetText}时再听他的过程`,
       `前置${previousSpeaker.name}提供了一个方向，我这里把${targetText}的站边和票型放一起核`,
     ]);
   }
@@ -1885,8 +1885,8 @@ function buildVoteCondition(view: AgentView, plan: SpeechPlan, target: ActionTar
 
   return pickBySeat(seed, [
     `等轮到${targetText}发言时，我要听他把站边理由和票口讲完整。`,
-    `${targetText}还没发言，我就看他能不能别只给结论，把过程补出来。`,
-    `如果${targetText}后面只给态度不给依据，我会把票往他身上收；讲得通我再换焦点。`,
+    `轮到${targetText}时，我要听他把结论、依据和票口放在一起讲。`,
+    `${targetText}发言前我先不定死，等他给完视角再决定票怎么落。`,
   ]);
 }
 

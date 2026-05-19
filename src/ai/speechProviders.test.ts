@@ -174,6 +174,29 @@ describe("mock speech provider", () => {
     expect(countSpeechSentences(result.speech)).toBeLessThanOrEqual(4);
   });
 
+  it("does not judge an unspoken target as already failing to answer", async () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_SPEECH";
+    const speaker = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const target = state.seats.find((seat) => seat.isAi && seat.seatId !== speaker.seatId)!;
+    state.speechQueue = [speaker.seatId, target.seatId];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, speaker.seatId);
+    const plan = {
+      ...createSpeechPlan(view),
+      kind: "pressure" as const,
+      target,
+      talkingPoints: [`${target.seatId}号后面补站边和票口`],
+    };
+
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(result.speech).toContain("轮到");
+    expect(result.speech).not.toMatch(/还没发言.*别只给结论|没回应|已经信息少/);
+    expect(result.speech.length).toBeLessThanOrEqual(380);
+  });
+
   it("anchors mock speech to a public reasoning cue when one exists", async () => {
     const state = createGame({ seed: 93, humanSeatId: null });
     state.phase = "DAY_SPEECH";

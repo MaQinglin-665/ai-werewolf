@@ -11,6 +11,7 @@
     "audio:host": "node scripts/generate-host-audio.mjs",
     "llm:check": "node scripts/check-llm-output.mjs",
     "llm:evaluate": "node scripts/evaluate-llm-game.mjs",
+    "audit:ai": "node scripts/audit-ai-experience.mjs",
     "simulate:ai": "node scripts/simulate-ai.mjs",
     "simulate:diagnose": "node scripts/diagnose-simulation-balance.mjs",
     "simulate:health": "node scripts/health-check-12p.mjs",

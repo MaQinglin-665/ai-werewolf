@@ -255,7 +255,11 @@ export function buildAiTableRead(view: AgentView): AiTableRead {
     if (aiBelief && !isSelf && !isWolfTeammate && !isKnownWolf && !isKnownGood) {
       suspicion += (aiBelief.suspicion - 50) * weighted(0.18, preferences.memory);
       trust += (aiBelief.trust - 50) * weighted(0.14, preferences.memory);
-      pressure.push(...aiBelief.reasons.slice(0, 2).map((reason) => `延续个人记忆：${reason}`));
+      pressure.push(
+        ...aiBelief.reasons
+          .slice(0, 2)
+          .map((reason) => `延续个人记忆：${reason.replace(/^延续个人记忆：/, "")}`),
+      );
     }
 
     if (view.privateKnowledge.aiMemory?.lastSpeechTargetSeatId === seat.seatId && !isSelf && !isWolfTeammate) {
@@ -926,6 +930,7 @@ function buildGoodStanceCue(
   if (!target || isWolfRole(view.myRole, view.rules.wolfRoles)) return undefined;
   const read = tableRead.seats.find((seat) => seat.seatId === target.seatId);
   if (!read || read.isSelf || read.isWolfTeammate) return undefined;
+  if (isProtectedGoodSpeechTarget(view, tableRead, read)) return undefined;
 
   const pressureDelta = read.suspicion - read.trust;
   if (pressureDelta >= 10) {
@@ -1160,9 +1165,17 @@ function chooseContinuityFocus(view: AgentView, tableRead: AiTableRead): SeatRea
 
   const memory = view.privateKnowledge.aiMemory;
   const rememberedSeatId = memory?.suspectedSeatId ?? memory?.lastSpeechTargetSeatId ?? memory?.lastVoteTargetSeatId;
-  const publicFocus = tableRead.focus;
+  const publicFocus = [tableRead.focus, tableRead.backupFocus].find(
+    (seat): seat is SeatRead => Boolean(seat && !isProtectedGoodSpeechTarget(view, tableRead, seat)),
+  );
   const rememberedFocus = rememberedSeatId
-    ? tableRead.seats.find((seat) => seat.seatId === rememberedSeatId && !seat.isSelf && !seat.isWolfTeammate)
+    ? tableRead.seats.find(
+        (seat) =>
+          seat.seatId === rememberedSeatId &&
+          !seat.isSelf &&
+          !seat.isWolfTeammate &&
+          !isProtectedGoodSpeechTarget(view, tableRead, seat),
+      )
     : undefined;
 
   if (!rememberedFocus) return publicFocus;
@@ -1178,6 +1191,7 @@ function buildMemorySpeechPoint(
 ): string | undefined {
   const memory = view.privateKnowledge.aiMemory;
   if (!memory || !focus || focus.isSelf || focus.isWolfTeammate) return undefined;
+  if (isProtectedGoodSpeechTarget(view, tableRead, focus)) return undefined;
 
   if (memory.lastVoteTargetSeatId === focus.seatId) {
     return `我上一轮票过${focus.seatId}号，这轮先看他有没有把逻辑补上`;
@@ -1407,6 +1421,11 @@ function buildNoSafeVoteReason(view: AgentView, tableRead: AiTableRead, target: 
     return "公开票型没有合适切口，先按狼队节奏留票。";
   }
 
+  const deadSeerGold = findDeadSeerLegacyGoldCheckFor(tableRead, target);
+  if (deadSeerGold) {
+    return `${target.name} 是${deadSeerGold.claimant.name}夜死后留下的公开金水，今天先不把票压过去。`;
+  }
+
   if (isProtectedGoodVoteTarget(view, tableRead, target)) {
     return `${target.name} 是被保护的公开金水/身份位，今天先不把票压过去。`;
   }
@@ -1527,12 +1546,17 @@ function chooseWolfDistanceVoteTarget(view: AgentView, candidates: SeatRead[]): 
 
   const personaRisk = view.persona?.riskTolerance ?? 0.45;
   const bluffing = view.persona?.bluffing ?? 0.45;
+  const negativeActors = publicVotePressureActors(target).length;
+  const publicBlackChecks = target.publicChecksAgainst.filter((check) => check.result === "WEREWOLF").length;
   const hasPublicReason =
     target.publicClaims.length > 0 ||
-    target.publicStancesGiven.length > 0 ||
+    target.publicStancedBy.some((stance) => stance.kind === "QUESTION" || stance.kind === "PRESSURE") ||
+    publicBlackChecks > 0 ||
     view.publicSummary.tableMemory.counterclaims.some((group) =>
       group.claimants.some((claimant) => claimant.seatId === target.seatId),
     );
+
+  if (!hasPublicReason) return undefined;
 
   if (personaRisk >= 0.9 && bluffing >= 0.85 && hasPublicReason) {
     return target;
@@ -1544,6 +1568,7 @@ function chooseWolfDistanceVoteTarget(view: AgentView, candidates: SeatRead[]): 
       bluffing * 0.12 +
       (assignment?.task === "DISTANCE" && supportSeat ? 0.18 : 0) +
       (hasPublicReason ? 0.12 : 0) +
+      Math.min(0.1, negativeActors * 0.04 + publicBlackChecks * 0.05) +
       (view.day >= 2 ? 0.06 : 0),
   );
   const roll = stableRoll([
@@ -2222,13 +2247,19 @@ function isProtectedDeadSeerLegacyGoldTarget(tableRead: AiTableRead, target: Sea
   const legacy = findDeadSeerLegacyGoldCheckFor(tableRead, target);
   if (!legacy) return false;
   if (findDeadSeerLegacyBlackCheckAgainst(tableRead, target)) return false;
-  if (findTrustedSeerCheckAgainst(tableRead, target)) return false;
+  const trustedBlackCheck = findTrustedSeerCheckAgainst(tableRead, target);
+  if (trustedBlackCheck && hasOverridingEvidenceAgainstDeadSeerGold(tableRead, target)) return false;
 
-  return !tableRead.tableMemory.counterclaims.some(
-    (group) =>
-      group.claimedRole === "SEER" &&
-      group.claimants.some((claimant) => claimant.seatId === legacy.claimant.seatId),
-  );
+  return true;
+}
+
+function hasOverridingEvidenceAgainstDeadSeerGold(tableRead: AiTableRead, target: SeatRead): boolean {
+  const pressureActors = publicVotePressureActors(target).length;
+  const pressureGap = target.suspicion - target.trust;
+  const hardCue = targetReasoningCues(tableRead, target).some((cue) => cue.weight === "strong");
+  const blackChecks = target.publicChecksAgainst.filter((check) => check.result === "WEREWOLF");
+
+  return blackChecks.length >= 2 || (blackChecks.length >= 1 && pressureActors >= 3 && pressureGap >= 48 && hardCue);
 }
 
 function hasDeadSeerLegacyBlackCheckAgainst(
@@ -2328,6 +2359,16 @@ function isProtectedGoodVoteTarget(view: AgentView, tableRead: AiTableRead, seat
       isDayOneSoftPowerHintProtectedTarget(tableRead, seat) ||
       isDayOneSeerGoldClaimProtectedFromAnyBlackCheck(tableRead, seat.seatId) ||
       isTargetOfReactiveSeerBlackCheck(view.publicSummary.tableMemory, seat.seatId),
+  );
+}
+
+function isProtectedGoodSpeechTarget(view: AgentView, tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (isWolfRole(view.myRole, view.rules.wolfRoles)) return false;
+  return Boolean(
+    seat.isKnownGood ||
+      findTrustedSeerGoldCheckAgainst(tableRead, seat) ||
+      isProtectedDeadSeerLegacyGoldTarget(tableRead, seat) ||
+      isDayOneSeerGoldClaimProtectedFromAnyBlackCheck(tableRead, seat.seatId),
   );
 }
 

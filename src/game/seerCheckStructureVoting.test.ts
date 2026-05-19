@@ -261,6 +261,62 @@ describe("seer counterclaim check-structure voting", () => {
     expect(plan.alternatives.map((target) => target.seatId)).not.toContain(4);
   });
 
+  it("keeps a night-dead seer gold-water target protected despite a later single black check", () => {
+    const deadSeer = { seatId: 2, name: "Dead Seer" };
+    const liveCounter = { seatId: 3, name: "Live Counter" };
+    const goldTarget = { seatId: 4, name: "Legacy Gold" };
+    const outsideFocus = { seatId: 5, name: "Outside Focus" };
+    const deadClaim = seerClaim(deadSeer, [{ day: 1, target: goldTarget, result: "GOOD" }], 10);
+    const counterClaim = seerClaim(liveCounter, [{ day: 2, target: goldTarget, result: "WEREWOLF" }], 24);
+    const memory = tableMemory({
+      day: 3,
+      claimBoard: [deadClaim, counterClaim],
+      counterclaims: [
+        {
+          claimedRole: "SEER",
+          claimedRoleLabel: "预言家",
+          claimants: [deadSeer, liveCounter],
+        },
+      ],
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 2,
+          checks: deadClaim.checks,
+          stancesGiven: [],
+          summary: "Dead Seer died at night with a gold-water check.",
+        },
+      ],
+      focus: [{ seat: goldTarget, reasons: ["public focus"], score: 95 }],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [goldTarget, outsideFocus], 3),
+      tableRead(
+        [
+          seatRead({
+            ...goldTarget,
+            suspicion: 96,
+            trust: 24,
+            pressure: ["被Live Counter公开报查杀", "公开焦点位"],
+            publicChecksAgainst: [{ claimant: liveCounter, result: "WEREWOLF", day: 2 }],
+            publicStancedBy: [publicPressure(liveCounter, goldTarget)],
+          }),
+          seatRead({
+            ...outsideFocus,
+            suspicion: 54,
+            trust: 43,
+          }),
+        ],
+        memory,
+        3,
+      ),
+    );
+
+    expect(plan.target.seatId).toBe(outsideFocus.seatId);
+    expect(plan.alternatives.map((target) => target.seatId)).not.toContain(goldTarget.seatId);
+  });
+
   it("abstains instead of falling back onto a protected dead-seer gold-water target", () => {
     const deadSeer = { seatId: 2, name: "Dead Seer" };
     const goldTarget = { seatId: 4, name: "Legacy Gold" };
