@@ -22,6 +22,7 @@ export function buildTableMemory(state: GameState): TableMemory {
   const voteHistory = buildVoteHistory(state);
   const seerLegacies = buildSeerLegacies(state, claimBoard, stanceBoard, voteHistory);
   const speechInfluence = buildSpeechInfluence(stanceBoard);
+  const deathShapeCues = buildDeathShapeCues(state);
   const deathAnnouncements = state.events
     .filter(
       (event) =>
@@ -39,7 +40,14 @@ export function buildTableMemory(state: GameState): TableMemory {
     .map((event) => event.message);
   const seats = buildSeatMemories(state, claimBoard, stanceBoard);
   const focus = buildFocus(seats, counterclaims, stanceShifts, voteHistory.at(-1));
-  const reasoningCues = buildReasoningCues(counterclaims, stanceShifts, seerLegacies, voteHistory.at(-1), speechInfluence);
+  const reasoningCues = buildReasoningCues(
+    counterclaims,
+    stanceShifts,
+    seerLegacies,
+    voteHistory.at(-1),
+    speechInfluence,
+    deathShapeCues,
+  );
 
   return {
     day: state.day,
@@ -61,6 +69,7 @@ export function buildTableMemory(state: GameState): TableMemory {
       speechInfluence,
       voteHistory.at(-1),
       deathAnnouncements.at(-1),
+      deathShapeCues,
     ),
   };
 }
@@ -390,8 +399,10 @@ function buildReasoningCues(
   seerLegacies: TableMemory["seerLegacies"],
   latestVote: TableMemory["voteHistory"][number] | undefined,
   speechInfluence: TableMemory["speechInfluence"],
+  deathShapeCues: TableMemory["reasoningCues"],
 ): TableMemory["reasoningCues"] {
   const cues: TableMemory["reasoningCues"] = [
+    ...deathShapeCues,
     ...counterclaims.map((group) => ({
       cueId: `counterclaim:${group.claimedRole}:${group.claimants.map((seat) => seat.seatId).join("-")}`,
       day: 0,
@@ -457,6 +468,53 @@ function buildReasoningCues(
   ];
 
   return cues.sort((a, b) => cueWeightScore(b.weight) - cueWeightScore(a.weight) || b.day - a.day).slice(0, 8);
+}
+
+function buildDeathShapeCues(state: GameState): TableMemory["reasoningCues"] {
+  if (state.rules.hasGuard || !state.rules.godRoles.includes("WITCH")) return [];
+
+  const cues: TableMemory["reasoningCues"] = [];
+  for (const event of state.events.filter((item) => item.type === "DAY_STARTED")) {
+    const deadSeatIds = readDeadSeatIds(event);
+    if (event.day === 1 && deadSeatIds.length === 0) {
+      cues.push({
+        cueId: `death-shape:${event.day}:peaceful`,
+        day: event.day,
+        kind: "death_shape",
+        weight: "medium",
+        summary: "首夜平安夜：无守卫女巫局可以作为药线假设的公开讨论点，但不能确认女巫用药或具体死因。",
+        evidence: [event.message, "本局无守卫且有女巫，死亡形态本身是公开信息。"],
+      });
+      continue;
+    }
+
+    if (event.day === 1 && deadSeatIds.length === 1) {
+      const deadTarget = getTarget(state, deadSeatIds[0]);
+      cues.push({
+        cueId: `death-shape:${event.day}:single:${deadSeatIds[0]}`,
+        day: event.day,
+        kind: "death_shape",
+        weight: "medium",
+        summary: `首夜单死${deadTarget ? `（${deadTarget.name}）` : ""}：无守卫女巫局可以作为药线假设的公开讨论点，但不能断定具体死因或女巫动作。`,
+        ...(deadTarget ? { target: deadTarget } : {}),
+        evidence: [event.message, "本局无守卫且有女巫，死亡形态本身是公开信息。"],
+      });
+      continue;
+    }
+
+    if (event.day === 1 && deadSeatIds.length >= 2) {
+      cues.push({
+        cueId: `death-shape:${event.day}:multi:${deadSeatIds.join("-")}`,
+        day: event.day,
+        kind: "death_shape",
+        weight: "light",
+        summary: `首夜多死：${deadSeatIds.map((seatId) => `${seatId}号`).join("、")}倒牌是公开死亡形态，只能作为药线假设，不能逐一确认死因。`,
+        evidence: [event.message, "公开播报只给死亡名单，不给狼刀、毒药或其他死因。"],
+      });
+    }
+  }
+
+  return cues.slice(-3);
 }
 
 function buildFocus(
@@ -536,12 +594,14 @@ function buildPublicSignals(
   speechInfluence: TableMemory["speechInfluence"],
   latestVote: TableMemory["voteHistory"][number] | undefined,
   latestDeath?: string,
+  deathShapeCues: TableMemory["reasoningCues"] = [],
 ): string[] {
   const signals = [
     ...counterclaims.map((group) => `${group.claimedRoleLabel}对跳：${group.claimants.map((seat) => seat.name).join("、")}`),
     ...stanceShifts.slice(-2).map((shift) => `站边变化：${shift.summary}`),
     ...seerLegacies.slice(0, 2).map((legacy) => legacy.summary),
     ...speechInfluence.slice(0, 2).map((item) => item.summary),
+    ...deathShapeCues.slice(0, 2).map((cue) => cue.summary),
     latestVote?.leaders.length ? `公开票型焦点：${latestVote.leaders.map((seat) => seat.name).join("、")}` : undefined,
     latestDeath,
   ];
@@ -618,12 +678,16 @@ function readTallyItems(state: GameState, event: GameEvent): TableMemory["voteHi
 function findNightDeathDay(state: GameState, seatId: number): number | undefined {
   const deathEvent = state.events.find((event) => {
     if (event.type !== "DAY_STARTED") return false;
-    const deadSeatIds = Array.isArray(event.payload.deadSeatIds)
-      ? event.payload.deadSeatIds.filter((id): id is number => typeof id === "number")
-      : [];
+    const deadSeatIds = readDeadSeatIds(event);
     return deadSeatIds.includes(seatId);
   });
   return deathEvent?.day;
+}
+
+function readDeadSeatIds(event: GameEvent): number[] {
+  return Array.isArray(event.payload.deadSeatIds)
+    ? event.payload.deadSeatIds.filter((id): id is number => typeof id === "number")
+    : [];
 }
 
 function findLastRevealedVoteBySeat(

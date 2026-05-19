@@ -41,3 +41,52 @@ describe("table memory stance shifts", () => {
     );
   });
 });
+
+describe("table memory death-shape public cues", () => {
+  it("treats a day-one single death as public potion-line context on no-guard witch boards", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 91 });
+    const deadSeat = state.seats.find((seat) => seat.role !== "WEREWOLF")!;
+    state.events.push({
+      seq: state.events.length + 1,
+      type: "DAY_STARTED",
+      visibility: "public",
+      day: 1,
+      phase: "DAY_ANNOUNCEMENT",
+      message: `第1天清晨，${deadSeat.seatId}号 死亡。`,
+      payload: { deadSeatIds: [deadSeat.seatId] },
+    });
+
+    const memory = buildTableMemory(state);
+
+    expect(memory.reasoningCues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "death_shape",
+          weight: "medium",
+          target: expect.objectContaining({ seatId: deadSeat.seatId }),
+          summary: expect.stringMatching(/首夜单死.*药线假设.*不能断定/),
+        }),
+      ]),
+    );
+    expect(memory.publicSignals.join("\n")).toMatch(/首夜单死.*药线假设/);
+  });
+
+  it("does not add no-guard potion-line cues on guard boards", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91 });
+    const deadSeat = state.seats.find((seat) => seat.role !== "WEREWOLF")!;
+    state.events.push({
+      seq: state.events.length + 1,
+      type: "DAY_STARTED",
+      visibility: "public",
+      day: 1,
+      phase: "DAY_ANNOUNCEMENT",
+      message: `第1天清晨，${deadSeat.seatId}号 死亡。`,
+      payload: { deadSeatIds: [deadSeat.seatId] },
+    });
+
+    const memory = buildTableMemory(state);
+
+    expect(memory.reasoningCues.some((cue) => cue.kind === "death_shape")).toBe(false);
+    expect(memory.publicSignals.join("\n")).not.toMatch(/药线假设/);
+  });
+});

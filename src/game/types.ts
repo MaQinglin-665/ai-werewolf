@@ -762,7 +762,7 @@ export type SpeechInfluenceItem = {
 export type PublicReasoningCue = {
   cueId: string;
   day: number;
-  kind: "claim" | "counterclaim" | "seer_legacy" | "speech_influence" | "stance_shift" | "vote";
+  kind: "claim" | "counterclaim" | "death_shape" | "seer_legacy" | "speech_influence" | "stance_shift" | "vote";
   weight: "strong" | "medium" | "light";
   summary: string;
   actor?: ActionTarget;

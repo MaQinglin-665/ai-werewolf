@@ -158,6 +158,57 @@ describe("mock AI role action diversity", () => {
       result: "WEREWOLF",
     });
   });
+
+  it("lets the true seer reveal a day-one good check when an outside seer has already claimed", () => {
+    const checkedSeat = target(2, "Gold");
+    const outsideSeer = target(3, "Outside Seer");
+    const outsideClaim = roleClaim(outsideSeer, "SEER");
+    const tableMemory = emptyTableMemory({
+      claimBoard: [outsideClaim],
+      counterclaims: [
+        {
+          claimedRole: "SEER",
+          claimedRoleLabel: "预言家",
+          claimants: [outsideSeer],
+        },
+      ],
+    });
+    const view = actionView("SEER", "DAY_SPEECH", { type: "speak" }, { wolfRoles: ["WEREWOLF"] });
+    view.day = 1;
+    view.publicSummary.claimBoard = [outsideClaim];
+    view.publicSummary.tableMemory = tableMemory;
+    view.privateKnowledge.seerChecks = [{ day: 1, seerSeatId: 1, targetSeatId: checkedSeat.seatId, result: "GOOD" }];
+    view.aliveSeats = [target(1, "Self"), checkedSeat, outsideSeer];
+
+    const plan = createSpeechPlan(view, tableRead("SEER", [seatRead(checkedSeat), seatRead(outsideSeer)], tableMemory));
+
+    expect(plan.kind).toBe("claim-check");
+    expect(plan.claimIntent).toMatchObject({
+      claimedRole: "SEER",
+      strength: "hard",
+      check: {
+        targetSeatId: checkedSeat.seatId,
+        result: "GOOD",
+      },
+    });
+    expect(plan.stance).toContain("金水");
+  });
+
+  it("keeps an unpressured day-one good check hidden when no outside seer has claimed", () => {
+    const checkedSeat = target(2, "Gold");
+    const tableMemory = emptyTableMemory();
+    const view = actionView("SEER", "DAY_SPEECH", { type: "speak" }, { wolfRoles: ["WEREWOLF"] });
+    view.day = 1;
+    view.publicSummary.tableMemory = tableMemory;
+    view.privateKnowledge.seerChecks = [{ day: 1, seerSeatId: 1, targetSeatId: checkedSeat.seatId, result: "GOOD" }];
+    view.aliveSeats = [target(1, "Self"), checkedSeat];
+
+    const plan = createSpeechPlan(view, tableRead("SEER", [seatRead(checkedSeat)], tableMemory));
+
+    expect(plan.kind).toBe("defend");
+    expect(plan.claimIntent).toBeUndefined();
+    expect(plan.stance).toContain("首日金水先藏验人");
+  });
 });
 
 function actionView(

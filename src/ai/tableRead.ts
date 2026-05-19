@@ -744,12 +744,20 @@ function shouldRevealSeerCheck(
   const underHardPressure = selfRead ? selfRead.suspicion - selfRead.trust >= 28 || selfRead.votesReceived >= 2 : false;
   if (underBlackCheck || underHardPressure) return true;
 
-  return view.day >= getGoodSeerCheckRevealDay(view);
+  const hasPublicSeerCounterclaim = view.publicSummary.claimBoard.some(
+    (claim) => claim.claimedRole === "SEER" && claim.claimant.seatId !== view.mySeatId,
+  );
+  const revealDay = getGoodSeerCheckRevealDay(view, hasPublicSeerCounterclaim);
+  if (latestCheck.result === "GOOD" && view.day === 1 && hasPublicSeerCounterclaim) return true;
+
+  return view.day >= revealDay;
 }
 
-function getGoodSeerCheckRevealDay(view: AgentView): number {
+function getGoodSeerCheckRevealDay(view: AgentView, hasPublicSeerCounterclaim: boolean): number {
   const wolfRoles = new Set(view.rules.wolfRoles);
-  return wolfRoles.has("WOLF_KING") || wolfRoles.has("WHITE_WOLF_KING") ? 1 : 3;
+  const baseDay = wolfRoles.has("WOLF_KING") || wolfRoles.has("WHITE_WOLF_KING") ? 1 : 3;
+  if (hasPublicSeerCounterclaim && baseDay > 1) return 1;
+  return baseDay;
 }
 
 type IdentityPressure = {

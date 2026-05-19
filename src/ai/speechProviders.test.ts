@@ -233,6 +233,40 @@ describe("mock speech provider", () => {
     expect(guideText).toContain("只抓一条主线");
     expect(guideText).toContain("不要连续多句都用“我先”开头");
   });
+
+  it("briefs day-one single death as a public death-shape hypothesis without confirming potion use", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 94, humanSeatId: null });
+    const deadSeat = state.seats.find((seat) => seat.role !== "WEREWOLF")!;
+    const speaker = state.seats.find((seat) => seat.alive && seat.seatId !== deadSeat.seatId)!;
+    deadSeat.alive = false;
+    deadSeat.deathReason = "WOLF_KILL";
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+    state.events.push({
+      seq: state.events.length + 1,
+      type: "DAY_STARTED",
+      visibility: "public",
+      day: 1,
+      phase: "DAY_ANNOUNCEMENT",
+      message: `第1天清晨，${deadSeat.seatId}号 死亡。`,
+      payload: { deadSeatIds: [deadSeat.seatId] },
+    });
+
+    const input = buildConstrainedSpeechInput(buildAgentView(state, speaker.seatId));
+    const briefingText = [
+      input.tableBriefing.text,
+      input.tableBriefing.publicReasoningCues.join("\n"),
+      input.tableBriefing.publicBoundary.join("\n"),
+      input.tableBriefing.unknowns.join("\n"),
+      input.publicContext.rules.deathInfoNote,
+    ].join("\n");
+
+    expect(briefingText).toMatch(/首夜单死.*药线假设/);
+    expect(briefingText).toMatch(/不能断定|不能说成确定死因/);
+    expect(briefingText).toContain("公开死亡形态");
+  });
 });
 
 function countSpeechSentences(speech: string): number {
