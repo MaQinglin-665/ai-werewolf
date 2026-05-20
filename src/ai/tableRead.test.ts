@@ -255,6 +255,71 @@ describe("createVotePlan", () => {
     expect(plan.target.seatId).toBe(3);
     expect(plan.reason).not.toContain("Public Gold");
   });
+
+  it("keeps wolves from parking votes on a night-dead seer's gold water without hard counter-evidence", () => {
+    const deadSeer = target(4, "Dead Seer");
+    const gold = target(2, "Legacy Gold");
+    const alternative = target(3, "Open Focus");
+    const tableMemory = createTableMemory({
+      day: 2,
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 2,
+          checks: [{ day: 1, target: gold, result: "GOOD" }],
+          stancesGiven: [],
+          summary: "4 号夜死后留下 2 号金水",
+        },
+      ],
+      focus: [{ seat: gold, reasons: ["上一轮票过"], score: 90 }],
+    });
+    const view = {
+      ...createView(tableMemory),
+      day: 2,
+      aliveSeats: [target(1, "Wolf"), gold, alternative],
+      privateKnowledge: {
+        wolfTeammates: [target(5, "Wolf Mate")],
+        aiMemory: { seatId: 1, day: 2, lastVoteTargetSeatId: gold.seatId, beliefs: [] },
+      },
+      allowedActions: [{ type: "vote", targets: [gold, alternative], canAbstain: false }],
+    } as AgentView;
+    const tableRead: AiTableRead = {
+      mySeatId: 1,
+      myRole: "WEREWOLF",
+      day: 2,
+      seats: [
+        createSeat({ seatId: 1, name: "Wolf", isSelf: true, suspicion: 0, trust: 100 }),
+        createSeat({
+          seatId: gold.seatId,
+          name: gold.name,
+          suspicion: 92,
+          trust: 18,
+          pressure: ["上一轮被投过", "发言偏短"],
+        }),
+        createSeat({
+          seatId: alternative.seatId,
+          name: alternative.name,
+          suspicion: 58,
+          trust: 42,
+          pressure: ["发言理由不完整"],
+        }),
+      ],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [],
+      wolfTeammateSeatIds: [5],
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches: [],
+      recentDeaths: ["4 号夜死"],
+      tableMemory,
+      tableMood: "夜死预言家金水不适合继续硬推",
+    };
+
+    const plan = createVotePlan(view, tableRead);
+
+    expect(plan.target.seatId).toBe(alternative.seatId);
+    expect(plan.reason).not.toContain("上一轮");
+    expect(plan.alternatives.map((item) => item.seatId)).not.toContain(gold.seatId);
+  });
 });
 
 describe("createSpeechPlan", () => {

@@ -768,14 +768,16 @@ function chooseShotTarget(
 function chooseKnightDuelTarget(view: AgentView, tableRead: AiTableRead): ActionTarget | undefined {
   const action = getAction(view, "knightDuel");
   const legalTargetIds = new Set(action.targets.map((target) => target.seatId));
-  const target = tableRead.seats
+  const candidates = tableRead.seats
     .filter((seat) => legalTargetIds.has(seat.seatId))
-    .sort((a, b) => knightDuelScore(tableRead, b) - knightDuelScore(tableRead, a) || a.seatId - b.seatId)[0];
+    .sort((a, b) => knightDuelScore(tableRead, b) - knightDuelScore(tableRead, a) || a.seatId - b.seatId);
+  const target = candidates.find((seat) => {
+    const publicWolfCheck = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF");
+    const threshold = (publicWolfCheck ? 64 : 84) - (view.persona?.riskTolerance ?? 0.45) * 8;
+    return hasStrongKnightDuelEvidence(tableRead, seat) && seat.suspicion >= threshold;
+  });
 
-  const publicWolfCheck = target?.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ?? false;
-  const threshold = (publicWolfCheck ? 64 : 84) - (view.persona?.riskTolerance ?? 0.45) * 8;
-  if (!target || !hasStrongKnightDuelEvidence(tableRead, target) || target.suspicion < threshold) return undefined;
-  return toTarget(target);
+  return target ? toTarget(target) : undefined;
 }
 
 function knightDuelScore(tableRead: AiTableRead, seat: SeatRead): number {
@@ -797,8 +799,12 @@ function hasStrongKnightDuelEvidence(tableRead: AiTableRead, seat: SeatRead): bo
       .map((stance) => stance.actor.seatId),
   );
   const hasPublicBlackCheck = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF");
-  if (hasStrongPublicActionCue(tableRead, seat) && seat.suspicion >= 88) return true;
-  return hasPublicBlackCheck && seat.suspicion >= 92 && negativeActors.size >= 3;
+  const trustedBlackCheck = hasTrustedPublicWolfCheck(tableRead, seat);
+  if (hasPublicBlackCheck && !trustedBlackCheck) return false;
+  if (trustedBlackCheck && tableRead.day >= 3 && seat.suspicion >= 90 && (negativeActors.size >= 2 || hasStrongPublicActionCue(tableRead, seat))) {
+    return true;
+  }
+  return !hasPublicBlackCheck && tableRead.day >= 3 && hasStrongPublicActionCue(tableRead, seat) && seat.suspicion >= 96 && negativeActors.size >= 3;
 }
 
 function chooseWhiteWolfKingExplodeTarget(

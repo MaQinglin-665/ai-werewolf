@@ -5,6 +5,7 @@ import { buildConstrainedActionInput, routedModelActionProvider } from "./action
 import { buildAiTableRead, createVotePlan } from "./tableRead";
 import { buildAgentView } from "@/game/projection";
 import { createGame } from "@/game/engine";
+import type { ActionTarget, AgentView, AiTableRead, SeatRead, TableMemory } from "@/game/types";
 
 const originalEnv = { ...process.env };
 
@@ -68,6 +69,55 @@ describe("routed action provider", () => {
     expect(input.candidates.some((candidate) => candidate.command.type === "knightDuel")).toBe(true);
     expect(input.constraints.join("\n")).toContain("Knight duel is optional");
     expect(input.constraints.join("\n")).toContain("single black-check pressure should rank below repeated public evidence");
+  });
+
+  it("ranks dead-seer legacy knight targets ahead of untrusted single black-check pressure", () => {
+    const noisy = target(2, "Noisy Check");
+    const legacyTarget = target(3, "Legacy Black");
+    const deadSeer = target(6, "Dead Seer");
+    const tableMemory = emptyTableMemory({
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 3,
+          summary: "Dead Seer died with a black check.",
+          checks: [{ day: 2, target: legacyTarget, result: "WEREWOLF" }],
+          stancesGiven: [],
+        },
+      ],
+    });
+    const view = knightActionView([noisy, legacyTarget], tableMemory);
+    const tableRead = actionTableRead(
+      [
+        seatRead(noisy, {
+          suspicion: 98,
+          trust: 20,
+          pressure: ["Contested Seer公开报查杀", "多人跟进施压"],
+          publicChecksAgainst: [{ claimant: target(4, "Contested Seer"), result: "WEREWOLF", day: 3 }],
+        }),
+        seatRead(legacyTarget, {
+          suspicion: 82,
+          trust: 38,
+          pressure: ["Dead Seer夜死后遗留查杀"],
+        }),
+      ],
+      tableMemory,
+    );
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      fallbackCommand: { type: "knightDuel", actorSeatId: 1, targetSeatId: legacyTarget.seatId, reason: "死预遗产更硬。" },
+    });
+
+    const duelTargets = input.candidates
+      .filter((candidate) => candidate.command.type === "knightDuel" && "targetSeatId" in candidate.command && candidate.command.targetSeatId)
+      .map((candidate) => ("targetSeatId" in candidate.command ? candidate.command.targetSeatId : undefined));
+
+    expect(duelTargets[0]).toBe(legacyTarget.seatId);
+    expect(
+      input.candidates.find(
+        (candidate) => candidate.command.type === "knightDuel" && "targetSeatId" in candidate.command && candidate.command.targetSeatId === legacyTarget.seatId,
+      )?.recommended,
+    ).toBe(true);
   });
 
   it("tries an action fallback persona after invalid primary JSON", async () => {
@@ -235,3 +285,96 @@ describe("routed action provider", () => {
     });
   });
 });
+
+function target(seatId: number, name: string): ActionTarget {
+  return { seatId, name };
+}
+
+function knightActionView(targets: ActionTarget[], tableMemory: TableMemory): AgentView {
+  return {
+    gameId: "test-action-input",
+    mySeatId: 1,
+    myRole: "KNIGHT",
+    phase: "KNIGHT_DUEL",
+    day: 3,
+    rules: { hasGuard: false, guardSaveConflictKills: false, hasWolfBeauty: false, hasKnight: true },
+    aliveSeats: [target(1, "Knight"), ...targets],
+    publicEvents: [],
+    publicSummary: {
+      recentSpeeches: [],
+      recentVotes: [],
+      voteSnapshot: { votes: [], tally: [], leaders: [], revealed: false },
+      recentDeaths: [],
+      deathSummary: [],
+      claimBoard: [],
+      tableMemory,
+    },
+    privateKnowledge: {},
+    allowedActions: [{ type: "knightDuel", targets, canSkip: true }],
+  } as AgentView;
+}
+
+function actionTableRead(seats: SeatRead[], tableMemory: TableMemory): AiTableRead {
+  return {
+    mySeatId: 1,
+    myRole: "KNIGHT",
+    day: 3,
+    seats: [
+      seatRead(target(1, "Knight"), {
+        suspicion: 0,
+        trust: 100,
+        isSelf: true,
+      }),
+      ...seats,
+    ],
+    knownWolfSeatIds: [],
+    knownGoodSeatIds: [],
+    wolfTeammateSeatIds: [],
+    focus: seats[0],
+    backupFocus: seats[1],
+    voteSnapshot: { votes: [], tally: [], leaders: [], revealed: false },
+    recentSpeeches: [],
+    recentDeaths: [],
+    tableMemory,
+    tableMood: "test",
+  };
+}
+
+function seatRead(targetSeat: ActionTarget, overrides: Partial<SeatRead> = {}): SeatRead {
+  return {
+    ...targetSeat,
+    suspicion: 50,
+    trust: 50,
+    pressure: [],
+    isSelf: false,
+    isKnownWolf: false,
+    isKnownGood: false,
+    isWolfTeammate: false,
+    speechCount: 1,
+    votesReceived: 0,
+    publicClaims: [],
+    publicChecksAgainst: [],
+    publicStancesGiven: [],
+    publicStancedBy: [],
+    ...overrides,
+  };
+}
+
+function emptyTableMemory(overrides: Partial<TableMemory> = {}): TableMemory {
+  return {
+    day: 3,
+    claimBoard: [],
+    stanceBoard: [],
+    stanceShifts: [],
+    seerLegacies: [],
+    speechInfluence: [],
+    reasoningCues: [],
+    counterclaims: [],
+    focus: [],
+    seats: [],
+    voteHistory: [],
+    deathAnnouncements: [],
+    publicSignals: [],
+    ...overrides,
+  };
+}

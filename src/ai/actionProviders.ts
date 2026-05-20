@@ -888,7 +888,7 @@ function buildActionCandidates(
           reasonHint: "public evidence is not strong enough for a duel",
         });
       }
-      for (const target of sortTargets(action?.targets ?? [], tableRead, knightDuelTargetScore)) {
+      for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => knightDuelTargetScore(tableRead, seat))) {
         add({
           id: `knight:duel:${target.seatId}`,
           label: `Duel ${target.name}`,
@@ -1194,20 +1194,31 @@ function wolfBeautyCharmTargetScore(seat: SeatRead): number {
   return seat.trust - seat.suspicion * 0.18 + claimValue;
 }
 
-function knightDuelTargetScore(seat: SeatRead): number {
-  const wolfCheckBonus = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ? 18 : 0;
+function knightDuelTargetScore(tableRead: AiTableRead, seat: SeatRead): number {
+  const hasDeadSeerLegacy = hasDeadSeerLegacyBlackCheck(tableRead, seat);
+  const hasPublicWolfCheck = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF");
+  const wolfCheckBonus = hasPublicWolfCheck ? 12 : 0;
+  const deadSeerLegacyBonus = hasDeadSeerLegacy ? 34 : 0;
   const counterclaimBonus =
     seat.publicClaims.some((claim) => claim.claimedRole === "SEER") &&
     seat.pressure.some((item) => item.includes("后置查杀已跳预言家") || item.includes("夜死后遗留查杀"))
       ? 8
       : 0;
   const weakBlackCheckPenalty =
-    seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") &&
-    !seat.pressure.some((item) => item.includes("后置查杀已跳预言家") || item.includes("夜死后遗留查杀"))
-      ? 18
+    hasPublicWolfCheck && !hasDeadSeerLegacy && !seat.pressure.some((item) => item.includes("后置查杀已跳预言家"))
+      ? 30
       : 0;
   const protectedClaimPenalty = seat.pressure.some((item) => item.includes("未对跳") || item.includes("被后置预言家查杀")) ? 40 : 0;
-  return seat.suspicion - seat.trust * 0.12 + wolfCheckBonus + counterclaimBonus - weakBlackCheckPenalty - protectedClaimPenalty;
+  return seat.suspicion - seat.trust * 0.12 + wolfCheckBonus + deadSeerLegacyBonus + counterclaimBonus - weakBlackCheckPenalty - protectedClaimPenalty;
+}
+
+function hasDeadSeerLegacyBlackCheck(tableRead: AiTableRead, seat: SeatRead): boolean {
+  return (
+    seat.pressure.some((item) => item.includes("夜死后遗留查杀")) ||
+    tableRead.tableMemory.seerLegacies.some((legacy) =>
+      legacy.checks.some((check) => check.result === "WEREWOLF" && check.target.seatId === seat.seatId),
+    )
+  );
 }
 
 function targetReasonHint(tableRead: AiTableRead, target: ActionTarget, fallback: string): string {
