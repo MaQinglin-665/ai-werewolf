@@ -131,11 +131,12 @@ describe("table memory death-shape public cues", () => {
           kind: "death_shape",
           weight: "medium",
           target: expect.objectContaining({ seatId: deadSeat.seatId }),
-          summary: expect.stringMatching(/首夜单死.*药线假设.*不能断定/),
+          summary: expect.stringMatching(/首夜单死.*女巫没救.*合理简称.*不应.*质疑/),
         }),
       ]),
     );
-    expect(memory.publicSignals.join("\n")).toMatch(/首夜单死.*药线假设/);
+    expect(memory.publicSignals.join("\n")).toMatch(/首夜单死.*女巫没救.*合理简称/);
+    expect(memory.publicSignals.join("\n")).not.toMatch(/狼人空刀|空刀/);
   });
 
   it("does not add no-guard potion-line cues on guard boards", () => {
