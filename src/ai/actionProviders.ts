@@ -31,6 +31,7 @@ import { buildDebateAgenda, type AiDebateAgenda } from "./debateAgenda";
 import { buildExpertStrategyNotes } from "./expertStrategy";
 import { buildReasoningFrame, type AiReasoningFrame } from "./reasoningFrame";
 import { buildRolePlaybook, type AiRolePlaybook } from "./rolePlaybook";
+import { isProtectedDeadSeerGoldSeat } from "./protectedGold";
 import type { AiActionProvider, AiActionProviderContext, AiActionResult } from "./types";
 
 const ActionDecisionSchema = z
@@ -900,7 +901,8 @@ function buildActionCandidates(
           reasonHint:
             votePlan?.target.seatId === target.seatId
               ? votePlan.reason
-            : publicSafeTargetReasonHint(view, tableRead, target, "public suspicion"),
+              : protectedDeadSeerGoldReasonHint(tableRead, target) ??
+                publicSafeTargetReasonHint(view, tableRead, target, "public suspicion"),
         });
       }
       if (action?.canAbstain) {
@@ -1044,17 +1046,31 @@ function orderVoteTargets(
   votePlan: VotePlan | undefined,
 ): ActionTarget[] {
   const ordered: ActionTarget[] = [];
+  const isProtected = (target: ActionTarget | undefined) => Boolean(target && protectedDeadSeerGoldReasonHint(tableRead, target));
   const push = (target: ActionTarget | undefined) => {
     if (!target) return;
     if (!legalTargets.some((item) => item.seatId === target.seatId)) return;
     if (!ordered.some((item) => item.seatId === target.seatId)) ordered.push(target);
   };
+  const pushWhen = (target: ActionTarget | undefined, protectedState: boolean) => {
+    if (isProtected(target) === protectedState) push(target);
+  };
+  const sortedTargets = sortTargets(legalTargets, tableRead, (seat) => seat.suspicion - seat.trust * 0.18);
 
-  push(votePlan?.target);
-  for (const alternative of votePlan?.alternatives ?? []) push(alternative);
-  for (const target of sortTargets(legalTargets, tableRead, (seat) => seat.suspicion - seat.trust * 0.18)) push(target);
+  pushWhen(votePlan?.target, false);
+  for (const alternative of votePlan?.alternatives ?? []) pushWhen(alternative, false);
+  for (const target of sortedTargets) pushWhen(target, false);
+  pushWhen(votePlan?.target, true);
+  for (const alternative of votePlan?.alternatives ?? []) pushWhen(alternative, true);
+  for (const target of sortedTargets) pushWhen(target, true);
 
   return ordered;
+}
+
+function protectedDeadSeerGoldReasonHint(tableRead: AiTableRead, target: ActionTarget): string | undefined {
+  const seat = tableRead.seats.find((item) => item.seatId === target.seatId);
+  if (!seat || !isProtectedDeadSeerGoldSeat(tableRead, seat)) return undefined;
+  return "protected dead seer gold: avoid voting here unless hard public counter-evidence appears";
 }
 
 function buildLastWordsCandidates(view: AgentView, tableRead: AiTableRead): string[] {

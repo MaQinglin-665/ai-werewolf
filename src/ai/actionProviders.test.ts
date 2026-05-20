@@ -181,6 +181,55 @@ describe("routed action provider", () => {
     ).toBe(true);
   });
 
+  it("demotes protected dead-seer gold water in day vote candidates", () => {
+    const deadSeer = target(6, "Dead Seer");
+    const gold = target(2, "Legacy Gold");
+    const alternative = target(3, "Open Focus");
+    const tableMemory = emptyTableMemory({
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 2,
+          summary: "Dead Seer died with a gold-water check.",
+          checks: [{ day: 1, target: gold, result: "GOOD" }],
+          stancesGiven: [],
+        },
+      ],
+    });
+    const view = voteActionView([gold, alternative], tableMemory);
+    const tableRead = {
+      ...actionTableRead(
+        [
+          seatRead(gold, {
+            suspicion: 98,
+            trust: 16,
+            pressure: ["short speech", "soft vote noise"],
+          }),
+          seatRead(alternative, {
+            suspicion: 56,
+            trust: 44,
+            pressure: ["open public focus"],
+          }),
+        ],
+        tableMemory,
+      ),
+      myRole: "VILLAGER" as const,
+    };
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      fallbackCommand: { type: "vote", actorSeatId: 1, targetSeatId: alternative.seatId, reason: "protect legacy gold" },
+    });
+    const voteCandidates = input.candidates.filter(
+      (candidate) => candidate.command.type === "vote" && "targetSeatId" in candidate.command && candidate.command.targetSeatId,
+    );
+
+    expect(voteCandidates.map((candidate) => ("targetSeatId" in candidate.command ? candidate.command.targetSeatId : undefined))).toEqual([
+      alternative.seatId,
+      gold.seatId,
+    ]);
+    expect(voteCandidates.find((candidate) => candidate.target?.seatId === gold.seatId)?.reasonHint).toMatch(/dead seer gold/i);
+  });
+
   it("tries an action fallback persona after invalid primary JSON", async () => {
     process.env.AI_LLM_API_KEY = "test-key";
     process.env.AI_LLM_MAX_RETRIES = "1";
@@ -372,6 +421,30 @@ function knightActionView(targets: ActionTarget[], tableMemory: TableMemory): Ag
     },
     privateKnowledge: {},
     allowedActions: [{ type: "knightDuel", targets, canSkip: true }],
+  } as AgentView;
+}
+
+function voteActionView(targets: ActionTarget[], tableMemory: TableMemory): AgentView {
+  return {
+    gameId: "test-action-vote-input",
+    mySeatId: 1,
+    myRole: "VILLAGER",
+    phase: "DAY_VOTE",
+    day: 3,
+    rules: { hasGuard: false, guardSaveConflictKills: false, hasWolfBeauty: false, hasKnight: false, wolfRoles: ["WEREWOLF"] },
+    aliveSeats: [target(1, "Voter"), ...targets],
+    publicEvents: [],
+    publicSummary: {
+      recentSpeeches: [],
+      recentVotes: [],
+      voteSnapshot: { votes: [], tally: [], leaders: [], revealed: false },
+      recentDeaths: [],
+      deathSummary: [],
+      claimBoard: [],
+      tableMemory,
+    },
+    privateKnowledge: { aiMemory: { seatId: 1, day: 3, beliefs: [] } },
+    allowedActions: [{ type: "vote", targets, canAbstain: true }],
   } as AgentView;
 }
 
