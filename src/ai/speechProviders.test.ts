@@ -418,8 +418,10 @@ describe("mock speech provider", () => {
       input.publicContext.rules.deathInfoNote,
     ].join("\n");
 
-    expect(briefingText).toMatch(/首夜单死.*药线假设/);
-    expect(briefingText).toMatch(/不能断定|不能说成确定死因/);
+    expect(briefingText).toMatch(/首夜单死.*女巫没救.*合理简称/);
+    expect(briefingText).toMatch(/不应只因.*女巫没救.*质疑/);
+    expect(briefingText).not.toMatch(/狼人空刀|空刀/);
+    expect(briefingText).not.toMatch(/不能.*女巫用药|不能断定.*女巫动作/);
     expect(briefingText).toContain("公开死亡形态");
   });
 });

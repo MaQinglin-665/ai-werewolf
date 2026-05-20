@@ -484,7 +484,7 @@ function buildDeathShapeCues(state: GameState): TableMemory["reasoningCues"] {
         day: event.day,
         kind: "death_shape",
         weight: "medium",
-        summary: "首夜平安夜：无守卫女巫局可以作为药线假设的公开讨论点，但不能确认女巫用药或具体死因。",
+        summary: "首夜平安夜：当前规则里狼人夜晚没有跳过击杀动作；无守卫女巫局可以作为解药处理狼刀的药线假设，但不能确认女巫身份或更多药瓶细节。",
         evidence: [event.message, "本局无守卫且有女巫，死亡形态本身是公开信息。"],
       });
       continue;
@@ -497,7 +497,7 @@ function buildDeathShapeCues(state: GameState): TableMemory["reasoningCues"] {
         day: event.day,
         kind: "death_shape",
         weight: "medium",
-        summary: `首夜单死${deadTarget ? `（${deadTarget.name}）` : ""}：无守卫女巫局可以作为药线假设的公开讨论点，但不能断定具体死因或女巫动作。`,
+        summary: `首夜单死${deadTarget ? `（${deadTarget.name}）` : ""}：无守卫女巫局里，“女巫没救/没用解药”是公开死亡形态下的合理简称，不应只因“女巫没救/没用解药”这种说法质疑；但不能确认具体刀口、毒药归属或女巫身份。`,
         ...(deadTarget ? { target: deadTarget } : {}),
         evidence: [event.message, "本局无守卫且有女巫，死亡形态本身是公开信息。"],
       });

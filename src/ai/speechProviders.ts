@@ -43,7 +43,7 @@ const SpeechSchema = z.object({
 const AI_SPEECH_MAX_CHARS = 800;
 const AI_MOCK_SPEECH_MAX_CHARS = 380;
 const SPEECH_SYSTEM_PROMPT =
-  "你是狼人杀玩家本人。根据牌桌局势、你的身份信息和你的性格，自由发表这一轮公开发言。优先阅读 input.tableBriefing.text 和 input.publicContext.rules，它们是事实边界和当前板子规则，不是台词模板；再参考 input.expertStrategy、input.advancedReasoning、input.reasoningFrame、input.rolePlaybook、input.claimAudit、input.debateAgenda 和 input.playerSpeechGuide，expertStrategy 是高质量对局打法原则，advancedReasoning 是本局当前应该核验的逻辑清单，reasoningFrame 把硬证据、软信号、反面解释和验证问题拆开，rolePlaybook 是你当前角色的玩法分支和行动边界，claimAudit 专门审计身份坑、查验链和未对跳神职，debateAgenda 是本轮可以追问、收票和验证的动态议程，都不是固定话术。发言要像高阶玩家临场盘逻辑：观点先落地，随后给公开依据，补一句证据硬度或反面可能，再留下可验证的追问、改票条件或票口；优先串联验人、站边、票型、发言顺序和死亡播报，而不是只给情绪听感，也不要把座位、语气、短发言这类软信息当铁证。模型特点只是软性的打法倾向：例如 DeepSeek 偏逻辑链，Claude 偏边界审查，豆包偏强压，Kimi 偏长线记忆；不要自称模型，也不要为了表现风格牺牲局势判断。不要把内部分析标签说出口，例如“拆因果”“第一点”“盘问议程”“票口条件”“可改票条件”；要把这些材料改写成自然的牌桌发言。只输出玩家实际说出口的台词，不写括号内动作、神态、语气或旁白描写。发言可以有个人风格和策略，但不能违背事实简报：只能评价本日已经发过言的人；对尚未发言的后置位只能要求稍后表态，不能说他们已经信息少或没回应；天亮死讯只公开谁死亡，不公开狼刀、毒、自刀等具体死因，除非公开记录写明，不要把死因说死；无守卫女巫局可以把首夜单死或平安夜当公开死亡形态提出药线假设，但只能说成可能性。";
+  "你是狼人杀玩家本人。根据牌桌局势、你的身份信息和你的性格，自由发表这一轮公开发言。优先阅读 input.tableBriefing.text 和 input.publicContext.rules，它们是事实边界和当前板子规则，不是台词模板；再参考 input.expertStrategy、input.advancedReasoning、input.reasoningFrame、input.rolePlaybook、input.claimAudit、input.debateAgenda 和 input.playerSpeechGuide，expertStrategy 是高质量对局打法原则，advancedReasoning 是本局当前应该核验的逻辑清单，reasoningFrame 把硬证据、软信号、反面解释和验证问题拆开，rolePlaybook 是你当前角色的玩法分支和行动边界，claimAudit 专门审计身份坑、查验链和未对跳神职，debateAgenda 是本轮可以追问、收票和验证的动态议程，都不是固定话术。发言要像高阶玩家临场盘逻辑：观点先落地，随后给公开依据，补一句证据硬度或反面可能，再留下可验证的追问、改票条件或票口；优先串联验人、站边、票型、发言顺序和死亡播报，而不是只给情绪听感，也不要把座位、语气、短发言这类软信息当铁证。模型特点只是软性的打法倾向：例如 DeepSeek 偏逻辑链，Claude 偏边界审查，豆包偏强压，Kimi 偏长线记忆；不要自称模型，也不要为了表现风格牺牲局势判断。不要把内部分析标签说出口，例如“拆因果”“第一点”“盘问议程”“票口条件”“可改票条件”；要把这些材料改写成自然的牌桌发言。只输出玩家实际说出口的台词，不写括号内动作、神态、语气或旁白描写。发言可以有个人风格和策略，但不能违背事实简报：只能评价本日已经发过言的人；对尚未发言的后置位只能要求稍后表态，不能说他们已经信息少或没回应；当前规则里狼人夜晚没有跳过击杀动作；天亮死讯只公开谁死亡，不公开狼刀、毒、自刀等具体死因，除非公开记录写明，不要把死因说死；无守卫女巫局可以把首夜单死或平安夜当公开死亡形态提出药线假设，首夜单死后“女巫没救/没用解药”属于合理简称，不应只因“女巫没救/没用解药”这种说法质疑发言者。";
 
 export type SpeechStrictness = "strict" | "guided" | "loose";
 
@@ -344,7 +344,8 @@ function buildSpeechRulesContext(view: AgentView): LlmSpeechInput["publicContext
     note: view.privateKnowledge.sheriff
       ? "本局启用警长竞选、警徽和警下投票；警长白天放逐投票计 1.5 票。"
       : "本局没有警长竞选、警徽、警上、警下流程。",
-    deathInfoNote: "天亮死讯只公开死亡名单，不公开狼刀、毒、自刀等具体死因；可以讨论公开死亡形态带来的合理假设，但不能把假设说成确定死因。",
+    deathInfoNote:
+      "当前规则里狼人夜晚没有跳过击杀动作。天亮死讯只公开死亡名单，不公开狼刀、毒、自刀等具体死因；可以讨论公开死亡形态带来的合理假设。无守卫首夜单死后，说“女巫没救/没用解药”属于合理简称，不应只因“女巫没救/没用解药”这种说法质疑发言者。",
     speechTimelineNote: "本日发言有先后顺序。只能评价已经发过言的玩家；尚未发言的后置位只能要求稍后补视角，不能说他们已经信息少、没站边或没回应。",
     unavailableTerms,
   };
@@ -542,7 +543,8 @@ function buildTableBriefing(
   const publicBoundary = [
     "公开信息只包括：已经公开的发言、死亡播报、身份声明、公开查验声明和已公开票型。",
     "本轮已发言玩家可以被评价；本轮未发言玩家只能被要求稍后表态。",
-    "天亮死讯只公开倒牌结果，不公开狼刀、毒、自刀等具体死因；可以讨论死亡形态的公开假设，不能说成确定死因。",
+    "当前规则里狼人夜晚没有跳过击杀动作；天亮死讯只公开倒牌结果，不公开狼刀、毒、自刀等具体死因。",
+    "无守卫首夜单死后，“女巫没救/没用解药”是公开死亡形态下的合理简称，不应只因“女巫没救/没用解药”这种说法质疑发言者。",
   ];
   const privateBoundary = buildPrivateBoundaryLines(view);
   const recentCurrentDaySpeeches = view.publicSummary.recentSpeeches
@@ -566,7 +568,7 @@ function buildTableBriefing(
   const privateFacts = buildPrivateBriefingLines(view);
   const unknowns = [
     "你不能知道其他玩家真实身份，除非这是你自己的身份、狼队视角或真实预言家查验。",
-    "公开死讯不能擅自说成确定的狼刀、毒、自刀或女巫用药；若板子无守卫，只能以假设方式讨论死亡形态和药线。",
+    "公开死讯不能擅自说成确定的狼刀、毒药归属或自刀；若板子无守卫，可以以公开死亡形态讨论药线，但不要把女巫身份或药瓶细节说死。",
     "尚未发言的后置位还没有给本轮态度，不能评价他们已经信息少、没回应或没站边。",
     ...(view.privateKnowledge.sheriff ? [] : ["没有警上、警下、警徽、警长流程，不要使用这些概念。"]),
   ];
@@ -640,7 +642,7 @@ function buildDeathBriefingLine(view: AgentView): string {
     ]),
   ].slice(-3);
   return deaths.length > 0
-    ? `公开死讯：${deaths.join("；")}。死因未知，不能直接反推狼刀、毒或自刀；可按板子讨论公开死亡形态假设。`
+    ? `公开死讯：${deaths.join("；")}。当前规则里狼人夜晚没有跳过击杀动作；死因仍未公开，不能直接确认狼刀、毒药归属或自刀；可按板子讨论公开死亡形态假设。`
     : "公开死讯：目前没有需要引用的死亡播报。";
 }
 
