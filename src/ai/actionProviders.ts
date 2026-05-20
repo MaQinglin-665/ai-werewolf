@@ -1097,6 +1097,7 @@ function buildActionConstraints(view: AgentView): string[] {
     constraints.push(
       "Knight duel is optional and public: counterclaim status alone is not enough; prefer concrete public black-check evidence, dead-seer legacy, or repeated independent pressure.",
     );
+    constraints.push("For knight duel, single black-check pressure should rank below repeated public evidence or a death-legacy evidence loop.");
   }
 
   if (getAction(view, "wolfBeautyCharm")) {
@@ -1203,9 +1204,9 @@ function knightDuelTargetScore(seat: SeatRead): number {
   const weakBlackCheckPenalty =
     seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") &&
     !seat.pressure.some((item) => item.includes("后置查杀已跳预言家") || item.includes("夜死后遗留查杀"))
-      ? 10
+      ? 18
       : 0;
-  const protectedClaimPenalty = seat.pressure.some((item) => item.includes("未对跳") || item.includes("被后置预言家查杀")) ? 28 : 0;
+  const protectedClaimPenalty = seat.pressure.some((item) => item.includes("未对跳") || item.includes("被后置预言家查杀")) ? 40 : 0;
   return seat.suspicion - seat.trust * 0.12 + wolfCheckBonus + counterclaimBonus - weakBlackCheckPenalty - protectedClaimPenalty;
 }
 

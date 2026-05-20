@@ -67,6 +67,7 @@ describe("routed action provider", () => {
 
     expect(input.candidates.some((candidate) => candidate.command.type === "knightDuel")).toBe(true);
     expect(input.constraints.join("\n")).toContain("Knight duel is optional");
+    expect(input.constraints.join("\n")).toContain("single black-check pressure should rank below repeated public evidence");
   });
 
   it("tries an action fallback persona after invalid primary JSON", async () => {

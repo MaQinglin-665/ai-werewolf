@@ -112,6 +112,7 @@ export async function advanceWithMockAi(
     state = storeAiSeatMemory(state, memoryAfterDecision);
     aiLogs.push({
       gameId: state.id,
+      day: prompt.day,
       seatNumber: actorSeatId,
       phase: requirement.phase,
       provider: speechResult?.provider ?? actionResult?.provider ?? mockActionProvider.providerId,
@@ -242,6 +243,7 @@ async function advanceAiTurn(
     state,
     aiLog: {
       gameId: state.id,
+      day: prompt.day,
       seatNumber: requirement.actorSeatId,
       phase: requirement.phase,
       provider: speechResult?.provider ?? actionResult?.provider ?? mockActionProvider.providerId,

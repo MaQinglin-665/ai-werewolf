@@ -243,6 +243,37 @@ describe("mock speech provider", () => {
     expect(result.speech).not.toContain("昨晚验");
   });
 
+  it("does not use an unchallenged public gold water as the fallback mock speech target", async () => {
+    let state = createGame({ boardId: "9p-seer-witch-hunter", seed: 3, humanSeatId: null });
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const speaker = state.seats.find((seat) => seat.seatId === 1)!;
+    const gold = state.seats.find((seat) => seat.seatId === 2)!;
+    speaker.role = "VILLAGER";
+    gold.role = "VILLAGER";
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [seer.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: seer.seatId,
+      message: `我跳预言家，${gold.seatId}号是金水。`,
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, speaker.seatId);
+    const plan = {
+      ...createSpeechPlan(view),
+      target: undefined,
+      talkingPoints: ["先听完整轮发言"],
+    };
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(result.speech).not.toMatch(new RegExp(`${gold.seatId}号[^。！？；，、]{0,28}(讲实|票口|补清楚|放进观察|挂疑问|收票|压)`));
+  });
+
   it("keeps early mock speeches away from prompt-like report wording", async () => {
     const { aiLogs } = await advanceWithMockAi(createGame({ seed: 91, humanSeatId: null }), {
       ignoreHuman: true,

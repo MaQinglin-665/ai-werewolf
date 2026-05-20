@@ -549,6 +549,7 @@ describe("game engine", () => {
       payload: { sheriffSpeech: true, message: "我警上发言会围绕昨夜情况和后续票型来拿警徽。" },
     });
     expect(advanced.aiLogs[0]).toMatchObject({
+      day: 1,
       provider: "test-sheriff-speech",
       output: { type: "sheriffSpeech", message: "我警上发言会围绕昨夜情况和后续票型来拿警徽。" },
     });
@@ -2824,10 +2825,11 @@ describe("game engine", () => {
     expect(review.turningPoints.some((point) => point.title.includes("对跳") || point.description.includes("声称"))).toBe(true);
   });
 
-  it("lets bold wolf AI distance-vote a teammate from public identity pressure", () => {
+  it("lets bold wolf AI distance-vote a teammate from hard public identity pressure", () => {
     let state = createGame({ seed: 24 });
     const wolf = state.seats.find((seat) => seat.isAi && seat.role === "WEREWOLF")!;
     const teammate = state.seats.find((seat) => seat.role === "WEREWOLF" && seat.seatId !== wolf.seatId)!;
+    const challenger = state.seats.find((seat) => seat.role === "SEER")!;
     wolf.persona = {
       id: "bold-distance-wolf",
       name: "测试倒钩狼",
@@ -2845,6 +2847,14 @@ describe("game engine", () => {
       type: "speak",
       actorSeatId: teammate.seatId,
       message: "我跳预言家，2号是金水。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [challenger.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: challenger.seatId,
+      message: `我跳预言家，${teammate.seatId}号是查杀，先从这条对跳线归票。`,
     });
     state.phase = "DAY_VOTE";
 

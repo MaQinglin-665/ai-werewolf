@@ -21,6 +21,7 @@ import {
   formatSpeechRecognitionError,
   getSpeechRecognitionConstructor,
 } from "./viewHelpers";
+import { buildActionGuidance, type ActionGuidance } from "./actionGuidance";
 
 export function ActionPanel({
   game,
@@ -70,6 +71,7 @@ export function ActionPanel({
   }
 
   const meta = getActionMeta(game.availableActions[0]);
+  const guidance = buildActionGuidance(game.availableActions[0], game);
   const isContinueOnly = game.availableActions.every((action) => action.type === "continue");
 
   if (isContinueOnly && game.availableActions[0]?.type === "continue") {
@@ -82,6 +84,7 @@ export function ActionPanel({
             <h2 className="text-lg font-semibold text-[#f7ead5]">{meta.title}</h2>
             <p className="mt-1 text-sm text-[#dcc9a7]">{meta.description}</p>
           </div>
+          <ActionGuidanceStrip guidance={guidance} />
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-[#77d898]/25 bg-[#14311f]/55 px-3 py-2 text-xs text-[#a8f0b6]">
               <span className="h-2 w-2 rounded-full bg-[#77d898]" />
@@ -114,6 +117,7 @@ export function ActionPanel({
           {isContinueOnly ? "观看流程" : "轮到你行动"}
         </span>
       </div>
+      <ActionGuidanceStrip guidance={guidance} />
       <div className="grid gap-3">
         {game.availableActions.map((action) => (
           <ActionControl
@@ -127,6 +131,23 @@ export function ActionPanel({
         ))}
       </div>
     </section>
+  );
+}
+
+function ActionGuidanceStrip({ guidance }: { guidance: ActionGuidance }) {
+  return (
+    <div className="mb-4 grid gap-2 rounded-2xl border border-[#f1c76e]/16 bg-black/18 p-3 text-xs leading-5 text-[#dcc9a7] sm:grid-cols-[1fr_1fr]">
+      <div className="min-w-0">
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-[#f7ead5]">{guidance.title}</span>
+          <span className="rounded-full border border-[#f1c76e]/20 bg-[#f1c76e]/8 px-2 py-0.5 text-[11px] text-[#f1d796]">
+            {guidance.visibility}
+          </span>
+        </div>
+        <p>{guidance.detail}</p>
+      </div>
+      <div className="min-w-0 rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-[#f1d796]">{guidance.outcome}</div>
+    </div>
   );
 }
 
