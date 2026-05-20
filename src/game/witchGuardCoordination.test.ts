@@ -46,14 +46,40 @@ describe("witch and guard save coordination", () => {
       mode: "save",
     });
   });
+
+  it("antidotes an ordinary night victim when there is no hard wolf evidence", () => {
+    const victim = { seatId: 2, name: "Ordinary Victim" };
+    const command = createMockCommand(
+      witchView({
+        rules: { hasGuard: false, guardSaveConflictKills: false, hasWolfBeauty: false, hasKnight: false },
+        saveTarget: victim,
+        personaRisk: 1,
+      }),
+      tableRead([
+        seatRead({
+          ...victim,
+          suspicion: 58,
+          trust: 50,
+          pressure: ["soft table pressure only"],
+        }),
+      ]),
+    );
+
+    expect(command).toMatchObject({
+      type: "witchAction",
+      mode: "save",
+    });
+  });
 });
 
 function witchView({
   rules,
   saveTarget,
+  personaRisk,
 }: {
   rules: AgentView["rules"];
   saveTarget: { seatId: number; name: string };
+  personaRisk?: number;
 }): AgentView {
   return {
     gameId: "test",
@@ -86,6 +112,19 @@ function witchView({
         poisonTargets: [],
       },
     ],
+    persona:
+      personaRisk === undefined
+        ? undefined
+        : {
+            id: "high-risk-test",
+            name: "High Risk Test",
+            modelLabel: "test",
+            label: "test",
+            style: "test",
+            goal: "test",
+            riskTolerance: personaRisk,
+            bluffing: 0,
+          },
   } as AgentView;
 }
 

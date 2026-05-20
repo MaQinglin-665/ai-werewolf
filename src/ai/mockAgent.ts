@@ -868,10 +868,12 @@ function sanitizeAgentViewForLog(view: AgentView): AgentView {
 function shouldSaveVictim(view: AgentView, tableRead: AiTableRead, victim: ActionTarget): boolean {
   const victimRead = tableRead.seats.find((seat) => seat.seatId === victim.seatId);
   if (shouldDeferPublicSeerSaveToGuard(view, victimRead)) return false;
+  if (victimRead && hasStrongWitchPoisonEvidence(tableRead, victimRead)) return false;
   if (victimRead?.publicClaims.some((claim) => claim.claimedRole === "SEER")) return true;
   if (victimRead && publicRoleValueScore(victimRead) >= 18 && victimRead.trust >= victimRead.suspicion - 8) {
     return true;
   }
+  if (victimRead && shouldPreferWitchSave(view, victimRead)) return true;
   if (view.day === 1) {
     const trustDelta = victimRead ? (victimRead.trust - victimRead.suspicion) / 160 : 0;
     const threshold = clampProbability(0.58 + trustDelta - (view.persona?.riskTolerance ?? 0.45) * 0.16);
@@ -882,6 +884,21 @@ function shouldSaveVictim(view: AgentView, tableRead: AiTableRead, victim: Actio
 
   const threshold = clampProbability(0.34 + (victimRead.trust - victimRead.suspicion) / 120 - (view.persona?.riskTolerance ?? 0.45) * 0.12);
   return stableRoll(["witch-save", view.day, view.mySeatId, view.persona?.id, victim.seatId]) < threshold;
+}
+
+function shouldPreferWitchSave(view: AgentView, victimRead: SeatRead): boolean {
+  const pressureGap = victimRead.suspicion - victimRead.trust;
+  const pressureActors = victimRead.publicStancedBy.filter(
+    (stance) => stance.kind === "QUESTION" || stance.kind === "PRESSURE",
+  ).length;
+  const hardPublicFocus = victimRead.suspicion >= 72 && pressureGap >= 24 && pressureActors >= 2;
+  if (hardPublicFocus) return false;
+
+  if (view.day <= 2) {
+    return victimRead.suspicion < 70 || victimRead.trust >= victimRead.suspicion - 18;
+  }
+
+  return victimRead.trust >= victimRead.suspicion - 10 || victimRead.publicStancedBy.some((stance) => stance.kind === "SUPPORT");
 }
 
 function shouldDeferPublicSeerSaveToGuard(view: AgentView, victimRead: SeatRead | undefined): boolean {

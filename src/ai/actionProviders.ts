@@ -855,7 +855,9 @@ function buildActionCandidates(
         });
         break;
       }
-      const targetOrder = orderVoteTargets(tableRead, action?.targets ?? [], votePlan);
+      const targetOrder = orderVoteTargets(tableRead, action?.targets ?? [], votePlan, {
+        restrictToVotePlan: Boolean(votePlan) && !isWolfRole(view.myRole, view.rules.wolfRoles),
+      });
       for (const target of targetOrder) {
         add({
           id: `vote:${target.seatId}`,
@@ -1007,6 +1009,7 @@ function orderVoteTargets(
   tableRead: AiTableRead,
   legalTargets: ActionTarget[],
   votePlan: VotePlan | undefined,
+  options: { restrictToVotePlan?: boolean } = {},
 ): ActionTarget[] {
   const ordered: ActionTarget[] = [];
   const push = (target: ActionTarget | undefined) => {
@@ -1017,6 +1020,7 @@ function orderVoteTargets(
 
   push(votePlan?.target);
   for (const alternative of votePlan?.alternatives ?? []) push(alternative);
+  if (options.restrictToVotePlan && ordered.length > 0) return ordered;
   for (const target of sortTargets(legalTargets, tableRead, (seat) => seat.suspicion - seat.trust * 0.18)) push(target);
 
   return ordered;

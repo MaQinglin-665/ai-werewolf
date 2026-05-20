@@ -5,6 +5,7 @@ import { buildConstrainedActionInput, routedModelActionProvider } from "./action
 import { buildAiTableRead, createVotePlan } from "./tableRead";
 import { buildAgentView } from "@/game/projection";
 import { createGame } from "@/game/engine";
+import type { ActionTarget, AgentView, AiTableRead, ClaimBoardItem, SeatRead, TableMemory } from "@/game/types";
 
 const originalEnv = { ...process.env };
 
@@ -24,6 +25,45 @@ describe("configured AI options", () => {
 });
 
 describe("routed action provider", () => {
+  it("does not offer an unchallenged seer as a good-side vote candidate", () => {
+    const seer = actionTarget(2, "Short Seer");
+    const openTarget = actionTarget(3, "Open Target");
+    const gold = actionTarget(4, "Gold");
+    const seerClaim = actionRoleClaim(seer, "SEER");
+    seerClaim.checks = [{ day: 1, target: gold, result: "GOOD" }];
+    const memory = actionTableMemory({ claimBoard: [seerClaim] });
+    const view = actionVoteView([seer, openTarget], memory);
+    const tableRead = actionTableRead(
+      [
+        actionSeatRead({
+          ...seer,
+          suspicion: 88,
+          trust: 18,
+          pressure: ["short speech"],
+          publicClaims: [seerClaim],
+        }),
+        actionSeatRead({
+          ...openTarget,
+          suspicion: 52,
+          trust: 35,
+          pressure: ["vote loop"],
+        }),
+      ],
+      memory,
+    );
+    const votePlan = createVotePlan(view, tableRead);
+    const fallbackCommand = createMockCommand(view, tableRead, votePlan);
+
+    const input = buildConstrainedActionInput(view, { tableRead, votePlan, fallbackCommand });
+    const voteCandidateIds = input.candidates
+      .filter((candidate) => candidate.command.type === "vote" && candidate.command.targetSeatId !== undefined)
+      .map((candidate) => candidate.id);
+
+    expect(votePlan.target.seatId).toBe(openTarget.seatId);
+    expect(voteCandidateIds).toContain(`vote:${openTarget.seatId}`);
+    expect(voteCandidateIds).not.toContain(`vote:${seer.seatId}`);
+  });
+
   it("offers white wolf king self-explosion as a day-speech action candidate", () => {
     const state = createGame({ boardId: "12p-sheriff-white-wolf-king-seer-witch-hunter-guard", seed: 94, humanSeatId: null });
     const whiteWolfKing = state.seats.find((seat) => seat.role === "WHITE_WOLF_KING")!;
@@ -234,3 +274,112 @@ describe("routed action provider", () => {
     });
   });
 });
+
+function actionVoteView(targets: ActionTarget[], tableMemory: TableMemory): AgentView {
+  return {
+    gameId: "test-action-candidates",
+    mySeatId: 1,
+    myRole: "VILLAGER",
+    phase: "DAY_VOTE",
+    day: 2,
+    rules: { hasGuard: false, guardSaveConflictKills: false, hasWolfBeauty: false, hasKnight: false, wolfRoles: ["WEREWOLF"] },
+    aliveSeats: [actionTarget(1, "Voter"), ...targets],
+    publicEvents: [],
+    publicSummary: {
+      recentSpeeches: [],
+      recentVotes: [],
+      voteSnapshot: { votes: [], tally: [], leaders: [], revealed: false },
+      recentDeaths: [],
+      deathSummary: [],
+      claimBoard: tableMemory.claimBoard,
+      tableMemory,
+    },
+    privateKnowledge: {},
+    allowedActions: [{ type: "vote", targets, canAbstain: false }],
+  } as AgentView;
+}
+
+function actionTableRead(seats: SeatRead[], tableMemory: TableMemory): AiTableRead {
+  const self = actionSeatRead({
+    seatId: 1,
+    name: "Voter",
+    suspicion: 0,
+    trust: 100,
+    isSelf: true,
+  });
+
+  return {
+    mySeatId: 1,
+    myRole: "VILLAGER",
+    day: 2,
+    seats: [self, ...seats],
+    knownWolfSeatIds: [],
+    knownGoodSeatIds: [],
+    wolfTeammateSeatIds: [],
+    focus: seats[0],
+    backupFocus: seats[1],
+    voteSnapshot: { votes: [], tally: [], leaders: [], revealed: false },
+    recentSpeeches: [],
+    recentDeaths: [],
+    tableMemory,
+    tableMood: "test",
+  } as AiTableRead;
+}
+
+function actionSeatRead(overrides: Partial<SeatRead> = {}): SeatRead {
+  return {
+    seatId: 2,
+    name: "Seat",
+    suspicion: 50,
+    trust: 50,
+    pressure: [],
+    isSelf: false,
+    isKnownWolf: false,
+    isKnownGood: false,
+    isWolfTeammate: false,
+    speechCount: 1,
+    votesReceived: 0,
+    publicClaims: [],
+    publicChecksAgainst: [],
+    publicStancesGiven: [],
+    publicStancedBy: [],
+    ...overrides,
+  };
+}
+
+function actionRoleClaim(claimant: ActionTarget, claimedRole: ClaimBoardItem["claimedRole"]): ClaimBoardItem {
+  return {
+    claimId: `${claimedRole}-${claimant.seatId}`,
+    claimant,
+    claimedRole,
+    claimedRoleLabel: claimedRole,
+    strength: "hard",
+    checks: [],
+    summary: `${claimant.name} claims ${claimedRole}.`,
+    lastUpdatedDay: 2,
+    sourceSpeechSeq: claimant.seatId,
+  };
+}
+
+function actionTableMemory(overrides: Partial<TableMemory> = {}): TableMemory {
+  return {
+    day: 2,
+    claimBoard: [],
+    stanceBoard: [],
+    stanceShifts: [],
+    seerLegacies: [],
+    speechInfluence: [],
+    reasoningCues: [],
+    counterclaims: [],
+    focus: [],
+    seats: [],
+    voteHistory: [],
+    deathAnnouncements: [],
+    publicSignals: [],
+    ...overrides,
+  };
+}
+
+function actionTarget(seatId: number, name: string): ActionTarget {
+  return { seatId, name };
+}
