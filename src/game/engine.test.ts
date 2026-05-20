@@ -2829,9 +2829,12 @@ describe("game engine", () => {
   });
 
   it("lets bold wolf AI distance-vote a teammate from hard public identity pressure", () => {
-    let state = createGame({ seed: 24 });
-    const wolf = state.seats.find((seat) => seat.isAi && seat.role === "WEREWOLF")!;
-    const teammate = state.seats.find((seat) => seat.role === "WEREWOLF" && seat.seatId !== wolf.seatId)!;
+    let state = createGame({ seed: 24, humanSeatId: null });
+    const wolves = state.seats
+      .filter((seat) => seat.role === "WEREWOLF")
+      .sort((a, b) => b.seatId - a.seatId);
+    const teammate = wolves[0]!;
+    const wolf = wolves[2]!;
     const challenger = state.seats.find((seat) => seat.role === "SEER")!;
     wolf.persona = {
       id: "bold-distance-wolf",
@@ -2861,9 +2864,14 @@ describe("game engine", () => {
     });
     state.phase = "DAY_VOTE";
 
-    const plan = createVotePlan(buildAgentView(state, wolf.seatId));
+    const view = buildAgentView(state, wolf.seatId);
+    const assignment = view.privateKnowledge.wolfTeamPlan?.assignments.find((item) => item.seat.seatId === wolf.seatId);
+    const plan = createVotePlan(view);
 
+    expect(assignment?.task).toBe("DISTANCE");
+    expect(assignment?.supportSeat?.seatId).toBe(teammate.seatId);
     expect(plan.target.seatId).toBe(teammate.seatId);
+    expect(plan.wolfVoteTactic).toBe("planned_distance");
     expect(plan.reason).not.toMatch(/队友|狼队|WEREWOLF/);
   });
 

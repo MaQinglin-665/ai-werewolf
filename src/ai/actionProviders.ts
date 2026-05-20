@@ -317,7 +317,8 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
 
 function sanitizeActionVotePlan(view: AgentView, votePlan: VotePlan | undefined): VotePlan | undefined {
   if (!votePlan || isWolfRole(view.myRole, view.rules.wolfRoles)) return votePlan;
-  const { wolfVoteTactic: _wolfVoteTactic, ...publicVotePlan } = votePlan;
+  const publicVotePlan = { ...votePlan };
+  delete publicVotePlan.wolfVoteTactic;
   return publicVotePlan;
 }
 
