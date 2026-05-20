@@ -2203,6 +2203,10 @@ function shouldTrustPublicSeerCheck(
     return false;
   }
 
+  if (forVote && target && isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, target)) {
+    return false;
+  }
+
   if (forVote && tableRead.day === 1 && isUnansweredDayOneSeerBlackCheckFromRead(tableRead, targetSeatId, seer.seatId)) {
     const targetPressure = target ? target.suspicion - target.trust : 0;
     const negativeActors =
@@ -2407,8 +2411,12 @@ function shouldTrustPublicSeerGoldCheck(tableRead: AiTableRead, seer: SeatRead, 
   return seer.trust - seer.suspicion >= 20 && Boolean(target && target.trust >= target.suspicion);
 }
 
-function isProtectedPublicGoldVoteTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
+export function isProtectedSeerGoldTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
   return Boolean(findTrustedSeerGoldCheckAgainst(tableRead, seat) || isProtectedDeadSeerLegacyGoldTarget(tableRead, seat));
+}
+
+function isProtectedPublicGoldVoteTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
+  return isProtectedSeerGoldTarget(tableRead, seat);
 }
 
 function hasHardWolfCounterEvidenceAgainstProtectedGold(view: AgentView, tableRead: AiTableRead, seat: SeatRead): boolean {
@@ -2443,6 +2451,7 @@ function isProtectedGoodVoteTarget(view: AgentView, tableRead: AiTableRead, seat
       chooseUnchallengedPowerClaim(view, seat.publicClaims, seat.publicChecksAgainst) ||
       isUnchallengedPowerBlackCheckedOnlyByCounterclaim(tableRead, seat) ||
       isDayOneSoftPowerHintProtectedTarget(tableRead, seat) ||
+      isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat) ||
       isDayOneSeerGoldClaimProtectedFromAnyBlackCheck(tableRead, seat.seatId) ||
       isTargetOfReactiveSeerBlackCheck(view.publicSummary.tableMemory, seat.seatId),
   );
@@ -2454,8 +2463,34 @@ function isProtectedGoodSpeechTarget(view: AgentView, tableRead: AiTableRead, se
     seat.isKnownGood ||
       findTrustedSeerGoldCheckAgainst(tableRead, seat) ||
       isProtectedDeadSeerLegacyGoldTarget(tableRead, seat) ||
+      isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat) ||
       isDayOneSeerGoldClaimProtectedFromAnyBlackCheck(tableRead, seat.seatId),
   );
+}
+
+export function isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (tableRead.day < 1 || tableRead.day > 2 || !seat.lastSpeech) return false;
+  if (seat.publicClaims.length > 0) return false;
+  if (!hasDayOneSoftPowerHintText(1, seat.lastSpeech)) return false;
+  if (hasDeadSeerLegacyBlackCheckAgainst(tableRead.tableMemory, seat.seatId)) return false;
+
+  const wolfChecks = seat.publicChecksAgainst.filter((check) => check.result === "WEREWOLF");
+  if (wolfChecks.length !== 1 || wolfChecks[0]?.day !== 1) return false;
+
+  const checkerSeatId = wolfChecks[0]?.claimant.seatId;
+  const checker = tableRead.seats.find((item) => item.seatId === checkerSeatId);
+  const independentNegativeActors = publicVotePressureActors(seat).filter((actor) => actor.seatId !== checkerSeatId).length;
+  const pressureGap = seat.suspicion - seat.trust;
+  const checkerCredibility = checker ? checker.trust - checker.suspicion : 0;
+  const hardCue = targetReasoningCues(tableRead, seat).some(
+    (cue) => cue.weight === "strong" && (cue.kind === "counterclaim" || cue.kind === "seer_legacy" || cue.kind === "vote"),
+  );
+
+  if (checkerCredibility >= 30 && pressureGap >= 50 && independentNegativeActors >= 3 && hardCue) {
+    return false;
+  }
+
+  return true;
 }
 
 function isDayOneSoftPowerHintProtectedTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
@@ -2468,7 +2503,7 @@ function isDayOneSoftPowerHintProtectedTarget(tableRead: AiTableRead, seat: Seat
 
 function hasDayOneSoftPowerHintText(day: number, message?: string): boolean {
   if (day !== 1 || !message) return false;
-  return /底牌不虚|不急着拍身份|不乱拍身份|身份先藏|别逼身份|不怕吃抗推|能吃刀|狼夜里可以来试/.test(message);
+  return /底牌不虚|枪牌不用抢着拍|不用抢着拍|不急着拍身份|不乱拍身份|身份先藏|别逼身份|不怕吃抗推|能吃刀|狼夜里可以来试/.test(message);
 }
 
 function isDayOneSeerGoldClaimProtectedFromAnyBlackCheck(tableRead: AiTableRead, targetSeatId: number): boolean {

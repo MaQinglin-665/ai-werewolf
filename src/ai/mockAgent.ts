@@ -17,7 +17,13 @@ import type {
 import { createConfiguredActionProvider } from "./actionProviders";
 import { refreshAiSeatMemory, rememberAiDecision, storeAiSeatMemory } from "./seatMemory";
 import { createConfiguredSpeechProvider, mockSpeechProvider } from "./speechProviders";
-import { buildAiTableRead, createSpeechPlan, createVotePlan } from "./tableRead";
+import {
+  buildAiTableRead,
+  createSpeechPlan,
+  createVotePlan,
+  isDayOneSoftPowerHintBlackCheckProtectedTarget,
+  isProtectedSeerGoldTarget,
+} from "./tableRead";
 import type { AiActionProvider, AiDecisionLog, AiSpeechProvider, AiSpeechProviderContext } from "./types";
 
 const POWER_CLAIM_ROLES = new Set(["SEER", "WITCH", "HUNTER", "IDIOT", "KNIGHT", "GUARD"]);
@@ -787,6 +793,10 @@ function knightDuelScore(tableRead: AiTableRead, seat: SeatRead): number {
 }
 
 function hasStrongKnightDuelEvidence(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (isProtectedStrongActionGoldTarget(tableRead, seat) || isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat)) {
+    return false;
+  }
+
   if (seat.pressure.some((item) => item.includes("未对跳") || item.includes("被后置预言家查杀"))) {
     return false;
   }
@@ -906,7 +916,13 @@ function witchPoisonScore(tableRead: AiTableRead, seat: SeatRead): number {
   const counterclaimBonus = isSeerCounterclaimant(tableRead, seat.seatId) ? 12 : 0;
   const reactiveClaimantBonus = isReactiveSeerClaimant(tableRead.tableMemory, seat.seatId) ? 18 : 0;
   const deadSeerLegacyBonus = hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId) ? 22 : 0;
-  const protectedTargetPenalty = isProtectedPowerClaim(tableRead, seat) || isTargetOfReactiveSeerBlackCheck(tableRead, seat.seatId) ? 32 : 0;
+  const protectedTargetPenalty =
+    isProtectedPowerClaim(tableRead, seat) ||
+    isTargetOfReactiveSeerBlackCheck(tableRead, seat.seatId) ||
+    isProtectedStrongActionGoldTarget(tableRead, seat) ||
+    isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat)
+      ? 32
+      : 0;
   return (
     seat.suspicion -
     seat.trust * 0.08 +
@@ -920,7 +936,12 @@ function witchPoisonScore(tableRead: AiTableRead, seat: SeatRead): number {
 }
 
 function hasStrongWitchPoisonEvidence(tableRead: AiTableRead, seat: SeatRead): boolean {
-  if (isProtectedPowerClaim(tableRead, seat) || isTargetOfReactiveSeerBlackCheck(tableRead, seat.seatId)) {
+  if (
+    isProtectedPowerClaim(tableRead, seat) ||
+    isTargetOfReactiveSeerBlackCheck(tableRead, seat.seatId) ||
+    isProtectedStrongActionGoldTarget(tableRead, seat) ||
+    isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat)
+  ) {
     return false;
   }
 
@@ -945,6 +966,20 @@ function hasStrongWitchPoisonEvidence(tableRead: AiTableRead, seat: SeatRead): b
   }
 
   return hasTrustedPublicWolfCheck(tableRead, seat) && seat.suspicion >= 86;
+}
+
+function isProtectedStrongActionGoldTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (!isProtectedSeerGoldTarget(tableRead, seat)) return false;
+  if (seat.isKnownWolf || hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId)) return false;
+
+  const challengePressure = seat.suspicion - seat.trust;
+  const overwhelmingPublicCase =
+    hasTrustedPublicWolfCheck(tableRead, seat) &&
+    seat.suspicion >= 96 &&
+    challengePressure >= 54 &&
+    publicActionPressureActors(seat).length >= 4;
+
+  return !overwhelmingPublicCase;
 }
 
 function isProtectedPowerClaim(tableRead: AiTableRead, seat: SeatRead): boolean {
@@ -1192,6 +1227,10 @@ function hunterShotScore(tableRead: AiTableRead, seat: SeatRead): number {
 }
 
 function hasStrongHunterShotEvidence(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (isProtectedStrongActionGoldTarget(tableRead, seat) || isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat)) {
+    return false;
+  }
+
   if (seat.pressure.some((item) => item.includes("被后置预言家查杀") || item.includes("未对跳"))) {
     return false;
   }
