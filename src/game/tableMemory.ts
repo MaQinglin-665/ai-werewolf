@@ -316,12 +316,13 @@ function buildSeerLegacies(
   const seerClaims = claimBoard.filter((claim) => claim.claimedRole === "SEER");
 
   return seerClaims
-    .map((claim) => {
-      const deathDay = findNightDeathDay(state, claim.claimant.seatId);
-      if (!deathDay || deathDay < claim.lastUpdatedDay) return undefined;
+    .map<TableMemory["seerLegacies"][number] | undefined>((claim) => {
+      const death = findPublicSeerDeath(state, claim.claimant.seatId);
+      if (!death || death.day < claim.lastUpdatedDay) return undefined;
 
       const stancesGiven = stanceBoard.filter((stance) => stance.actor.seatId === claim.claimant.seatId).slice(-5);
       const lastVote = findLastRevealedVoteBySeat(state, voteHistory, claim.claimant.seatId);
+      const deathText = death.kind === "exile" ? "出局" : "夜死";
       const details = [
         claim.checks.length > 0
           ? claim.checks
@@ -334,11 +335,12 @@ function buildSeerLegacies(
 
       return {
         claimant: claim.claimant,
-        deathDay,
+        deathDay: death.day,
+        deathKind: death.kind,
         checks: claim.checks,
         stancesGiven,
         ...(lastVote ? { lastVote } : {}),
-        summary: `第${deathDay}天夜死预言家声明遗留：${claim.claimant.name}${details.length > 0 ? `留下${details.join("；")}` : "没有明确查验或投票遗留"}`,
+        summary: `第${death.day}天${deathText}预言家声明遗留：${claim.claimant.name}${details.length > 0 ? `留下${details.join("；")}` : "没有明确查验或投票遗留"}`,
       };
     })
     .filter((legacy): legacy is TableMemory["seerLegacies"][number] => Boolean(legacy))
@@ -675,13 +677,19 @@ function readTallyItems(state: GameState, event: GameEvent): TableMemory["voteHi
     .sort((a, b) => b.count - a.count || a.target.seatId - b.target.seatId);
 }
 
-function findNightDeathDay(state: GameState, seatId: number): number | undefined {
+function findPublicSeerDeath(state: GameState, seatId: number): { day: number; kind: "night" | "exile" } | undefined {
   const deathEvent = state.events.find((event) => {
-    if (event.type !== "DAY_STARTED") return false;
-    const deadSeatIds = readDeadSeatIds(event);
-    return deadSeatIds.includes(seatId);
+    if (event.type === "DAY_STARTED") {
+      const deadSeatIds = readDeadSeatIds(event);
+      return deadSeatIds.includes(seatId);
+    }
+    if (event.type === "PLAYER_EXILED") {
+      return (readNumber(event, "seatId") ?? event.actorSeatId) === seatId;
+    }
+    return false;
   });
-  return deathEvent?.day;
+  if (!deathEvent) return undefined;
+  return { day: deathEvent.day, kind: deathEvent.type === "PLAYER_EXILED" ? "exile" : "night" };
 }
 
 function readDeadSeatIds(event: GameEvent): number[] {

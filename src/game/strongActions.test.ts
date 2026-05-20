@@ -204,6 +204,33 @@ describe("mock AI strong actions", () => {
     });
   });
 
+  it("does not shoot from an exiled seer legacy black check alone", () => {
+    const target = { seatId: 2, name: "Target" };
+    const legacySeer = { seatId: 6, name: "Exiled Seer Claimant" };
+    const tableRead = tableReadWithTarget({
+      suspicion: 92,
+      trust: 36,
+      pressure: ["Exiled Seer Claimant澶滄鍚庨仐鐣欐煡鏉€"],
+    });
+    tableRead.tableMemory.seerLegacies = [
+      {
+        claimant: legacySeer,
+        deathDay: 2,
+        deathKind: "exile",
+        summary: "Exiled seer claimant left a black check.",
+        checks: [{ day: 2, target, result: "WEREWOLF" }],
+        stancesGiven: [],
+      },
+    ];
+
+    const command = createMockCommand(hunterView(), tableRead);
+
+    expect(command).toMatchObject({
+      type: "hunterShoot",
+      targetSeatId: undefined,
+    });
+  });
+
   it("skips a knight duel when the only evidence is an untrusted black check with follow-up pressure", () => {
     const checker = { seatId: 3, name: "Contested Seer" };
     const target = { seatId: 2, name: "Target" };

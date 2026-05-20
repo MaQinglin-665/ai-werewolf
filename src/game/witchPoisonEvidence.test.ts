@@ -157,6 +157,36 @@ describe("mock AI witch poison evidence", () => {
     });
   });
 
+  it("does not poison from an exiled seer legacy black check alone", () => {
+    const legacySeer = { seatId: 3, name: "Exiled Seer Claimant" };
+    const target = seatRead({
+      suspicion: 92,
+      trust: 44,
+      pressure: ["dead seer legacy black check"],
+    });
+
+    const command = createMockCommand(
+      witchView(),
+      tableRead([target], {
+        seerLegacies: [
+          {
+            claimant: legacySeer,
+            deathDay: 2,
+            deathKind: "exile",
+            checks: [{ day: 1, target: { seatId: 2, name: "Target" }, result: "WEREWOLF" }],
+            stancesGiven: [],
+            summary: "Exiled seer claimant left a black check.",
+          },
+        ],
+      }),
+    );
+
+    expect(command).toMatchObject({
+      type: "witchAction",
+      mode: "skip",
+    });
+  });
+
   it("allows poison from a strong public reasoning loop and explains the evidence", () => {
     const target = { seatId: 2, name: "Target" };
     const command = createMockCommand(

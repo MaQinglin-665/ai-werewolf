@@ -801,7 +801,7 @@ function hasStrongKnightDuelEvidence(tableRead: AiTableRead, seat: SeatRead): bo
     return false;
   }
   if (seat.pressure.some((item) => item.includes("夜死后遗留查杀") || item.includes("后置查杀已跳预言家"))) {
-    return true;
+    return hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId);
   }
   const negativeActors = new Set(
     seat.publicStancedBy
@@ -1012,8 +1012,17 @@ function isTrustedPublicSeerForPoison(tableRead: AiTableRead, claimant: SeatRead
 }
 
 function hasDeadSeerLegacyBlackCheck(tableRead: AiTableRead, targetSeatId: number): boolean {
-  return tableRead.tableMemory.seerLegacies.some((legacy) =>
-    legacy.checks.some((check) => check.target.seatId === targetSeatId && check.result === "WEREWOLF"),
+  return Boolean(findActionableDeadSeerLegacyBlackCheck(tableRead, targetSeatId));
+}
+
+function findActionableDeadSeerLegacyBlackCheck(
+  tableRead: AiTableRead,
+  targetSeatId: number,
+): AiTableRead["tableMemory"]["seerLegacies"][number] | undefined {
+  return tableRead.tableMemory.seerLegacies.find(
+    (legacy) =>
+      legacy.deathKind !== "exile" &&
+      legacy.checks.some((check) => check.target.seatId === targetSeatId && check.result === "WEREWOLF"),
   );
 }
 
@@ -1134,9 +1143,7 @@ function buildKnightDuelReason(tableRead: AiTableRead, target: ActionTarget): st
 }
 
 function describePublicActionEvidence(tableRead: AiTableRead, seat: SeatRead): string | undefined {
-  const legacy = tableRead.tableMemory.seerLegacies.find((item) =>
-    item.checks.some((check) => check.target.seatId === seat.seatId && check.result === "WEREWOLF"),
-  );
+  const legacy = findActionableDeadSeerLegacyBlackCheck(tableRead, seat.seatId);
   if (legacy) return `${legacy.claimant.name}夜死后留下查杀线`;
 
   const trustedCheck = seat.publicChecksAgainst.find((check) => check.result === "WEREWOLF");
@@ -1236,7 +1243,7 @@ function hasStrongHunterShotEvidence(tableRead: AiTableRead, seat: SeatRead): bo
   }
 
   if (seat.pressure.some((item) => item.includes("夜死后遗留查杀"))) {
-    return true;
+    return hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId);
   }
 
   if (isOnlyContestedSeerBlackCheckPressure(tableRead, seat)) {
