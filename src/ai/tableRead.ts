@@ -10,6 +10,7 @@ import type {
   SpeechPlan,
   VotePlan,
   WolfTeamAssignment,
+  WolfVoteTactic,
 } from "@/game/types";
 import { clampProbability, stableRoll, stableSignedJitter } from "@/game/decisionNoise";
 import { isWolfRole } from "@/game/roleUtils";
@@ -27,6 +28,10 @@ const DEFAULT_PERSONA_PREFERENCES = {
   caution: 0.55,
 };
 type PersonaPreferences = typeof DEFAULT_PERSONA_PREFERENCES;
+type WolfVoteChoice = {
+  target: SeatRead;
+  tactic: WolfVoteTactic;
+};
 
 export function buildAiTableRead(view: AgentView): AiTableRead {
   const preferences = personaPreferences(view);
@@ -1379,13 +1384,9 @@ export function createVotePlan(view: AgentView, tableRead = buildAiTableRead(vie
     candidates.find((seat) => isProtectedGoodVoteTarget(view, tableRead, seat)) ?? candidates[0];
   const knownWolf = candidates.find((seat) => seat.isKnownWolf);
   const sorted = rankVoteCandidates(view, tableRead, candidatePool);
-  const wolfDistanceTarget = chooseWolfDistanceVoteTarget(view, candidates);
-  const wolfTeamTarget = chooseWolfTeamVoteTarget(view, candidatePool);
+  const wolfVoteChoice = chooseWolfVoteChoice(view, tableRead, candidatePool, sorted);
   const claimTarget = chooseClaimAwareVoteTarget(view, tableRead, candidatePool);
-  const picked =
-    isWolfRole(view.myRole, view.rules.wolfRoles)
-      ? wolfDistanceTarget ?? wolfTeamTarget ?? sorted[0]
-      : knownWolf ?? claimTarget ?? sorted[0];
+  const picked = isWolfRole(view.myRole, view.rules.wolfRoles) ? wolfVoteChoice?.target ?? sorted[0] : knownWolf ?? claimTarget ?? sorted[0];
 
   if (!picked) {
     if (!safeReferenceTarget) {
@@ -1420,6 +1421,7 @@ export function createVotePlan(view: AgentView, tableRead = buildAiTableRead(vie
       .filter((seat) => seat.seatId !== picked.seatId)
       .slice(0, 2)
       .map((seat) => ({ seatId: seat.seatId, name: seat.name })),
+    wolfVoteTactic: isWolfRole(view.myRole, view.rules.wolfRoles) ? wolfVoteChoice?.tactic : undefined,
   };
 }
 
@@ -1528,29 +1530,57 @@ function buildVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRe
   return "发言和票型都不够扎实，先投这里观察归票。";
 }
 
-function chooseWolfTeamVoteTarget(view: AgentView, candidates: SeatRead[]): SeatRead | undefined {
-  const assignment = view.privateKnowledge.wolfTeamPlan?.assignments.find((item) => item.seat.seatId === view.mySeatId);
-  if (!assignment?.target) return undefined;
-  const risk = view.persona?.riskTolerance ?? 0.45;
-  const threshold = clampProbability(
-    (assignment.task === "PUSH_MISLYNCH" ? 0.34 : assignment.task === "HIDE" ? 0.16 : 0.24) + risk * 0.08,
-  );
-  const roll = stableRoll([
-    "wolf-team-vote-follow",
-    view.day,
-    view.mySeatId,
-    view.persona?.id,
-    assignment.task,
-    assignment.target.seatId,
-  ]);
-  if (roll >= threshold) return undefined;
-  return candidates.find((seat) => seat.seatId === assignment.target?.seatId);
-}
-
-function chooseWolfDistanceVoteTarget(view: AgentView, candidates: SeatRead[]): SeatRead | undefined {
+function chooseWolfVoteChoice(
+  view: AgentView,
+  tableRead: AiTableRead,
+  candidates: SeatRead[],
+  sorted: SeatRead[],
+): WolfVoteChoice | undefined {
   if (!isWolfRole(view.myRole, view.rules.wolfRoles)) return undefined;
 
+  const assignment = view.privateKnowledge.wolfTeamPlan?.assignments.find((item) => item.seat.seatId === view.mySeatId);
+  const nonTeammates = candidates.filter((seat) => !seat.isWolfTeammate);
   const teammateCandidates = candidates.filter((seat) => seat.isWolfTeammate);
+  const assignedTarget = assignment?.target ? candidates.find((seat) => seat.seatId === assignment.target?.seatId) : undefined;
+
+  const distanceTarget = chooseWolfDistanceVoteTarget(view, teammateCandidates);
+  if (distanceTarget) {
+    return { target: distanceTarget, tactic: "planned_distance" };
+  }
+
+  const emergencyCut = sorted.find((seat) => seat.isWolfTeammate && hasHardPublicTeammateVoteEvidence(view, seat));
+  if (emergencyCut && sorted[0]?.seatId === emergencyCut.seatId) {
+    return { target: emergencyCut, tactic: "emergency_cut" };
+  }
+
+  if (assignment?.task === "PUSH_MISLYNCH" && assignedTarget && !assignedTarget.isWolfTeammate) {
+    return { target: assignedTarget, tactic: "team_target" };
+  }
+
+  const claimTarget = chooseClaimAwareVoteTarget(view, tableRead, nonTeammates);
+  if (assignment?.task === "COUNTERCLAIM_SEER" && claimTarget) {
+    return { target: claimTarget, tactic: "team_target" };
+  }
+
+  const rankedNonTeammate = sorted.find((seat) => !seat.isWolfTeammate);
+  if (rankedNonTeammate) {
+    const avoidedTeammate = teammateCandidates.length > 0 && (assignment?.task === "HIDE" || sorted[0]?.isWolfTeammate);
+    return {
+      target: rankedNonTeammate,
+      tactic: avoidedTeammate ? "avoid_teammate" : "team_target",
+    };
+  }
+
+  const fallbackEmergencyCut = teammateCandidates.find((seat) => hasHardPublicTeammateVoteEvidence(view, seat));
+  if (fallbackEmergencyCut) {
+    return { target: fallbackEmergencyCut, tactic: "emergency_cut" };
+  }
+
+  return undefined;
+}
+
+function chooseWolfDistanceVoteTarget(view: AgentView, teammateCandidates: SeatRead[]): SeatRead | undefined {
+  if (!isWolfRole(view.myRole, view.rules.wolfRoles)) return undefined;
   if (teammateCandidates.length === 0) return undefined;
 
   const assignment = view.privateKnowledge.wolfTeamPlan?.assignments.find((item) => item.seat.seatId === view.mySeatId);
@@ -1561,34 +1591,23 @@ function chooseWolfDistanceVoteTarget(view: AgentView, candidates: SeatRead[]): 
   const publicIdentitySeat = teammateCandidates.find((seat) => seat.publicClaims.length > 0);
   const target = supportSeat ?? publicIdentitySeat ?? teammateCandidates[0];
   if (!target) return undefined;
+  if (assignment?.task !== "DISTANCE" || !supportSeat || supportSeat.seatId !== target.seatId) return undefined;
+  if (!hasHardPublicTeammateVoteEvidence(view, target)) return undefined;
 
   const personaRisk = view.persona?.riskTolerance ?? 0.45;
   const bluffing = view.persona?.bluffing ?? 0.45;
   const negativeActors = publicVotePressureActors(target).length;
   const publicBlackChecks = target.publicChecksAgainst.filter((check) => check.result === "WEREWOLF").length;
-  const hasPublicReason =
-    target.publicClaims.length > 0 ||
-    target.publicStancedBy.some((stance) => stance.kind === "QUESTION" || stance.kind === "PRESSURE") ||
-    publicBlackChecks > 0 ||
-    view.publicSummary.tableMemory.counterclaims.some((group) =>
-      group.claimants.some((claimant) => claimant.seatId === target.seatId),
-    );
-  const strongDistanceEvidence = hasStrongWolfDistanceEvidence(view, target, negativeActors, publicBlackChecks);
 
-  if (!hasPublicReason) return undefined;
-  if (!strongDistanceEvidence) return undefined;
-
-  if (personaRisk >= 0.9 && bluffing >= 0.85 && strongDistanceEvidence) {
+  if (personaRisk >= 0.9 && bluffing >= 0.85) {
     return target;
   }
 
   const threshold = clampProbability(
-    0.03 +
+    0.12 +
       personaRisk * 0.12 +
       bluffing * 0.12 +
-      (assignment?.task === "DISTANCE" && supportSeat ? 0.18 : 0) +
-      (strongDistanceEvidence ? 0.1 : 0) +
-      Math.min(0.1, negativeActors * 0.04 + publicBlackChecks * 0.05) +
+      Math.min(0.12, negativeActors * 0.04 + publicBlackChecks * 0.05) +
       (view.day >= 2 ? 0.06 : 0),
   );
   const roll = stableRoll([
@@ -1603,12 +1622,9 @@ function chooseWolfDistanceVoteTarget(view: AgentView, candidates: SeatRead[]): 
   return roll < threshold ? target : undefined;
 }
 
-function hasStrongWolfDistanceEvidence(
-  view: AgentView,
-  target: SeatRead,
-  negativeActors: number,
-  publicBlackChecks: number,
-): boolean {
+function hasHardPublicTeammateVoteEvidence(view: AgentView, target: SeatRead): boolean {
+  const negativeActors = publicVotePressureActors(target).length;
+  const publicBlackChecks = target.publicChecksAgainst.filter((check) => check.result === "WEREWOLF").length;
   const pressureGap = target.suspicion - target.trust;
   const inCounterclaim = view.publicSummary.tableMemory.counterclaims.some((group) =>
     group.claimants.some((claimant) => claimant.seatId === target.seatId),
@@ -1619,12 +1635,15 @@ function hasStrongWolfDistanceEvidence(
       cue.target?.seatId === target.seatId &&
       (cue.weight === "strong" || (cue.weight === "medium" && (cue.kind === "counterclaim" || cue.kind === "seer_legacy"))),
   );
+  const isVoteLeader =
+    view.publicSummary.voteSnapshot.leaders.some((leader) => leader.seatId === target.seatId) || target.votesReceived >= 2;
 
   if (hasDeadSeerBlack || publicBlackChecks >= 2) return true;
   if (publicBlackChecks >= 1 && inCounterclaim) return true;
   if (publicBlackChecks >= 1 && (negativeActors >= 2 || pressureGap >= 48 || hardCue)) return true;
   if (inCounterclaim && negativeActors >= 2 && (pressureGap >= 30 || hardCue)) return true;
   if (view.day >= 2 && negativeActors >= 3 && pressureGap >= 28) return true;
+  if (isVoteLeader && (negativeActors >= 2 || publicBlackChecks >= 1 || inCounterclaim)) return true;
 
   return false;
 }

@@ -881,12 +881,15 @@ export type SpeechPlan = {
   claimIntent?: SpeechClaimIntent;
 };
 
+export type WolfVoteTactic = "team_target" | "planned_distance" | "emergency_cut" | "avoid_teammate";
+
 export type VotePlan = {
   target: ActionTarget;
   abstain?: boolean;
   reason: string;
   confidence: number;
   alternatives: ActionTarget[];
+  wolfVoteTactic?: WolfVoteTactic;
 };
 
 export type AvailableHumanAction =
