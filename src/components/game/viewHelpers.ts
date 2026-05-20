@@ -1,5 +1,5 @@
 import type * as React from "react";
-import type { HumanGameView } from "@/game/types";
+import type { HumanGameView, Phase } from "@/game/types";
 import type { BrowserSpeechRecognitionConstructor, BrowserSpeechRecognitionErrorEvent, BrowserSpeechRecognitionWindow } from "./clientTypes";
 
 export const HUMAN_SPEECH_MAX_LENGTH = 800;
@@ -56,6 +56,32 @@ export const MODEL_CARD_IMAGES: Record<string, string> = {
   GLM: "/images/model-glm.svg",
   Kimi: "/images/model-kimi.svg",
 };
+
+export type NightRoleTrackStep = {
+  phase: Phase;
+  label: string;
+  detail: string;
+};
+
+const NIGHT_ROLE_TRACK_STEPS: NightRoleTrackStep[] = [
+  { phase: "NIGHT_WOLVES", label: "狼人睁眼", detail: "选择今晚刀口" },
+  { phase: "NIGHT_WOLF_BEAUTY", label: "狼美人睁眼", detail: "选择魅惑目标" },
+  { phase: "NIGHT_GUARD", label: "守卫睁眼", detail: "选择守护目标" },
+  { phase: "NIGHT_SEER", label: "预言家睁眼", detail: "查验一名玩家" },
+  { phase: "NIGHT_WITCH", label: "女巫睁眼", detail: "决定是否用药" },
+];
+
+export function getNightRoleTrackSteps(board: Pick<HumanGameView["board"], "roleSummary">): NightRoleTrackStep[] {
+  const summary = board.roleSummary;
+  return NIGHT_ROLE_TRACK_STEPS.filter((step) => {
+    if (step.phase === "NIGHT_WOLVES") return true;
+    if (step.phase === "NIGHT_WOLF_BEAUTY") return summary.includes("狼美人");
+    if (step.phase === "NIGHT_GUARD") return summary.includes("守卫");
+    if (step.phase === "NIGHT_SEER") return summary.includes("预言家");
+    if (step.phase === "NIGHT_WITCH") return summary.includes("女巫");
+    return false;
+  });
+}
 
 export type SeatOrbitStyle = React.CSSProperties & Record<"--seat-x" | "--seat-y", string>;
 

@@ -25,6 +25,7 @@ import {
   ROLE_CARD_BOOK_IMAGES,
   ROLE_CARD_IMAGES,
   formatSystemMessage,
+  getNightRoleTrackSteps,
   getSeatCardImage,
   getSeatOrbitStyle,
   seatNumber,
@@ -2604,7 +2605,7 @@ export function HostStage({ game }: { game: HumanGameView }) {
 
 function HostStageDetail({ game, action }: { game: HumanGameView; action?: AvailableHumanAction }) {
   if (game.phase.startsWith("NIGHT")) {
-    return <NightRoleTrack phase={game.phase} />;
+    return <NightRoleTrack game={game} />;
   }
 
   if (game.phase === "DAY_SPEECH") {
@@ -2690,14 +2691,9 @@ function HostStageDetail({ game, action }: { game: HumanGameView; action?: Avail
   );
 }
 
-function NightRoleTrack({ phase }: { phase: HumanGameView["phase"] }) {
-  const steps = [
-    { phase: "NIGHT_WOLVES", label: "狼人睁眼", detail: "选择今晚刀口" },
-    { phase: "NIGHT_GUARD", label: "守卫睁眼", detail: "选择守护目标" },
-    { phase: "NIGHT_SEER", label: "预言家睁眼", detail: "查验一名玩家" },
-    { phase: "NIGHT_WITCH", label: "女巫睁眼", detail: "决定是否用药" },
-  ] as const;
-  const currentIndex = steps.findIndex((step) => step.phase === phase);
+function NightRoleTrack({ game }: { game: HumanGameView }) {
+  const steps = getNightRoleTrackSteps(game.board);
+  const currentIndex = steps.findIndex((step) => step.phase === game.phase);
 
   return (
     <div className="grid gap-3">

@@ -22,6 +22,7 @@ import type {
 } from "@/game/types";
 import { prisma } from "@/lib/prisma";
 import { recordRoomAnalyticsEvent } from "@/server/roomAnalytics";
+import type { Prisma } from "@prisma/client";
 import { Pool } from "pg";
 
 type RuntimeAiOptions = {
@@ -736,7 +737,7 @@ async function saveGameState(state: GameState, aiLogs: AiDecisionLog[] = []): Pr
     return;
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.game.upsert({
       where: { id: state.id },
       create: {

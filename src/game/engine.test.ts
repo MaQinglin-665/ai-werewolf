@@ -20,9 +20,11 @@ import {
   createGame,
   evaluateWinCondition,
   getSeat,
+  getTurnRequirement,
   hydrateGameState,
   isIdiotRevealed,
 } from "./engine";
+import { BOARD_PRESETS } from "./boards";
 
 describe("game engine", () => {
   it("assigns the 9-player preset role counts", () => {
@@ -406,6 +408,57 @@ describe("game engine", () => {
     state = applySystemStep(state);
     expect(state.phase).toBe("NIGHT_SEER");
     expect(state.events.at(-1)).toMatchObject({ type: "ROLE_PHASE_SKIPPED", payload: { role: "GUARD" } });
+  });
+
+  it("skips the witch wake-up on the 6-player beginner board", () => {
+    let state = createGame({ boardId: "6p-beginner-seer", seed: 43, humanSeatId: null });
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const victim = state.seats.find((seat) => seat.role === "VILLAGER")!;
+    const checkTarget = state.seats.find((seat) => seat.seatId !== seer.seatId)!;
+
+    expect(state.seats.some((seat) => seat.role === "WITCH")).toBe(false);
+
+    state = applyCommand(state, { type: "wolfKill", actorSeatId: wolf.seatId, targetSeatId: victim.seatId });
+    expect(state.phase).toBe("NIGHT_SEER");
+
+    state = applyCommand(state, { type: "seerCheck", actorSeatId: seer.seatId, targetSeatId: checkTarget.seatId });
+
+    expect(state.phase).toBe("DAY_ANNOUNCEMENT");
+    expect(state.events.some((event) => event.type === "ROLE_PHASE_SKIPPED" && event.payload.role === "WITCH")).toBe(false);
+    expect(buildHumanView(state).phaseLabel).toBe("天亮结算");
+  });
+
+  it("does not enter night wake-up phases for roles absent from any official board", () => {
+    const roleByNightPhase = {
+      NIGHT_WOLF_BEAUTY: "WOLF_BEAUTY",
+      NIGHT_GUARD: "GUARD",
+      NIGHT_SEER: "SEER",
+      NIGHT_WITCH: "WITCH",
+    } as const;
+
+    for (const board of Object.values(BOARD_PRESETS)) {
+      let state = createGame({ boardId: board.id, seed: 44, humanSeatId: null });
+      const boardRoles = new Set(board.roles);
+      const visitedNightPhases = [state.phase];
+
+      for (let step = 0; state.phase.startsWith("NIGHT") && step < 8; step += 1) {
+        const requirement = getTurnRequirement(state);
+        if (requirement.type === "ai" || requirement.type === "human") {
+          state = applyCommand(state, createMockCommand(buildAgentView(state, requirement.actorSeatId)));
+        } else if (requirement.type === "system") {
+          state = applySystemStep(state);
+        } else {
+          break;
+        }
+        if (state.phase.startsWith("NIGHT")) visitedNightPhases.push(state.phase);
+      }
+
+      const absentRolePhases = Object.entries(roleByNightPhase)
+        .filter(([phase, role]) => !boardRoles.has(role) && visitedNightPhases.includes(phase))
+        .map(([phase, role]) => `${board.id}:${phase}:${role}`);
+      expect(absentRolePhases).toEqual([]);
+    }
   });
 
   it("resolves sheriff election, pk ties, and sheriff weighted exile votes", () => {
