@@ -32,6 +32,7 @@ import { buildDebateAgenda, type AiDebateAgenda } from "./debateAgenda";
 import { buildExpertStrategyNotes } from "./expertStrategy";
 import { buildReasoningFrame, type AiReasoningFrame } from "./reasoningFrame";
 import { buildRolePlaybook, type AiRolePlaybook } from "./rolePlaybook";
+import { deadSeerGoldSeatIds } from "./protectedGold";
 import { createSpeechPlan } from "./tableRead";
 import type { AiSpeechProvider, AiSpeechProviderContext, AiSpeechResult } from "./types";
 
@@ -1093,6 +1094,15 @@ function buildSpeechConstraints(view: AgentView, plan: SpeechPlan, strictness: S
       strictConstraints.push("狼人视角只用于表达策略，不得在发言里暴露狼队或把狼队友报成查杀。");
     }
 
+    const protectedDeadSeerGoldIds = [...deadSeerGoldSeatIds(view.publicSummary.tableMemory)];
+    if (protectedDeadSeerGoldIds.length > 0) {
+      strictConstraints.push(
+        `Public dead seer gold protection: dead seer gold seat ${protectedDeadSeerGoldIds.join(
+          ", ",
+        )} should be treated as protected public gold water; do not pressure, exile, or make it today's vote focus unless you cite hard public counter-evidence.`,
+      );
+    }
+
     return strictConstraints;
   }
 
@@ -1943,6 +1953,9 @@ function publicUnchallengedGoldSeatIds(view: AgentView): Set<number> {
     for (const check of claim.checks) {
       if (check.result === "GOOD") seatIds.add(check.target.seatId);
     }
+  }
+  for (const seatId of deadSeerGoldSeatIds(view.publicSummary.tableMemory)) {
+    seatIds.add(seatId);
   }
   return seatIds;
 }

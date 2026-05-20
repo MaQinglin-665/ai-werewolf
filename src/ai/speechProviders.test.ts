@@ -274,6 +274,41 @@ describe("mock speech provider", () => {
     expect(result.speech).not.toMatch(new RegExp(`${gold.seatId}号[^。！？；，、]{0,28}(讲实|票口|补清楚|放进观察|挂疑问|收票|压)`));
   });
 
+  it("rewrites mock pressure on a dead-seer gold water target into protection", async () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 3, humanSeatId: null });
+    const speaker = state.seats.find((seat) => seat.seatId === 1)!;
+    const gold = state.seats.find((seat) => seat.seatId === 2)!;
+    const deadSeer = state.seats.find((seat) => seat.role === "SEER")!;
+    speaker.role = "VILLAGER";
+    gold.role = "VILLAGER";
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, speaker.seatId);
+    view.publicSummary.tableMemory.seerLegacies = [
+      {
+        claimant: { seatId: deadSeer.seatId, name: deadSeer.name },
+        deathDay: 2,
+        checks: [{ day: 1, target: { seatId: gold.seatId, name: gold.name }, result: "GOOD" }],
+        stancesGiven: [],
+        summary: `${deadSeer.name} died after leaving ${gold.name} as gold water.`,
+      },
+    ];
+    const plan = {
+      ...createSpeechPlan(view),
+      kind: "pressure" as const,
+      target: { seatId: gold.seatId, name: gold.name },
+      talkingPoints: [`${gold.seatId}号今天要进出人焦点`, `${gold.seatId}号票口需要压清楚`],
+    };
+
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(result.speech).toContain(`${gold.seatId}号先按公开金水放一轮`);
+    expect(result.speech).not.toMatch(new RegExp(`${gold.seatId}号[^。！？；，、]{0,28}(出人焦点|票口需要压|先压)`));
+  });
+
   it("keeps early mock speeches away from prompt-like report wording", async () => {
     const { aiLogs } = await advanceWithMockAi(createGame({ seed: 91, humanSeatId: null }), {
       ignoreHuman: true,
@@ -325,6 +360,33 @@ describe("mock speech provider", () => {
     expect(wolfAssignment!.nightInstruction).toContain("首夜");
     expect(goodInput.privateContext.wolfSpeechAssignment).toBeUndefined();
     expect(JSON.stringify(goodInput)).not.toMatch(/狼队首夜|战术|nightInstruction/);
+  });
+
+  it("adds a strict model speech constraint for dead-seer gold water", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 3, humanSeatId: null });
+    const speaker = state.seats.find((seat) => seat.seatId === 1)!;
+    const gold = state.seats.find((seat) => seat.seatId === 2)!;
+    const deadSeer = state.seats.find((seat) => seat.role === "SEER")!;
+    speaker.role = "VILLAGER";
+    gold.role = "VILLAGER";
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, speaker.seatId);
+    view.publicSummary.tableMemory.seerLegacies = [
+      {
+        claimant: { seatId: deadSeer.seatId, name: deadSeer.name },
+        deathDay: 2,
+        checks: [{ day: 1, target: { seatId: gold.seatId, name: gold.name }, result: "GOOD" }],
+        stancesGiven: [],
+        summary: `${deadSeer.name} died after leaving ${gold.name} as gold water.`,
+      },
+    ];
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "strict");
+
+    expect(input.constraints?.join("\n")).toContain(`dead seer gold seat ${gold.seatId}`);
   });
 
   it("briefs day-one single death as a public death-shape hypothesis without confirming potion use", () => {
