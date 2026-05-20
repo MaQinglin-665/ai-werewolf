@@ -901,16 +901,33 @@ function buildActionCandidates(
       }
       break;
     }
-    case "HUNTER_SHOT": {
-      const action = getAction(view, "hunterShoot");
-      if (action?.canSkip) {
+    case "HUNTER_REVEAL": {
+      const action = getAction(view, "hunterReveal");
+      const targets = sortTargets(view.aliveSeats.filter((seat) => seat.seatId !== view.mySeatId), tableRead, (seat) => seat.suspicion - seat.trust * 0.2);
+      const strongestTarget = targets[0];
+      const strongestRead = strongestTarget ? tableRead.seats.find((seat) => seat.seatId === strongestTarget.seatId) : undefined;
+      const shouldReveal = Boolean(strongestRead && strongestRead.suspicion >= strongestRead.trust);
+      if (action?.canReveal && strongestTarget) {
         add({
-          id: "hunter:skip",
-          label: "Skip shot",
-          command: { type: "hunterShoot", actorSeatId: view.mySeatId },
-          reasonHint: "no target is certain enough",
+          id: "hunter:reveal",
+          label: "Reveal hunter",
+          command: { type: "hunterReveal", actorSeatId: view.mySeatId, reveal: true },
+          target: strongestTarget,
+          reasonHint: targetReasonHint(tableRead, strongestTarget, "strongest public suspicion"),
+          recommended: shouldReveal,
         });
       }
+      add({
+        id: "hunter:declineReveal",
+        label: "Do not reveal hunter",
+        command: { type: "hunterReveal", actorSeatId: view.mySeatId, reveal: false },
+        reasonHint: strongestTarget ? "no shot target is certain enough" : "no legal shot target remains",
+        recommended: !strongestTarget || !shouldReveal,
+      });
+      break;
+    }
+    case "HUNTER_SHOT": {
+      const action = getAction(view, "hunterShoot");
       for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => seat.suspicion - seat.trust * 0.2)) {
         add({
           id: `hunter:shoot:${target.seatId}`,
@@ -1086,6 +1103,7 @@ function buildActionConstraints(view: AgentView): string[] {
   if (
     view.phase === "DAY_VOTE" ||
     view.phase === "KNIGHT_DUEL" ||
+    view.phase === "HUNTER_REVEAL" ||
     view.phase === "HUNTER_SHOT" ||
     view.phase === "WOLF_KING_SHOT" ||
     getAction(view, "whiteWolfKingExplode")
@@ -1260,6 +1278,8 @@ function sameCommand(left: Command, right: Command): boolean {
       return "targetSeatId" in right && left.targetSeatId === right.targetSeatId;
     case "witchAction":
       return right.type === "witchAction" && left.mode === right.mode && left.targetSeatId === right.targetSeatId;
+    case "hunterReveal":
+      return right.type === "hunterReveal" && left.reveal === right.reveal;
     case "hunterShoot":
       return right.type === "hunterShoot" && left.targetSeatId === right.targetSeatId;
     case "wolfKingShoot":

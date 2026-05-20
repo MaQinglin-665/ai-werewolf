@@ -632,6 +632,7 @@ function buildKeyEvents(state: GameState): ReviewKeyEvent[] {
     "PLAYER_EXILED",
     "IDIOT_REVEALED",
     "VOTE_TIED",
+    "HUNTER_REVEALED",
     "HUNTER_SHOT",
     "HUNTER_SKIPPED",
     "WOLF_KING_SHOT",

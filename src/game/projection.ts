@@ -412,7 +412,7 @@ function buildPhaseSteps(state: GameState): HumanGameView["tableSummary"]["phase
     {
       key: "EXILE_RESOLUTION",
       label: "放逐",
-      phases: ["EXILE_RESOLUTION", "LAST_WORDS", "HUNTER_SHOT", "WOLF_KING_SHOT", "SHERIFF_HANDOFF"],
+      phases: ["EXILE_RESOLUTION", "LAST_WORDS", "HUNTER_REVEAL", "HUNTER_SHOT", "WOLF_KING_SHOT", "SHERIFF_HANDOFF"],
     },
     { key: "GAME_OVER", label: "复盘", phases: ["GAME_OVER"] },
   ];
@@ -433,6 +433,7 @@ export function getAvailableActionsForSeat(state: GameState, seatId: number): Av
   if (
     !seat.alive &&
     state.phase !== "LAST_WORDS" &&
+    state.phase !== "HUNTER_REVEAL" &&
     state.phase !== "HUNTER_SHOT" &&
     state.phase !== "WOLF_KING_SHOT" &&
     state.phase !== "SHERIFF_HANDOFF"
@@ -540,6 +541,9 @@ export function getAvailableActionsForSeat(state: GameState, seatId: number): Av
           canSkip: true,
         },
       ];
+    case "HUNTER_REVEAL":
+      if (state.pendingHunterShot?.shooterSeatId !== seatId) return [];
+      return [{ type: "hunterReveal", canReveal: true }];
     case "HUNTER_SHOT":
       if (state.pendingHunterShot?.shooterSeatId !== seatId) return [];
       return [
@@ -548,7 +552,7 @@ export function getAvailableActionsForSeat(state: GameState, seatId: number): Av
           targets: getAliveSeats(state)
             .filter((target) => target.seatId !== seatId)
             .map(toTarget),
-          canSkip: true,
+          canSkip: false,
         },
       ];
     case "WOLF_KING_SHOT":
@@ -707,6 +711,8 @@ function hiddenRoleActionLabel(phase: Phase): string {
       return "预言家行动中";
     case "NIGHT_WITCH":
       return "女巫行动中";
+    case "HUNTER_REVEAL":
+      return "出局结算中";
     case "HUNTER_SHOT":
       return "猎人行动中";
     case "WOLF_KING_SHOT":
@@ -752,6 +758,8 @@ function continueLabel(phase: Phase): string {
       return "骑士决斗";
     case "LAST_WORDS":
       return "发表遗言";
+    case "HUNTER_REVEAL":
+      return "继续出局结算";
     case "HUNTER_SHOT":
       return "结算猎人阶段";
     case "WOLF_KING_SHOT":
@@ -799,8 +807,10 @@ function phaseNarration(phase: Phase): string {
       return "所有人投票结束，公开被投票数并结算放逐。";
     case "LAST_WORDS":
       return "出局玩家发表遗言，遗言结束后继续结算后续流程。";
+    case "HUNTER_REVEAL":
+      return "出局玩家正在完成结算，随后继续遗言或后续流程。";
     case "HUNTER_SHOT":
-      return "猎人出局后进入开枪窗口。";
+      return "猎人已经翻牌发动技能，必须带走一名存活玩家。";
     case "WOLF_KING_SHOT":
       return "狼王出局后进入开枪窗口。";
     case "SHERIFF_HANDOFF":

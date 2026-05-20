@@ -1315,6 +1315,8 @@ function commandFromAction(action: AvailableHumanAction): Record<string, unknown
       return { type: "speak", message: "我先按当前公开信息发言，重点看谁在回避关键位置。" };
     case "lastWords":
       return { type: "lastWords", message: "我留下最后视角，后面重点复盘票型和发言顺序。" };
+    case "hunterReveal":
+      return { type: "hunterReveal", reveal: true };
     case "hunterShoot":
       return action.targets[0] ? { type: "hunterShoot", targetSeatId: action.targets[0].seatId } : { type: "hunterShoot" };
     case "wolfKingShoot":

@@ -500,6 +500,7 @@ function formatCommandType(type: string): string {
     speak: "发言",
     lastWords: "遗言",
     vote: "投票",
+    hunterReveal: "翻牌",
     hunterShoot: "开枪",
     wolfKingShoot: "狼王枪",
     whiteWolfKingExplode: "白狼王自爆",

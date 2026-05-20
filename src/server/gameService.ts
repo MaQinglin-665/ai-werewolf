@@ -357,8 +357,10 @@ function buildCommandSummary(state: GameState, command: Record<string, unknown> 
       return "生成遗言";
     case "vote":
       return targetLabel ? `投票给 ${targetLabel}` : "弃票";
+    case "hunterReveal":
+      return readBoolean(command, "reveal") ? "猎人翻牌发动技能" : "不翻牌";
     case "hunterShoot":
-      return targetLabel ? `开枪带走 ${targetLabel}` : "不开枪";
+      return targetLabel ? `开枪带走 ${targetLabel}` : "等待开枪目标";
     case "wolfKingShoot":
       return targetLabel ? `狼王带走 ${targetLabel}` : "狼王不开枪";
     case "whiteWolfKingExplode":
@@ -443,6 +445,8 @@ function formatCommandKeyword(type: string): string {
     case "vote":
     case "sheriffVote":
       return "票";
+    case "hunterReveal":
+      return "翻牌";
     case "hunterShoot":
     case "wolfKingShoot":
       return "枪";
@@ -558,6 +562,7 @@ function coerceCommandType(value: string | undefined): Command["type"] | undefin
     case "speak":
     case "lastWords":
     case "vote":
+    case "hunterReveal":
     case "hunterShoot":
     case "wolfKingShoot":
     case "whiteWolfKingExplode":

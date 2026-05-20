@@ -202,6 +202,8 @@ export function applyCommand(state: GameState, command: Command): GameState {
       return applyLastWords(next, command.actorSeatId, command.message);
     case "vote":
       return applyVote(next, command.actorSeatId, command.targetSeatId, command.reason);
+    case "hunterReveal":
+      return applyHunterReveal(next, command.actorSeatId, command.reveal, command.reason);
     case "hunterShoot":
       return applyHunterShot(next, command.actorSeatId, command.targetSeatId, command.reason);
     case "wolfKingShoot":
@@ -288,8 +290,13 @@ export function applySystemStep(state: GameState): GameState {
       return resolveVote(next);
     case "LAST_WORDS":
       return finishAfterLastWords(next);
+    case "HUNTER_REVEAL":
     case "HUNTER_SHOT":
-      return next.pendingHunterShot?.cause === "EXILED" ? finishAfterDayDeaths(next) : finishAfterNightDeaths(next);
+      return next.pendingHunterShot
+        ? next
+        : next.lastWordsNextStep === "NIGHT_DEATHS"
+          ? finishAfterNightDeaths(next)
+          : finishAfterDayDeaths(next);
     case "WOLF_KING_SHOT":
       return next.pendingWolfKingShot
         ? applyWolfKingShot(next, next.pendingWolfKingShot.shooterSeatId)
@@ -1037,6 +1044,41 @@ function applySheriffHandoff(state: GameState, actorSeatId: number, targetSeatId
   return continueAfterSheriffHandoff(state, nextStep);
 }
 
+function applyHunterReveal(state: GameState, actorSeatId: number, reveal: boolean, reason?: string): GameState {
+  assertPhase(state, "HUNTER_REVEAL");
+  const pending = state.pendingHunterShot;
+  if (!pending || pending.shooterSeatId !== actorSeatId) {
+    throw new Error("当前没有该猎人的翻牌窗口。");
+  }
+  const actor = getSeat(state, actorSeatId);
+  const cause = pending.cause;
+
+  if (!reveal) {
+    state.pendingHunterShot = undefined;
+    state = appendEvent(
+      state,
+      "HUNTER_SKIPPED",
+      "private",
+      `${seatLabel(actor)} 选择不翻牌发动猎人技能。${cleanReason(reason) ? `理由：${cleanReason(reason)}` : ""}`,
+      { seatId: actor.seatId, reveal: false, ...reasonPayload(reason) },
+      actor.seatId,
+    );
+    return continueLastWordsOrFinish(state, cause === "EXILED" ? "DAY_DEATHS" : "NIGHT_DEATHS");
+  }
+
+  state.phase = "HUNTER_SHOT";
+  return touch(
+    appendEvent(
+      state,
+      "HUNTER_REVEALED",
+      "public",
+      `${seatLabel(actor)} 翻牌为猎人，发动技能。`,
+      { seatId: actor.seatId, cause, ...reasonPayload(reason) },
+      actor.seatId,
+    ),
+  );
+}
+
 function applyHunterShot(state: GameState, actorSeatId: number, targetSeatId?: number, reason?: string): GameState {
   assertPhase(state, "HUNTER_SHOT");
   const pending = state.pendingHunterShot;
@@ -1047,16 +1089,7 @@ function applyHunterShot(state: GameState, actorSeatId: number, targetSeatId?: n
   const cause = pending.cause;
 
   if (!targetSeatId) {
-    state.pendingHunterShot = undefined;
-    state = appendEvent(
-      state,
-      "HUNTER_SKIPPED",
-      "public",
-      `${seatLabel(actor)} 没有开枪。${cleanReason(reason) ? `理由：${cleanReason(reason)}` : ""}`,
-      reasonPayload(reason),
-      actor.seatId,
-    );
-    return continueLastWordsOrFinish(state, cause === "EXILED" ? "DAY_DEATHS" : "NIGHT_DEATHS");
+    throw new Error("猎人翻牌后必须带走一名玩家。");
   }
 
   const target = assertAlive(state, targetSeatId);
@@ -1144,7 +1177,7 @@ function enterDayAnnouncement(state: GameState): GameState {
 function continueFromDayAnnouncement(state: GameState): GameState {
   const announced = hasDayStartedEvent(state) ? state : resolveNightToAnnouncement(state);
   if (announced.pendingHunterShot) {
-    announced.phase = "HUNTER_SHOT";
+    announced.phase = "HUNTER_REVEAL";
     return touch(announced);
   }
   if (announced.pendingWolfKingShot) {
@@ -1409,7 +1442,7 @@ function resolveVote(state: GameState): GameState {
   if (state.pendingHunterShot?.cause === "EXILED" && state.pendingHunterShot.shooterSeatId === topSeatId) {
     queueLastWords(state, [topSeatId]);
     state.lastWordsNextStep = "DAY_DEATHS";
-    state.phase = "HUNTER_SHOT";
+    state.phase = "HUNTER_REVEAL";
     return touch(state);
   }
 
@@ -1642,6 +1675,7 @@ function getActorSeatId(state: GameState): number | undefined {
     }
     case "LAST_WORDS":
       return state.lastWordsSeatId;
+    case "HUNTER_REVEAL":
     case "HUNTER_SHOT":
       return state.pendingHunterShot?.shooterSeatId;
     case "WOLF_KING_SHOT":

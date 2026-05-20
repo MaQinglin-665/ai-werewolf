@@ -563,6 +563,13 @@ function buildHostAudioCue(game: HumanGameView, completedKeys: ReadonlySet<strin
     return { key: `${game.id}:${game.day}:exile`, clips: [hostClip("vote-revealed")] };
   }
 
+  if (game.phase === "HUNTER_REVEAL") {
+    return {
+      key: `${game.id}:${game.day}:hunter-reveal:${currentActor?.isHuman ? "human" : "ai"}`,
+      clips: [],
+    };
+  }
+
   if (game.phase === "HUNTER_SHOT") {
     return {
       key: `${game.id}:${game.day}:hunter:${currentActor?.isHuman ? "human" : "ai"}`,

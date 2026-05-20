@@ -41,6 +41,10 @@ export const HumanCommandInputSchema = z.discriminatedUnion("type", [
     targetSeatId: seatIdSchema.optional(),
   }),
   z.object({
+    type: z.literal("hunterReveal"),
+    reveal: z.boolean(),
+  }),
+  z.object({
     type: z.literal("hunterShoot"),
     targetSeatId: seatIdSchema.optional(),
   }),
@@ -104,6 +108,8 @@ export function toHumanCommand(input: HumanRuleCommandInput, actorSeatId: number
       return { type: "lastWords", actorSeatId, message: input.message };
     case "vote":
       return { type: "vote", actorSeatId, targetSeatId: input.targetSeatId };
+    case "hunterReveal":
+      return { type: "hunterReveal", actorSeatId, reveal: input.reveal };
     case "hunterShoot":
       return { type: "hunterShoot", actorSeatId, targetSeatId: input.targetSeatId };
     case "wolfKingShoot":

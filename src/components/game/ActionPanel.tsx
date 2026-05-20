@@ -442,6 +442,24 @@ function ActionControl({
     return <KnightDuelActionPanel game={game} action={action} loading={loading} onSubmit={onSubmit} />;
   }
 
+  if (action.type === "hunterReveal") {
+    return (
+      <div className="grid gap-3">
+        <div className="rounded-2xl border border-[#f1c76e]/24 bg-[#3a2412]/48 px-3 py-2 text-sm leading-6 text-[#f1d796]">
+          你已死亡出局。选择翻牌才会公开猎人身份并进入强制带人；不翻牌则不会播报猎人发动技能。
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <ActionButton disabled={loading} tone="gold" onClick={() => onSubmit({ type: "hunterReveal", reveal: true })}>
+            翻牌发动技能
+          </ActionButton>
+          <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "hunterReveal", reveal: false })}>
+            不翻牌
+          </ActionButton>
+        </div>
+      </div>
+    );
+  }
+
   if (action.type === "hunterShoot") {
     return (
       <div className="flex flex-wrap gap-2">
@@ -455,9 +473,11 @@ function ActionControl({
             带走 {target.seatId}号
           </ActionButton>
         ))}
-        <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "hunterShoot" })}>
-          不开枪
-        </ActionButton>
+        {action.canSkip && (
+          <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "hunterShoot" })}>
+            不开枪
+          </ActionButton>
+        )}
       </div>
     );
   }
@@ -1021,8 +1041,10 @@ export function getActionMeta(action: AvailableHumanAction) {
       return { title: "投票放逐", description: "选择一名存活玩家投票，所有人投完后进入结算。" };
     case "knightDuel":
       return { title: "骑士决斗", description: "选择是否发动决斗；证据不足时可以保留技能进入投票。" };
+    case "hunterReveal":
+      return { title: "是否翻牌", description: "死亡出局后先确认是否翻牌；翻牌后会公开发动猎人技能。" };
     case "hunterShoot":
-      return { title: "猎人开枪", description: "你可以带走一名存活玩家，也可以选择不开枪。" };
+      return { title: "猎人开枪", description: "你已经翻牌发动技能，必须带走一名存活玩家。" };
     case "wolfKingShoot":
       return { title: "狼王开枪", description: "你可以发动狼王枪带走一名存活玩家，也可以选择不开枪。" };
     case "whiteWolfKingExplode":

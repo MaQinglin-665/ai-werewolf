@@ -404,13 +404,27 @@ export function createMockCommand(
         reason: target ? buildKnightDuelReason(tableRead, target) : "证据还不足，骑士先保留决斗窗口。",
       };
     }
+    case "HUNTER_REVEAL": {
+      const target = chooseShotTarget(
+        view,
+        tableRead,
+        "hunterShoot",
+        view.aliveSeats.filter((seat) => seat.seatId !== actorSeatId),
+      );
+      return {
+        type: "hunterReveal",
+        actorSeatId,
+        reveal: Boolean(target),
+        reason: target ? buildShotReason(tableRead, target, "hunterShoot") : "没有足够确定的带人目标，选择不翻牌。",
+      };
+    }
     case "HUNTER_SHOT": {
-      const target = chooseShotTarget(view, tableRead, "hunterShoot");
+      const target = chooseShotTarget(view, tableRead, "hunterShoot") ?? view.aliveSeats.find((seat) => seat.seatId !== actorSeatId);
       return {
         type: "hunterShoot",
         actorSeatId,
         targetSeatId: target?.seatId,
-        reason: target ? buildShotReason(tableRead, target, "hunterShoot") : "没有足够确定的带人目标。",
+        reason: target ? buildShotReason(tableRead, target, "hunterShoot") : "猎人已经翻牌，必须带走一名存活玩家。",
       };
     }
     case "WOLF_KING_SHOT": {
@@ -748,9 +762,10 @@ function chooseShotTarget(
   view: AgentView,
   tableRead: AiTableRead,
   actionType: "hunterShoot" | "wolfKingShoot",
+  legalTargets?: ActionTarget[],
 ): ActionTarget | undefined {
-  const action = getAction(view, actionType);
-  const legalTargetIds = new Set(action.targets.map((target) => target.seatId));
+  const actionTargets = legalTargets ?? getAction(view, actionType).targets;
+  const legalTargetIds = new Set(actionTargets.map((target) => target.seatId));
   const candidates = tableRead.seats
     .filter((seat) => legalTargetIds.has(seat.seatId))
     .sort((a, b) => hunterShotScore(tableRead, b) - hunterShotScore(tableRead, a) || a.seatId - b.seatId);

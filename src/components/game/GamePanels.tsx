@@ -1782,10 +1782,17 @@ function getActiveHumanActionHint(role: Role, game: HumanGameView): RolePhaseHin
       tone: "gold",
     };
   }
+  if (hasHumanAction(game, "hunterReveal")) {
+    return {
+      title: "现在确认是否翻牌",
+      detail: "翻牌后会公开猎人身份并必须带走一名玩家；不翻牌则不会公开猎人发动技能。",
+      tone: "gold",
+    };
+  }
   if (hasHumanAction(game, "hunterShoot")) {
     return {
       title: "现在可以开枪",
-      detail: "猎人枪会立即带走目标。枪口最好落在公开狼面最重、且能改变轮次的位置。",
+      detail: "你已经翻牌发动猎人技能，必须选择一名存活玩家带走。",
       tone: "gold",
     };
   }
@@ -1881,10 +1888,14 @@ function getRolePhaseHint(role: Role, game: HumanGameView, isCurrentRole: boolea
     case "SHERIFF_VOTE":
     case "SHERIFF_PK_VOTE":
       return { title: "投票阶段", detail: "所有阵营都要通过投票留下公开立场。票型会成为后续复盘证据。", tone: "gold" };
+    case "HUNTER_REVEAL":
+      return role === "HUNTER"
+        ? { title: "猎人翻牌确认", detail: "你已死亡出局，先选择是否翻牌发动技能；不翻牌不会公开猎人播报。", tone: "gold" }
+        : { title: "等待出局结算", detail: "出局玩家正在完成结算，随后继续遗言或后续流程。", tone: "gold" };
     case "HUNTER_SHOT":
       return role === "HUNTER"
-        ? { title: "猎人开枪窗口", detail: "猎人出局后可以选择是否开枪，枪口要服务于好人轮次。", tone: "gold" }
-        : { title: "等待猎人枪", detail: "猎人枪会改变死亡名单和后续遗言顺序。", tone: "gold" };
+        ? { title: "猎人开枪窗口", detail: "猎人已经翻牌，必须选择一名存活玩家带走。", tone: "gold" }
+        : { title: "等待猎人枪", detail: "猎人已翻牌发动技能，枪口会改变死亡名单和后续遗言顺序。", tone: "gold" };
     case "WOLF_KING_SHOT":
       return role === "WOLF_KING"
         ? { title: "狼王开枪窗口", detail: "狼王出局后可以开枪带人，优先破坏好人核心信息位。", tone: "red" }
@@ -2433,11 +2444,19 @@ export function getPhaseCurtainCue(game: HumanGameView): PhaseCurtainCue {
         durationMs: 1200,
         presentation: "ribbon",
       };
+    case "HUNTER_REVEAL":
+      return {
+        eyebrow: "出局结算",
+        title: "等待结算",
+        subtitle: "出局玩家正在完成后续流程。",
+        tone: "danger",
+        durationMs: 1300,
+      };
     case "HUNTER_SHOT":
       return {
         eyebrow: "猎人阶段",
         title: "猎人请行动",
-        subtitle: "选择是否发动最后一枪。",
+        subtitle: "猎人已翻牌，必须带走一名玩家。",
         tone: "danger",
         durationMs: 1450,
       };
@@ -2630,7 +2649,16 @@ function HostStageDetail({ game, action }: { game: HumanGameView; action?: Avail
     return (
       <div className="grid gap-2 text-sm leading-6 text-white/75">
         <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Hunter Window</div>
-        <div>猎人进入最后行动窗口，结算完成后继续进入白天或终局。</div>
+        <div>猎人已翻牌发动技能，必须带走一名存活玩家。</div>
+      </div>
+    );
+  }
+
+  if (game.phase === "HUNTER_REVEAL") {
+    return (
+      <div className="grid gap-2 text-sm leading-6 text-white/75">
+        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Death Resolve</div>
+        <div>出局玩家正在完成结算，随后继续遗言或后续流程。</div>
       </div>
     );
   }
@@ -3050,12 +3078,20 @@ function getHostCue(game: HumanGameView): HostCue {
         detail: "遗言会进入公开发言席，也会影响后续玩家的桌面判断。",
         tone: "danger",
       };
+    case "HUNTER_REVEAL":
+      return {
+        badge: `第 ${game.day} 天`,
+        title: "出局结算",
+        line: "出局玩家正在完成后续结算。",
+        detail: "如果后续有公开技能结果，系统会在结果产生后再播报。",
+        tone: "danger",
+      };
     case "HUNTER_SHOT":
       return {
         badge: `第 ${game.day} 天`,
         title: "猎人行动窗口",
-        line: "猎人出局后可以选择是否开枪带走一名玩家。",
-        detail: "如果猎人被女巫毒死，则不会触发开枪。",
+        line: "猎人已翻牌发动技能，必须带走一名存活玩家。",
+        detail: "如果猎人选择不翻牌，或被女巫毒死，则不会进入这个公开开枪阶段。",
         tone: "danger",
       };
     case "WOLF_KING_SHOT":

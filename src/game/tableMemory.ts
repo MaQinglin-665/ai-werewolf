@@ -29,6 +29,7 @@ export function buildTableMemory(state: GameState): TableMemory {
         event.type === "DAY_STARTED" ||
         event.type === "PLAYER_EXILED" ||
         event.type === "IDIOT_REVEALED" ||
+        event.type === "HUNTER_REVEALED" ||
         event.type === "HUNTER_SHOT" ||
         event.type === "WOLF_KING_SHOT" ||
         event.type === "WHITE_WOLF_KING_EXPLODED" ||
