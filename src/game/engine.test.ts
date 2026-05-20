@@ -2651,9 +2651,12 @@ describe("game engine", () => {
     const goodView = buildAgentView(state, good.seatId);
 
     expect(wolfView.privateKnowledge.wolfTeamPlan).toBeDefined();
+    expect(wolfView.privateKnowledge.wolfTeamPlan?.nightStrategy).toBeDefined();
+    expect(wolfView.privateKnowledge.wolfTeamPlan!.nightStrategy!.summary).toContain("首夜");
+    expect(wolfView.privateKnowledge.wolfTeamPlan?.nightStrategy?.nightTarget).toBeDefined();
     expect(wolfView.privateKnowledge.wolfTeamPlan?.assignments).toHaveLength(3);
     expect(goodView.privateKnowledge.wolfTeamPlan).toBeUndefined();
-    expect(JSON.stringify(goodView.publicSummary.tableMemory)).not.toMatch(/COUNTERCLAIM_SEER|PUSH_MISLYNCH|狼队/);
+    expect(JSON.stringify(goodView.publicSummary.tableMemory)).not.toMatch(/COUNTERCLAIM_SEER|PUSH_MISLYNCH|狼队|战术/);
   });
 
   it("has wolf AI coordinate around the private team plan without public teammate leakage", () => {

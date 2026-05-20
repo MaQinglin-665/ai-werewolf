@@ -56,6 +56,50 @@ describe("routed action provider", () => {
     expect(input.constraints.join("\n")).toContain("Wolf beauty charm is private night strategy");
   });
 
+  it("includes private wolf night strategy only in wolf action input", () => {
+    const state = createGame({ seed: 47, humanSeatId: null });
+    state.phase = "NIGHT_WOLVES";
+    const wolf = state.seats.find((seat) => seat.isAi && seat.role === "WEREWOLF")!;
+    const good = state.seats.find((seat) => seat.isAi && seat.role === "VILLAGER")!;
+
+    const wolfView = buildAgentView(state, wolf.seatId);
+    const wolfTableRead = buildAiTableRead(wolfView);
+    const wolfInput = buildConstrainedActionInput(wolfView, {
+      tableRead: wolfTableRead,
+      fallbackCommand: createMockCommand(wolfView, wolfTableRead),
+    });
+    const wolfPlan = wolfInput.selfContext.wolfPlan as typeof wolfInput.selfContext.wolfPlan & {
+      nightStrategy?: {
+        nightTarget?: ActionTarget;
+        dayPressureTarget?: ActionTarget;
+        summary: string;
+        discussion: string[];
+      };
+    };
+    const plannedTarget = wolfView.privateKnowledge.wolfTeamPlan?.nightStrategy?.nightTarget;
+    const wolfKillTargets = wolfInput.candidates
+      .filter((candidate) => candidate.command.type === "wolfKill" && "targetSeatId" in candidate.command)
+      .map((candidate) => ("targetSeatId" in candidate.command ? candidate.command.targetSeatId : undefined));
+
+    expect(wolfPlan?.nightStrategy).toBeDefined();
+    expect(wolfPlan?.nightStrategy?.summary).toContain("首夜");
+    expect(wolfPlan?.nightStrategy?.nightTarget).toEqual(plannedTarget);
+    expect(wolfKillTargets[0]).toBe(plannedTarget?.seatId);
+
+    const goodState = createGame({ seed: 47, humanSeatId: null });
+    goodState.phase = "DAY_VOTE";
+    const goodView = buildAgentView(goodState, good.seatId);
+    const goodTableRead = buildAiTableRead(goodView);
+    const goodInput = buildConstrainedActionInput(goodView, {
+      tableRead: goodTableRead,
+      votePlan: createVotePlan(goodView, goodTableRead),
+      fallbackCommand: createMockCommand(goodView, goodTableRead),
+    });
+
+    expect(goodInput.selfContext.wolfPlan).toBeUndefined();
+    expect(JSON.stringify(goodInput)).not.toMatch(/狼队首夜|战术|nightStrategy/);
+  });
+
   it("offers knight duel as an optional day action candidate", () => {
     const state = createGame({ boardId: "12p-sheriff-wolf-beauty-knight", seed: 96, humanSeatId: null });
     const knight = state.seats.find((seat) => seat.role === "KNIGHT")!;

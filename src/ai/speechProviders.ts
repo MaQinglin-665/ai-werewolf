@@ -125,6 +125,7 @@ export type LlmSpeechInput = {
       target?: ActionTarget;
       supportSeat?: ActionTarget;
       publicInstruction: string;
+      nightInstruction?: string;
     };
   };
   expertStrategy: string[];
@@ -1026,6 +1027,7 @@ function buildPrivateSpeechContext(view: AgentView): LlmSpeechInput["privateCont
         target: assignment.target,
         supportSeat: assignment.supportSeat,
         publicInstruction: describeWolfAssignmentForSpeech(assignment.taskLabel),
+        nightInstruction: view.privateKnowledge.wolfTeamPlan?.nightStrategy?.summary,
       };
     }
   }

@@ -102,6 +102,12 @@ export type LlmActionInput = {
     wolfPlan?: {
       strategy: NonNullable<AgentView["privateKnowledge"]["wolfTeamPlan"]>["strategy"];
       summary: string;
+      nightStrategy?: {
+        nightTarget?: ActionTarget;
+        dayPressureTarget?: ActionTarget;
+        summary: string;
+        discussion: string[];
+      };
       primaryTarget?: ActionTarget;
       threat?: ActionTarget;
       ownAssignment?: {
@@ -615,6 +621,14 @@ function buildSelfActionContext(view: AgentView, tableRead: AiTableRead): LlmAct
       ? {
           strategy: wolfPlan.strategy,
           summary: wolfPlan.summary,
+          nightStrategy: wolfPlan.nightStrategy
+            ? {
+                nightTarget: wolfPlan.nightStrategy.nightTarget,
+                dayPressureTarget: wolfPlan.nightStrategy.dayPressureTarget,
+                summary: wolfPlan.nightStrategy.summary,
+                discussion: wolfPlan.nightStrategy.discussion,
+              }
+            : undefined,
           primaryTarget: wolfPlan.primaryTarget,
           threat: wolfPlan.threat,
           ownAssignment: ownAssignment
@@ -673,6 +687,19 @@ function buildActionCandidates(
     }
     case "NIGHT_WOLVES": {
       const action = getAction(view, "wolfKill");
+      const plannedTarget = action?.targets.find(
+        (target) => target.seatId === view.privateKnowledge.wolfTeamPlan?.nightStrategy?.nightTarget?.seatId,
+      );
+      if (plannedTarget) {
+        add({
+          id: `wolfKill:planned:${plannedTarget.seatId}`,
+          label: `Kill ${plannedTarget.name}`,
+          command: { type: "wolfKill", actorSeatId: view.mySeatId, targetSeatId: plannedTarget.seatId },
+          target: plannedTarget,
+          recommended: true,
+          reasonHint: targetReasonHint(tableRead, plannedTarget, "coordinated night target with public-safe credibility rationale"),
+        });
+      }
       for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => seat.trust - seat.suspicion * 0.25)) {
         const privateWolfTarget = isPrivateWolfTarget(view, target);
         add({

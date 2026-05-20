@@ -85,6 +85,7 @@ export function ActionPanel({
             <p className="mt-1 text-sm text-[#dcc9a7]">{meta.description}</p>
           </div>
           <ActionGuidanceStrip guidance={guidance} />
+          {game.wolfStrategy && <WolfStrategyPanel strategy={game.wolfStrategy} />}
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-[#77d898]/25 bg-[#14311f]/55 px-3 py-2 text-xs text-[#a8f0b6]">
               <span className="h-2 w-2 rounded-full bg-[#77d898]" />
@@ -118,6 +119,7 @@ export function ActionPanel({
         </span>
       </div>
       <ActionGuidanceStrip guidance={guidance} />
+      {game.wolfStrategy && <WolfStrategyPanel strategy={game.wolfStrategy} />}
       <div className="grid gap-3">
         {game.availableActions.map((action) => (
           <ActionControl
@@ -147,6 +149,50 @@ function ActionGuidanceStrip({ guidance }: { guidance: ActionGuidance }) {
         <p>{guidance.detail}</p>
       </div>
       <div className="min-w-0 rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-[#f1d796]">{guidance.outcome}</div>
+    </div>
+  );
+}
+
+function WolfStrategyPanel({ strategy }: { strategy: NonNullable<HumanGameView["wolfStrategy"]> }) {
+  return (
+    <div className="mb-4 rounded-2xl border border-[#d84a3a]/24 bg-[#2b1110]/55 p-3 text-xs leading-5 text-[#ffd8cf]">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm font-semibold text-[#ffe5da]">狼队首夜战术</div>
+        <span className="rounded-full border border-[#ff9a6b]/25 px-2 py-0.5 text-[11px] text-[#ffbd99]">私密</span>
+      </div>
+      <p className="mt-2 text-[#ffd8cf]/88">{strategy.summary}</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <WolfStrategyTarget label="今晚刀口" target={strategy.nightTarget} fallback="先看公开可信度" />
+        <WolfStrategyTarget label="明天压力" target={strategy.dayPressureTarget} fallback="先听白天发言" />
+      </div>
+      {strategy.discussion.length > 0 && (
+        <ul className="mt-3 grid gap-1.5 text-[#ffd8cf]/82">
+          {strategy.discussion.map((line, index) => (
+            <li key={`${line}-${index}`} className="rounded-xl bg-black/16 px-2.5 py-1.5">
+              {line}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function WolfStrategyTarget({
+  label,
+  target,
+  fallback,
+}: {
+  label: string;
+  target?: { seatId: number; name: string };
+  fallback: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border border-[#ff9a6b]/12 bg-black/16 px-2.5 py-2">
+      <div className="text-[11px] text-[#ffbd99]/82">{label}</div>
+      <div className="mt-1 truncate text-sm font-semibold text-[#ffe5da]">
+        {target ? `${target.seatId}号 ${target.name}` : fallback}
+      </div>
     </div>
   );
 }

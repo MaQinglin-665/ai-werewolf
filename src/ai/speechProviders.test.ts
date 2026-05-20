@@ -308,6 +308,25 @@ describe("mock speech provider", () => {
     expect(guideText).toContain("不要连续多句都用“我先”开头");
   });
 
+  it("includes wolf night instruction only in wolf private speech context", () => {
+    const state = createGame({ seed: 47, humanSeatId: null });
+    state.phase = "DAY_SPEECH";
+    const wolf = state.seats.find((seat) => seat.isAi && seat.role === "WEREWOLF")!;
+    const good = state.seats.find((seat) => seat.isAi && seat.role === "VILLAGER")!;
+
+    const wolfInput = buildConstrainedSpeechInput(buildAgentView(state, wolf.seatId));
+    const wolfAssignment = wolfInput.privateContext.wolfSpeechAssignment as typeof wolfInput.privateContext.wolfSpeechAssignment & {
+      nightInstruction?: string;
+    };
+    const goodInput = buildConstrainedSpeechInput(buildAgentView(state, good.seatId));
+
+    expect(wolfAssignment).toBeDefined();
+    expect(wolfAssignment?.nightInstruction).toBeDefined();
+    expect(wolfAssignment!.nightInstruction).toContain("首夜");
+    expect(goodInput.privateContext.wolfSpeechAssignment).toBeUndefined();
+    expect(JSON.stringify(goodInput)).not.toMatch(/狼队首夜|战术|nightInstruction/);
+  });
+
   it("briefs day-one single death as a public death-shape hypothesis without confirming potion use", () => {
     const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 94, humanSeatId: null });
     const deadSeat = state.seats.find((seat) => seat.role !== "WEREWOLF")!;

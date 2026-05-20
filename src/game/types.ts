@@ -719,10 +719,18 @@ export type WolfTeamAssignment = {
   reason: string;
 };
 
+export type WolfNightStrategy = {
+  nightTarget?: ActionTarget;
+  dayPressureTarget?: ActionTarget;
+  summary: string;
+  discussion: string[];
+};
+
 export type WolfTeamPlan = {
   day: number;
   strategy: "COUNTERCLAIM" | "SHADOW" | "SURVIVE";
   summary: string;
+  nightStrategy?: WolfNightStrategy;
   primaryTarget?: ActionTarget;
   threat?: ActionTarget;
   counterclaimSeat?: ActionTarget;
@@ -942,6 +950,7 @@ export type HumanGameView = {
   currentActorSeatId?: number;
   currentSpeakerSeatId?: number;
   wolfTeammates: ActionTarget[];
+  wolfStrategy?: WolfNightStrategy;
   seerChecks: SeerCheck[];
   guard?: GameState["guard"] & {
     guardedTarget?: ActionTarget;
