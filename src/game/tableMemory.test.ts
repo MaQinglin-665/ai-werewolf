@@ -107,6 +107,65 @@ describe("table memory seer legacies", () => {
       ]),
     );
   });
+
+  it("keeps soft role claims out of strong identity memory", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 33 });
+    const first = state.seats[0]!;
+    const second = state.seats[1]!;
+    const target = state.seats[2]!;
+    state.day = 2;
+    state.roleClaims.push(
+      {
+        id: `${first.seatId}:SEER`,
+        day: 2,
+        claimantSeatId: first.seatId,
+        claimedRole: "SEER",
+        strength: "soft",
+        checks: [
+          {
+            day: 2,
+            claimantSeatId: first.seatId,
+            targetSeatId: target.seatId,
+            result: "GOOD",
+            sourceSpeechSeq: 44,
+          },
+        ],
+        message: "我先不跳身份，只说这个位置像金水。",
+        sourceSpeechSeq: 44,
+        updatedAtSeq: 44,
+      },
+      {
+        id: `${second.seatId}:SEER`,
+        day: 2,
+        claimantSeatId: second.seatId,
+        claimedRole: "SEER",
+        strength: "soft",
+        checks: [],
+        message: "我偏神，不急着跳。",
+        sourceSpeechSeq: 45,
+        updatedAtSeq: 45,
+      },
+    );
+    state.events.push({
+      seq: 88,
+      type: "PLAYER_EXILED",
+      visibility: "public",
+      day: 2,
+      phase: "EXILE_RESOLUTION",
+      actorSeatId: first.seatId,
+      message: `${first.seatId}号 被放逐出局。`,
+      payload: { seatId: first.seatId },
+    });
+
+    const memory = buildTableMemory(state);
+
+    expect(state.roleClaims).toHaveLength(2);
+    expect(memory.claimBoard).toHaveLength(0);
+    expect(memory.counterclaims).toHaveLength(0);
+    expect(memory.seerLegacies).toHaveLength(0);
+    expect(memory.seats.flatMap((seat) => seat.claims)).toHaveLength(0);
+    expect(memory.seats.flatMap((seat) => seat.publicReasons).join("\n")).not.toContain("声称");
+  });
 });
 
 describe("table memory death-shape public cues", () => {

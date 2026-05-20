@@ -178,8 +178,6 @@ function buildReviewVoteTally(
 function buildTurningPoints(state: GameState): ReviewTurningPoint[] {
   const points = [
     buildFirstNightKillPoint(state),
-    buildFirstClaimPoint(state),
-    buildCounterclaimPoint(state),
     buildStanceShiftPoint(state),
     buildStrategyPoint(state),
     buildKeySeerCheckPoint(state),
@@ -272,7 +270,6 @@ function buildPlayerFeedback(state: GameState): GameReview["playerFeedback"] {
       return targetSeatId ? { day: event.day, target: getSeat(state, targetSeatId), reason: event.payload.reason } : undefined;
     })
     .filter((vote): vote is { day: number; target: ReturnType<typeof getSeat>; reason: unknown } => Boolean(vote));
-  const humanClaims = getSupportedRoleClaims(state).filter((claim) => claim.claimantSeatId === human.seatId);
   const death = state.events.find((event) => event.type === "PLAYER_DIED" && readNumber(event, "seatId") === human.seatId);
 
   if (state.result) {
@@ -285,11 +282,10 @@ function buildPlayerFeedback(state: GameState): GameReview["playerFeedback"] {
   }
 
   if (humanSpeeches.length > 0) {
-    const claimText = humanClaims[0] ? `其中你公开声明过${ROLE_LABELS[humanClaims[0].claimedRole]}，这条身份线进入了终局复盘。` : "这些发言会影响 AI 的公开记忆和后续站边。";
     feedback.push({
       title: "发言影响",
       tone: "neutral",
-      description: `你本局公开发言 ${humanSpeeches.length} 次。${claimText}`,
+      description: `你本局公开发言 ${humanSpeeches.length} 次。这些发言会影响 AI 的公开记忆和后续站边。`,
       relatedSeats: [toReviewSeat(human)],
       day: humanSpeeches.at(-1)?.day,
     });
@@ -358,20 +354,6 @@ function buildWolfStrategyNotes(state: GameState): GameReview["strategyNotes"] {
   const wolfIds = new Set(
     state.seats.filter((seat) => isWolfRole(seat.role, state.rules.wolfRoles)).map((seat) => seat.seatId),
   );
-  const wolfSeerClaims = getSupportedRoleClaims(state).filter(
-    (claim) => wolfIds.has(claim.claimantSeatId) && claim.claimedRole === "SEER",
-  );
-
-  for (const claim of wolfSeerClaims) {
-    const claimant = getSeat(state, claim.claimantSeatId);
-    notes.push({
-      day: claim.day,
-      camp: "WEREWOLVES",
-      title: "狼队悍跳",
-      description: `${claimant.name}悍跳预言家，把身份线变成对跳格局。`,
-      seats: [toReviewSeat(claimant)],
-    });
-  }
 
   const wolfSupport = (state.stances ?? []).find((stance) => {
     const actor = getSeat(state, stance.actorSeatId);
@@ -547,49 +529,6 @@ function buildFirstNightKillPoint(state: GameState): ReviewTurningPoint | undefi
   };
 }
 
-function buildFirstClaimPoint(state: GameState): ReviewTurningPoint | undefined {
-  const event = state.events.find((item) => item.type === "ROLE_CLAIMED");
-  const claimantSeatId = event ? readNumber(event, "claimantSeatId") : undefined;
-  const claimedRole = typeof event?.payload.claimedRole === "string" ? event.payload.claimedRole : undefined;
-  if (!event || !claimantSeatId || !claimedRole) return undefined;
-  const claimant = getSeat(state, claimantSeatId);
-  const truthful = claimant.role === claimedRole;
-
-  return {
-    day: event.day,
-    title: truthful ? "身份声明成立" : "身份声明存疑",
-    description: `${claimant.name}公开声称${ROLE_LABELS[claimedRole as keyof typeof ROLE_LABELS]}，终局看其真实身份是${ROLE_LABELS[claimant.role]}${
-      truthful ? "，这条身份线成立。" : "，这是一次悍跳或误导性声明。"
-    }`,
-    eventSeq: event.seq,
-  };
-}
-
-function buildCounterclaimPoint(state: GameState): ReviewTurningPoint | undefined {
-  const groups = getSupportedRoleClaims(state).reduce<Record<string, number[]>>((acc, claim) => {
-    acc[claim.claimedRole] = [...(acc[claim.claimedRole] ?? []), claim.claimantSeatId];
-    return acc;
-  }, {});
-  const entry = Object.entries(groups).find(([, seatIds]) => seatIds.length > 1);
-  if (!entry) return undefined;
-
-  const [role, seatIds] = entry;
-  const claimants = seatIds.map((seatId) => getSeat(state, seatId));
-  const trueHolders = state.seats.filter((seat) => seat.role === role);
-  const firstClaimEvent = state.events.find(
-    (event) => event.type === "ROLE_CLAIMED" && typeof event.payload.claimedRole === "string" && event.payload.claimedRole === role,
-  );
-
-  return {
-    day: firstClaimEvent?.day ?? state.day,
-    title: `${ROLE_LABELS[role as keyof typeof ROLE_LABELS]}对跳`,
-    description: `${claimants.map((seat) => seat.name).join("、")}都声称${ROLE_LABELS[role as keyof typeof ROLE_LABELS]}；终局真实${
-      ROLE_LABELS[role as keyof typeof ROLE_LABELS]
-    }是${trueHolders.map((seat) => seat.name).join("、") || "无人"}，这是关键站边分歧。`,
-    eventSeq: firstClaimEvent?.seq,
-  };
-}
-
 function buildStanceShiftPoint(state: GameState): ReviewTurningPoint | undefined {
   const shift = buildTableMemory(state).stanceShifts.at(-1);
   if (!shift) return undefined;
@@ -640,11 +579,7 @@ function buildKeyVotePoint(state: GameState): ReviewTurningPoint | undefined {
     return {
       day: event.day,
       title: "关键投票",
-      description: `${exiled.name} 被放逐${
-        getSupportedRoleClaims(state).some((claim) => claim.claimantSeatId === exiled.seatId)
-          ? "，其公开身份声明也随之接受终局检验"
-          : ""
-      }，这是白天票型最直接的转折点。`,
+      description: `${exiled.name} 被放逐，这是白天票型最直接的转折点。`,
       eventSeq: event.seq,
     };
   }
@@ -691,7 +626,6 @@ function buildDeathTimeline(state: GameState): ReviewDeath[] {
 
 function buildKeyEvents(state: GameState): ReviewKeyEvent[] {
   const keyTypes = new Set([
-    "ROLE_CLAIMED",
     "STANCE_DECLARED",
     "DAY_STARTED",
     "VOTE_REVEALED",

@@ -77,7 +77,7 @@ export function buildTableMemory(state: GameState): TableMemory {
 export function buildClaimBoard(state: GameState): ClaimBoardItem[] {
   const items: ClaimBoardItem[] = [];
 
-  for (const claim of (state.roleClaims ?? []).filter(isSupportedRoleClaim)) {
+  for (const claim of (state.roleClaims ?? []).filter(isStrongIdentityClaim)) {
     const claimant = getTarget(state, claim.claimantSeatId);
     if (!claimant) continue;
     const checks = claim.checks
@@ -109,6 +109,10 @@ export function buildClaimBoard(state: GameState): ClaimBoardItem[] {
   }
 
   return items.sort((a, b) => a.claimant.seatId - b.claimant.seatId || roleSort(a.claimedRole) - roleSort(b.claimedRole));
+}
+
+function isStrongIdentityClaim(claim: GameState["roleClaims"][number]): boolean {
+  return claim.strength === "hard" && isSupportedRoleClaim(claim);
 }
 
 function buildCounterclaims(claimBoard: ClaimBoardItem[]): TableMemory["counterclaims"] {

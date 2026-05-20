@@ -3408,7 +3408,6 @@ function SeatToken({
   const isSheriffBadgeHolder = game.sheriff?.badgeHolder?.seatId === seat.seatId;
   const hasAiAvatar = Boolean(seat.avatarDataUrl);
   const isModelCard = seat.isAi && !hasAiAvatar && Boolean(MODEL_CARD_IMAGES[seat.personaName ?? seat.name]);
-  const seatClaims = game.tableSummary.claimBoard.filter((claim) => claim.claimant.seatId === seat.seatId);
   const seatStyle = { ...orbitStyle, "--seat-index": seat.seatId - 1 } as React.CSSProperties & Record<
     "--seat-x" | "--seat-y" | "--seat-index",
     string | number
@@ -3509,15 +3508,6 @@ function SeatToken({
               <span />
               <span />
               <span />
-            </div>
-          )}
-          {!compact && seatClaims.length > 0 && (
-            <div className="mt-2 flex flex-wrap justify-center gap-1">
-              {seatClaims.slice(0, compact ? 1 : 2).map((claim) => (
-                <span key={claim.claimId} className="rounded-full border border-[#77d898]/25 bg-[#0f2118]/75 px-2 py-0.5 text-[10px] text-[#a8f0b6]">
-                  声称{claim.claimedRoleLabel}
-                </span>
-              ))}
             </div>
           )}
         </div>

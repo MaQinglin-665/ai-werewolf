@@ -1769,7 +1769,7 @@ describe("game engine", () => {
     state = applyCommand(state, {
       type: "speak",
       actorSeatId: first!.seatId,
-      message: "我这里是平民牌，先按公开信息投。",
+      message: "我是平民牌，先按公开信息投。",
     });
     state = applyCommand(state, {
       type: "speak",
@@ -2820,8 +2820,8 @@ describe("game engine", () => {
     expect(review.claims).toHaveLength(2);
     expect(review.claims.every((claim) => claim.isCounterclaim)).toBe(true);
     expect(review.claims.find((claim) => claim.claimant.seatId === wolf.seatId)?.truthful).toBe(false);
-    expect(review.strategyNotes.some((note) => note.title === "狼队悍跳")).toBe(true);
-    expect(review.turningPoints.some((point) => point.title.includes("对跳") || point.description.includes("声称"))).toBe(true);
+    expect(review.strategyNotes.some((note) => note.title === "狼队悍跳")).toBe(false);
+    expect(review.turningPoints.some((point) => point.title.includes("对跳") || point.description.includes("声称"))).toBe(false);
   });
 
   it("lets bold wolf AI distance-vote a teammate from public identity pressure", () => {

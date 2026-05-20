@@ -51,37 +51,6 @@ export function ReviewPanel({ game }: { game: HumanGameView }) {
 
       {(review.aiInsights.length > 0 || game.reviewDebug) && <ReviewAnalysisDrawer game={game} />}
 
-      {review.claims.length > 0 && (
-        <div className="mt-4">
-          <SectionTitle>声明复盘</SectionTitle>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            {review.claims.map((claim) => (
-              <div key={`${claim.claimant.seatId}-${claim.claimedRole}`} className="rounded-2xl border border-[#f1c76e]/18 bg-black/20 p-3 text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold text-[#f7ead5]">
-                    {claim.claimant.seatId}号 · {claim.claimant.name}
-                  </span>
-                  <span className={claim.truthful ? "text-[#9fe0a4]" : "text-[#ff8c78]"}>
-                    声称{claim.claimedRoleLabel} · 真实{claim.trueRoleLabel}
-                  </span>
-                </div>
-                {claim.isCounterclaim && <div className="mt-2 text-xs text-[#ffd8cf]">处在对跳关系中</div>}
-                {claim.checks.length > 0 && (
-                  <div className="mt-2 grid gap-1 text-xs leading-5 text-[#dcc9a7]">
-                    {claim.checks.map((check) => (
-                      <div key={`${claim.claimant.seatId}-${check.target.seatId}-${check.claimedResult}`}>
-                        报{check.target.seatId}号{check.claimedResult === "WEREWOLF" ? "查杀" : "金水"} · 终局
-                        {check.accurate ? "准确" : `实际为${check.actualResult === "WEREWOLF" ? "狼人" : "好人"}`}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {review.stanceShifts.length > 0 && (
         <div className="mt-4">
           <SectionTitle>站边变化</SectionTitle>
