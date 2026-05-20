@@ -337,6 +337,7 @@ export function SpeechFeed({
     ? game.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId)
     : undefined;
   const isTableVariant = variant === "table";
+  const hasVisibleSpeechContent = speeches.length > 0 || Boolean(activeLiveAiSpeech);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -362,7 +363,11 @@ export function SpeechFeed({
         ref={scrollRef}
         className={[
           "grid gap-3 overflow-y-auto p-4",
-          isTableVariant ? "max-h-[280px] lg:max-h-[260px]" : "max-h-[300px]",
+          isTableVariant
+            ? hasVisibleSpeechContent
+              ? "max-h-[56vh] overscroll-contain [scrollbar-gutter:stable] lg:max-h-[58vh] xl:max-h-[60vh]"
+              : "max-h-[220px] lg:max-h-[200px]"
+            : "max-h-[300px]",
         ].join(" ")}
       >
         {speeches.length === 0 && !activeLiveAiSpeech ? (
