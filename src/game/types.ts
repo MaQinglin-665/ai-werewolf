@@ -697,6 +697,7 @@ export type StanceShiftItem = {
 export type SeerLegacyItem = {
   claimant: ActionTarget;
   deathDay: number;
+  deathKind?: "night" | "exile";
   checks: ClaimBoardItem["checks"];
   stancesGiven: StanceBoardItem[];
   lastVote?: {

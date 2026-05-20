@@ -42,6 +42,73 @@ describe("table memory stance shifts", () => {
   });
 });
 
+describe("table memory seer legacies", () => {
+  it("keeps an exiled seer's last-words gold check as public legacy", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 32 });
+    const seer = state.seats.find((seat) => seat.seatId === 8)!;
+    const gold = state.seats.find((seat) => seat.seatId === 6)!;
+    state.day = 2;
+    state.roleClaims.push({
+      id: `${seer.seatId}:SEER`,
+      day: 2,
+      claimantSeatId: seer.seatId,
+      claimedRole: "SEER",
+      strength: "hard",
+      checks: [
+        {
+          day: 2,
+          claimantSeatId: seer.seatId,
+          targetSeatId: gold.seatId,
+          result: "GOOD",
+          sourceSpeechSeq: 55,
+        },
+      ],
+      message: "I claim seer and leave this gold check.",
+      sourceSpeechSeq: 55,
+      updatedAtSeq: 55,
+    });
+    state.events.push(
+      {
+        seq: 66,
+        type: "PLAYER_EXILED",
+        visibility: "public",
+        day: 2,
+        phase: "EXILE_RESOLUTION",
+        actorSeatId: seer.seatId,
+        message: `${seer.seatId}号 被放逐出局。`,
+        payload: { seatId: seer.seatId },
+      },
+      {
+        seq: 67,
+        type: "LAST_WORDS_CREATED",
+        visibility: "public",
+        day: 2,
+        phase: "LAST_WORDS",
+        actorSeatId: seer.seatId,
+        message: `${seer.seatId}号 遗言：${gold.seatId}号是金水。`,
+        payload: { seatId: seer.seatId, message: `${gold.seatId}号是金水。` },
+      },
+    );
+
+    const memory = buildTableMemory(state);
+
+    expect(memory.seerLegacies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          claimant: expect.objectContaining({ seatId: seer.seatId }),
+          deathDay: 2,
+          checks: expect.arrayContaining([
+            expect.objectContaining({
+              target: expect.objectContaining({ seatId: gold.seatId }),
+              result: "GOOD",
+            }),
+          ]),
+        }),
+      ]),
+    );
+  });
+});
+
 describe("table memory death-shape public cues", () => {
   it("treats a day-one single death as public potion-line context on no-guard witch boards", () => {
     const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 91 });
