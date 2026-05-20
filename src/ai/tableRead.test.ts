@@ -52,6 +52,22 @@ function createTableMemory(overrides: Partial<TableMemory> = {}): TableMemory {
   };
 }
 
+function createPressure(
+  actor: ActionTarget,
+  pressureTarget: ActionTarget,
+  kind: "QUESTION" | "PRESSURE" = "PRESSURE",
+) {
+  return {
+    stanceId: `stance-${actor.seatId}-${pressureTarget.seatId}-${kind}`,
+    day: 3,
+    actor,
+    target: pressureTarget,
+    kind,
+    kindLabel: kind,
+    summary: `${actor.name} pressures ${pressureTarget.name}`,
+  };
+}
+
 function createView(tableMemory: TableMemory): AgentView {
   return {
     gameId: "test-game",
@@ -320,6 +336,84 @@ describe("createVotePlan", () => {
     expect(plan.reason).not.toContain("上一轮");
     expect(plan.alternatives.map((item) => item.seatId)).not.toContain(gold.seatId);
   });
+  it("allows voting a dead-seer gold water target once hard public counter-evidence exists", () => {
+    const deadSeer = target(4, "Dead Seer");
+    const gold = target(2, "Legacy Gold");
+    const alternative = target(3, "Open Focus");
+    const checkerA = target(5, "Live Seer A");
+    const checkerB = target(6, "Live Seer B");
+    const tableMemory = createTableMemory({
+      day: 3,
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 2,
+          checks: [{ day: 1, target: gold, result: "GOOD" }],
+          stancesGiven: [],
+          summary: "Dead seer left a gold-water result.",
+        },
+      ],
+      focus: [{ seat: gold, reasons: ["multiple public black checks"], score: 96 }],
+      reasoningCues: [
+        {
+          cueId: "legacy-gold-hard-counter",
+          day: 3,
+          kind: "counterclaim",
+          weight: "strong",
+          target: gold,
+          summary: "two living seer claims both challenge the legacy gold",
+          evidence: ["two public black checks"],
+        },
+      ],
+    });
+    const view = {
+      ...createView(tableMemory),
+      day: 3,
+      myRole: "VILLAGER",
+      aliveSeats: [target(1, "Voter"), gold, alternative, checkerA, checkerB],
+      privateKnowledge: { aiMemory: { seatId: 1, day: 3, beliefs: [] } },
+      allowedActions: [{ type: "vote", targets: [gold, alternative], canAbstain: false }],
+    } as AgentView;
+    const goldSeat = createSeat({
+      seatId: gold.seatId,
+      name: gold.name,
+      suspicion: 94,
+      trust: 18,
+      pressure: ["two public black checks", "shared vote focus"],
+      votesReceived: 2,
+      publicChecksAgainst: [
+        { claimant: checkerA, result: "WEREWOLF", day: 3 },
+        { claimant: checkerB, result: "WEREWOLF", day: 3 },
+      ],
+      publicStancedBy: [createPressure(checkerA, gold), createPressure(checkerB, gold, "QUESTION")],
+    });
+    const tableRead: AiTableRead = {
+      mySeatId: 1,
+      myRole: "VILLAGER",
+      day: 3,
+      seats: [
+        createSeat({ seatId: 1, name: "Voter", isSelf: true, suspicion: 0, trust: 100 }),
+        goldSeat,
+        createSeat({ seatId: alternative.seatId, name: alternative.name, suspicion: 42, trust: 48 }),
+      ],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [],
+      wolfTeammateSeatIds: [],
+      focus: goldSeat,
+      voteSnapshot: {
+        ...emptyVoteSnapshot,
+        leaders: [gold],
+      },
+      recentSpeeches: [],
+      recentDeaths: ["Dead Seer died"],
+      tableMemory,
+      tableMood: "hard public evidence challenges a legacy gold",
+    };
+
+    const plan = createVotePlan(view, tableRead);
+
+    expect(plan.target.seatId).toBe(gold.seatId);
+  });
 });
 
 describe("createSpeechPlan", () => {
@@ -383,5 +477,89 @@ describe("createSpeechPlan", () => {
     expect(plan.target?.seatId).not.toBe(2);
     expect(speechText).not.toContain("Gold Water");
     expect(speechText).not.toContain("2号");
+  });
+
+  it("allows speech pressure on a dead-seer gold water target after hard public counter-evidence", () => {
+    const deadSeer = target(4, "Dead Seer");
+    const gold = target(2, "Legacy Gold");
+    const alternative = target(3, "Alternative");
+    const checkerA = target(5, "Live Seer A");
+    const checkerB = target(6, "Live Seer B");
+    const tableMemory = createTableMemory({
+      day: 3,
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 2,
+          checks: [{ day: 1, target: gold, result: "GOOD" }],
+          stancesGiven: [],
+          summary: "Dead seer left a gold-water result.",
+        },
+      ],
+      focus: [{ seat: gold, reasons: ["multiple public black checks"], score: 96 }],
+      reasoningCues: [
+        {
+          cueId: "legacy-gold-speech-hard-counter",
+          day: 3,
+          kind: "counterclaim",
+          weight: "strong",
+          target: gold,
+          summary: "two living seer claims both challenge the legacy gold",
+          evidence: ["two public black checks"],
+        },
+      ],
+    });
+    const goldSeat = createSeat({
+      seatId: gold.seatId,
+      name: gold.name,
+      suspicion: 94,
+      trust: 18,
+      pressure: ["two public black checks"],
+      votesReceived: 2,
+      publicChecksAgainst: [
+        { claimant: checkerA, result: "WEREWOLF", day: 3 },
+        { claimant: checkerB, result: "WEREWOLF", day: 3 },
+      ],
+      publicStancedBy: [createPressure(checkerA, gold), createPressure(checkerB, gold, "QUESTION")],
+    });
+    const view = {
+      ...createView(tableMemory),
+      day: 3,
+      myRole: "VILLAGER",
+      aliveSeats: [target(1, "Speaker"), gold, alternative, checkerA, checkerB],
+      publicSummary: {
+        ...createView(tableMemory).publicSummary,
+        recentSpeeches: [{ seq: 12, day: 3, speaker: checkerA, message: "5 points at 2 with a public black check." }],
+        tableMemory,
+      },
+      privateKnowledge: { aiMemory: { seatId: 1, day: 3, beliefs: [] } },
+      allowedActions: [{ type: "speak" }],
+    } as AgentView;
+    const tableRead: AiTableRead = {
+      mySeatId: 1,
+      myRole: "VILLAGER",
+      day: 3,
+      seats: [
+        createSeat({ seatId: 1, name: "Speaker", isSelf: true, suspicion: 0, trust: 100 }),
+        goldSeat,
+        createSeat({ seatId: alternative.seatId, name: alternative.name, suspicion: 42, trust: 48 }),
+      ],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [],
+      wolfTeammateSeatIds: [],
+      focus: goldSeat,
+      voteSnapshot: {
+        ...emptyVoteSnapshot,
+        leaders: [gold],
+      },
+      recentSpeeches: view.publicSummary.recentSpeeches,
+      recentDeaths: ["Dead Seer died"],
+      tableMemory,
+      tableMood: "hard public evidence challenges a legacy gold",
+    };
+
+    const plan = createSpeechPlan(view, tableRead);
+
+    expect(plan.target?.seatId).toBe(gold.seatId);
   });
 });

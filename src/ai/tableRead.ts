@@ -14,6 +14,12 @@ import type {
 } from "@/game/types";
 import { clampProbability, stableRoll, stableSignedJitter } from "@/game/decisionNoise";
 import { isWolfRole } from "@/game/roleUtils";
+import {
+  findDeadSeerBlackLegacyForSeat,
+  findDeadSeerGoldLegacyForSeat,
+  hasHardOverrideAgainstDeadSeerGold,
+  isProtectedDeadSeerGoldSeat,
+} from "./protectedGold";
 
 const GOD_ROLES: Role[] = ["SEER", "WITCH", "HUNTER", "IDIOT", "KNIGHT", "GUARD"];
 const NON_SEER_POWER_ROLES = new Set<Role>(["WITCH", "HUNTER", "IDIOT", "KNIGHT", "GUARD"]);
@@ -1495,6 +1501,11 @@ function buildVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRe
     return `${deadSeerBlackCheck.claimant.name}夜死后遗留这里查杀，今天先按死预验人线归票。`;
   }
 
+  const deadSeerGoldCheck = findDeadSeerLegacyGoldCheckFor(tableRead, target);
+  if (deadSeerGoldCheck && hasHardOverrideAgainstDeadSeerGold(tableRead, target)) {
+    return `${deadSeerGoldCheck.claimant.name}的夜死金水已经被多重公开反证打穿，今天可以按硬证据归票${target.name}。`;
+  }
+
   const trustedSeerCheck = findTrustedSeerCheckAgainst(tableRead, target);
   if (trustedSeerCheck) {
     return `${trustedSeerCheck.claimant.name}报过这里查杀，今天先按可信预言家线归票。`;
@@ -1907,7 +1918,7 @@ function goodPublicVoteEvidenceScore(view: AgentView, tableRead: AiTableRead, se
   for (const legacy of view.publicSummary.tableMemory.seerLegacies) {
     const legacyCheck = legacy.checks.find((check) => check.target.seatId === seat.seatId);
     if (legacyCheck?.result === "WEREWOLF") score += 30;
-    if (legacyCheck?.result === "GOOD") score -= 32;
+    if (legacyCheck?.result === "GOOD") score -= isProtectedDeadSeerGoldSeat(tableRead, seat) ? 32 : 6;
   }
 
   const protectedClaim = chooseUnchallengedPowerClaim(view, seat.publicClaims, seat.publicChecksAgainst);
@@ -2294,37 +2305,18 @@ function findDeadSeerLegacyBlackCheckAgainst(
   tableRead: AiTableRead,
   target: SeatRead,
 ): AiTableRead["tableMemory"]["seerLegacies"][number] | undefined {
-  return tableRead.tableMemory.seerLegacies.find((legacy) =>
-    legacy.checks.some((check) => check.target.seatId === target.seatId && check.result === "WEREWOLF"),
-  );
+  return findDeadSeerBlackLegacyForSeat(tableRead.tableMemory, target.seatId);
 }
 
 function findDeadSeerLegacyGoldCheckFor(
   tableRead: AiTableRead,
   target: SeatRead,
 ): AiTableRead["tableMemory"]["seerLegacies"][number] | undefined {
-  return tableRead.tableMemory.seerLegacies.find((legacy) =>
-    legacy.checks.some((check) => check.target.seatId === target.seatId && check.result === "GOOD"),
-  );
+  return findDeadSeerGoldLegacyForSeat(tableRead.tableMemory, target.seatId);
 }
 
 function isProtectedDeadSeerLegacyGoldTarget(tableRead: AiTableRead, target: SeatRead): boolean {
-  const legacy = findDeadSeerLegacyGoldCheckFor(tableRead, target);
-  if (!legacy) return false;
-  if (findDeadSeerLegacyBlackCheckAgainst(tableRead, target)) return false;
-  const trustedBlackCheck = findTrustedSeerCheckAgainst(tableRead, target);
-  if (trustedBlackCheck && hasOverridingEvidenceAgainstDeadSeerGold(tableRead, target)) return false;
-
-  return true;
-}
-
-function hasOverridingEvidenceAgainstDeadSeerGold(tableRead: AiTableRead, target: SeatRead): boolean {
-  const pressureActors = publicVotePressureActors(target).length;
-  const pressureGap = target.suspicion - target.trust;
-  const hardCue = targetReasoningCues(tableRead, target).some((cue) => cue.weight === "strong");
-  const blackChecks = target.publicChecksAgainst.filter((check) => check.result === "WEREWOLF");
-
-  return blackChecks.length >= 2 || (blackChecks.length >= 1 && pressureActors >= 3 && pressureGap >= 48 && hardCue);
+  return isProtectedDeadSeerGoldSeat(tableRead, target);
 }
 
 function hasDeadSeerLegacyBlackCheckAgainst(
@@ -2420,6 +2412,7 @@ function isProtectedPublicGoldVoteTarget(tableRead: AiTableRead, seat: SeatRead)
 }
 
 function hasHardWolfCounterEvidenceAgainstProtectedGold(view: AgentView, tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (hasHardOverrideAgainstDeadSeerGold(tableRead, seat)) return true;
   if (findDeadSeerLegacyBlackCheckAgainst(tableRead, seat)) return true;
 
   const publicBlackChecks = seat.publicChecksAgainst.filter((check) => check.result === "WEREWOLF").length;
