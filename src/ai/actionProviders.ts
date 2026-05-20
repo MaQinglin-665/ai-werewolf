@@ -261,9 +261,10 @@ export const routedModelActionProvider: AiActionProvider = createConstrainedLlmA
 });
 
 export function buildConstrainedActionInput(view: AgentView, context: AiActionProviderContext): LlmActionInput {
-  const candidates = buildActionCandidates(view, context.tableRead, context.votePlan, context.fallbackCommand);
+  const votePlan = sanitizeActionVotePlan(view, context.votePlan);
+  const candidates = buildActionCandidates(view, context.tableRead, votePlan, context.fallbackCommand);
   const fallbackCandidateId = candidates.find((candidate) => sameCommand(candidate.command, context.fallbackCommand))?.id;
-  const debateAgenda = buildDebateAgenda(view, { tableRead: context.tableRead, target: context.votePlan?.target });
+  const debateAgenda = buildDebateAgenda(view, { tableRead: context.tableRead, target: votePlan?.target });
 
   return {
     day: view.day,
@@ -306,12 +307,18 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
     rolePlaybook: buildRolePlaybook(view),
     claimAudit: buildClaimAudit(view),
     debateAgenda,
-    votePlan: context.votePlan,
+    votePlan,
     fallbackCandidateId,
     candidates,
     constraints: buildActionConstraints(view),
     llmConfig: view.llmConfig,
   };
+}
+
+function sanitizeActionVotePlan(view: AgentView, votePlan: VotePlan | undefined): VotePlan | undefined {
+  if (!votePlan || isWolfRole(view.myRole, view.rules.wolfRoles)) return votePlan;
+  const { wolfVoteTactic: _wolfVoteTactic, ...publicVotePlan } = votePlan;
+  return publicVotePlan;
 }
 
 function buildPublicActionDecisionSummary(

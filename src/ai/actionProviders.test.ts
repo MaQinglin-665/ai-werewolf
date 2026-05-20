@@ -100,6 +100,23 @@ describe("routed action provider", () => {
     expect(JSON.stringify(goodInput)).not.toMatch(/狼队首夜|战术|nightStrategy/);
   });
 
+  it("strips wolf vote tactic metadata from good-side action input", () => {
+    const state = createGame({ seed: 68, humanSeatId: null });
+    state.phase = "DAY_VOTE";
+    const good = state.seats.find((seat) => seat.role === "VILLAGER")!;
+    const view = buildAgentView(state, good.seatId);
+    const tableRead = buildAiTableRead(view);
+    const votePlan = { ...createVotePlan(view, tableRead), wolfVoteTactic: "team_target" as const };
+
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      votePlan,
+      fallbackCommand: createMockCommand(view, tableRead, votePlan),
+    });
+
+    expect(JSON.stringify(input)).not.toContain("wolfVoteTactic");
+  });
+
   it("offers knight duel as an optional day action candidate", () => {
     const state = createGame({ boardId: "12p-sheriff-wolf-beauty-knight", seed: 96, humanSeatId: null });
     const knight = state.seats.find((seat) => seat.role === "KNIGHT")!;
