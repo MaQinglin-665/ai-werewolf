@@ -66,6 +66,34 @@ describe("model LLM routing", () => {
     expect(result.text).toBe("{\"ok\":true}");
   });
 
+  it("allows non-GLM speech requests to use a 60s default timeout cap", async () => {
+    process.env.AI_LLM_API_KEY = "test-key";
+    process.env.AI_LLM_TIMEOUT_MS = "60000";
+    delete process.env.AI_LLM_SPEECH_TIMEOUT_MS;
+    delete process.env.AI_LLM_SPEECH_TIMEOUT_MS_CAP;
+    delete process.env.GPT_TIMEOUT_MS;
+    delete process.env.GPT_SPEECH_TIMEOUT_MS;
+
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "{\"ok\":true}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await callRoutedModelJson({
+      personaName: "GPT",
+      task: "speech",
+      system: "Return JSON.",
+      input: { seat: 1 },
+      maxTokens: 100,
+    });
+
+    expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 60000);
+  });
+
   it("tries gpt-5.5 when the primary GPT model request fails", async () => {
     process.env.AI_LLM_API_KEY = "test-key";
     process.env.AI_MODEL_GPT = "gpt-5.4";

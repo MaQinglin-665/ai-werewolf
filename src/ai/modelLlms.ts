@@ -632,7 +632,7 @@ function readTaskTimeoutMs(route: ModelRoute, task: RoutedJsonOptions["task"]): 
 
   if (task !== "speech") return readNumberEnv("AI_LLM_TIMEOUT_MS", 12000);
   const timeoutMs = readNumberEnv("AI_LLM_SPEECH_TIMEOUT_MS", readNumberEnv("AI_LLM_TIMEOUT_MS", 45000));
-  const defaultCap = route.id === "glm" ? 90000 : 45000;
+  const defaultCap = route.id === "glm" ? 90000 : 60000;
   const cap = readNumberEnv("AI_LLM_SPEECH_TIMEOUT_MS_CAP", defaultCap);
   return Math.min(Math.max(route.id === "glm" ? 90000 : timeoutMs, timeoutMs), Math.max(route.id === "glm" ? 90000 : cap, cap));
 }
