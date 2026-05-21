@@ -165,7 +165,11 @@ function MobileTopStrip({
         <MobileQuickButton active={audioButtonStates.hostActive} onClick={onToggleHostAudio}>
           主持
         </MobileQuickButton>
-        <MobileQuickButton active={audioButtonStates.aiSpeechActive} onClick={onToggleAiSpeechAudio}>
+        <MobileQuickButton
+          active={audioButtonStates.aiSpeechActive}
+          pressed={audioButtonStates.aiSpeechPressed}
+          onClick={onToggleAiSpeechAudio}
+        >
           语音
         </MobileQuickButton>
         <MobileQuickButton disabled={loading} onClick={() => void onNewGame()}>
@@ -178,11 +182,13 @@ function MobileTopStrip({
 
 function MobileQuickButton({
   active,
+  pressed = active,
   disabled = false,
   children,
   onClick,
 }: {
   active?: boolean;
+  pressed?: boolean;
   disabled?: boolean;
   children: React.ReactNode;
   onClick: () => void;
@@ -190,7 +196,7 @@ function MobileQuickButton({
   return (
     <button
       type="button"
-      aria-pressed={active}
+      aria-pressed={pressed}
       disabled={disabled}
       onClick={onClick}
       className={[
