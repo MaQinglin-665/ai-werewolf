@@ -8,11 +8,13 @@ import type { AiSpeechAudioStatus, CommandPayload, HostAudioStatus, LiveAiSpeech
 import {
   MOBILE_INFO_TABS,
   getMobileActionMode,
+  getMobileAudioButtonStates,
   getMobileFocusSeat,
   getMobileSeatCounts,
   type MobileInfoTabKey,
 } from "./mobileTableModel";
 import { StatusPill } from "./PanelPrimitives";
+import { ReviewPanel } from "./ReviewPanel";
 import { InfoPanel, PublicLog, SpeechFeed, TableNotesPanel, VoteTable } from "./TablePanels";
 import { seatNumber } from "./viewHelpers";
 
@@ -21,6 +23,8 @@ export function MobileGameTable({
   loading,
   pendingCommandType,
   liveAiSpeech,
+  hostAudioEnabled,
+  aiSpeechAudioEnabled,
   hostAudioStatus,
   aiSpeechAudioStatus,
   aiSpeechAudioUnavailable,
@@ -36,6 +40,8 @@ export function MobileGameTable({
   loading: boolean;
   pendingCommandType: CommandPayload["type"] | null;
   liveAiSpeech: LiveAiSpeech | null;
+  hostAudioEnabled: boolean;
+  aiSpeechAudioEnabled: boolean;
   hostAudioStatus: HostAudioStatus | null;
   aiSpeechAudioStatus: AiSpeechAudioStatus | null;
   aiSpeechAudioUnavailable: boolean;
@@ -59,13 +65,13 @@ export function MobileGameTable({
   );
 
   return (
-    <section className="mobile-game-table sm:hidden" aria-label="手机版狼人杀牌桌">
+    <section className={["mobile-game-table sm:hidden", game.review ? "mobile-game-table-review" : ""].join(" ")} aria-label="手机版狼人杀牌桌">
       <div className="grid gap-3">
         <MobileTopStrip
           game={game}
           loading={loading}
-          hostAudioStatus={hostAudioStatus}
-          aiSpeechAudioStatus={aiSpeechAudioStatus}
+          hostAudioEnabled={hostAudioEnabled}
+          aiSpeechAudioEnabled={aiSpeechAudioEnabled}
           aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
           actionStatus={actionStatus}
           onNewGame={onNewGame}
@@ -88,8 +94,14 @@ export function MobileGameTable({
 
       <div className="mobile-action-sheet mx-3 rounded-2xl border border-[#f1c76e]/18 bg-[#100a08]/96 p-3 shadow-2xl shadow-black/45 backdrop-blur-md">
         <div className="mobile-action-grip" aria-hidden="true" />
-        <ActionPanel game={game} loading={loading} onNewGame={onNewGame} onSubmit={onSubmit} />
+        <ActionPanel game={game} loading={loading} onNewGame={onNewGame} onSubmit={onSubmit} reviewHref="#mobile-review" />
       </div>
+
+      {game.review && (
+        <div className="mobile-review-shell mx-3 pb-4">
+          <ReviewPanel game={game} reviewId="mobile-review" reviewEventsId="mobile-review-events" />
+        </div>
+      )}
     </section>
   );
 }
@@ -97,8 +109,8 @@ export function MobileGameTable({
 function MobileTopStrip({
   game,
   loading,
-  hostAudioStatus,
-  aiSpeechAudioStatus,
+  hostAudioEnabled,
+  aiSpeechAudioEnabled,
   aiSpeechAudioUnavailable,
   actionStatus,
   onNewGame,
@@ -109,8 +121,8 @@ function MobileTopStrip({
 }: {
   game: HumanGameView;
   loading: boolean;
-  hostAudioStatus: HostAudioStatus | null;
-  aiSpeechAudioStatus: AiSpeechAudioStatus | null;
+  hostAudioEnabled: boolean;
+  aiSpeechAudioEnabled: boolean;
   aiSpeechAudioUnavailable: boolean;
   actionStatus: string;
   onNewGame: () => Promise<void>;
@@ -121,6 +133,11 @@ function MobileTopStrip({
 }) {
   const { aliveCount, deadCount } = getMobileSeatCounts(game);
   const focusSeat = getMobileFocusSeat(game);
+  const audioButtonStates = getMobileAudioButtonStates({
+    hostAudioEnabled,
+    aiSpeechAudioEnabled,
+    aiSpeechAudioUnavailable,
+  });
 
   return (
     <div className="mobile-table-top-strip sticky top-0 z-30 rounded-b-2xl border-b border-[#f1c76e]/18 bg-[#100a08]/96 px-3 py-3 shadow-xl shadow-black/35 backdrop-blur-md">
@@ -145,10 +162,10 @@ function MobileTopStrip({
       <div className="mt-3 grid grid-cols-5 gap-1.5">
         <MobileQuickButton onClick={onOpenIdentityBook}>身份</MobileQuickButton>
         <MobileQuickButton onClick={onOpenGlossary}>术语</MobileQuickButton>
-        <MobileQuickButton active={Boolean(hostAudioStatus)} onClick={onToggleHostAudio}>
+        <MobileQuickButton active={audioButtonStates.hostActive} onClick={onToggleHostAudio}>
           主持
         </MobileQuickButton>
-        <MobileQuickButton active={Boolean(aiSpeechAudioStatus) || aiSpeechAudioUnavailable} onClick={onToggleAiSpeechAudio}>
+        <MobileQuickButton active={audioButtonStates.aiSpeechActive} onClick={onToggleAiSpeechAudio}>
           语音
         </MobileQuickButton>
         <MobileQuickButton disabled={loading} onClick={() => void onNewGame()}>

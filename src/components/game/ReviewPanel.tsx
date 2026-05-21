@@ -7,13 +7,21 @@ import type { HumanGameView } from "@/game/types";
 import { SectionTitle } from "./PanelPrimitives";
 import { ROLE_CARD_IMAGES, formatSystemMessage } from "./viewHelpers";
 
-export function ReviewPanel({ game }: { game: HumanGameView }) {
+export function ReviewPanel({
+  game,
+  reviewId = "review",
+  reviewEventsId = "review-events",
+}: {
+  game: HumanGameView;
+  reviewId?: string;
+  reviewEventsId?: string;
+}) {
   const review = game.review;
   if (!review) return null;
   const credibilityHighlights = buildReviewCredibilityHighlights(game);
 
   return (
-    <section id="review" className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
+    <section id={reviewId} className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#f1c76e]/15 pb-4">
         <div>
           <h2 className="text-lg font-semibold text-[#f7ead5]">终局复盘</h2>
@@ -22,7 +30,7 @@ export function ReviewPanel({ game }: { game: HumanGameView }) {
           </p>
         </div>
         <a
-          href="#review-events"
+          href={`#${reviewEventsId}`}
           className="rounded-full border border-[#f1c76e]/30 px-4 py-2 text-sm text-[#f1d796] transition hover:bg-[#f1c76e]/10"
         >
           查看关键事件
@@ -172,7 +180,7 @@ export function ReviewPanel({ game }: { game: HumanGameView }) {
         <ReviewDayRounds game={game} />
       </div>
 
-      <div id="review-events" className="mt-5">
+      <div id={reviewEventsId} className="mt-5">
         <SectionTitle>关键事件</SectionTitle>
         <div className="mt-3 grid gap-2">
           {review.keyEvents.map((event) => (

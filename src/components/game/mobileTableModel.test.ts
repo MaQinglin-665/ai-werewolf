@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
 import {
   getMobileActionMode,
+  getMobileAudioButtonStates,
   getMobileFocusSeat,
   getMobileSeatCounts,
   MOBILE_INFO_TABS,
@@ -137,5 +138,27 @@ describe("MOBILE_INFO_TABS", () => {
   it("keeps the mobile info tabs in shell order", () => {
     expect(MOBILE_INFO_TABS.map((tab) => tab.key)).toEqual(["identity", "speech", "vote", "log"]);
     expect(MOBILE_INFO_TABS.map((tab) => tab.label)).toEqual(["身份", "发言", "票型", "记录"]);
+  });
+});
+
+describe("getMobileAudioButtonStates", () => {
+  it("marks mobile audio buttons from enabled preferences, not transient playback status", () => {
+    expect(
+      getMobileAudioButtonStates({
+        hostAudioEnabled: true,
+        aiSpeechAudioEnabled: true,
+        aiSpeechAudioUnavailable: false,
+      }),
+    ).toEqual({ hostActive: true, aiSpeechActive: true });
+  });
+
+  it("does not show AI speech as actively playing when audio has fallen back to text", () => {
+    expect(
+      getMobileAudioButtonStates({
+        hostAudioEnabled: false,
+        aiSpeechAudioEnabled: true,
+        aiSpeechAudioUnavailable: true,
+      }),
+    ).toEqual({ hostActive: false, aiSpeechActive: false });
   });
 });
