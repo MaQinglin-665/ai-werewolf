@@ -43,6 +43,7 @@ import {
   type AiFriendLlmSecretMap,
 } from "./game/aiFriendStorage";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
+import { MobileGameTable } from "./game/MobileGameTable";
 import type {
   AiSpeechAudioStatus,
   AiSpeechAudioTextCue,
@@ -1724,18 +1725,20 @@ export function GameClient() {
       }}
     >
       <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-4 px-3 py-3 sm:px-5 lg:px-7">
-        <RoomHeader
-          game={game}
-          loading={loading}
-          aiSpeechAudioEnabled={aiSpeechAudioEnabled}
-          aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
-          hostAudioEnabled={hostAudioEnabled}
-          onNewGame={startGame}
-          onOpenIdentityBook={() => setIdentityBookOpen(true)}
-          onOpenGlossary={() => setGlossaryOpen(true)}
-          onToggleAiSpeechAudio={toggleAiSpeechAudio}
-          onToggleHostAudio={toggleHostAudio}
-        />
+        <div className={game ? "hidden sm:block" : ""}>
+          <RoomHeader
+            game={game}
+            loading={loading}
+            aiSpeechAudioEnabled={aiSpeechAudioEnabled}
+            aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
+            hostAudioEnabled={hostAudioEnabled}
+            onNewGame={startGame}
+            onOpenIdentityBook={() => setIdentityBookOpen(true)}
+            onOpenGlossary={() => setGlossaryOpen(true)}
+            onToggleAiSpeechAudio={toggleAiSpeechAudio}
+            onToggleHostAudio={toggleHostAudio}
+          />
+        </div>
 
         {error && (
           <div className="rounded-lg border border-[#e46d55]/45 bg-[#381511]/90 px-4 py-3 text-sm text-[#ffd8cf] shadow-lg">
@@ -1763,9 +1766,7 @@ export function GameClient() {
           />
         ) : (
           <div className="grid flex-1 gap-4">
-            <PhaseRhythm game={game} />
-            <HostStage game={game} />
-            <FlowStatusBar
+            <MobileGameTable
               game={game}
               loading={loading}
               pendingCommandType={pendingCommandType}
@@ -1773,23 +1774,44 @@ export function GameClient() {
               hostAudioStatus={hostAudioStatus}
               aiSpeechAudioStatus={aiSpeechAudioStatus}
               aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
-              onPauseAiSpeechAudio={pauseAiSpeechAudio}
-              onResumeAiSpeechAudio={resumeAiSpeechAudio}
-              onSkipAiSpeechAudio={skipAiSpeechAudio}
+              events={latestEvents}
+              onNewGame={() => startGame()}
+              onSubmit={submitCommand}
+              onOpenIdentityBook={() => setIdentityBookOpen(true)}
+              onOpenGlossary={() => setGlossaryOpen(true)}
               onToggleAiSpeechAudio={toggleAiSpeechAudio}
+              onToggleHostAudio={toggleHostAudio}
             />
-            <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,420px)]">
-              <div className="grid content-start gap-4">
-                <SeatBoard game={game} liveAiSpeech={liveAiSpeech} aiSpeechAudioStatus={aiSpeechAudioStatus} />
-                {game.review && <ReviewPanel game={game} />}
-              </div>
 
-              <aside className="grid content-start gap-4">
-                <ActionPanel game={game} loading={loading} onNewGame={startGame} onSubmit={submitCommand} />
-                <VoteTable game={game} loading={loading} pendingCommandType={pendingCommandType} />
-                <AuxiliaryInfoPanel game={game} events={latestEvents} />
-              </aside>
-            </section>
+            <div className="hidden gap-4 sm:grid">
+              <PhaseRhythm game={game} />
+              <HostStage game={game} />
+              <FlowStatusBar
+                game={game}
+                loading={loading}
+                pendingCommandType={pendingCommandType}
+                liveAiSpeech={liveAiSpeech}
+                hostAudioStatus={hostAudioStatus}
+                aiSpeechAudioStatus={aiSpeechAudioStatus}
+                aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
+                onPauseAiSpeechAudio={pauseAiSpeechAudio}
+                onResumeAiSpeechAudio={resumeAiSpeechAudio}
+                onSkipAiSpeechAudio={skipAiSpeechAudio}
+                onToggleAiSpeechAudio={toggleAiSpeechAudio}
+              />
+              <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,420px)]">
+                <div className="grid content-start gap-4">
+                  <SeatBoard game={game} liveAiSpeech={liveAiSpeech} aiSpeechAudioStatus={aiSpeechAudioStatus} />
+                  {game.review && <ReviewPanel game={game} />}
+                </div>
+
+                <aside className="grid content-start gap-4">
+                  <ActionPanel game={game} loading={loading} onNewGame={startGame} onSubmit={submitCommand} />
+                  <VoteTable game={game} loading={loading} pendingCommandType={pendingCommandType} />
+                  <AuxiliaryInfoPanel game={game} events={latestEvents} />
+                </aside>
+              </section>
+            </div>
           </div>
         )}
       </div>
