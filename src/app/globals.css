@@ -1593,6 +1593,7 @@ button:disabled {
   }
 
   .mobile-game-table > .grid {
+    display: grid;
     grid-template-rows: auto minmax(230px, 1fr) auto minmax(72px, 13svh);
     gap: 8px;
     min-height: 0;
@@ -1617,10 +1618,12 @@ button:disabled {
   }
 
   .mobile-seat-table {
-    aspect-ratio: 1 / 1.04;
+    align-self: stretch;
+    aspect-ratio: auto;
+    height: 100%;
     margin-inline: 10px;
-    min-height: 250px;
-    max-height: min(340px, 35svh);
+    min-height: 0;
+    max-height: none;
     border-radius: 18px;
   }
 
