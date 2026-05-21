@@ -69,9 +69,11 @@ export function getMobileAudioButtonStates({
   hostAudioEnabled: boolean;
   aiSpeechAudioEnabled: boolean;
   aiSpeechAudioUnavailable: boolean;
-}): { hostActive: boolean; aiSpeechActive: boolean } {
+}): { hostActive: boolean; hostPressed: boolean; aiSpeechActive: boolean; aiSpeechPressed: boolean } {
   return {
     hostActive: hostAudioEnabled,
+    hostPressed: hostAudioEnabled,
     aiSpeechActive: aiSpeechAudioEnabled && !aiSpeechAudioUnavailable,
+    aiSpeechPressed: aiSpeechAudioEnabled,
   };
 }

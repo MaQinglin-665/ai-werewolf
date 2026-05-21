@@ -149,16 +149,16 @@ describe("getMobileAudioButtonStates", () => {
         aiSpeechAudioEnabled: true,
         aiSpeechAudioUnavailable: false,
       }),
-    ).toEqual({ hostActive: true, aiSpeechActive: true });
+    ).toEqual({ hostActive: true, hostPressed: true, aiSpeechActive: true, aiSpeechPressed: true });
   });
 
-  it("does not show AI speech as actively playing when audio has fallen back to text", () => {
+  it("keeps AI speech logically pressed while styling the unavailable fallback as inactive", () => {
     expect(
       getMobileAudioButtonStates({
         hostAudioEnabled: false,
         aiSpeechAudioEnabled: true,
         aiSpeechAudioUnavailable: true,
       }),
-    ).toEqual({ hostActive: false, aiSpeechActive: false });
+    ).toEqual({ hostActive: false, hostPressed: false, aiSpeechActive: false, aiSpeechPressed: true });
   });
 });
