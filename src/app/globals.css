@@ -1592,6 +1592,11 @@ button:disabled {
     color: #f7ead5;
   }
 
+  .mobile-game-table.mobile-game-table-review {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
   .mobile-game-table > .grid {
     display: grid;
     grid-template-rows: auto minmax(230px, 1fr) auto minmax(72px, 13svh);
@@ -1739,6 +1744,15 @@ button:disabled {
     overscroll-behavior: contain;
     padding: 8px 10px 10px;
     border-radius: 18px;
+  }
+
+  .mobile-review-shell {
+    margin-inline: 10px;
+  }
+
+  .mobile-review-shell > section {
+    border-radius: 18px;
+    padding: 12px;
   }
 
   .mobile-action-grip {

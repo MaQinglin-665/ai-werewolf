@@ -1771,6 +1771,8 @@ export function GameClient() {
               loading={loading}
               pendingCommandType={pendingCommandType}
               liveAiSpeech={liveAiSpeech}
+              hostAudioEnabled={hostAudioEnabled}
+              aiSpeechAudioEnabled={aiSpeechAudioEnabled}
               hostAudioStatus={hostAudioStatus}
               aiSpeechAudioStatus={aiSpeechAudioStatus}
               aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}

@@ -27,12 +27,14 @@ export function ActionPanel({
   loading,
   onSubmit,
   onNewGame,
+  reviewHref = "#review",
   voiceInputEnabled = true,
 }: {
   game: HumanGameView;
   loading: boolean;
   onNewGame: () => Promise<void>;
   onSubmit: (payload: CommandPayload) => Promise<void>;
+  reviewHref?: string;
   voiceInputEnabled?: boolean;
 }) {
   if (game.result) {
@@ -44,7 +46,7 @@ export function ActionPanel({
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <a
-            href="#review"
+            href={reviewHref}
             className="rounded-full bg-[#2f8157] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#379566]"
           >
             查看复盘

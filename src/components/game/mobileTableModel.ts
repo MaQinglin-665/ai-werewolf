@@ -60,3 +60,18 @@ export function getMobileActionMode(
 
   return { kind: "auto", label: "自动播放", action: firstAction };
 }
+
+export function getMobileAudioButtonStates({
+  hostAudioEnabled,
+  aiSpeechAudioEnabled,
+  aiSpeechAudioUnavailable,
+}: {
+  hostAudioEnabled: boolean;
+  aiSpeechAudioEnabled: boolean;
+  aiSpeechAudioUnavailable: boolean;
+}): { hostActive: boolean; aiSpeechActive: boolean } {
+  return {
+    hostActive: hostAudioEnabled,
+    aiSpeechActive: aiSpeechAudioEnabled && !aiSpeechAudioUnavailable,
+  };
+}
