@@ -1578,6 +1578,181 @@ button:disabled {
   }
 }
 
+@media (max-width: 639px) {
+  .mobile-game-table {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 10px;
+    height: calc(100svh - 24px);
+    min-height: calc(100svh - 24px);
+    overflow: hidden;
+    padding: 0 0 calc(env(safe-area-inset-bottom, 0px) + 12px);
+    background:
+      linear-gradient(180deg, #0d0807 0%, #17100d 46%, #0b0807 100%);
+    color: #f7ead5;
+  }
+
+  .mobile-game-table > .grid {
+    grid-template-rows: auto minmax(230px, 1fr) auto minmax(72px, 13svh);
+    gap: 8px;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .mobile-table-top-strip {
+    border-radius: 0 0 18px 18px;
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 10px;
+  }
+
+  .mobile-table-top-strip .line-clamp-2 {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .mobile-table-top-strip button {
+    min-height: 34px;
+    border-radius: 8px;
+    padding-inline: 4px;
+    white-space: nowrap;
+  }
+
+  .mobile-seat-table {
+    aspect-ratio: 1 / 1.04;
+    margin-inline: 10px;
+    min-height: 250px;
+    max-height: min(340px, 35svh);
+    border-radius: 18px;
+  }
+
+  .mobile-seat-table > .pointer-events-none {
+    inset: 25%;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .mobile-seat-table > .pointer-events-none > div {
+    max-width: 118px;
+    padding: 10px;
+  }
+
+  .mobile-seat-chip {
+    width: clamp(58px, 17vw, 68px);
+    min-height: 58px;
+    border-radius: 12px;
+    padding: 5px;
+    transition:
+      border-color 180ms ease,
+      box-shadow 200ms ease,
+      filter 180ms ease;
+  }
+
+  .mobile-seat-alive {
+    box-shadow:
+      0 12px 24px rgba(0, 0, 0, 0.34),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .mobile-seat-dead {
+    filter: grayscale(0.35) brightness(0.82);
+  }
+
+  .mobile-seat-self {
+    border-color: rgba(241, 199, 110, 0.5);
+    box-shadow:
+      0 14px 28px rgba(0, 0, 0, 0.36),
+      0 0 0 1px rgba(241, 199, 110, 0.15);
+  }
+
+  .mobile-seat-focus {
+    animation: seat-token-lift 1700ms ease-in-out infinite;
+    border-color: rgba(119, 216, 152, 0.62);
+    box-shadow:
+      0 16px 30px rgba(0, 0, 0, 0.42),
+      0 0 22px rgba(119, 216, 152, 0.24);
+  }
+
+  .mobile-seat-number,
+  .mobile-seat-name,
+  .mobile-seat-state {
+    min-width: 0;
+  }
+
+  .mobile-seat-number {
+    max-width: 38px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-seat-name {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .mobile-seat-state {
+    max-height: 32px;
+    overflow: hidden;
+  }
+
+  .mobile-seat-state span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-info-tabs {
+    margin-inline: 10px;
+    border-radius: 12px;
+    padding: 4px;
+  }
+
+  .mobile-info-tabs button {
+    min-height: 34px;
+    border-radius: 8px;
+    padding-inline: 4px;
+    white-space: nowrap;
+  }
+
+  .mobile-info-tab-active {
+    box-shadow: inset 0 0 0 1px rgba(241, 199, 110, 0.2);
+  }
+
+  .mobile-info-sheet {
+    margin-inline: 10px;
+    min-height: 0;
+    max-height: 14svh;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .mobile-action-sheet {
+    align-self: end;
+    margin: 0 10px;
+    max-height: min(30svh, 240px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 8px 10px 10px;
+    border-radius: 18px;
+  }
+
+  .mobile-action-grip {
+    width: 42px;
+    height: 4px;
+    margin: 0 auto 8px;
+    border-radius: 999px;
+    background: rgba(241, 215, 150, 0.4);
+  }
+
+  .mobile-action-sheet textarea {
+    min-height: 72px;
+    max-height: 118px;
+    resize: vertical;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .phase-curtain,
   .phase-curtain-bg,
@@ -1623,6 +1798,7 @@ button:disabled {
   .vote-result-banner,
   .vote-ledger-item,
   .vote-ledger-item::before,
+  .mobile-seat-chip,
   .seat-token-active,
   .seat-token-shell,
   .voice-wave span,
@@ -1656,6 +1832,7 @@ button:disabled {
   .phase-rhythm-progress,
   .phase-step-dot,
   .phase-step-connector,
+  .mobile-seat-chip,
   .seat-token,
   .seat-token-shell,
   .metric-hero-card {
