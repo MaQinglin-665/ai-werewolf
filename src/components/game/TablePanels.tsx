@@ -60,7 +60,7 @@ export function AuxiliaryInfoPanel({ game, events }: { game: HumanGameView; even
   );
 }
 
-function TableNotesPanel({ game, embedded = false }: { game: HumanGameView; embedded?: boolean }) {
+export function TableNotesPanel({ game, embedded = false }: { game: HumanGameView; embedded?: boolean }) {
   const memory = game.tableSummary.tableMemory;
   const latestVote = memory.voteHistory.at(-1);
 
@@ -218,7 +218,7 @@ function TableNotesPanel({ game, embedded = false }: { game: HumanGameView; embe
   );
 }
 
-function InfoPanel({ game, embedded = false }: { game: HumanGameView; embedded?: boolean }) {
+export function InfoPanel({ game, embedded = false }: { game: HumanGameView; embedded?: boolean }) {
   if (!game.myRole) {
     const spectatorContent = (
       <div className="grid gap-3 text-sm text-[#dcc9a7]">
@@ -690,7 +690,7 @@ export function VoteRevealLedger({ snapshot, compact = false }: { snapshot: Vote
   );
 }
 
-function PublicLog({
+export function PublicLog({
   game,
   events,
   embedded = false,
