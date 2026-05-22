@@ -14,7 +14,7 @@ import {
   getSpeechRecognitionConstructor,
 } from "./viewHelpers";
 
-type SpeechAction = Extract<AvailableHumanAction, { type: "speak" | "lastWords" | "sheriffSpeech" }>; 
+type SpeechAction = Extract<AvailableHumanAction, { type: "speak" | "lastWords" | "sheriffSpeech" }>;
 
 export function SpeechActionControl({
   game,
