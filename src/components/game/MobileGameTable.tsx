@@ -1,22 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type * as React from "react";
 import type { HumanGameView } from "@/game/types";
 import { ActionPanel } from "./ActionPanel";
-import type { AiSpeechAudioStatus, CommandPayload, HostAudioStatus, LiveAiSpeech } from "./clientTypes";
+import type { AiSpeechAudioStatus, CommandPayload, HostAudioStatus, LiveAiSpeech, SpeechItem } from "./clientTypes";
 import {
   MOBILE_INFO_TABS,
+  getMobileActionPanelLayout,
   getMobileActionMode,
   getMobileAudioButtonStates,
+  getMobileDrawerSnapshot,
+  getMobileFilteredSpeeches,
   getMobileFocusSeat,
+  getMobilePhaseSignalTone,
+  getMobileSeatCardVisual,
+  getMobileSeatStageLayout,
   getMobileSeatCounts,
+  getMobileSpeechInputPrompt,
+  hasMobileSpeechDrawerAction,
+  shouldShowMobileStageAction,
+  type MobileDrawerSeenState,
   type MobileInfoTabKey,
+  type MobilePhaseSignalTone,
 } from "./mobileTableModel";
-import { StatusPill } from "./PanelPrimitives";
 import { ReviewPanel } from "./ReviewPanel";
 import { InfoPanel, PublicLog, SpeechFeed, TableNotesPanel, VoteTable } from "./TablePanels";
 import { seatNumber } from "./viewHelpers";
+
+type MobileDrawerTabView = {
+  key: MobileInfoTabKey;
+  label: string;
+  meta?: string;
+  hasDot: boolean;
+  recommended: boolean;
+};
+
+type MobileSeatFeedback = {
+  gameId: HumanGameView["id"];
+  seatId: number;
+  seatName: string;
+  actionLabel: string;
+  commandType: CommandPayload["type"];
+};
 
 export function MobileGameTable({
   game,
@@ -53,8 +79,26 @@ export function MobileGameTable({
   onToggleAiSpeechAudio: () => void;
   onToggleHostAudio: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<MobileInfoTabKey>("identity");
+  const [activeTab, setActiveTab] = useState<MobileInfoTabKey | null>(null);
+  const [selectedSpeechSeatId, setSelectedSpeechSeatId] = useState<number | null>(null);
+  const [seatFeedback, setSeatFeedback] = useState<MobileSeatFeedback | null>(null);
   const actionMode = getMobileActionMode(game, loading);
+  const actionPanelLayout = getMobileActionPanelLayout(game, loading);
+  const showStageAction = shouldShowMobileStageAction(game);
+  const speechInputPrompt = getMobileSpeechInputPrompt(game);
+  const drawerSnapshot = useMemo(() => getMobileDrawerSnapshot(game, events), [game, events]);
+  const phaseSignalTone = getMobilePhaseSignalTone(game.phase);
+  const [seenDrawerState, setSeenDrawerState] = useState<MobileDrawerSeenState>({
+    latestSpeechSeq: 0,
+    voteMarker: 0,
+    logMarker: 0,
+  });
+  const selectedSpeechSeat = selectedSpeechSeatId ? game.seats.find((seat) => seat.seatId === selectedSpeechSeatId) : undefined;
+  const visibleSeatFeedback = seatFeedback?.gameId === game.id ? seatFeedback : null;
+  const drawerTabs = useMemo(
+    () => buildMobileDrawerTabs(drawerSnapshot, activeTab ? markMobileTabSeen(seenDrawerState, drawerSnapshot, activeTab) : seenDrawerState, game, events),
+    [activeTab, drawerSnapshot, seenDrawerState, game, events],
+  );
   const actionStatus = getMobileActionStatus(
     game,
     actionMode.label,
@@ -64,9 +108,32 @@ export function MobileGameTable({
     aiSpeechAudioUnavailable,
   );
 
+  useEffect(() => {
+    if (!visibleSeatFeedback) return;
+    if (loading || pendingCommandType === visibleSeatFeedback.commandType) return;
+    const timer = window.setTimeout(() => {
+      setSeatFeedback((current) => (current === visibleSeatFeedback ? null : current));
+    }, 1100);
+    return () => window.clearTimeout(timer);
+  }, [loading, pendingCommandType, visibleSeatFeedback]);
+
+  const selectMobileTab = (tab: MobileInfoTabKey | null) => {
+    setActiveTab(tab);
+    if (tab) {
+      setSeenDrawerState((current) => markMobileTabSeen(current, drawerSnapshot, tab));
+    }
+  };
+
+  const closeMobileDrawer = () => {
+    if (activeTab) {
+      setSeenDrawerState((current) => markMobileTabSeen(current, drawerSnapshot, activeTab));
+    }
+    setActiveTab(null);
+  };
+
   return (
     <section className={["mobile-game-table sm:hidden", game.review ? "mobile-game-table-review" : ""].join(" ")} aria-label="手机版狼人杀牌桌">
-      <div className="grid gap-3">
+      <div className="mobile-game-screen">
         <MobileTopStrip
           game={game}
           loading={loading}
@@ -80,22 +147,49 @@ export function MobileGameTable({
           onToggleAiSpeechAudio={onToggleAiSpeechAudio}
           onToggleHostAudio={onToggleHostAudio}
         />
-        <MobileSeatTable game={game} liveAiSpeech={liveAiSpeech} aiSpeechAudioStatus={aiSpeechAudioStatus} />
-        <MobileInfoTabs activeTab={activeTab} onSelectTab={setActiveTab} />
-        <MobileInfoSheet
+        <MobilePhaseSignal key={`${game.id}-${game.phase}-${game.phaseLabel}`} label={game.phaseLabel} tone={phaseSignalTone} />
+        {visibleSeatFeedback && (
+          <MobileSeatFeedbackStrip feedback={visibleSeatFeedback} active={loading || pendingCommandType === visibleSeatFeedback.commandType} />
+        )}
+        <MobileSeatStage
+          game={game}
+          liveAiSpeech={liveAiSpeech}
+          aiSpeechAudioStatus={aiSpeechAudioStatus}
+          loading={loading}
+          selectedFeedbackSeatId={visibleSeatFeedback?.seatId}
+          actionLayerClassName={actionPanelLayout.actionLayerClassName}
+          showStageAction={showStageAction}
+          onNewGame={onNewGame}
+          onSubmit={onSubmit}
+          onOpenSpeechPanel={() => selectMobileTab("speech")}
+          onOpenSeatSpeech={(seatId) => {
+            setSelectedSpeechSeatId(seatId);
+            selectMobileTab("speech");
+          }}
+          onSeatActionFeedback={setSeatFeedback}
+        />
+        <MobileSpeechStream game={game} liveAiSpeech={liveAiSpeech} />
+        <div className={actionPanelLayout.dockClassName}>
+          {speechInputPrompt && <MobileSpeechInputBar prompt={speechInputPrompt} onOpen={() => selectMobileTab("speech")} />}
+          <MobileDrawerDock activeTab={activeTab} tabs={drawerTabs} onSelectTab={selectMobileTab} />
+        </div>
+      </div>
+
+      {activeTab && (
+        <MobileInfoDrawer
           activeTab={activeTab}
+          onClose={closeMobileDrawer}
           game={game}
           loading={loading}
           pendingCommandType={pendingCommandType}
           liveAiSpeech={liveAiSpeech}
           events={events}
+          selectedSpeechSeat={selectedSpeechSeat}
+          onClearSpeechSeatFilter={() => setSelectedSpeechSeatId(null)}
+          onNewGame={onNewGame}
+          onSubmit={onSubmit}
         />
-      </div>
-
-      <div className="mobile-action-sheet mx-3 rounded-2xl border border-[#f1c76e]/18 bg-[#100a08]/96 p-3 shadow-2xl shadow-black/45 backdrop-blur-md">
-        <div className="mobile-action-grip" aria-hidden="true" />
-        <ActionPanel game={game} loading={loading} onNewGame={onNewGame} onSubmit={onSubmit} reviewHref="#mobile-review" />
-      </div>
+      )}
 
       {game.review && (
         <div className="mobile-review-shell mx-3 pb-4">
@@ -103,6 +197,68 @@ export function MobileGameTable({
         </div>
       )}
     </section>
+  );
+}
+
+function buildMobileDrawerTabs(
+  snapshot: ReturnType<typeof getMobileDrawerSnapshot>,
+  seen: MobileDrawerSeenState,
+  game: HumanGameView,
+  events: HumanGameView["publicEvents"],
+): MobileDrawerTabView[] {
+  return MOBILE_INFO_TABS.map((tab) => {
+    const meta =
+      tab.key === "identity"
+        ? game.myRoleLabel ?? (game.humanSeatId === null ? "观战" : undefined)
+        : tab.key === "speech"
+          ? snapshot.latestSpeechLabel
+          : tab.key === "vote" && snapshot.voteMarker > 0
+            ? `${snapshot.voteMarker}`
+            : tab.key === "log" && events.length > 0
+              ? `${events.length}`
+              : undefined;
+    const hasDot =
+      (tab.key === "speech" && snapshot.latestSpeechSeq > seen.latestSpeechSeq) ||
+      (tab.key === "vote" && snapshot.voteMarker > seen.voteMarker) ||
+      (tab.key === "log" && snapshot.logMarker > seen.logMarker);
+
+    return {
+      ...tab,
+      meta,
+      hasDot,
+      recommended: snapshot.recommendedTab === tab.key,
+    };
+  });
+}
+
+function markMobileTabSeen(
+  seen: MobileDrawerSeenState,
+  snapshot: ReturnType<typeof getMobileDrawerSnapshot>,
+  tab: MobileInfoTabKey,
+): MobileDrawerSeenState {
+  if (tab === "speech") return { ...seen, latestSpeechSeq: snapshot.latestSpeechSeq };
+  if (tab === "vote") return { ...seen, voteMarker: snapshot.voteMarker };
+  if (tab === "log") return { ...seen, logMarker: snapshot.logMarker };
+  return seen;
+}
+
+function MobilePhaseSignal({ label, tone }: { label: string; tone: MobilePhaseSignalTone }) {
+  return (
+    <div className={["mobile-phase-signal", `mobile-phase-signal-${tone}`].join(" ")} role="status" aria-live="polite">
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function MobileSeatFeedbackStrip({ feedback, active }: { feedback: MobileSeatFeedback; active: boolean }) {
+  return (
+    <div className={["mobile-seat-feedback-strip", active ? "mobile-seat-feedback-strip-active" : ""].join(" ")} role="status" aria-live="polite">
+      <span>已选择</span>
+      <strong>
+        {feedback.seatId}号 {feedback.seatName}
+      </strong>
+      <em>{active ? `${feedback.actionLabel}中` : feedback.actionLabel}</em>
+    </div>
   );
 }
 
@@ -140,40 +296,40 @@ function MobileTopStrip({
   });
 
   return (
-    <div className="mobile-table-top-strip sticky top-0 z-30 rounded-b-2xl border-b border-[#f1c76e]/18 bg-[#100a08]/96 px-3 py-3 shadow-xl shadow-black/35 backdrop-blur-md">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap gap-2">
-            <StatusPill tone="gold">第 {game.day} 天</StatusPill>
-            <StatusPill tone={game.phase.startsWith("NIGHT") ? "blue" : "green"}>{game.phaseLabel}</StatusPill>
-          </div>
-          <div className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-[#f7ead5]">{actionStatus}</div>
-          <div className="mt-1 text-xs leading-5 text-[#ad9c7d]">
-            {focusSeat.seat ? `${focusSeat.label}：${seatNumber(focusSeat.seat)} · ${focusSeat.seat.name}` : focusSeat.label}
-          </div>
-        </div>
+    <div className="mobile-table-top-strip">
+      <div className="mobile-room-badge">
+        <span className="mobile-room-day">D{game.day}</span>
+        <span className="mobile-room-title">{game.board.name}</span>
+      </div>
 
-        <div className="shrink-0 text-right text-xs leading-5 text-[#dcc9a7]">
-          <div>存活 {aliveCount}</div>
-          <div>出局 {deadCount}</div>
+      <div className="mobile-phase-copy">
+        <div className="mobile-phase-main">{game.phaseLabel}</div>
+        <div className="mobile-phase-sub">
+          {focusSeat.seat ? `${focusSeat.label} · ${seatNumber(focusSeat.seat)} ${focusSeat.seat.name}` : actionStatus}
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-5 gap-1.5">
-        <MobileQuickButton onClick={onOpenIdentityBook}>身份</MobileQuickButton>
-        <MobileQuickButton onClick={onOpenGlossary}>术语</MobileQuickButton>
-        <MobileQuickButton active={audioButtonStates.hostActive} onClick={onToggleHostAudio}>
-          主持
-        </MobileQuickButton>
+      <div className="mobile-top-counts" aria-label={`存活${aliveCount}，出局${deadCount}`}>
+        <span>存活 {aliveCount}</span>
+        <span>出局 {deadCount}</span>
+      </div>
+
+      <div className="mobile-top-actions">
+        <MobileQuickButton label="身份书" onClick={onOpenIdentityBook}>书</MobileQuickButton>
+        <MobileQuickButton label="术语表" onClick={onOpenGlossary}>?</MobileQuickButton>
         <MobileQuickButton
+          label={audioButtonStates.aiSpeechActive ? "AI 语音开" : "AI 语音关"}
           active={audioButtonStates.aiSpeechActive}
           pressed={audioButtonStates.aiSpeechPressed}
           onClick={onToggleAiSpeechAudio}
         >
-          语音
+          音
         </MobileQuickButton>
-        <MobileQuickButton disabled={loading} onClick={() => void onNewGame()}>
-          新局
+        <MobileQuickButton label={audioButtonStates.hostActive ? "主持开" : "主持关"} active={audioButtonStates.hostActive} onClick={onToggleHostAudio}>
+          播
+        </MobileQuickButton>
+        <MobileQuickButton label="新开一局" disabled={loading} onClick={() => void onNewGame()}>
+          新
         </MobileQuickButton>
       </div>
     </div>
@@ -181,12 +337,14 @@ function MobileTopStrip({
 }
 
 function MobileQuickButton({
+  label,
   active,
   pressed = active,
   disabled = false,
   children,
   onClick,
 }: {
+  label: string;
   active?: boolean;
   pressed?: boolean;
   disabled?: boolean;
@@ -196,45 +354,73 @@ function MobileQuickButton({
   return (
     <button
       type="button"
+      aria-label={label}
       aria-pressed={pressed}
       disabled={disabled}
       onClick={onClick}
-      className={[
-        "min-h-10 rounded-lg border px-1.5 text-xs font-semibold transition disabled:opacity-55",
-        active
-          ? "border-[#77d898]/38 bg-[#14311f]/72 text-[#a8f0b6]"
-          : "border-[#f1c76e]/18 bg-black/20 text-[#f1d796] hover:bg-[#f1c76e]/10",
-      ].join(" ")}
+      className={["mobile-icon-button", active ? "mobile-icon-button-active" : ""].join(" ")}
     >
       {children}
     </button>
   );
 }
 
-function MobileSeatTable({
+function MobileSeatStage({
   game,
   liveAiSpeech,
   aiSpeechAudioStatus,
+  loading,
+  selectedFeedbackSeatId,
+  actionLayerClassName,
+  showStageAction,
+  onNewGame,
+  onSubmit,
+  onOpenSpeechPanel,
+  onOpenSeatSpeech,
+  onSeatActionFeedback,
 }: {
   game: HumanGameView;
   liveAiSpeech: LiveAiSpeech | null;
   aiSpeechAudioStatus: AiSpeechAudioStatus | null;
+  loading: boolean;
+  selectedFeedbackSeatId?: number;
+  actionLayerClassName: string;
+  showStageAction: boolean;
+  onNewGame: () => Promise<void>;
+  onSubmit: (payload: CommandPayload) => Promise<void>;
+  onOpenSpeechPanel: () => void;
+  onOpenSeatSpeech: (seatId: number) => void;
+  onSeatActionFeedback: (feedback: MobileSeatFeedback) => void;
 }) {
+  const seatTargetActions = getMobileSeatTargetActions(game);
+  const showStageActionPanel = showStageAction && !hasOnlyAvatarTargetActions(game);
+
   return (
     <div
-      className="mobile-seat-table relative mx-3 min-h-[360px] overflow-hidden rounded-2xl border border-[#f1c76e]/22 bg-[#120b09]/78 bg-cover bg-center shadow-2xl shadow-black/40"
+      className="mobile-seat-stage"
       style={{
         backgroundImage:
-          "linear-gradient(180deg, rgba(8,6,5,0.18), rgba(8,6,5,0.82)), url('/images/werewolf-table-bg.jpg')",
+          "linear-gradient(180deg, rgba(255,241,204,0.16), rgba(9,8,8,0.34) 42%, rgba(28,22,18,0.68)), url('/images/werewolf-table-bg.jpg')",
       }}
     >
-      <div className="pointer-events-none absolute inset-[22%] grid place-items-center rounded-full border border-[#f1c76e]/18 bg-black/22 text-center shadow-inner shadow-black/45">
-        <div>
-          <div className="text-xs text-[#ad9c7d]">Room Phase</div>
-          <div className="mt-1 text-xl font-semibold text-[#f1d796]">D{game.day}</div>
-          <div className="mt-1 max-w-[140px] text-xs leading-5 text-[#f7ead5]">{game.phaseLabel}</div>
-        </div>
+      <div className="mobile-stage-title">
+        <span>{game.phase.startsWith("NIGHT") ? "夜晚" : "白天"}</span>
+        <strong>{game.phaseLabel}</strong>
       </div>
+
+      {showStageActionPanel && (
+        <div className={actionLayerClassName}>
+          <ActionPanel
+            game={game}
+            loading={loading}
+            onNewGame={onNewGame}
+            onSubmit={onSubmit}
+            reviewHref="#mobile-review"
+            mobileCompact
+            onOpenSpeechPanel={onOpenSpeechPanel}
+          />
+        </div>
+      )}
 
       {game.seats.map((seat, index) => {
         const isHuman = seat.isHuman || seat.seatId === game.humanSeatId;
@@ -243,7 +429,13 @@ function MobileSeatTable({
         const isLiveAiSpeaker = liveAiSpeech?.speaker.seatId === seat.seatId;
         const audioState = aiSpeechAudioStatus?.speaker.seatId === seat.seatId ? aiSpeechAudioStatus.state : undefined;
         const isFocused = isActor || isSpeaker || isLiveAiSpeaker || Boolean(audioState);
-        const style = getMobileSeatStyle(index, game.seats.length);
+        const layout = getMobileSeatStageLayout(index, game.seats.length);
+        const style = getMobileSeatStyle(layout);
+        const cardVisual = getMobileSeatCardVisual(seat);
+        const seatActions = seatTargetActions.get(seat.seatId) ?? [];
+        const primarySeatAction = seatActions[0];
+        const opensSpeech = seatActions.length === 0;
+        const isSelectedFeedbackSeat = selectedFeedbackSeatId === seat.seatId;
         const focusLabel = audioState
           ? audioState === "paused"
             ? "已暂停"
@@ -259,25 +451,99 @@ function MobileSeatTable({
         return (
           <div
             key={seat.seatId}
+            aria-label={`${seatNumber(seat)} ${seat.name}${focusLabel ? ` ${focusLabel}` : ""}`}
+            role={opensSpeech ? "button" : undefined}
+            tabIndex={opensSpeech ? 0 : undefined}
             style={style}
+            onClick={opensSpeech ? () => onOpenSeatSpeech(seat.seatId) : undefined}
+            onKeyDown={
+              opensSpeech
+                ? (event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    onOpenSeatSpeech(seat.seatId);
+                  }
+                : undefined
+            }
             className={[
-              "mobile-seat-chip absolute w-[68px] -translate-x-1/2 -translate-y-1/2 rounded-xl border p-1.5 shadow-lg shadow-black/35 backdrop-blur-md",
-              seat.alive ? "mobile-seat-alive border-[#f1c76e]/28 bg-[#180f0c]/88" : "mobile-seat-dead border-[#8b4a3d]/55 bg-[#1a0d0b]/78 opacity-75",
-              isHuman ? "mobile-seat-self bg-[#25130f]/94" : "",
-              isFocused ? "mobile-seat-focus ring-2 ring-[#77d898]" : "",
+              "mobile-seat-token",
+              layout.compact ? "mobile-seat-token-compact" : "",
+              layout.side === "right" ? "mobile-seat-token-right" : "",
+              seat.alive ? "mobile-seat-alive" : "mobile-seat-dead",
+              isHuman ? "mobile-seat-self" : "",
+              isFocused ? "mobile-seat-focus" : "",
+              opensSpeech ? "mobile-seat-open-speech" : "",
+              isSelectedFeedbackSeat ? "mobile-seat-token-selected" : "",
+              primarySeatAction ? `mobile-seat-actionable mobile-seat-action-${primarySeatAction.tone}` : "",
+              seatActions.length > 1 ? "mobile-seat-action-multiple" : "",
             ].join(" ")}
           >
-            <div className="flex items-center justify-between gap-1">
-              <span className="mobile-seat-number rounded-full bg-black/35 px-1.5 py-0.5 text-[10px] font-semibold text-[#f1d796]">
-                {seat.seatId}号
+            <div
+              className={[
+                "mobile-seat-card-art relative shrink-0 overflow-hidden border bg-cover bg-center shadow-lg shadow-black/35",
+                cardVisual.kind === "customAvatar" ? "mobile-seat-card-custom bg-[#0d2118]" : "",
+                seat.alive ? "border-[#f1c76e]/42" : "border-[#8b4a3d]/70 grayscale",
+              ].join(" ")}
+              style={cardVisual.kind === "customAvatar" ? undefined : { backgroundImage: `url(${cardVisual.image})` }}
+              aria-label={cardVisual.label}
+            >
+              {cardVisual.kind === "customAvatar" && <MobileCustomAvatarCardArt src={cardVisual.image} />}
+              {cardVisual.kind === "hiddenCard" && <span className="absolute inset-0 bg-black/10" />}
+              <span className="mobile-seat-number">
+                {seat.seatId}
               </span>
-              {isHuman && <span className="rounded-full bg-[#b74332] px-1.5 py-0.5 text-[10px] font-semibold text-white">我</span>}
+              {isHuman && <span className="mobile-seat-self-mark">我</span>}
+              {seatActions.length === 1 && primarySeatAction && (
+                <button
+                  type="button"
+                  disabled={loading}
+                  aria-label={primarySeatAction.ariaLabel}
+                  className="mobile-seat-action-hit mobile-seat-action-feedback-source"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onSeatActionFeedback({
+                      gameId: game.id,
+                      seatId: seat.seatId,
+                      seatName: seat.name,
+                      actionLabel: primarySeatAction.label,
+                      commandType: primarySeatAction.payload.type,
+                    });
+                    void onSubmit(primarySeatAction.payload);
+                  }}
+                >
+                  <span className="mobile-seat-action-badge">{primarySeatAction.label}</span>
+                </button>
+              )}
+              {seatActions.length > 1 && (
+                <div className="mobile-seat-action-stack" role="group" aria-label={`${seatNumber(seat)}可选操作`}>
+                  {seatActions.map((action) => (
+                    <button
+                      key={`${action.payload.type}-${action.label}`}
+                      type="button"
+                      disabled={loading}
+                      aria-label={action.ariaLabel}
+                      className={["mobile-seat-action-choice", "mobile-seat-action-feedback-source", `mobile-seat-action-choice-${action.tone}`].join(" ")}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSeatActionFeedback({
+                          gameId: game.id,
+                          seatId: seat.seatId,
+                          seatName: seat.name,
+                          actionLabel: action.label,
+                          commandType: action.payload.type,
+                        });
+                        void onSubmit(action.payload);
+                      }}
+                    >
+                      <span className="mobile-seat-action-badge">{action.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="mobile-seat-name mt-1 truncate text-[11px] font-semibold text-[#f7ead5]">{seat.name}</div>
-            <div className="mobile-seat-state mt-0.5 flex flex-wrap gap-1 text-[10px] leading-4">
-              <span className={seat.alive ? "text-[#9fe0a4]" : "text-[#ffb1a4]"}>{seat.alive ? "存活" : "出局"}</span>
-              {seat.roleLabel && <span className="text-[#f1d796]">{seat.roleLabel}</span>}
-              {focusLabel && <span className="text-[#a8f0b6]">{focusLabel}</span>}
+
+            <div className="mobile-seat-copy min-w-0">
+              <div className="mobile-seat-name truncate font-semibold text-[#f7ead5]">{seat.name}</div>
             </div>
           </div>
         );
@@ -286,29 +552,204 @@ function MobileSeatTable({
   );
 }
 
-function MobileInfoTabs({
-  activeTab,
-  onSelectTab,
+type MobileSeatTargetAction = {
+  ariaLabel: string;
+  label: string;
+  payload: CommandPayload;
+  tone: "danger" | "seer" | "guard" | "vote" | "sheriff" | "charm" | "knight";
+};
+
+function getMobileSeatTargetActions(game: HumanGameView): Map<number, MobileSeatTargetAction[]> {
+  const actions = new Map<number, MobileSeatTargetAction[]>();
+  const addTargets = (
+    targets: Array<{ seatId: number; name: string }>,
+    verb: string,
+    label: string,
+    tone: MobileSeatTargetAction["tone"],
+    createPayload: (targetSeatId: number) => CommandPayload,
+  ) => {
+    for (const target of targets) {
+      const seatActions = actions.get(target.seatId) ?? [];
+      seatActions.push({
+        ariaLabel: `${verb}${target.seatId}号 ${target.name}`,
+        label,
+        payload: createPayload(target.seatId),
+        tone,
+      });
+      actions.set(target.seatId, seatActions);
+    }
+  };
+
+  for (const action of game.availableActions) {
+    if (action.type === "wolfKill") {
+      addTargets(action.targets, "击杀", "击杀", "danger", (targetSeatId) => ({ type: "wolfKill", targetSeatId }));
+    } else if (action.type === "seerCheck") {
+      addTargets(action.targets, "查验", "查验", "seer", (targetSeatId) => ({ type: "seerCheck", targetSeatId }));
+    } else if (action.type === "witchAction") {
+      if (action.canPoison) {
+        addTargets(action.poisonTargets, "毒", "毒", "danger", (targetSeatId) => ({ type: "witchAction", mode: "poison", targetSeatId }));
+      }
+    } else if (action.type === "wolfBeautyCharm") {
+      addTargets(action.targets, "魅惑", "魅惑", "charm", (targetSeatId) => ({ type: "wolfBeautyCharm", targetSeatId }));
+    } else if (action.type === "guardAction") {
+      addTargets(action.targets, "守护", "守护", "guard", (targetSeatId) => ({ type: "guardAction", targetSeatId }));
+    } else if (action.type === "vote") {
+      addTargets(action.targets, "投票", "投票", "vote", (targetSeatId) => ({ type: "vote", targetSeatId }));
+    } else if (action.type === "sheriffVote") {
+      addTargets(action.targets, "警长票", "警长票", "sheriff", (targetSeatId) => ({ type: "sheriffVote", targetSeatId }));
+    } else if (action.type === "sheriffHandoff") {
+      addTargets(action.targets, "移交", "移交", "sheriff", (targetSeatId) => ({ type: "sheriffHandoff", targetSeatId }));
+    } else if (action.type === "knightDuel") {
+      addTargets(action.targets, "决斗", "决斗", "knight", (targetSeatId) => ({ type: "knightDuel", targetSeatId }));
+    } else if (action.type === "hunterShoot") {
+      addTargets(action.targets, "带走", "带走", "danger", (targetSeatId) => ({ type: "hunterShoot", targetSeatId }));
+    } else if (action.type === "wolfKingShoot") {
+      addTargets(action.targets, "开枪", "开枪", "danger", (targetSeatId) => ({ type: "wolfKingShoot", targetSeatId }));
+    } else if (action.type === "whiteWolfKingExplode") {
+      addTargets(action.targets, "自爆带走", "带走", "danger", (targetSeatId) => ({ type: "whiteWolfKingExplode", targetSeatId }));
+    }
+  }
+
+  return actions;
+}
+
+function hasOnlyAvatarTargetActions(game: HumanGameView): boolean {
+  if (game.availableActions.length === 0) return false;
+  return game.availableActions.every((action) => {
+    if (action.type === "wolfKill" || action.type === "seerCheck" || action.type === "whiteWolfKingExplode") {
+      return action.targets.length > 0;
+    }
+    if (action.type === "wolfBeautyCharm" || action.type === "guardAction" || action.type === "knightDuel") {
+      return action.targets.length > 0 && !action.canSkip;
+    }
+    if (action.type === "vote" || action.type === "sheriffVote") {
+      return action.targets.length > 0 && !action.canAbstain;
+    }
+    if (action.type === "sheriffHandoff") {
+      return action.targets.length > 0 && !action.canTear;
+    }
+    if (action.type === "hunterShoot" || action.type === "wolfKingShoot") {
+      return action.targets.length > 0 && !action.canSkip;
+    }
+    return false;
+  });
+}
+
+function MobileCustomAvatarCardArt({ src }: { src: string }) {
+  return (
+    <>
+      <span className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(119,216,152,0.2),transparent_58%),linear-gradient(145deg,#0b2d20,#16442f_52%,#070d0a)]" />
+      <span className="absolute inset-[12%] rounded-md border border-[#77d898]/22" />
+      <span
+        className="absolute rounded-md border border-white/12 bg-cover bg-center shadow-inner shadow-black/40"
+        style={{ inset: "19% 16%", backgroundImage: `url(${src})` }}
+      />
+    </>
+  );
+}
+
+function MobileSpeechStream({ game, liveAiSpeech }: { game: HumanGameView; liveAiSpeech: LiveAiSpeech | null }) {
+  const speeches = game.tableSummary.recentSpeeches;
+  const activeLiveAiSpeech =
+    liveAiSpeech &&
+    !speeches.some(
+      (speech) =>
+        speech.speaker?.seatId === liveAiSpeech.speaker.seatId &&
+        liveAiSpeech.text &&
+        speech.message.startsWith(liveAiSpeech.text),
+    )
+      ? liveAiSpeech
+      : null;
+
+  return (
+    <div className="mobile-speech-stream" aria-label="发言席">
+      {speeches.length === 0 && !activeLiveAiSpeech ? (
+        <div className="mobile-empty-speech">暂无公开发言</div>
+      ) : (
+        <div className="mobile-speech-list">
+          {speeches.map((speech, index) => (
+            <MobileSpeechBubble
+              key={`speech-${speech.seq}`}
+              speech={speech}
+              isHuman={speech.speaker?.seatId === game.humanSeatId}
+              tone={index === speeches.length - 1 && !activeLiveAiSpeech ? "latest" : "history"}
+            />
+          ))}
+          {activeLiveAiSpeech && <MobileLiveSpeechBubble liveAiSpeech={activeLiveAiSpeech} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileSpeechBubble({ speech, isHuman, tone }: { speech: SpeechItem; isHuman: boolean; tone: "latest" | "history" }) {
+  return (
+    <div className={["mobile-speech-bubble", `mobile-speech-bubble-${tone}`, isHuman ? "mobile-speech-bubble-self" : ""].join(" ")}>
+      <div className="mobile-speech-speaker">
+        {speech.speaker && <span className="mobile-speech-seat">{speech.speaker.seatId}</span>}
+        <span>{speech.speaker ? speech.speaker.name : "未知发言人"}</span>
+      </div>
+      <div className="mobile-speech-text">{speech.message}</div>
+    </div>
+  );
+}
+
+function MobileLiveSpeechBubble({ liveAiSpeech }: { liveAiSpeech: LiveAiSpeech }) {
+  return (
+    <div className="mobile-speech-bubble mobile-speech-bubble-primary mobile-speech-bubble-live">
+      <div className="mobile-speech-speaker">
+        <span className="mobile-speech-seat">{liveAiSpeech.speaker.seatId}</span>
+        <span>{liveAiSpeech.speaker.name} · 生成中</span>
+      </div>
+      <div className="mobile-speech-text">{liveAiSpeech.text || "正在组织发言..."}</div>
+    </div>
+  );
+}
+
+function MobileSpeechInputBar({
+  prompt,
+  onOpen,
 }: {
-  activeTab: MobileInfoTabKey;
-  onSelectTab: (tab: MobileInfoTabKey) => void;
+  prompt: { label: string; ariaLabel: string };
+  onOpen: () => void;
 }) {
   return (
-    <div className="mobile-info-tabs mx-3 grid grid-cols-4 gap-1 rounded-xl border border-[#f1c76e]/14 bg-black/24 p-1">
-      {MOBILE_INFO_TABS.map((tab) => {
+    <button type="button" className="mobile-speech-input-bar" aria-label={prompt.ariaLabel} onClick={onOpen}>
+      <span className="mobile-speech-input-dot" aria-hidden="true" />
+      <span className="mobile-speech-input-placeholder">{prompt.label}</span>
+      <span className="mobile-speech-input-menu" aria-hidden="true">•••</span>
+    </button>
+  );
+}
+
+function MobileDrawerDock({
+  activeTab,
+  tabs,
+  onSelectTab,
+}: {
+  activeTab: MobileInfoTabKey | null;
+  tabs: MobileDrawerTabView[];
+  onSelectTab: (tab: MobileInfoTabKey | null) => void;
+}) {
+  return (
+    <div className="mobile-drawer-dock" aria-label="资料抽屉">
+      {tabs.map((tab) => {
         const selected = activeTab === tab.key;
         return (
           <button
             key={tab.key}
             type="button"
             aria-pressed={selected}
-            onClick={() => onSelectTab(tab.key)}
+            onClick={() => onSelectTab(selected ? null : tab.key)}
             className={[
-              "min-h-10 rounded-lg px-2 text-xs font-semibold transition",
-              selected ? "mobile-info-tab-active bg-[#f1c76e]/16 text-[#f1d796]" : "text-[#ad9c7d] hover:bg-white/6 hover:text-[#f7ead5]",
+              "mobile-drawer-tab",
+              selected ? "mobile-drawer-tab-active" : "",
+              tab.recommended ? "mobile-drawer-tab-recommended" : "",
             ].join(" ")}
           >
-            {tab.label}
+            <span className="mobile-drawer-tab-label">{tab.label}</span>
+            {tab.meta && <span className="mobile-drawer-tab-meta">{tab.meta}</span>}
+            {tab.hasDot && <span className="mobile-drawer-tab-dot" aria-hidden="true" />}
           </button>
         );
       })}
@@ -316,32 +757,88 @@ function MobileInfoTabs({
   );
 }
 
-function MobileInfoSheet({
+function MobileInfoDrawer({
   activeTab,
+  onClose,
   game,
   loading,
   pendingCommandType,
   liveAiSpeech,
   events,
+  selectedSpeechSeat,
+  onClearSpeechSeatFilter,
+  onNewGame,
+  onSubmit,
 }: {
   activeTab: MobileInfoTabKey;
+  onClose: () => void;
   game: HumanGameView;
   loading: boolean;
   pendingCommandType: CommandPayload["type"] | null;
   liveAiSpeech: LiveAiSpeech | null;
   events: HumanGameView["publicEvents"];
+  selectedSpeechSeat?: HumanGameView["seats"][number];
+  onClearSpeechSeatFilter: () => void;
+  onNewGame: () => Promise<void>;
+  onSubmit: (payload: CommandPayload) => Promise<void>;
 }) {
+  const showSpeechComposer = activeTab === "speech" && hasMobileSpeechDrawerAction(game);
+  const filteredSpeeches = getMobileFilteredSpeeches(game.tableSummary.recentSpeeches, selectedSpeechSeat?.seatId ?? null);
+  const speechFeedGame = selectedSpeechSeat
+    ? {
+        ...game,
+        tableSummary: {
+          ...game.tableSummary,
+          recentSpeeches: filteredSpeeches,
+        },
+      }
+    : game;
+  const filteredLiveAiSpeech = selectedSpeechSeat && liveAiSpeech?.speaker.seatId !== selectedSpeechSeat.seatId ? null : liveAiSpeech;
+
   return (
-    <div className="mobile-info-sheet mx-3 rounded-2xl border border-[#f1c76e]/16 bg-[#100a08]/78 p-3 shadow-xl shadow-black/30 backdrop-blur-md">
-      {activeTab === "identity" && <InfoPanel game={game} embedded />}
-      {activeTab === "speech" && <SpeechFeed game={game} liveAiSpeech={liveAiSpeech} variant="sidebar" />}
-      {activeTab === "vote" && <VoteTable game={game} loading={loading} pendingCommandType={pendingCommandType} />}
-      {activeTab === "log" && (
-        <div className="grid gap-4">
-          <TableNotesPanel game={game} embedded />
-          <PublicLog game={game} events={events} embedded />
+    <div className="mobile-info-backdrop" role="dialog" aria-modal="true" aria-label="局内资料">
+      <button type="button" className="mobile-info-backdrop-hit" aria-label="关闭资料" onClick={onClose} />
+      <div className="mobile-info-drawer">
+        <div className="mobile-action-grip" aria-hidden="true" />
+        <div className="mobile-info-drawer-head">
+          <strong>{MOBILE_INFO_TABS.find((tab) => tab.key === activeTab)?.label}</strong>
+          <button type="button" onClick={onClose}>关闭</button>
         </div>
-      )}
+        <div className="mobile-info-drawer-body">
+          {activeTab === "identity" && <InfoPanel game={game} embedded />}
+          {activeTab === "speech" && (
+            <div className="grid gap-3">
+              {selectedSpeechSeat && (
+                <div className="mobile-speech-filter-chip">
+                  <span>
+                    {seatNumber(selectedSpeechSeat)} {selectedSpeechSeat.name}
+                  </span>
+                  <button type="button" className="mobile-speech-filter-clear" onClick={onClearSpeechSeatFilter}>
+                    全部
+                  </button>
+                </div>
+              )}
+              {showSpeechComposer && (
+                <div className="mobile-drawer-speech-composer">
+                  <ActionPanel game={game} loading={loading} onNewGame={onNewGame} onSubmit={onSubmit} reviewHref="#mobile-review" />
+                </div>
+              )}
+              {selectedSpeechSeat && filteredSpeeches.length === 0 && !filteredLiveAiSpeech ? (
+                <div className="mobile-empty-speech-filter">该玩家暂无最近发言</div>
+              ) : (
+                <SpeechFeed game={speechFeedGame} liveAiSpeech={filteredLiveAiSpeech} variant="sidebar" />
+              )}
+            </div>
+          )}
+          {activeTab === "vote" && <VoteTable game={game} loading={loading} pendingCommandType={pendingCommandType} />}
+          {activeTab === "log" && (
+            <div className="grid gap-4">
+              <TableNotesPanel game={game} embedded />
+              <PublicLog game={game} events={events} embedded />
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -373,17 +870,16 @@ function getMobileActionStatus(
   return actionModeLabel;
 }
 
-type MobileSeatStyle = React.CSSProperties & Record<"--seat-index", number>;
+type MobileSeatStyle = React.CSSProperties & {
+  "--seat-x": number;
+  "--seat-y": number;
+};
 
-function getMobileSeatStyle(index: number, seatCount: number): MobileSeatStyle {
-  const angle = -90 + (index / Math.max(seatCount, 1)) * 360;
-  const radians = (angle * Math.PI) / 180;
-  const left = 50 + Math.cos(radians) * 37;
-  const top = 50 + Math.sin(radians) * 36;
-
+function getMobileSeatStyle(layout: ReturnType<typeof getMobileSeatStageLayout>): MobileSeatStyle {
   return {
-    "--seat-index": index,
-    left: `${left}%`,
-    top: `${top}%`,
+    "--seat-x": layout.left,
+    "--seat-y": layout.top,
+    left: `${layout.left}%`,
+    top: `${layout.top}%`,
   };
 }
