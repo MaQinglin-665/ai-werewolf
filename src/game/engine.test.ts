@@ -436,6 +436,10 @@ describe("game engine", () => {
       NIGHT_SEER: "SEER",
       NIGHT_WITCH: "WITCH",
     } as const;
+    type NightRolePhase = keyof typeof roleByNightPhase;
+    const roleByNightPhaseEntries = Object.entries(roleByNightPhase) as Array<
+      [NightRolePhase, (typeof roleByNightPhase)[NightRolePhase]]
+    >;
 
     for (const board of Object.values(BOARD_PRESETS)) {
       let state = createGame({ boardId: board.id, seed: 44, humanSeatId: null });
@@ -454,7 +458,7 @@ describe("game engine", () => {
         if (state.phase.startsWith("NIGHT")) visitedNightPhases.push(state.phase);
       }
 
-      const absentRolePhases = Object.entries(roleByNightPhase)
+      const absentRolePhases = roleByNightPhaseEntries
         .filter(([phase, role]) => !boardRoles.has(role) && visitedNightPhases.includes(phase))
         .map(([phase, role]) => `${board.id}:${phase}:${role}`);
       expect(absentRolePhases).toEqual([]);
