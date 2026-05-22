@@ -2540,6 +2540,7 @@ button:disabled {
   }
 
   .mobile-speech-stream {
+    position: relative;
     display: block;
     align-self: stretch;
     min-height: 0;
@@ -2570,6 +2571,36 @@ button:disabled {
     padding-right: 2px;
     scrollbar-width: thin;
     scrollbar-color: rgba(241, 199, 110, 0.35) transparent;
+  }
+
+  .mobile-speech-list[data-auto-stick="paused"] {
+    padding-bottom: 34px;
+  }
+
+  .mobile-speech-latest-anchor {
+    flex: 0 0 1px;
+    height: 1px;
+  }
+
+  .mobile-speech-jump-latest {
+    position: absolute;
+    right: 14px;
+    bottom: 12px;
+    z-index: 2;
+    min-height: 32px;
+    border-radius: 999px;
+    border: 1px solid rgba(241, 199, 110, 0.36);
+    background: rgba(20, 13, 10, 0.92);
+    padding: 0 12px;
+    color: #f1d796;
+    font-size: 12px;
+    font-weight: 800;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(8px);
+  }
+
+  .mobile-speech-jump-latest[hidden] {
+    display: none;
   }
 
   .mobile-speech-list::-webkit-scrollbar {

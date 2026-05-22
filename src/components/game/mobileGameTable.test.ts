@@ -50,6 +50,10 @@ describe("MobileGameTable", () => {
     } as HumanGameView);
 
     expect(html).toContain("mobile-speech-list");
+    expect(html).toContain('data-auto-stick="bottom"');
+    expect(html).toContain('aria-label="公开发言列表"');
+    expect(html).toContain("mobile-speech-latest-anchor");
+    expect(html).toContain("mobile-speech-jump-latest");
     expect(html).toContain("mobile-speech-bubble-latest");
     expect(html).toContain("mobile-drawer-tab-recommended");
     expect(html).toContain("mobile-drawer-tab-meta");
