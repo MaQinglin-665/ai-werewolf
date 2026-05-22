@@ -13,6 +13,10 @@
 # testing
 /coverage
 
+# local scratch and Codex workflow artifacts
+/tmp/
+/.superpowers/
+
 # local database and generated prisma client
 /prisma/dev.db
 /prisma/dev.db-journal
