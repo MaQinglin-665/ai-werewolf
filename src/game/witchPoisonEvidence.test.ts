@@ -97,6 +97,36 @@ describe("mock AI witch poison evidence", () => {
     });
   });
 
+  it("does not poison a day-one soft power hint from a single black check", () => {
+    const fakeSeer = { seatId: 3, name: "Single Black Seer" };
+    const target = seatRead({
+      suspicion: 100,
+      trust: 20,
+      pressure: ["single day-one black check", "soft power hint"],
+      lastSpeech: "枪牌不用抢着拍，先听谁的站边讲不圆。",
+      lastSpeechSeq: 12,
+      publicChecksAgainst: [{ claimant: fakeSeer, result: "WEREWOLF", day: 1 }],
+      publicStancedBy: [stance(fakeSeer.seatId, 2, "PRESSURE"), stance(5, 2, "QUESTION"), stance(6, 2, "PRESSURE")],
+    });
+
+    const command = createMockCommand(
+      witchView(),
+      tableRead([
+        target,
+        seatRead({
+          ...fakeSeer,
+          suspicion: 30,
+          trust: 70,
+        }),
+      ]),
+    );
+
+    expect(command).toMatchObject({
+      type: "witchAction",
+      mode: "skip",
+    });
+  });
+
   it("allows poison from a dead seer legacy black check", () => {
     const legacySeer = { seatId: 3, name: "Dead Seer" };
     const target = seatRead({
@@ -185,6 +215,97 @@ describe("mock AI witch poison evidence", () => {
     });
     expect(command.reason).toContain("站边和上一轮票型断开");
     expect(command.reason).toContain("先质疑预言家又跟票同一边");
+  });
+
+  it("does not poison a target protected by a trusted public gold check", () => {
+    const target = { seatId: 2, name: "Target" };
+    const trustedSeer = { seatId: 3, name: "Trusted Seer" };
+    const goldClaim: ClaimBoardItem = {
+      ...seerClaim(trustedSeer, 20),
+      checks: [{ day: 2, target, result: "GOOD" }],
+    };
+
+    const command = createMockCommand(
+      witchView(),
+      tableRead(
+        [
+          seatRead({
+            suspicion: 96,
+            trust: 35,
+            pressure: ["public reasoning loop"],
+            publicChecksAgainst: [{ claimant: trustedSeer, result: "GOOD", day: 2 }],
+            publicStancedBy: [stance(4, 2, "PRESSURE"), stance(5, 2, "QUESTION")],
+          }),
+          seatRead({
+            ...trustedSeer,
+            suspicion: 20,
+            trust: 82,
+            publicClaims: [goldClaim],
+          }),
+        ],
+        {
+          claimBoard: [goldClaim],
+          reasoningCues: [
+            reasoningCue(target, "vote", "strong", "public vote loop points here", [
+              "two later speakers kept pressure on this target",
+            ]),
+          ],
+        },
+      ),
+    );
+
+    expect(command).toMatchObject({
+      type: "witchAction",
+      mode: "skip",
+    });
+  });
+
+  it("allows poison when a trusted gold target later has a dead seer legacy black check", () => {
+    const target = { seatId: 2, name: "Target" };
+    const trustedSeer = { seatId: 3, name: "Trusted Seer" };
+    const deadSeer = { seatId: 4, name: "Dead Seer" };
+    const goldClaim: ClaimBoardItem = {
+      ...seerClaim(trustedSeer, 20),
+      checks: [{ day: 2, target, result: "GOOD" }],
+    };
+
+    const command = createMockCommand(
+      witchView(),
+      tableRead(
+        [
+          seatRead({
+            suspicion: 92,
+            trust: 34,
+            pressure: ["dead seer legacy black check"],
+            publicChecksAgainst: [{ claimant: trustedSeer, result: "GOOD", day: 2 }],
+          }),
+          seatRead({
+            ...trustedSeer,
+            suspicion: 20,
+            trust: 82,
+            publicClaims: [goldClaim],
+          }),
+        ],
+        {
+          claimBoard: [goldClaim],
+          seerLegacies: [
+            {
+              claimant: deadSeer,
+              deathDay: 3,
+              checks: [{ day: 2, target, result: "WEREWOLF" }],
+              stancesGiven: [],
+              summary: "Dead Seer left a black check.",
+            },
+          ],
+        },
+      ),
+    );
+
+    expect(command).toMatchObject({
+      type: "witchAction",
+      mode: "poison",
+      targetSeatId: 2,
+    });
   });
 
   it("skips poison from a lone strong reasoning cue without corroboration", () => {

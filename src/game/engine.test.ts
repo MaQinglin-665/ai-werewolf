@@ -606,6 +606,7 @@ describe("game engine", () => {
       payload: { sheriffSpeech: true, message: "我警上发言会围绕昨夜情况和后续票型来拿警徽。" },
     });
     expect(advanced.aiLogs[0]).toMatchObject({
+      day: 1,
       provider: "test-sheriff-speech",
       output: { type: "sheriffSpeech", message: "我警上发言会围绕昨夜情况和后续票型来拿警徽。" },
     });
@@ -934,7 +935,7 @@ describe("game engine", () => {
     expect(state.events.at(-2)?.type).toBe("LAST_WORDS_CREATED");
   });
 
-  it("lets an exiled hunter reveal and shoot before their last words", () => {
+  it("lets an exiled hunter shoot before their last words", () => {
     let state = createGame({ seed: 35 });
     const hunter = state.seats.find((seat) => seat.role === "HUNTER")!;
     const target = state.seats.find((seat) => seat.seatId !== hunter.seatId)!;
@@ -2776,9 +2777,12 @@ describe("game engine", () => {
     const goodView = buildAgentView(state, good.seatId);
 
     expect(wolfView.privateKnowledge.wolfTeamPlan).toBeDefined();
+    expect(wolfView.privateKnowledge.wolfTeamPlan?.nightStrategy).toBeDefined();
+    expect(wolfView.privateKnowledge.wolfTeamPlan!.nightStrategy!.summary).toContain("首夜");
+    expect(wolfView.privateKnowledge.wolfTeamPlan?.nightStrategy?.nightTarget).toBeDefined();
     expect(wolfView.privateKnowledge.wolfTeamPlan?.assignments).toHaveLength(3);
     expect(goodView.privateKnowledge.wolfTeamPlan).toBeUndefined();
-    expect(JSON.stringify(goodView.publicSummary.tableMemory)).not.toMatch(/COUNTERCLAIM_SEER|PUSH_MISLYNCH|狼队/);
+    expect(JSON.stringify(goodView.publicSummary.tableMemory)).not.toMatch(/COUNTERCLAIM_SEER|PUSH_MISLYNCH|狼队|战术/);
   });
 
   it("has wolf AI coordinate around the private team plan without public teammate leakage", () => {
@@ -2950,10 +2954,14 @@ describe("game engine", () => {
     expect(review.turningPoints.some((point) => point.title.includes("对跳") || point.description.includes("声称"))).toBe(false);
   });
 
-  it("lets bold wolf AI distance-vote a teammate from public identity pressure", () => {
-    let state = createGame({ seed: 24 });
-    const wolf = state.seats.find((seat) => seat.isAi && seat.role === "WEREWOLF")!;
-    const teammate = state.seats.find((seat) => seat.role === "WEREWOLF" && seat.seatId !== wolf.seatId)!;
+  it("lets bold wolf AI distance-vote a teammate from hard public identity pressure", () => {
+    let state = createGame({ seed: 24, humanSeatId: null });
+    const wolves = state.seats
+      .filter((seat) => seat.role === "WEREWOLF")
+      .sort((a, b) => b.seatId - a.seatId);
+    const teammate = wolves[0]!;
+    const wolf = wolves[2]!;
+    const challenger = state.seats.find((seat) => seat.role === "SEER")!;
     wolf.persona = {
       id: "bold-distance-wolf",
       name: "测试倒钩狼",
@@ -2972,11 +2980,24 @@ describe("game engine", () => {
       actorSeatId: teammate.seatId,
       message: "我跳预言家，2号是金水。",
     });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [challenger.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: challenger.seatId,
+      message: `我跳预言家，${teammate.seatId}号是查杀，先从这条对跳线归票。`,
+    });
     state.phase = "DAY_VOTE";
 
-    const plan = createVotePlan(buildAgentView(state, wolf.seatId));
+    const view = buildAgentView(state, wolf.seatId);
+    const assignment = view.privateKnowledge.wolfTeamPlan?.assignments.find((item) => item.seat.seatId === wolf.seatId);
+    const plan = createVotePlan(view);
 
+    expect(assignment?.task).toBe("DISTANCE");
+    expect(assignment?.supportSeat?.seatId).toBe(teammate.seatId);
     expect(plan.target.seatId).toBe(teammate.seatId);
+    expect(plan.wolfVoteTactic).toBe("planned_distance");
     expect(plan.reason).not.toMatch(/队友|狼队|WEREWOLF/);
   });
 

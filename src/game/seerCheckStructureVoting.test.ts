@@ -628,6 +628,54 @@ describe("seer counterclaim check-structure voting", () => {
     expect(plan.target.seatId).toBe(4);
   });
 
+  it("does not follow a day-one single black check onto a soft power hint before a real evidence loop forms", () => {
+    const hintedSeat = { seatId: 2, name: "Soft Hunter" };
+    const fakeSeer = { seatId: 5, name: "Single Black Seer" };
+    const openTarget = { seatId: 4, name: "Open Target" };
+    const observer = { seatId: 7, name: "Observer" };
+    const blackClaim = seerClaim(fakeSeer, [{ day: 1, target: hintedSeat, result: "WEREWOLF" }], 22);
+    const memory = tableMemory({
+      day: 1,
+      claimBoard: [blackClaim],
+      focus: [{ seat: hintedSeat, reasons: ["single black check", "soft power hint"], score: 95 }],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [hintedSeat, fakeSeer, openTarget], 1),
+      tableRead(
+        [
+          seatRead({
+            ...hintedSeat,
+            suspicion: 92,
+            trust: 18,
+            pressure: ["single day-one black check", "soft power hint"],
+            lastSpeech: "枪牌不用抢着拍，先听谁的站边讲不圆。",
+            lastSpeechSeq: 12,
+            publicChecksAgainst: [{ claimant: fakeSeer, result: "WEREWOLF", day: 1 }],
+            publicStancedBy: [publicPressure(fakeSeer, hintedSeat), publicPressure(observer, hintedSeat)],
+          }),
+          seatRead({
+            ...fakeSeer,
+            suspicion: 56,
+            trust: 48,
+            publicClaims: [blackClaim],
+          }),
+          seatRead({
+            ...openTarget,
+            suspicion: 58,
+            trust: 42,
+            pressure: ["open public process gap"],
+          }),
+        ],
+        memory,
+        1,
+      ),
+    );
+
+    expect(plan.target.seatId).not.toBe(hintedSeat.seatId);
+    expect(plan.alternatives.map((target) => target.seatId)).not.toContain(hintedSeat.seatId);
+  });
+
   it("prefers a public reasoning loop over soft short-speech suspicion", () => {
     const softNoise = { seatId: 2, name: "Soft Noise" };
     const loopTarget = { seatId: 4, name: "Loop Target" };

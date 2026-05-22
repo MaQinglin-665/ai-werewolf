@@ -5,7 +5,7 @@ import { buildConstrainedActionInput, routedModelActionProvider } from "./action
 import { buildAiTableRead, createVotePlan } from "./tableRead";
 import { buildAgentView } from "@/game/projection";
 import { createGame } from "@/game/engine";
-import type { ActionTarget, AgentView, AiTableRead, ClaimBoardItem, SeatRead, TableMemory } from "@/game/types";
+import type { ActionTarget, AgentView, AiTableRead, SeatRead, TableMemory } from "@/game/types";
 
 const originalEnv = { ...process.env };
 
@@ -25,45 +25,6 @@ describe("configured AI options", () => {
 });
 
 describe("routed action provider", () => {
-  it("does not offer an unchallenged seer as a good-side vote candidate", () => {
-    const seer = actionTarget(2, "Short Seer");
-    const openTarget = actionTarget(3, "Open Target");
-    const gold = actionTarget(4, "Gold");
-    const seerClaim = actionRoleClaim(seer, "SEER");
-    seerClaim.checks = [{ day: 1, target: gold, result: "GOOD" }];
-    const memory = actionTableMemory({ claimBoard: [seerClaim] });
-    const view = actionVoteView([seer, openTarget], memory);
-    const tableRead = actionTableRead(
-      [
-        actionSeatRead({
-          ...seer,
-          suspicion: 88,
-          trust: 18,
-          pressure: ["short speech"],
-          publicClaims: [seerClaim],
-        }),
-        actionSeatRead({
-          ...openTarget,
-          suspicion: 52,
-          trust: 35,
-          pressure: ["vote loop"],
-        }),
-      ],
-      memory,
-    );
-    const votePlan = createVotePlan(view, tableRead);
-    const fallbackCommand = createMockCommand(view, tableRead, votePlan);
-
-    const input = buildConstrainedActionInput(view, { tableRead, votePlan, fallbackCommand });
-    const voteCandidateIds = input.candidates
-      .filter((candidate) => candidate.command.type === "vote" && candidate.command.targetSeatId !== undefined)
-      .map((candidate) => candidate.id);
-
-    expect(votePlan.target.seatId).toBe(openTarget.seatId);
-    expect(voteCandidateIds).toContain(`vote:${openTarget.seatId}`);
-    expect(voteCandidateIds).not.toContain(`vote:${seer.seatId}`);
-  });
-
   it("offers white wolf king self-explosion as a day-speech action candidate", () => {
     const state = createGame({ boardId: "12p-sheriff-white-wolf-king-seer-witch-hunter-guard", seed: 94, humanSeatId: null });
     const whiteWolfKing = state.seats.find((seat) => seat.role === "WHITE_WOLF_KING")!;
@@ -95,6 +56,67 @@ describe("routed action provider", () => {
     expect(input.constraints.join("\n")).toContain("Wolf beauty charm is private night strategy");
   });
 
+  it("includes private wolf night strategy only in wolf action input", () => {
+    const state = createGame({ seed: 47, humanSeatId: null });
+    state.phase = "NIGHT_WOLVES";
+    const wolf = state.seats.find((seat) => seat.isAi && seat.role === "WEREWOLF")!;
+    const good = state.seats.find((seat) => seat.isAi && seat.role === "VILLAGER")!;
+
+    const wolfView = buildAgentView(state, wolf.seatId);
+    const wolfTableRead = buildAiTableRead(wolfView);
+    const wolfInput = buildConstrainedActionInput(wolfView, {
+      tableRead: wolfTableRead,
+      fallbackCommand: createMockCommand(wolfView, wolfTableRead),
+    });
+    const wolfPlan = wolfInput.selfContext.wolfPlan as typeof wolfInput.selfContext.wolfPlan & {
+      nightStrategy?: {
+        nightTarget?: ActionTarget;
+        dayPressureTarget?: ActionTarget;
+        summary: string;
+        discussion: string[];
+      };
+    };
+    const plannedTarget = wolfView.privateKnowledge.wolfTeamPlan?.nightStrategy?.nightTarget;
+    const wolfKillTargets = wolfInput.candidates
+      .filter((candidate) => candidate.command.type === "wolfKill" && "targetSeatId" in candidate.command)
+      .map((candidate) => ("targetSeatId" in candidate.command ? candidate.command.targetSeatId : undefined));
+
+    expect(wolfPlan?.nightStrategy).toBeDefined();
+    expect(wolfPlan?.nightStrategy?.summary).toContain("首夜");
+    expect(wolfPlan?.nightStrategy?.nightTarget).toEqual(plannedTarget);
+    expect(wolfKillTargets[0]).toBe(plannedTarget?.seatId);
+
+    const goodState = createGame({ seed: 47, humanSeatId: null });
+    goodState.phase = "DAY_VOTE";
+    const goodView = buildAgentView(goodState, good.seatId);
+    const goodTableRead = buildAiTableRead(goodView);
+    const goodInput = buildConstrainedActionInput(goodView, {
+      tableRead: goodTableRead,
+      votePlan: createVotePlan(goodView, goodTableRead),
+      fallbackCommand: createMockCommand(goodView, goodTableRead),
+    });
+
+    expect(goodInput.selfContext.wolfPlan).toBeUndefined();
+    expect(JSON.stringify(goodInput)).not.toMatch(/狼队首夜|战术|nightStrategy/);
+  });
+
+  it("strips wolf vote tactic metadata from good-side action input", () => {
+    const state = createGame({ seed: 68, humanSeatId: null });
+    state.phase = "DAY_VOTE";
+    const good = state.seats.find((seat) => seat.role === "VILLAGER")!;
+    const view = buildAgentView(state, good.seatId);
+    const tableRead = buildAiTableRead(view);
+    const votePlan = { ...createVotePlan(view, tableRead), wolfVoteTactic: "team_target" as const };
+
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      votePlan,
+      fallbackCommand: createMockCommand(view, tableRead, votePlan),
+    });
+
+    expect(JSON.stringify(input)).not.toContain("wolfVoteTactic");
+  });
+
   it("offers knight duel as an optional day action candidate", () => {
     const state = createGame({ boardId: "12p-sheriff-wolf-beauty-knight", seed: 96, humanSeatId: null });
     const knight = state.seats.find((seat) => seat.role === "KNIGHT")!;
@@ -107,6 +129,105 @@ describe("routed action provider", () => {
 
     expect(input.candidates.some((candidate) => candidate.command.type === "knightDuel")).toBe(true);
     expect(input.constraints.join("\n")).toContain("Knight duel is optional");
+    expect(input.constraints.join("\n")).toContain("single black-check pressure should rank below repeated public evidence");
+  });
+
+  it("ranks dead-seer legacy knight targets ahead of untrusted single black-check pressure", () => {
+    const noisy = target(2, "Noisy Check");
+    const legacyTarget = target(3, "Legacy Black");
+    const deadSeer = target(6, "Dead Seer");
+    const tableMemory = emptyTableMemory({
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 3,
+          summary: "Dead Seer died with a black check.",
+          checks: [{ day: 2, target: legacyTarget, result: "WEREWOLF" }],
+          stancesGiven: [],
+        },
+      ],
+    });
+    const view = knightActionView([noisy, legacyTarget], tableMemory);
+    const tableRead = actionTableRead(
+      [
+        seatRead(noisy, {
+          suspicion: 98,
+          trust: 20,
+          pressure: ["Contested Seer公开报查杀", "多人跟进施压"],
+          publicChecksAgainst: [{ claimant: target(4, "Contested Seer"), result: "WEREWOLF", day: 3 }],
+        }),
+        seatRead(legacyTarget, {
+          suspicion: 82,
+          trust: 38,
+          pressure: ["Dead Seer夜死后遗留查杀"],
+        }),
+      ],
+      tableMemory,
+    );
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      fallbackCommand: { type: "knightDuel", actorSeatId: 1, targetSeatId: legacyTarget.seatId, reason: "死预遗产更硬。" },
+    });
+
+    const duelTargets = input.candidates
+      .filter((candidate) => candidate.command.type === "knightDuel" && "targetSeatId" in candidate.command && candidate.command.targetSeatId)
+      .map((candidate) => ("targetSeatId" in candidate.command ? candidate.command.targetSeatId : undefined));
+
+    expect(duelTargets[0]).toBe(legacyTarget.seatId);
+    expect(
+      input.candidates.find(
+        (candidate) => candidate.command.type === "knightDuel" && "targetSeatId" in candidate.command && candidate.command.targetSeatId === legacyTarget.seatId,
+      )?.recommended,
+    ).toBe(true);
+  });
+
+  it("demotes protected dead-seer gold water in day vote candidates", () => {
+    const deadSeer = target(6, "Dead Seer");
+    const gold = target(2, "Legacy Gold");
+    const alternative = target(3, "Open Focus");
+    const tableMemory = emptyTableMemory({
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 2,
+          summary: "Dead Seer died with a gold-water check.",
+          checks: [{ day: 1, target: gold, result: "GOOD" }],
+          stancesGiven: [],
+        },
+      ],
+    });
+    const view = voteActionView([gold, alternative], tableMemory);
+    const tableRead = {
+      ...actionTableRead(
+        [
+          seatRead(gold, {
+            suspicion: 98,
+            trust: 16,
+            pressure: ["short speech", "soft vote noise"],
+          }),
+          seatRead(alternative, {
+            suspicion: 56,
+            trust: 44,
+            pressure: ["open public focus"],
+          }),
+        ],
+        tableMemory,
+      ),
+      myRole: "VILLAGER" as const,
+    };
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      fallbackCommand: { type: "vote", actorSeatId: 1, targetSeatId: alternative.seatId, reason: "protect legacy gold" },
+    });
+    const voteCandidates = input.candidates.filter(
+      (candidate) => candidate.command.type === "vote" && "targetSeatId" in candidate.command && candidate.command.targetSeatId,
+    );
+
+    expect(voteCandidates.map((candidate) => ("targetSeatId" in candidate.command ? candidate.command.targetSeatId : undefined))).toEqual([
+      alternative.seatId,
+      gold.seatId,
+    ]);
+    expect(voteCandidates.find((candidate) => candidate.target?.seatId === gold.seatId)?.reasonHint).toMatch(/dead seer gold/i);
   });
 
   it("tries an action fallback persona after invalid primary JSON", async () => {
@@ -275,15 +396,19 @@ describe("routed action provider", () => {
   });
 });
 
-function actionVoteView(targets: ActionTarget[], tableMemory: TableMemory): AgentView {
+function target(seatId: number, name: string): ActionTarget {
+  return { seatId, name };
+}
+
+function knightActionView(targets: ActionTarget[], tableMemory: TableMemory): AgentView {
   return {
-    gameId: "test-action-candidates",
+    gameId: "test-action-input",
     mySeatId: 1,
-    myRole: "VILLAGER",
-    phase: "DAY_VOTE",
-    day: 2,
-    rules: { hasGuard: false, guardSaveConflictKills: false, hasWolfBeauty: false, hasKnight: false, wolfRoles: ["WEREWOLF"] },
-    aliveSeats: [actionTarget(1, "Voter"), ...targets],
+    myRole: "KNIGHT",
+    phase: "KNIGHT_DUEL",
+    day: 3,
+    rules: { hasGuard: false, guardSaveConflictKills: false, hasWolfBeauty: false, hasKnight: true },
+    aliveSeats: [target(1, "Knight"), ...targets],
     publicEvents: [],
     publicSummary: {
       recentSpeeches: [],
@@ -291,28 +416,51 @@ function actionVoteView(targets: ActionTarget[], tableMemory: TableMemory): Agen
       voteSnapshot: { votes: [], tally: [], leaders: [], revealed: false },
       recentDeaths: [],
       deathSummary: [],
-      claimBoard: tableMemory.claimBoard,
+      claimBoard: [],
       tableMemory,
     },
     privateKnowledge: {},
-    allowedActions: [{ type: "vote", targets, canAbstain: false }],
+    allowedActions: [{ type: "knightDuel", targets, canSkip: true }],
+  } as AgentView;
+}
+
+function voteActionView(targets: ActionTarget[], tableMemory: TableMemory): AgentView {
+  return {
+    gameId: "test-action-vote-input",
+    mySeatId: 1,
+    myRole: "VILLAGER",
+    phase: "DAY_VOTE",
+    day: 3,
+    rules: { hasGuard: false, guardSaveConflictKills: false, hasWolfBeauty: false, hasKnight: false, wolfRoles: ["WEREWOLF"] },
+    aliveSeats: [target(1, "Voter"), ...targets],
+    publicEvents: [],
+    publicSummary: {
+      recentSpeeches: [],
+      recentVotes: [],
+      voteSnapshot: { votes: [], tally: [], leaders: [], revealed: false },
+      recentDeaths: [],
+      deathSummary: [],
+      claimBoard: [],
+      tableMemory,
+    },
+    privateKnowledge: { aiMemory: { seatId: 1, day: 3, beliefs: [] } },
+    allowedActions: [{ type: "vote", targets, canAbstain: true }],
   } as AgentView;
 }
 
 function actionTableRead(seats: SeatRead[], tableMemory: TableMemory): AiTableRead {
-  const self = actionSeatRead({
-    seatId: 1,
-    name: "Voter",
-    suspicion: 0,
-    trust: 100,
-    isSelf: true,
-  });
-
   return {
     mySeatId: 1,
-    myRole: "VILLAGER",
-    day: 2,
-    seats: [self, ...seats],
+    myRole: "KNIGHT",
+    day: 3,
+    seats: [
+      seatRead(target(1, "Knight"), {
+        suspicion: 0,
+        trust: 100,
+        isSelf: true,
+      }),
+      ...seats,
+    ],
     knownWolfSeatIds: [],
     knownGoodSeatIds: [],
     wolfTeammateSeatIds: [],
@@ -323,13 +471,12 @@ function actionTableRead(seats: SeatRead[], tableMemory: TableMemory): AiTableRe
     recentDeaths: [],
     tableMemory,
     tableMood: "test",
-  } as AiTableRead;
+  };
 }
 
-function actionSeatRead(overrides: Partial<SeatRead> = {}): SeatRead {
+function seatRead(targetSeat: ActionTarget, overrides: Partial<SeatRead> = {}): SeatRead {
   return {
-    seatId: 2,
-    name: "Seat",
+    ...targetSeat,
     suspicion: 50,
     trust: 50,
     pressure: [],
@@ -347,23 +494,9 @@ function actionSeatRead(overrides: Partial<SeatRead> = {}): SeatRead {
   };
 }
 
-function actionRoleClaim(claimant: ActionTarget, claimedRole: ClaimBoardItem["claimedRole"]): ClaimBoardItem {
+function emptyTableMemory(overrides: Partial<TableMemory> = {}): TableMemory {
   return {
-    claimId: `${claimedRole}-${claimant.seatId}`,
-    claimant,
-    claimedRole,
-    claimedRoleLabel: claimedRole,
-    strength: "hard",
-    checks: [],
-    summary: `${claimant.name} claims ${claimedRole}.`,
-    lastUpdatedDay: 2,
-    sourceSpeechSeq: claimant.seatId,
-  };
-}
-
-function actionTableMemory(overrides: Partial<TableMemory> = {}): TableMemory {
-  return {
-    day: 2,
+    day: 3,
     claimBoard: [],
     stanceBoard: [],
     stanceShifts: [],
@@ -378,8 +511,4 @@ function actionTableMemory(overrides: Partial<TableMemory> = {}): TableMemory {
     publicSignals: [],
     ...overrides,
   };
-}
-
-function actionTarget(seatId: number, name: string): ActionTarget {
-  return { seatId, name };
 }

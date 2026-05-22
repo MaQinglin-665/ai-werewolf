@@ -49,6 +49,7 @@ export function buildPlayerView(
   const gameOver = Boolean(state.result);
 
   const publicSummary = buildPublicSummary(state);
+  const wolfPlan = human && isWolfRole(human.role, state.rules.wolfRoles) ? buildWolfTeamPlan(state) : undefined;
 
   return {
     id: state.id,
@@ -96,11 +97,12 @@ export function buildPlayerView(
     currentActorSeatId: visibleCurrentActorSeatId(state, requirement, human?.seatId ?? null),
     currentSpeakerSeatId: getVisibleCurrentSpeakerSeatId(state),
     wolfTeammates:
-      human && isWolfRole(human.role, state.rules.wolfRoles)
+      wolfPlan
         ? state.seats
-            .filter((seat) => isWolfRole(seat.role, state.rules.wolfRoles) && seat.seatId !== human.seatId)
+            .filter((seat) => isWolfRole(seat.role, state.rules.wolfRoles) && seat.seatId !== human?.seatId)
             .map(toTarget)
         : [],
+    wolfStrategy: wolfPlan?.nightStrategy,
     seerChecks: human ? state.seerChecks.filter((check) => check.seerSeatId === human.seatId) : [],
     guard:
       human?.role === "GUARD"

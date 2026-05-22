@@ -2,6 +2,7 @@ import type { AgentView, AiTableRead, Command, Phase, SpeechPlan, VotePlan } fro
 
 export type AiDecisionLog = {
   gameId: string;
+  day: number;
   seatNumber: number;
   phase: Phase;
   provider: string;

@@ -2,6 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
+import {
+  buildSeerGoldTargets,
+  isProtectedSeerGoldVoteTarget,
+  shouldWarnWolfTeamVote,
+} from "./audit-ai-experience-utils.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = parseArgs(process.argv.slice(2));
 const boardIdsArg = args.boards ?? args.board ?? process.env.AUDIT_BOARD_ID;
@@ -313,7 +318,7 @@ function detectIssues(state, aiLogs) {
         });
       }
 
-      if (isProtectedSeerGoldTarget(seerGoldTargets, log.output.targetSeatId, log.day)) {
+      if (isProtectedSeerGoldVoteTarget(seerGoldTargets, log.output.targetSeatId, seerDeathDay, log.day)) {
         issues.push({
           ...context,
           code: "seer_gold_vote_target",
@@ -335,7 +340,7 @@ function detectIssues(state, aiLogs) {
 
       if (seat && isWolfTarget(seat.role, state.rules.wolfRoles) && log.output.targetSeatId) {
         const target = state.seats.find((item) => item.seatId === log.output.targetSeatId);
-        if (target && isWolfTarget(target.role, state.rules.wolfRoles)) {
+        if (target && isWolfTarget(target.role, state.rules.wolfRoles) && shouldWarnWolfTeamVote(log)) {
           issues.push({
             ...context,
             code: "wolf_team_vote",
@@ -426,6 +431,7 @@ function buildTranscript(state, aiLogs) {
             reason: log.votePlan.reason,
             confidence: log.votePlan.confidence,
             alternatives: log.votePlan.alternatives.map(formatTarget),
+            wolfVoteTactic: log.votePlan.wolfVoteTactic,
           }
         : undefined,
     })),
@@ -498,11 +504,6 @@ function splitSpeechSegments(text) {
     .filter(Boolean);
 }
 
-function isProtectedSeerGoldTarget(seerGoldTargets, targetSeatId, day) {
-  if (!targetSeatId) return false;
-  return seerGoldTargets.some((item) => item.targetSeatId === targetSeatId && day >= item.claimDay);
-}
-
 function isExiledSeerGoldTarget(seerGoldTargets, targetSeatId, seerDeathDay, day, exiledByDay) {
   if (!seerDeathDay || day < seerDeathDay || !targetSeatId) return false;
   if (exiledByDay.get(day) !== targetSeatId) return false;
@@ -528,20 +529,6 @@ function isGoodPowerMisfire(actorSeat, actionType, target, wolfRoles) {
 
 function isWolfTarget(role, wolfRoles) {
   return Array.isArray(wolfRoles) && wolfRoles.includes(role);
-}
-
-function buildSeerGoldTargets(state, seerSeatId) {
-  if (!seerSeatId) return [];
-  return state.roleClaims
-    .filter((claim) => claim.claimantSeatId === seerSeatId && claim.claimedRole === "SEER")
-    .flatMap((claim) =>
-      claim.checks
-        .filter((check) => check.result === "GOOD")
-        .map((check) => ({
-          targetSeatId: check.targetSeatId,
-          claimDay: claim.day,
-        })),
-    );
 }
 
 function findSeatDeathDay(state, seatId) {

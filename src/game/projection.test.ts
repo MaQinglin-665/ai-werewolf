@@ -91,4 +91,30 @@ describe("human projection", () => {
     expect(witchView.currentActorSeatId).toBeUndefined();
     expect(witchView.availableActions).toEqual([]);
   });
+
+  it("shows first-night wolf strategy only to wolf viewers", () => {
+    const state = createGame({ seed: 47 });
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    const good = state.seats.find((seat) => seat.role === "VILLAGER")!;
+
+    const wolfView = buildPlayerView(state, wolf.seatId) as ReturnType<typeof buildPlayerView> & {
+      wolfStrategy?: {
+        nightTarget?: { seatId: number; name: string };
+        dayPressureTarget?: { seatId: number; name: string };
+        summary: string;
+        discussion: string[];
+      };
+    };
+    const goodView = buildPlayerView(state, good.seatId) as ReturnType<typeof buildPlayerView> & {
+      wolfStrategy?: unknown;
+    };
+
+    expect(wolfView.wolfStrategy).toBeDefined();
+    expect(wolfView.wolfStrategy!.summary).toContain("首夜");
+    expect(wolfView.wolfStrategy?.nightTarget).toBeDefined();
+    expect(wolfView.wolfStrategy?.dayPressureTarget).toBeDefined();
+    expect(wolfView.wolfStrategy?.discussion.length).toBeGreaterThan(0);
+    expect(goodView.wolfStrategy).toBeUndefined();
+    expect(JSON.stringify(goodView)).not.toMatch(/狼队首夜|战术|队友/);
+  });
 });

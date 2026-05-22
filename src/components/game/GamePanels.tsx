@@ -6,15 +6,12 @@ import { useMemo, useState } from "react";
 import type * as React from "react";
 import { getBoardPreset } from "@/game/boards";
 import { DEATH_LABELS } from "@/game/labels";
-import { stripSpeechStageDirections } from "@/game/speechText";
 import type { AvailableHumanAction, HumanGameView, Role } from "@/game/types";
 import type {
   AiSpeechAudioStatus,
   AiLineupPreviewItem,
   BoardOption,
-  CommandPayload,
   HumanSeatMode,
-  HostAudioStatus,
   LiveAiSpeech,
   SeatVoiceActivity,
   SeatVoiceState,
@@ -24,19 +21,17 @@ import {
   ROLE_CARD_ASPECT_RATIOS,
   ROLE_CARD_BOOK_IMAGES,
   ROLE_CARD_IMAGES,
-  formatSystemMessage,
-  getNightRoleTrackSteps,
   getSeatCardImage,
   getSeatOrbitStyle,
-  seatNumber,
 } from "./viewHelpers";
 import type { SeatOrbitStyle } from "./viewHelpers";
-import { getActionMeta } from "./ActionPanel";
 import { StatusPill } from "./PanelPrimitives";
-import { SpeechFeed, VoteResultBanner, VoteRevealLedger } from "./TablePanels";
+import { SpeechFeed } from "./TablePanels";
 export { ActionPanel } from "./ActionPanel";
 export { ReviewPanel } from "./ReviewPanel";
 export { AuxiliaryInfoPanel, VoteTable } from "./TablePanels";
+export { FlowStatusBar, HostStage, PhaseCurtain, PhaseRhythm, getPhaseCurtainCue } from "./HostStage";
+export type { PhaseCurtainCue } from "./HostStage";
 
 export function RoomHeader({
   game,
@@ -68,12 +63,12 @@ export function RoomHeader({
     : "选择板子后可指定真人座位或观战 AI 对局";
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f1c76e]/25 bg-[#130d0b]/75 px-4 py-3 shadow-2xl shadow-black/25 backdrop-blur-md">
+    <header className="mobile-home-header flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f1c76e]/25 bg-[#130d0b]/75 px-4 py-3 shadow-2xl shadow-black/25 backdrop-blur-md">
       <div className="flex min-w-0 items-center gap-3">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#f1c76e]/45 bg-[#2a1712] text-lg font-semibold text-[#f1c76e] shadow-inner">
+        <div className="mobile-home-logo grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#f1c76e]/45 bg-[#2a1712] text-lg font-semibold text-[#f1c76e] shadow-inner">
           狼
         </div>
-        <div className="min-w-0">
+        <div className="mobile-home-brand min-w-0">
           <h1 className="truncate text-xl font-semibold tracking-normal sm:text-2xl">单人 AI 狼人杀</h1>
           <p className="mt-1 text-xs text-[#cab995] sm:text-sm">
             {gameMeta}
@@ -81,7 +76,7 @@ export function RoomHeader({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="mobile-home-header-actions flex flex-wrap items-center gap-2">
         {game && (
           <>
             <StatusPill tone="gold">第 {game.day} 天</StatusPill>
@@ -90,43 +85,43 @@ export function RoomHeader({
         )}
         <Link
           href="/rooms"
-          className="rounded-full border border-[#77d898]/35 bg-[#12301f]/70 px-4 py-2 text-sm font-semibold text-[#a8f0b6] transition hover:bg-[#1d4e33]/75"
+          className="mobile-home-quick-action rounded-full border border-[#77d898]/35 bg-[#12301f]/70 px-4 py-2 text-sm font-semibold text-[#a8f0b6] transition hover:bg-[#1d4e33]/75"
         >
-          联机房间
+          <MobileHomeToolContent icon="房" label="联机" />
         </Link>
         <button
           type="button"
           onClick={onOpenIdentityBook}
-          className="rounded-full border border-[#f1c76e]/25 bg-black/15 px-4 py-2 text-sm font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10"
+          className="mobile-home-quick-action rounded-full border border-[#f1c76e]/25 bg-black/15 px-4 py-2 text-sm font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10"
         >
-          身份书
+          <MobileHomeToolContent icon="书" label="身份" />
         </button>
         <button
           type="button"
           onClick={onOpenGlossary}
-          className="rounded-full border border-[#7da8e3]/25 bg-black/15 px-4 py-2 text-sm font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/10"
+          className="mobile-home-quick-action rounded-full border border-[#7da8e3]/25 bg-black/15 px-4 py-2 text-sm font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/10"
         >
-          术语表
+          <MobileHomeToolContent icon="?" label="术语" />
         </button>
         <button
           type="button"
           onClick={onToggleHostAudio}
           aria-pressed={hostAudioEnabled}
           className={[
-            "rounded-full border px-4 py-2 text-sm font-semibold transition",
+            "mobile-home-quick-action mobile-home-audio-toggle rounded-full border px-4 py-2 text-sm font-semibold transition",
             hostAudioEnabled
               ? "border-[#77d898]/35 bg-[#14311f]/70 text-[#a8f0b6] hover:bg-[#1d4e33]/75"
               : "border-[#f1c76e]/25 bg-black/15 text-[#f1d796] hover:bg-[#f1c76e]/10",
           ].join(" ")}
         >
-          {hostAudioEnabled ? "主持音频开" : "主持音频关"}
+          <MobileHomeToolContent icon="音" label={hostAudioEnabled ? "主持开" : "主持关"} />
         </button>
         <button
           type="button"
           onClick={onToggleAiSpeechAudio}
           aria-pressed={aiSpeechAudioEnabled}
           className={[
-            "rounded-full border px-4 py-2 text-sm font-semibold transition",
+            "mobile-home-quick-action mobile-home-audio-toggle rounded-full border px-4 py-2 text-sm font-semibold transition",
             aiSpeechAudioEnabled && !aiSpeechAudioUnavailable
               ? "border-[#77d898]/35 bg-[#14311f]/70 text-[#a8f0b6] hover:bg-[#1d4e33]/75"
               : aiSpeechAudioUnavailable
@@ -134,17 +129,30 @@ export function RoomHeader({
               : "border-[#f1c76e]/25 bg-black/15 text-[#f1d796] hover:bg-[#f1c76e]/10",
           ].join(" ")}
         >
-          {aiSpeechAudioUnavailable ? "AI 语音转文字" : aiSpeechAudioEnabled ? "AI 语音开" : "AI 语音关"}
+          <MobileHomeToolContent icon="播" label={aiSpeechAudioUnavailable ? "转写" : aiSpeechAudioEnabled ? "AI开" : "AI关"} />
         </button>
-        <button
-          onClick={onNewGame}
-          disabled={loading}
-          className="rounded-full bg-[#b74332] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#220806]/35 transition hover:bg-[#cf513d] disabled:opacity-60"
-        >
-          {game ? "新开一局" : "开始对局"}
-        </button>
+        {game && (
+          <button
+            onClick={onNewGame}
+            disabled={loading}
+            className="mobile-home-quick-action mobile-home-header-start rounded-full bg-[#b74332] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#220806]/35 transition hover:bg-[#cf513d] disabled:opacity-60"
+          >
+            <MobileHomeToolContent icon="新" label="新局" />
+          </button>
+        )}
       </div>
     </header>
+  );
+}
+
+function MobileHomeToolContent({ icon, label }: { icon: string; label: string }) {
+  return (
+    <>
+      <span className="mobile-home-tool-icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="mobile-home-tool-label">{label}</span>
+    </>
   );
 }
 
@@ -191,14 +199,17 @@ export function LandingPanel({
         : "随机真人座位";
   const boardSummaryLabel = selectedBoard ? `${selectedBoard.name} · ${selectedBoard.seatCount}人` : "待选板子";
   const aiSummaryLabel = selectedAiFriendCount > 0 ? `${selectedAiFriendCount} 位 AI 入局` : "默认 AI 阵容";
+  const lobbySeatIds = buildMobileLobbySeatIds(selectedBoard?.seatCount ?? 6);
+  const lobbySeatDensityClass = getMobileLobbySeatDensityClass(lobbySeatIds.length);
+  const lobbyLineupBySeatId = new Map(aiLineupPreview.map((friend) => [friend.seatId, friend]));
 
   return (
-    <section className="flex flex-1 items-start justify-center py-4 lg:py-6">
-      <div className="grid w-full max-w-[1240px] gap-4 xl:grid-cols-[minmax(0,1fr)_382px]">
-        <div className="overflow-hidden rounded-[28px] border border-[#f1c76e]/22 bg-[#120d0b]/86 shadow-2xl shadow-black/40 backdrop-blur-md">
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_300px]">
-            <div className="p-4 sm:p-5">
-              <div className="mb-5 flex flex-col gap-3 border-b border-[#f1c76e]/12 pb-4 sm:flex-row sm:items-end sm:justify-between">
+    <section className="mobile-home-shell flex flex-1 items-start justify-center py-4 lg:py-6">
+      <div className="mobile-home-layout grid w-full max-w-[1240px] gap-4 xl:grid-cols-[minmax(0,1fr)_382px]">
+        <div className="mobile-home-card overflow-hidden rounded-[28px] border border-[#f1c76e]/22 bg-[#120d0b]/86 shadow-2xl shadow-black/40 backdrop-blur-md">
+          <div className="mobile-home-hero-grid grid lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="mobile-home-intro p-4 sm:p-5">
+              <div className="mobile-home-title-row mb-5 flex flex-col gap-3 border-b border-[#f1c76e]/12 pb-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#f1c76e]/64">AI Werewolf Studio</div>
                   <h2 className="text-2xl font-semibold leading-tight text-[#f7ead5] sm:text-3xl">开一桌 AI 狼人杀</h2>
@@ -206,24 +217,77 @@ export function LandingPanel({
                     选择板子、真人座位和 AI 阵容，确认后直接进入牌桌。
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2 text-xs">
+                <div className="mobile-home-status-bar flex flex-wrap gap-2 text-xs">
                   <StatusPill tone="gold">{selectedBoard ? `${selectedBoard.seatCount} 人局` : "未选板子"}</StatusPill>
                   <StatusPill tone={humanSeatMode === "none" ? "green" : "blue"}>{humanModeLabel}</StatusPill>
                 </div>
               </div>
 
-              <div className="mb-5 grid gap-2 sm:grid-cols-3">
-                <LandingMetric label="板子" value={boardSummaryLabel} tone="gold" />
-                <LandingMetric label="真人位" value={humanModeLabel} tone={humanSeatMode === "none" ? "green" : "blue"} />
-                <LandingMetric label="AI 阵容" value={aiSummaryLabel} tone="green" />
-              </div>
             </div>
 
             <LandingPromoCard boardLabel={boardSummaryLabel} humanLabel={humanModeLabel} aiLabel={aiSummaryLabel} />
           </div>
 
-          <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-            <div className="grid gap-3 md:grid-cols-2">
+          <div className="mobile-lobby-stage" aria-label="手机端狼人杀房间大厅预览">
+            <div className="mobile-lobby-moon" />
+            <div className="mobile-lobby-table-glow" />
+            <div className="mobile-lobby-seat-ring">
+              {lobbySeatIds.map((seatId, index) => {
+                const lineupSeat = lobbyLineupBySeatId.get(seatId);
+                const isHumanSeat = lineupSeat?.isHuman ?? (humanSeatMode !== "none" && selectedHumanSeatId === seatId);
+                const avatarImage = lineupSeat && !lineupSeat.isHuman ? getLineupAvatarImage(lineupSeat) : undefined;
+                return (
+                  <div
+                    key={`${seatId}-${index}`}
+                    aria-label={lineupSeat ? `${seatId}号 ${lineupSeat.nickname}` : `${seatId}号空位`}
+                    className={[
+                      "mobile-lobby-seat",
+                      `mobile-lobby-seat-${index + 1}`,
+                      lobbySeatDensityClass,
+                      avatarImage ? "mobile-lobby-seat-with-avatar" : "",
+                      isHumanSeat ? "mobile-lobby-seat-human" : "",
+                    ].join(" ")}
+                    style={getMobileLobbySeatStyle(index, lobbySeatIds.length)}
+                  >
+                    {avatarImage ? (
+                      <span className="mobile-lobby-seat-avatar" aria-hidden="true" style={{ backgroundImage: `url(${avatarImage})` }} />
+                    ) : (
+                      <span className="mobile-lobby-seat-empty" aria-hidden="true" />
+                    )}
+                    <span className="mobile-lobby-seat-number">{seatId}</span>
+                    {isHumanSeat && <em>你</em>}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mobile-lobby-stage-core">
+              <div className="mobile-lobby-orbit" />
+              <div className="mobile-lobby-room-seal">
+                <span>{selectedBoard?.seatCount ?? 6}</span>
+              </div>
+              <div className="mobile-lobby-primary-copy">
+                <span>AI WEREWOLF ROOM</span>
+                <strong>{selectedBoard ? `${selectedBoard.seatCount} 位入座` : "开一桌 AI 狼人杀"}</strong>
+                <small>{humanModeLabel} · {aiSummaryLabel}</small>
+              </div>
+            </div>
+          </div>
+
+          <div className="mobile-home-dock px-4 pb-4 sm:px-5 sm:pb-5">
+            <div className="mobile-dock-grip" />
+            <div className="mobile-dock-board-console">
+              <div className="mobile-dock-board-copy min-w-0">
+                <span>选择板子</span>
+                <strong>{selectedBoard?.name ?? "待选板子"}</strong>
+              </div>
+              <Link
+                href="/ai-pool"
+                className="mobile-dock-ai-pool-action inline-flex shrink-0 items-center justify-center rounded-full border border-[#77d898]/28 bg-[#10271d] px-3 py-1.5 text-xs font-semibold text-[#a8f0b6] shadow-lg shadow-black/20 transition hover:bg-[#183b2a] sm:hidden"
+              >
+                AI阵容 {selectedAiFriendCount}位 ›
+              </Link>
+            </div>
+            <div className="mobile-board-strip grid gap-3 md:grid-cols-2">
               {boards.map((board) => {
                 const selected = selectedBoardId === board.id;
                 return (
@@ -234,7 +298,7 @@ export function LandingPanel({
                     aria-label={selected ? `取消选择${board.name}` : `选择${board.name}`}
                     onClick={() => onSelectBoard(board.id)}
                     className={[
-                      "group min-h-[148px] rounded-2xl border p-4 text-left transition",
+                      "mobile-board-chip group min-h-[148px] rounded-2xl border p-4 text-left transition",
                       selected
                         ? "border-[#f1c76e]/68 bg-[#2c2015]/88 shadow-lg shadow-black/24"
                         : "border-white/10 bg-black/20 hover:border-[#f1c76e]/40 hover:bg-[#1c1512]/84",
@@ -247,7 +311,7 @@ export function LandingPanel({
                       </div>
                       <span
                         className={[
-                          "shrink-0 rounded-full border px-2 py-0.5 text-xs",
+                          "mobile-board-badge shrink-0 rounded-full border px-2 py-0.5 text-xs",
                           selected ? "border-[#f1c76e]/38 bg-[#f1c76e]/12 text-[#f1d796]" : "border-white/12 text-[#ad9c7d]",
                         ].join(" ")}
                       >
@@ -269,31 +333,33 @@ export function LandingPanel({
             </div>
 
             {selectedBoard && (
-              <HumanSeatPicker
-                seatCount={selectedBoard.seatCount}
-                mode={humanSeatMode}
-                selectedSeatId={selectedHumanSeatId}
-                onRandom={onSelectRandomHumanSeat}
-                onSelect={onSelectFixedHumanSeat}
-                onNone={onSelectNoHumanSeat}
-              />
+              <div className="mobile-seat-console">
+                <HumanSeatPicker
+                  seatCount={selectedBoard.seatCount}
+                  mode={humanSeatMode}
+                  selectedSeatId={selectedHumanSeatId}
+                  onRandom={onSelectRandomHumanSeat}
+                  onSelect={onSelectFixedHumanSeat}
+                  onNone={onSelectNoHumanSeat}
+                />
+              </div>
             )}
 
-            <div className="mt-4 flex flex-col gap-3 border-t border-[#f1c76e]/12 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mobile-cta-console mobile-home-actions mt-4 flex flex-col gap-3 border-t border-[#f1c76e]/12 pt-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs leading-5 text-[#ad9c7d]">
                 {selectedBoard ? "当前配置会自动补齐 AI 阵容并保存最近对局入口。" : "先选择一个板子，再确认真人座位。"}
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                 <Link
                   href="/rooms"
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#77d898]/28 bg-[#10271d] px-6 py-3 text-sm font-semibold text-[#a8f0b6] shadow-lg shadow-black/20 transition hover:bg-[#183b2a]"
+                  className="mobile-home-secondary-action inline-flex min-h-11 items-center justify-center rounded-xl border border-[#77d898]/28 bg-[#10271d] px-6 py-3 text-sm font-semibold text-[#a8f0b6] shadow-lg shadow-black/20 transition hover:bg-[#183b2a]"
                 >
                   进入联机房间
                 </Link>
                 <button
                   onClick={onStartGame}
                   disabled={loading || !selectedBoardId}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#c64f3c] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/30 transition hover:bg-[#dc5b45] disabled:cursor-not-allowed disabled:bg-[#6f3b31] disabled:text-white/55"
+                  className="mobile-home-primary-action inline-flex min-h-11 items-center justify-center rounded-xl bg-[#c64f3c] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/30 transition hover:bg-[#dc5b45] disabled:cursor-not-allowed disabled:bg-[#6f3b31] disabled:text-white/55"
                 >
                   {loading ? "创建中" : selectedBoardId ? "进入牌桌" : "先选择板子"}
                 </button>
@@ -304,7 +370,7 @@ export function LandingPanel({
           </div>
         </div>
 
-        <div className="grid gap-4 xl:content-start">
+        <div className="mobile-home-secondary-rail grid gap-4 xl:content-start">
           <AiPoolEntryCard selectedCount={selectedAiFriendCount} customCount={customAiFriendCount} />
           <AiLineupPreviewCard lineup={aiLineupPreview} />
           <RecentGamesCard loading={loading} recentGameIds={recentGameIds} onLoadGame={onLoadGame} />
@@ -314,24 +380,96 @@ export function LandingPanel({
   );
 }
 
-function LandingMetric({ label, value, tone }: { label: string; value: string; tone: "gold" | "green" | "blue" }) {
-  const toneClass = {
-    gold: "border-[#f1c76e]/20 bg-[#2a1b10]/58 text-[#f1d796]",
-    green: "border-[#77d898]/18 bg-[#0f2118]/58 text-[#a8f0b6]",
-    blue: "border-[#7da8e3]/18 bg-[#0d1623]/58 text-[#b8d6ff]",
-  }[tone];
+type MobileLobbySeatStyle = React.CSSProperties & {
+  "--lobby-seat-size": string;
+  "--lobby-seat-x": string;
+  "--lobby-seat-y": string;
+};
 
-  return (
-    <div className={`${toneClass} min-w-0 rounded-2xl border px-3 py-2.5`}>
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-60">{label}</div>
-      <div className="mt-1 truncate text-sm font-semibold">{value}</div>
-    </div>
-  );
+type MobileLobbySeatPoint = {
+  x: number;
+  y: number;
+  size: number;
+};
+
+const MOBILE_LOBBY_SEAT_POINTS: Record<number, MobileLobbySeatPoint[]> = {
+  6: [
+    { x: 22, y: 20, size: 52 },
+    { x: 78, y: 20, size: 52 },
+    { x: 7, y: 50, size: 52 },
+    { x: 93, y: 50, size: 52 },
+    { x: 22, y: 80, size: 52 },
+    { x: 78, y: 80, size: 52 },
+  ],
+  9: [
+    { x: 23, y: 18, size: 44 },
+    { x: 77, y: 18, size: 44 },
+    { x: 11, y: 34, size: 44 },
+    { x: 89, y: 34, size: 44 },
+    { x: 7, y: 52, size: 44 },
+    { x: 93, y: 52, size: 44 },
+    { x: 15, y: 70, size: 44 },
+    { x: 85, y: 70, size: 44 },
+    { x: 50, y: 84, size: 44 },
+  ],
+  12: [
+    { x: 24, y: 16, size: 38 },
+    { x: 76, y: 16, size: 38 },
+    { x: 11, y: 28, size: 38 },
+    { x: 89, y: 28, size: 38 },
+    { x: 21, y: 42, size: 38 },
+    { x: 79, y: 42, size: 38 },
+    { x: 8, y: 58, size: 38 },
+    { x: 92, y: 58, size: 38 },
+    { x: 21, y: 72, size: 38 },
+    { x: 79, y: 72, size: 38 },
+    { x: 16, y: 88, size: 38 },
+    { x: 84, y: 88, size: 38 },
+  ],
+};
+
+function buildMobileLobbySeatIds(seatCount: number): number[] {
+  const visibleCount = Math.max(1, Math.min(12, Math.floor(seatCount)));
+  return Array.from({ length: visibleCount }, (_, index) => index + 1);
+}
+
+function getMobileLobbySeatDensityClass(seatCount: number): string {
+  if (seatCount >= 10) return "mobile-lobby-seat-dense";
+  if (seatCount >= 8) return "mobile-lobby-seat-many";
+  return "";
+}
+
+function getMobileLobbySeatStyle(index: number, seatCount: number): MobileLobbySeatStyle {
+  const presetPoint = MOBILE_LOBBY_SEAT_POINTS[seatCount]?.[index];
+  if (presetPoint) {
+    return {
+      "--lobby-seat-size": `${presetPoint.size}px`,
+      "--lobby-seat-x": `${presetPoint.x.toFixed(1)}%`,
+      "--lobby-seat-y": `${presetPoint.y.toFixed(1)}%`,
+    };
+  }
+
+  const pairCount = Math.max(1, Math.ceil(seatCount / 2));
+  const pairIndex = Math.floor(index / 2);
+  const progress = pairCount === 1 ? 0.5 : pairIndex / (pairCount - 1);
+  const sideArc = Math.abs(progress - 0.5) * 2;
+  const isRightSide = index % 2 === 1;
+  const isOddCenterSeat = seatCount % 2 === 1 && index === seatCount - 1;
+  const xInset = seatCount >= 10 ? 8 + sideArc * 10 : 8 + sideArc * 14;
+  const x = isOddCenterSeat ? 50 : isRightSide ? 100 - xInset : xInset;
+  const y = seatCount >= 10 ? 16 + progress * 72 : seatCount >= 8 ? 18 + progress * 68 : 18 + progress * 66;
+  const size = seatCount >= 10 ? 38 : seatCount >= 8 ? 44 : 52;
+
+  return {
+    "--lobby-seat-size": `${size}px`,
+    "--lobby-seat-x": `${x.toFixed(1)}%`,
+    "--lobby-seat-y": `${y.toFixed(1)}%`,
+  };
 }
 
 function LandingPromoCard({ boardLabel, humanLabel, aiLabel }: { boardLabel: string; humanLabel: string; aiLabel: string }) {
   return (
-    <div className="relative min-h-[260px] overflow-hidden border-t border-[#f1c76e]/14 bg-[#0d1018] lg:min-h-full lg:border-l lg:border-t-0">
+    <div className="mobile-home-promo relative min-h-[260px] overflow-hidden border-t border-[#f1c76e]/14 bg-[#0d1018] lg:min-h-full lg:border-l lg:border-t-0">
       <Image
         src="/images/promo-ai-werewolf-reference-personas.png"
         alt="AI 狼人杀宣传图"
@@ -375,7 +513,7 @@ function HumanSeatPicker({
   const seats = Array.from({ length: seatCount }, (_, index) => index + 1);
   const seatLabel = mode === "none" ? "无真人" : selectedSeatId ? `${selectedSeatId}号` : "随机";
   return (
-    <section className="mt-4 rounded-lg border border-[#7da8e3]/18 bg-[#0d1623]/48 p-3">
+    <section className="mobile-seat-picker mt-4 rounded-lg border border-[#7da8e3]/18 bg-[#0d1623]/48 p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-[#e4efff]">真人座位</h3>
         <span className="rounded-full border border-[#7da8e3]/20 bg-[#7da8e3]/10 px-2.5 py-1 text-xs text-[#b8d6ff]">
@@ -387,23 +525,23 @@ function HumanSeatPicker({
           type="button"
           onClick={onRandom}
           className={[
-            "rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition",
+            "mobile-seat-mode-button rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition",
             mode === "random" ? "border-[#7da8e3]/50 bg-[#0d2642]/78 text-[#d8e7ff]" : "border-[#7da8e3]/16 bg-black/18 text-[#b8d6ff] hover:bg-[#7da8e3]/10",
           ].join(" ")}
         >
-          随机座位{selectedSeatId ? ` · 本局预览 ${selectedSeatId}号` : ""}
+          真人模式{selectedSeatId ? ` · 本局预览 ${selectedSeatId}号` : ""}
         </button>
         <button
           type="button"
           onClick={onNone}
           className={[
-            "rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition",
+            "mobile-seat-mode-button rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition",
             mode === "none" ? "border-[#77d898]/50 bg-[#12301e]/78 text-[#dff4df]" : "border-[#77d898]/16 bg-black/18 text-[#a8f0b6] hover:bg-[#77d898]/10",
           ].join(" ")}
         >
           无真人 · 只看 AI 对局
         </button>
-        <div className="grid grid-cols-6 gap-1.5 sm:col-span-2 md:grid-cols-9">
+        <div className="mobile-seat-strip grid grid-cols-6 gap-1.5 sm:col-span-2 md:grid-cols-9">
           {seats.map((seatId) => {
             const selected = mode === "fixed" && selectedSeatId === seatId;
             return (
@@ -412,7 +550,7 @@ function HumanSeatPicker({
                 type="button"
                 onClick={() => onSelect(seatId)}
                 className={[
-                  "min-h-10 rounded-md border px-2 py-2 text-sm font-semibold transition",
+                  "mobile-seat-chip-option min-h-10 rounded-md border px-2 py-2 text-sm font-semibold transition",
                   selected ? "border-[#f1c76e]/58 bg-[#3a2412]/88 text-[#f1d796]" : "border-white/10 bg-black/18 text-[#dcc9a7] hover:bg-white/8",
                 ].join(" ")}
               >
@@ -549,7 +687,7 @@ function RulesMiniCard() {
   ];
 
   return (
-    <section className="mt-4">
+    <section className="mobile-home-rules mt-4">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-[#dff4df]">流程提示</h3>
         <span className="text-xs text-[#86c797]">本地规则引擎</span>
@@ -995,15 +1133,6 @@ const GLOSSARY_SECTIONS: GlossarySection[] = [
   },
 ];
 
-export type PhaseCurtainCue = {
-  eyebrow: string;
-  title: string;
-  subtitle: string;
-  tone: "night" | "day" | "vote" | "danger" | "end";
-  durationMs: number;
-  presentation?: "curtain" | "ribbon";
-};
-
 const ROLE_INTROS: Record<Role, RoleIntro> = {
   WEREWOLF: {
     title: "狼人",
@@ -1333,10 +1462,10 @@ export function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnt
   const teammates = game.wolfTeammates.map((seat) => seat.name).join("、");
 
   return (
-    <div className="role-intro-backdrop fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/86 px-4 py-6 backdrop-blur-md">
-      <section className="mx-auto grid w-full max-w-5xl gap-6 rounded-[30px] border border-[#f1c76e]/30 bg-[#120c0a]/95 p-4 shadow-2xl shadow-black/70 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="flex min-h-[500px] flex-col items-center justify-start rounded-[24px] border border-[#f1c76e]/18 bg-black/28 p-5 sm:p-6">
-          <div className="role-card-scene mt-1">
+    <div className="role-intro-backdrop role-intro-mobile-backdrop fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/86 px-4 py-6 backdrop-blur-md">
+      <section className="role-intro-shell mx-auto grid w-full max-w-5xl gap-6 rounded-[30px] border border-[#f1c76e]/30 bg-[#120c0a]/95 p-4 shadow-2xl shadow-black/70 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="role-intro-hero flex min-h-[500px] flex-col items-center justify-start rounded-[24px] border border-[#f1c76e]/18 bg-black/28 p-5 sm:p-6">
+          <div className="role-card-scene role-intro-card-scene mt-1">
             <Image
               fill
               sizes="240px"
@@ -1353,13 +1482,13 @@ export function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnt
               className="role-card-reveal rounded-[18px] border border-[#f1c76e]/60 shadow-2xl"
             />
           </div>
-          <div className="mt-6 text-center">
-            <div className="text-xs uppercase tracking-[0.28em] text-[#ad9c7d]">Your Role</div>
-            <div className="mt-2 text-3xl font-semibold text-[#f1d796]">{intro.title}</div>
+          <div className="role-intro-identity mt-6 text-center">
+            <div className="role-intro-eyebrow text-xs uppercase tracking-[0.28em] text-[#ad9c7d]">Your Role</div>
+            <div className="role-intro-title mt-2 text-3xl font-semibold text-[#f1d796]">{intro.title}</div>
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-col justify-between gap-6">
+        <div className="role-intro-copy flex min-w-0 flex-col justify-between gap-6">
           <div>
             <div className="inline-flex rounded-full border border-[#f1c76e]/25 bg-[#f1c76e]/10 px-3 py-1 text-xs text-[#f1d796]">
               身份已发放
@@ -1372,7 +1501,7 @@ export function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnt
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="role-intro-detail-grid grid gap-3 sm:grid-cols-2">
             <RoleIntroItem label="阵营" value={intro.camp} />
             <RoleIntroItem label="胜利条件" value={intro.goal} />
             <RoleIntroItem label="行动时机" value={intro.timing} />
@@ -1384,7 +1513,7 @@ export function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnt
 
           <button
             onClick={onEnter}
-            className="min-h-12 rounded-full bg-[#b74332] px-6 py-3 text-sm font-semibold text-white shadow-xl shadow-black/35 transition hover:bg-[#cf513d]"
+            className="role-intro-confirm min-h-12 rounded-full bg-[#b74332] px-6 py-3 text-sm font-semibold text-white shadow-xl shadow-black/35 transition hover:bg-[#cf513d]"
           >
             确认身份，进入游戏
           </button>
@@ -1396,7 +1525,7 @@ export function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnt
 
 function RoleIntroItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-[#f1c76e]/16 bg-black/24 px-4 py-3">
+    <div className="role-intro-item rounded-2xl border border-[#f1c76e]/16 bg-black/24 px-4 py-3">
       <div className="mb-1 text-xs text-[#ad9c7d]">{label}</div>
       <div className="text-sm leading-6 text-[#f7ead5]">{value}</div>
     </div>
@@ -1440,16 +1569,16 @@ export function IdentityBookOverlay({
       role="dialog"
       aria-modal="true"
       aria-labelledby="identity-book-title"
-      className="role-intro-backdrop fixed inset-0 z-50 overflow-y-auto bg-black/86 px-3 py-5 backdrop-blur-md sm:px-5"
+      className="role-intro-backdrop mobile-knowledge-overlay fixed inset-0 z-50 overflow-y-auto bg-black/86 px-3 py-5 backdrop-blur-md sm:px-5"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <section
-        className="mx-auto w-full max-w-6xl rounded-[30px] border border-[#f1c76e]/30 bg-[#120c0a]/96 p-4 shadow-2xl shadow-black/70 sm:p-5"
+        className="mobile-knowledge-card mx-auto w-full max-w-6xl rounded-[30px] border border-[#f1c76e]/30 bg-[#120c0a]/96 p-4 shadow-2xl shadow-black/70 sm:p-5"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="mb-4 flex flex-col gap-3 border-b border-[#f1c76e]/15 pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mobile-knowledge-head mb-4 flex flex-col gap-3 border-b border-[#f1c76e]/15 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="mb-2 inline-flex rounded-full border border-[#f1c76e]/24 bg-[#f1c76e]/10 px-3 py-1 text-xs text-[#f1d796]">
               身份书 · {visibleRoles.length}/{IDENTITY_BOOK_ROLE_ORDER.length} 个角色
@@ -1480,7 +1609,7 @@ export function IdentityBookOverlay({
           onPreview={setPreviewRole}
         />
 
-        <div className="mb-4 grid gap-3 rounded-2xl border border-[#f1c76e]/14 bg-black/20 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="mobile-knowledge-tools mb-4 grid gap-3 rounded-2xl border border-[#f1c76e]/14 bg-black/20 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_auto]">
             <div className="flex min-h-10 items-center rounded-full border border-[#f1c76e]/18 bg-[#090605]/70 px-3 focus-within:border-[#f1c76e]/48">
               <input
@@ -1533,7 +1662,7 @@ export function IdentityBookOverlay({
           </div>
         </div>
 
-        <div className="soft-scrollbar grid gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3" style={{ maxHeight: "min(74vh, 760px)" }}>
+        <div className="soft-scrollbar mobile-knowledge-scroll grid gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3" style={{ maxHeight: "min(74vh, 760px)" }}>
           {visibleRoles.length > 0 ? (
             visibleRoles.map((role) => {
               const enabled = !hasActiveBoard || activeBoardRoleSet.has(role);
@@ -1603,7 +1732,7 @@ function IdentityBookFocusPanel({
   const currentTone = currentIntro ? roleCampTone(currentIntro.camp) : undefined;
 
   return (
-    <div className="mb-4 grid gap-3 rounded-2xl border border-[#f1c76e]/16 bg-[#1b120d]/58 p-3 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
+    <div className="mobile-knowledge-focus mb-4 grid gap-3 rounded-2xl border border-[#f1c76e]/16 bg-[#1b120d]/58 p-3 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
       <section className="rounded-2xl border border-[#f1c76e]/16 bg-black/20 p-3">
         {currentIntro && currentRole ? (
           <div className="grid gap-3">
@@ -1942,16 +2071,16 @@ export function GlossaryOverlay({ onClose }: { onClose: () => void }) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="glossary-title"
-      className="role-intro-backdrop fixed inset-0 z-50 overflow-y-auto bg-black/86 px-3 py-5 backdrop-blur-md sm:px-5"
+      className="role-intro-backdrop mobile-knowledge-overlay fixed inset-0 z-50 overflow-y-auto bg-black/86 px-3 py-5 backdrop-blur-md sm:px-5"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <section
-        className="mx-auto w-full max-w-6xl rounded-[30px] border border-[#7da8e3]/30 bg-[#0d1118]/96 p-4 shadow-2xl shadow-black/70 sm:p-5"
+        className="mobile-knowledge-card mx-auto w-full max-w-6xl rounded-[30px] border border-[#7da8e3]/30 bg-[#0d1118]/96 p-4 shadow-2xl shadow-black/70 sm:p-5"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="mb-4 flex flex-col gap-3 border-b border-[#7da8e3]/15 pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mobile-knowledge-head mb-4 flex flex-col gap-3 border-b border-[#7da8e3]/15 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="mb-2 inline-flex rounded-full border border-[#7da8e3]/24 bg-[#7da8e3]/10 px-3 py-1 text-xs text-[#b8d6ff]">
               术语表 · {normalizedSearchQuery ? `${visibleEntryCount}/${totalEntries}` : totalEntries} 个常见说法
@@ -1972,7 +2101,7 @@ export function GlossaryOverlay({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="mb-4 grid gap-2 rounded-2xl border border-[#7da8e3]/18 bg-black/22 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="mobile-knowledge-tools mb-4 grid gap-2 rounded-2xl border border-[#7da8e3]/18 bg-black/22 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
@@ -1994,7 +2123,7 @@ export function GlossaryOverlay({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="soft-scrollbar grid gap-5 overflow-y-auto pr-1" style={{ maxHeight: "min(74vh, 760px)" }}>
+        <div className="soft-scrollbar mobile-knowledge-scroll grid gap-5 overflow-y-auto pr-1" style={{ maxHeight: "min(74vh, 760px)" }}>
           {filteredSections.length > 0 ? (
             filteredSections.map((section) => (
               <section key={section.title} className="grid gap-3">
@@ -2099,7 +2228,7 @@ function IdentityBookRoleCard({
       onClick={() => onPreview(role)}
       className={[
         enabled ? tone.card : tone.mutedCard,
-        "group grid min-h-[330px] gap-3 rounded-2xl border p-3 text-left shadow-xl shadow-black/24 transition",
+        "mobile-knowledge-role-card group grid min-h-[330px] gap-3 rounded-2xl border p-3 text-left shadow-xl shadow-black/24 transition",
         "hover:-translate-y-0.5 hover:border-[#f1c76e]/44 hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-[#f1d796]/55",
         enabled ? "" : "opacity-58 grayscale-[0.72] hover:opacity-88 hover:grayscale-0",
       ].join(" ")}
@@ -2111,7 +2240,7 @@ function IdentityBookRoleCard({
           title={intro.title}
           src={ROLE_CARD_BOOK_IMAGES[role]}
           sizes="112px"
-          className="w-[92px] rounded-xl border border-[#f1c76e]/28 shadow-lg shadow-black/30"
+          className="mobile-knowledge-role-art w-[92px] rounded-xl border border-[#f1c76e]/28 shadow-lg shadow-black/30"
         />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap gap-1.5">
@@ -2131,11 +2260,11 @@ function IdentityBookRoleCard({
             </span>
           </div>
           <h3 className="mt-3 text-xl font-semibold text-[#f7ead5]">{intro.title}</h3>
-          <p className="mt-2 text-xs leading-5 text-[#ad9c7d]">{intro.goal}</p>
+          <p className="mobile-knowledge-role-summary mt-2 text-xs leading-5 text-[#ad9c7d]">{intro.goal}</p>
         </div>
       </div>
 
-      <div className="grid gap-2 text-xs leading-5">
+      <div className="mobile-knowledge-role-lines grid gap-2 text-xs leading-5">
         {isCurrentRole && phaseHint && <RoleBookLine label="当前阶段" value={phaseHint.title} />}
         {linkTips[0] && <RoleBookLine label="联动提醒" value={linkTips[0].detail} />}
         <RoleBookLine label="行动时机" value={intro.timing} />
@@ -2249,7 +2378,7 @@ function IdentityBookPreview({
 
 function RoleBookLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+    <div className="mobile-knowledge-line rounded-xl border border-white/10 bg-black/20 px-3 py-2">
       <div className="mb-1 text-[11px] text-[#ad9c7d]">{label}</div>
       <div className="text-[#f7ead5]">{value}</div>
     </div>
@@ -2259,7 +2388,7 @@ function RoleBookLine({ label, value }: { label: string; value: string }) {
 function GlossaryTermCard({ entry }: { entry: GlossaryEntry }) {
   const toneClass = glossaryToneClass(entry.tone);
   return (
-    <article className={`${toneClass.card} grid min-h-[250px] gap-3 rounded-2xl border p-3 shadow-xl shadow-black/24`}>
+    <article className={`${toneClass.card} mobile-knowledge-term-card grid min-h-[250px] gap-3 rounded-2xl border p-3 shadow-xl shadow-black/24`}>
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <span className={`${toneClass.pill} rounded-full border px-2.5 py-1 text-sm font-semibold`}>{entry.term}</span>
@@ -2277,7 +2406,7 @@ function GlossaryTermCard({ entry }: { entry: GlossaryEntry }) {
 
 function GlossaryLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+    <div className="mobile-knowledge-line rounded-xl border border-white/10 bg-black/20 px-3 py-2">
       <div className="mb-1 text-[11px] text-[#9fb2d0]">{label}</div>
       <div className="text-[#dce8f8]">{value}</div>
     </div>
@@ -2302,1033 +2431,6 @@ function glossaryToneClass(tone: GlossaryEntry["tone"]): { card: string; pill: s
       card: "border-[#e46d55]/22 bg-[#2a1110]/72",
       pill: "border-[#e46d55]/28 bg-[#572017]/34 text-[#ffb1a4]",
     },
-  };
-  return tones[tone];
-}
-
-export function PhaseCurtain({ cue }: { cue: PhaseCurtainCue }) {
-  if (cue.presentation === "ribbon") {
-    return (
-      <div
-        className={`${phaseCurtainToneClass(cue.tone)} phase-signal pointer-events-none fixed left-3 right-3 top-[72px] z-40 sm:left-6 sm:right-auto sm:top-[78px] lg:left-8`}
-        style={{ "--curtain-duration": `${cue.durationMs}ms` } as React.CSSProperties}
-      >
-        <div className="phase-signal-card flex w-full max-w-[320px] items-center gap-3 rounded-xl border px-3 py-2.5 shadow-xl shadow-black/35 sm:w-[320px]">
-          <div className="phase-signal-mark grid h-9 w-9 shrink-0 place-items-center rounded-full border" aria-hidden="true">
-            <span className="phase-signal-mark-core h-2.5 w-2.5 rounded-full" />
-          </div>
-          <div className="min-w-0">
-            <div className="phase-signal-eyebrow text-[10px] font-semibold uppercase tracking-[0.18em] text-white/46">
-              {cue.eyebrow}
-            </div>
-            <div className="phase-signal-title mt-0.5 text-sm font-semibold leading-tight text-white sm:text-base">
-              {cue.title}
-            </div>
-            <div className="phase-signal-subtitle mt-0.5 text-xs leading-5 text-white/60">{cue.subtitle}</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={`${phaseCurtainToneClass(cue.tone)} phase-curtain pointer-events-none fixed inset-0 z-40 overflow-hidden`}
-      style={{ "--curtain-duration": `${cue.durationMs}ms` } as React.CSSProperties}
-    >
-      <div className="phase-curtain-bg" aria-hidden="true" />
-      <div className="phase-curtain-vignette" aria-hidden="true" />
-      <div className="phase-curtain-table-ring" aria-hidden="true" />
-      <div className="phase-curtain-panel phase-curtain-panel-top" aria-hidden="true" />
-      <div className="phase-curtain-panel phase-curtain-panel-bottom" aria-hidden="true" />
-      <div className="phase-curtain-sweep" aria-hidden="true" />
-
-      <div className="phase-curtain-stage mx-auto flex h-full w-full max-w-[1500px] items-end px-6 py-10 sm:px-10 sm:py-14 lg:px-16 lg:py-20">
-        <div className="phase-curtain-copy max-w-3xl">
-          <div className="phase-curtain-eyebrow text-sm font-semibold text-white/62">{cue.eyebrow}</div>
-          <div className="phase-curtain-title mt-3 text-5xl font-semibold leading-none text-white sm:text-7xl">
-            {cue.title}
-          </div>
-          <div className="phase-curtain-subtitle mt-5 max-w-xl text-base leading-7 text-white/74 sm:text-lg">
-            {cue.subtitle}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function getPhaseCurtainCue(game: HumanGameView): PhaseCurtainCue {
-  switch (game.phase) {
-    case "NIGHT_WOLVES":
-      return {
-        eyebrow: `第 ${game.day} 夜`,
-        title: "天黑请闭眼",
-        subtitle: "狼人请睁眼，选择今晚的刀口。",
-        tone: "night",
-        durationMs: 1650,
-      };
-    case "NIGHT_WOLF_BEAUTY":
-      return {
-        eyebrow: `第 ${game.day} 夜`,
-        title: "狼美人请睁眼",
-        subtitle: "选择今晚魅惑的玩家。",
-        tone: "night",
-        durationMs: 950,
-        presentation: "ribbon",
-      };
-    case "NIGHT_SEER":
-      return {
-        eyebrow: `第 ${game.day} 夜`,
-        title: "预言家请睁眼",
-        subtitle: "选择一名玩家查验身份。",
-        tone: "night",
-        durationMs: 900,
-        presentation: "ribbon",
-      };
-    case "NIGHT_WITCH":
-      return {
-        eyebrow: `第 ${game.day} 夜`,
-        title: "女巫请睁眼",
-        subtitle: "确认刀口，决定是否使用药品。",
-        tone: "night",
-        durationMs: 900,
-        presentation: "ribbon",
-      };
-    case "DAY_ANNOUNCEMENT":
-      return {
-        eyebrow: `第 ${game.day} 天`,
-        title: "天亮了",
-        subtitle: "主持人公布昨夜情况。",
-        tone: "day",
-        durationMs: 1650,
-      };
-    case "DAY_SPEECH":
-      return {
-        eyebrow: `第 ${game.day} 天`,
-        title: "开始发言",
-        subtitle: "存活玩家按座位顺序依次发言。",
-        tone: "day",
-        durationMs: 1450,
-      };
-    case "DAY_VOTE":
-      return {
-        eyebrow: `第 ${game.day} 天`,
-        title: "开始投票",
-        subtitle: "投票过程保密，结束后统一开票。",
-        tone: "vote",
-        durationMs: 1450,
-      };
-    case "KNIGHT_DUEL":
-      return {
-        eyebrow: "骑士阶段",
-        title: "骑士决斗窗口",
-        subtitle: "骑士可以选择是否发动一次决斗。",
-        tone: "danger",
-        durationMs: 1300,
-        presentation: "ribbon",
-      };
-    case "EXILE_RESOLUTION":
-      return {
-        eyebrow: `第 ${game.day} 天`,
-        title: "公布票数",
-        subtitle: "结算今日放逐结果。",
-        tone: "vote",
-        durationMs: 1550,
-      };
-    case "LAST_WORDS":
-      return {
-        eyebrow: `第 ${game.day} 天`,
-        title: "请发表遗言",
-        subtitle: "出局玩家留下最后一段公开信息。",
-        tone: "danger",
-        durationMs: 1200,
-        presentation: "ribbon",
-      };
-    case "HUNTER_REVEAL":
-      return {
-        eyebrow: "出局结算",
-        title: "等待结算",
-        subtitle: "出局玩家正在完成后续流程。",
-        tone: "danger",
-        durationMs: 1300,
-      };
-    case "HUNTER_SHOT":
-      return {
-        eyebrow: "猎人阶段",
-        title: "猎人请行动",
-        subtitle: "猎人已翻牌，必须带走一名玩家。",
-        tone: "danger",
-        durationMs: 1450,
-      };
-    case "WOLF_KING_SHOT":
-      return {
-        eyebrow: "狼王阶段",
-        title: "狼王请行动",
-        subtitle: "选择是否发动出局枪。",
-        tone: "danger",
-        durationMs: 1450,
-      };
-    case "GAME_OVER":
-      return {
-        eyebrow: "终局",
-        title: "游戏结束",
-        subtitle: game.result?.reason ?? "查看复盘了解关键节点。",
-        tone: "end",
-        durationMs: 1800,
-      };
-    default:
-      return {
-        eyebrow: "准备",
-        title: "准备开局",
-        subtitle: "正在生成本局身份。",
-        tone: "day",
-        durationMs: 1200,
-      };
-  }
-}
-
-function phaseCurtainToneClass(tone: PhaseCurtainCue["tone"]): string {
-  const tones = {
-    night: "phase-curtain-night",
-    day: "phase-curtain-day",
-    vote: "phase-curtain-vote",
-    danger: "phase-curtain-danger",
-    end: "phase-curtain-end",
-  };
-  return tones[tone];
-}
-
-export function PhaseRhythm({ game }: { game: HumanGameView }) {
-  const steps = game.tableSummary.phaseSteps;
-  const currentIndex = Math.max(
-    steps.findIndex((step) => step.status === "current"),
-    0,
-  );
-  const progressWidth = steps.length > 1 ? (currentIndex / (steps.length - 1)) * 100 : 100;
-
-  return (
-    <section
-      key={`${game.id}-${game.day}-${game.phase}-rhythm`}
-      className="phase-rhythm-panel rounded-[22px] border border-[#f1c76e]/20 bg-[#130d0b]/72 px-3 py-3 shadow-xl shadow-black/25 backdrop-blur-md"
-    >
-      <div className="phase-rhythm-track" aria-hidden="true">
-        <div className="phase-rhythm-progress" style={{ width: `${progressWidth}%` }} />
-      </div>
-      <div className="grid grid-cols-5 gap-2">
-        {steps.map((step, index) => (
-          <div key={step.key} className={`phase-step phase-step-${step.status} min-w-0`} style={{ animationDelay: `${index * 55}ms` }}>
-            <div className="flex items-center gap-2">
-              <div
-                className={[
-                  "phase-step-dot grid h-8 w-8 shrink-0 place-items-center rounded-full border text-xs font-semibold",
-                  step.status === "done"
-                    ? "border-[#77d898]/35 bg-[#1d4e33]/70 text-[#a8f0b6]"
-                    : step.status === "current"
-                      ? "border-[#f1c76e]/65 bg-[#4a2d12] text-[#f1d796] shadow-lg shadow-[#f1c76e]/10"
-                      : "border-[#f1c76e]/18 bg-black/25 text-[#8f8065]",
-                ].join(" ")}
-              >
-                {index + 1}
-              </div>
-              {index < game.tableSummary.phaseSteps.length - 1 && (
-                <div
-                  className={[
-                    "phase-step-connector hidden h-px flex-1 sm:block",
-                    step.status === "done" ? "bg-[#77d898]/35" : "bg-[#f1c76e]/15",
-                  ].join(" ")}
-                />
-              )}
-            </div>
-            <div
-              className={[
-                "mt-2 truncate text-xs",
-                step.status === "current" ? "font-semibold text-[#f1d796]" : step.status === "done" ? "text-[#a8f0b6]" : "text-[#8f8065]",
-              ].join(" ")}
-            >
-              {step.label}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-type HostCue = {
-  badge: string;
-  title: string;
-  line: string;
-  detail: string;
-  tone: "night" | "day" | "vote" | "danger" | "end";
-};
-
-export function HostStage({ game }: { game: HumanGameView }) {
-  const cue = getHostCue(game);
-  const action = game.availableActions[0];
-  const currentActor = game.currentActorSeatId
-    ? game.seats.find((seat) => seat.seatId === game.currentActorSeatId)
-    : undefined;
-
-  return (
-    <section
-      key={`${game.id}-${game.day}-${game.phase}-${game.currentActorSeatId ?? "host"}`}
-      className={`${hostToneClass(cue.tone)} flow-panel overflow-hidden rounded-[26px] border p-4 shadow-2xl shadow-black/35 backdrop-blur-md`}
-    >
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] lg:items-center">
-        <div className="min-w-0">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-white/15 bg-black/24 px-3 py-1 text-xs font-semibold text-white/82">
-              主持人
-            </span>
-            <span className="rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs text-white/70">
-              {cue.badge}
-            </span>
-            {currentActor && (
-              <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1 text-xs text-white/72">
-                当前：{currentActor.seatId}号
-              </span>
-            )}
-          </div>
-          <h2 className="text-2xl font-semibold text-white sm:text-3xl">{cue.title}</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-white/78">{cue.line}</p>
-          <p className="mt-1 text-xs leading-5 text-white/56">{cue.detail}</p>
-        </div>
-
-        <div className="flow-detail-card rounded-2xl border border-white/12 bg-black/20 p-3">
-          <HostStageDetail game={game} action={action} />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function HostStageDetail({ game, action }: { game: HumanGameView; action?: AvailableHumanAction }) {
-  if (game.phase.startsWith("NIGHT")) {
-    return <NightRoleTrack game={game} />;
-  }
-
-  if (game.phase === "DAY_SPEECH") {
-    return <SpeechOrderStrip game={game} />;
-  }
-
-  if (game.phase === "DAY_VOTE") {
-    return <VotePrivacyStrip game={game} action={action} />;
-  }
-
-  if (game.phase.startsWith("SHERIFF")) {
-    return <SheriffStatusStrip game={game} />;
-  }
-
-  if (game.phase === "EXILE_RESOLUTION") {
-    return <VoteRevealStrip game={game} />;
-  }
-
-  if (game.phase === "LAST_WORDS") {
-    const speaker = game.currentActorSeatId ? game.seats.find((seat) => seat.seatId === game.currentActorSeatId) : undefined;
-    return (
-      <div className="grid gap-2 text-sm leading-6 text-white/75">
-        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Last Words</div>
-        <div>{speaker ? `${speaker.seatId}号${speaker.isHuman ? "（你）" : ""}发表遗言。` : "等待出局玩家发表遗言。"}</div>
-      </div>
-    );
-  }
-
-  if (game.phase === "DAY_ANNOUNCEMENT") {
-    const latestAnnouncement = [...game.publicEvents]
-      .reverse()
-      .find((event) => event.day === game.day && event.phase === "DAY_ANNOUNCEMENT");
-    return (
-      <div className="grid gap-2 text-sm leading-6 text-white/75">
-        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Dawn Report</div>
-        <div>{formatSystemMessage(game, latestAnnouncement?.message ?? "等待公布昨夜死亡情况。")}</div>
-      </div>
-    );
-  }
-
-  if (game.phase === "HUNTER_SHOT") {
-    return (
-      <div className="grid gap-2 text-sm leading-6 text-white/75">
-        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Hunter Window</div>
-        <div>猎人已翻牌发动技能，必须带走一名存活玩家。</div>
-      </div>
-    );
-  }
-
-  if (game.phase === "HUNTER_REVEAL") {
-    return (
-      <div className="grid gap-2 text-sm leading-6 text-white/75">
-        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Death Resolve</div>
-        <div>出局玩家正在完成结算，随后继续遗言或后续流程。</div>
-      </div>
-    );
-  }
-
-  if (game.phase === "WOLF_KING_SHOT") {
-    return (
-      <div className="grid gap-2 text-sm leading-6 text-white/75">
-        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Wolf King Window</div>
-        <div>狼王进入出局行动窗口，结算完成后继续遗言、警徽或夜晚流程。</div>
-      </div>
-    );
-  }
-
-  if (game.phase === "SHERIFF_HANDOFF") {
-    const holder = game.sheriff?.badgeHolder;
-    return (
-      <div className="grid gap-2 text-sm leading-6 text-white/75">
-        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Sheriff Badge</div>
-        <div>{holder ? `${holder.seatId}号警长出局，等待移交或撕毁警徽。` : "等待警徽结算。"}</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-2 text-sm leading-6 text-white/75">
-      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Result</div>
-      <div>{game.result ? `${game.result.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜：${game.result.reason}` : "流程继续推进。"}</div>
-    </div>
-  );
-}
-
-function NightRoleTrack({ game }: { game: HumanGameView }) {
-  const steps = getNightRoleTrackSteps(game.board);
-  const currentIndex = steps.findIndex((step) => step.phase === game.phase);
-
-  return (
-    <div className="grid gap-3">
-      {steps.map((step, index) => {
-        const status = index < currentIndex ? "done" : index === currentIndex ? "current" : "upcoming";
-        return (
-          <div
-            key={step.phase}
-            style={{ animationDelay: `${index * 65}ms` }}
-            className={[
-              "flow-track-item flex items-center justify-between gap-3 rounded-2xl border px-3 py-2",
-              status === "done"
-                ? "border-[#77d898]/25 bg-[#153421]/50 text-[#c9f6d0]"
-                : status === "current"
-                  ? "flow-track-current border-[#7da8e3]/40 bg-[#132942]/70 text-[#d8e6f7]"
-                  : "border-white/10 bg-black/18 text-white/45",
-            ].join(" ")}
-          >
-            <div>
-              <div className="text-sm font-semibold">{step.label}</div>
-              <div className="mt-0.5 text-xs opacity-70">{step.detail}</div>
-            </div>
-            <span className="text-xs">{status === "done" ? "已完成" : status === "current" ? "进行中" : "等待"}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function SpeechOrderStrip({ game }: { game: HumanGameView }) {
-  const spokenSeatIds = new Set(
-    game.publicEvents
-      .filter((event) => event.day === game.day && event.phase === "DAY_SPEECH" && typeof event.actorSeatId === "number")
-      .map((event) => event.actorSeatId),
-  );
-  const aliveSeats = game.seats.filter((seat) => seat.alive);
-  const dawnReport = getLatestDawnReport(game);
-
-  return (
-    <div className="grid gap-3">
-      {dawnReport && (
-        <div className="rounded-2xl border border-[#7da8e3]/20 bg-[#0d1623]/48 px-3 py-2 text-sm leading-6 text-[#d8e6f7]">
-          <div className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#9dbbe6]">昨夜情况</div>
-          {dawnReport}
-        </div>
-      )}
-      <div className="mb-3 flex items-center justify-between gap-3 text-xs text-white/58">
-        <span>本轮发言顺序</span>
-        <span>
-          已发言 {spokenSeatIds.size}/{aliveSeats.length}
-        </span>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {aliveSeats.map((seat) => {
-          const isCurrent = game.currentSpeakerSeatId === seat.seatId;
-          const hasSpoken = spokenSeatIds.has(seat.seatId);
-          return (
-            <span
-              key={seat.seatId}
-              style={{ animationDelay: `${seat.seatId * 22}ms` }}
-              className={[
-                "rounded-full border px-3 py-1 text-xs transition-all duration-500 ease-out",
-                isCurrent
-                  ? "flow-current-pill border-[#f1c76e]/55 bg-[#4a2d12]/80 text-[#f1d796]"
-                  : hasSpoken
-                    ? "flow-done-pill border-[#77d898]/25 bg-[#153421]/55 text-[#a8f0b6]"
-                    : "border-white/10 bg-black/20 text-white/50",
-              ].join(" ")}
-            >
-              {seat.seatId}号{seat.isHuman ? " 你" : ""}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function getLatestDawnReport(game: HumanGameView): string | undefined {
-  const event = [...game.publicEvents]
-    .reverse()
-    .find((item) => item.day === game.day && item.type === "DAY_STARTED");
-  return event ? formatSystemMessage(game, event.message) : undefined;
-}
-
-function VotePrivacyStrip({ game, action }: { game: HumanGameView; action?: AvailableHumanAction }) {
-  const isHumanVote = action?.type === "vote";
-  const aliveSeats = game.seats.filter((seat) => seat.alive);
-
-  return (
-    <div className="grid gap-3 text-sm leading-6 text-white/75">
-      <div className="vote-sealed-card rounded-2xl border border-[#e46d55]/25 bg-[#351210]/45 px-3 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-semibold text-[#ffd8cf]">投票箱封存中</span>
-          <span className="rounded-full border border-white/12 bg-black/20 px-2 py-0.5 text-xs text-white/62">
-            {isHumanVote ? "等待你锁票" : `${aliveSeats.length} 人同时锁票`}
-          </span>
-        </div>
-        <div className="mt-1 text-xs text-[#ffd8cf]/68">票型和投票对象全部保密，结束后统一开票。</div>
-      </div>
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-        {aliveSeats.map((seat, index) => (
-          <span
-            key={seat.seatId}
-            style={{ animationDelay: `${index * 70}ms` }}
-            className="vote-sealed-chip rounded-full border border-white/10 bg-black/20 px-2 py-1 text-center text-xs text-white/62"
-          >
-            {seat.seatId}号
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function VoteRevealStrip({ game }: { game: HumanGameView }) {
-  const snapshot = game.tableSummary.voteSnapshot;
-  const tally = snapshot.tally;
-  const maxVotes = tally[0]?.count ?? 0;
-  return (
-    <div className="grid gap-2">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Final Tally</div>
-        <span className="rounded-full border border-[#e46d55]/25 bg-[#351210]/45 px-2 py-0.5 text-xs text-[#ffd8cf]/70">
-          统一开票
-        </span>
-      </div>
-      {snapshot.revealed && <VoteResultBanner snapshot={snapshot} compact />}
-      {tally.length === 0 ? (
-        <div className="text-sm text-white/65">等待公开投票结果。</div>
-      ) : (
-        tally.map((item, index) => (
-          <div
-            key={item.target.seatId}
-            className={[
-              "flow-vote-row vote-reveal-card rounded-2xl border px-3 py-2 text-sm text-[#ffd8cf]",
-              index === 0 ? "border-[#ff9a6b]/34 bg-[#351210]/64" : "border-[#e46d55]/20 bg-black/20",
-            ].join(" ")}
-            style={{ animationDelay: `${index * 70}ms` }}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span>{item.target.seatId}号</span>
-              <strong>{item.count} 票</strong>
-            </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/35">
-              <div
-                className="vote-reveal-bar h-full rounded-full bg-[#e46d55]"
-                style={{ width: `${maxVotes > 0 ? Math.max(12, (item.count / maxVotes) * 100) : 0}%` }}
-              />
-            </div>
-          </div>
-        ))
-      )}
-      {snapshot.revealed && <VoteRevealLedger snapshot={snapshot} compact />}
-    </div>
-  );
-}
-
-function SheriffStatusStrip({ game }: { game: HumanGameView }) {
-  const sheriff = game.sheriff;
-  const candidates = sheriff?.pkCandidates ?? sheriff?.candidates ?? [];
-  const withdrawnSeatIds = new Set(sheriff?.withdrawnSeatIds ?? []);
-  const activeCandidates = candidates.filter((candidate) => !withdrawnSeatIds.has(candidate.seatId));
-  const offPoliceSeats = game.seats.filter((seat) => sheriff?.nominationDecisions[String(seat.seatId)] === false);
-  const pendingNominationSeats =
-    game.phase === "SHERIFF_NOMINATION"
-      ? game.seats.filter((seat) => seat.alive && sheriff?.nominationDecisions[String(seat.seatId)] === undefined)
-      : [];
-  const latestDawnReport = getLatestDawnReport(game);
-  return (
-    <div className="grid gap-3 text-sm leading-6 text-white/75">
-      <div className="rounded-2xl border border-[#f1c76e]/24 bg-[#3a2412]/48 px-3 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-semibold text-[#f1d796]">警长流程</span>
-          <span className="rounded-full border border-white/12 bg-black/20 px-2 py-0.5 text-xs text-white/62">
-            {sheriff?.badgeHolder ? `${sheriff.badgeHolder.seatId}号警长` : "竞选中"}
-          </span>
-        </div>
-        <div className="mt-1 text-xs text-[#f1d796]/72">{game.phaseLabel}</div>
-      </div>
-      {latestDawnReport && (
-        <div className="rounded-2xl border border-[#7da8e3]/18 bg-[#0d1623]/42 px-3 py-2 text-xs leading-5 text-[#d8e6f7]">
-          <span className="font-semibold text-[#9dbbe6]">昨夜情况：</span>
-          {latestDawnReport}
-        </div>
-      )}
-      <div className="grid gap-2">
-        <SheriffSeatList title={game.phase === "SHERIFF_PK_SPEECH" || game.phase === "SHERIFF_PK_VOTE" ? "PK 台上" : "警上"} seats={activeCandidates} tone="gold" empty="暂无上警玩家" />
-        {withdrawnSeatIds.size > 0 && (
-          <SheriffSeatList
-            title="已退水"
-            seats={(sheriff?.candidates ?? []).filter((candidate) => withdrawnSeatIds.has(candidate.seatId))}
-            tone="red"
-            empty="无人退水"
-          />
-        )}
-        {offPoliceSeats.length > 0 && <SheriffSeatList title="警下" seats={offPoliceSeats} tone="muted" empty="暂无警下玩家" />}
-        {pendingNominationSeats.length > 0 && (
-          <SheriffSeatList title="待选择" seats={pendingNominationSeats} tone="blue" empty="已完成上警选择" />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SheriffSeatList({
-  title,
-  seats,
-  tone,
-  empty,
-}: {
-  title: string;
-  seats: Array<{ seatId: number; isHuman?: boolean }>;
-  tone: "gold" | "red" | "blue" | "muted";
-  empty: string;
-}) {
-  const toneClass = {
-    gold: "border-[#f1c76e]/22 bg-[#3a2412]/42 text-[#f1d796]",
-    red: "border-[#e46d55]/22 bg-[#351210]/42 text-[#ffd8cf]",
-    blue: "border-[#7da8e3]/20 bg-[#0d1623]/45 text-[#b8d6ff]",
-    muted: "border-white/10 bg-black/18 text-white/58",
-  }[tone];
-
-  return (
-    <div>
-      <div className="mb-1 text-xs font-semibold text-white/50">{title}</div>
-      {seats.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {seats.map((seat) => (
-            <span key={seat.seatId} className={`rounded-full border px-3 py-1 text-xs ${toneClass}`}>
-              {seat.seatId}号{seat.isHuman ? " 你" : ""}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-white/10 bg-black/14 px-3 py-2 text-xs text-white/42">{empty}</div>
-      )}
-    </div>
-  );
-}
-
-function getHostCue(game: HumanGameView): HostCue {
-  switch (game.phase) {
-    case "NIGHT_WOLVES":
-      return {
-        badge: `第 ${game.day} 夜`,
-        title: "天黑请闭眼",
-        line: "狼人请睁眼，选择今晚的击杀目标。其他身份暂时闭眼等待。",
-        detail: "如果轮到 AI，点击继续会播放下一步；如果你是狼人，则直接选择刀口。",
-        tone: "night",
-      };
-    case "NIGHT_WOLF_BEAUTY":
-      return {
-        badge: `第 ${game.day} 夜`,
-        title: "狼美人请睁眼",
-        line: "狼美人选择今晚魅惑的玩家，也可以跳过。",
-        detail: "狼美人白天出局时，当前魅惑目标会殉情出局；夜间死亡不触发。",
-        tone: "night",
-      };
-    case "NIGHT_GUARD":
-      return {
-        badge: `第 ${game.day} 夜`,
-        title: "守卫请睁眼",
-        line: "守卫选择今晚的守护目标，也可以空守。",
-        detail: "守卫不能连续两晚守同一名玩家；同守同救同一刀口会导致目标死亡。",
-        tone: "night",
-      };
-    case "NIGHT_SEER":
-      return {
-        badge: `第 ${game.day} 夜`,
-        title: "预言家请睁眼",
-        line: "预言家选择一名玩家查验身份，查验结果只进入预言家的私密信息。",
-        detail: "这一阶段不会公开查验对象和结果。",
-        tone: "night",
-      };
-    case "NIGHT_WITCH":
-      return {
-        badge: `第 ${game.day} 夜`,
-        title: "女巫请睁眼",
-        line: "女巫根据可见刀口和药品状态决定是否使用解药或毒药。",
-        detail: "首夜可以自救，第二夜起不能自救；解药用完后不再获知后续刀口。",
-        tone: "night",
-      };
-    case "DAY_ANNOUNCEMENT":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "天亮了",
-        line: "主持人公布昨夜死亡情况，随后进入白天发言。",
-        detail: "死亡信息公开，身份仍然只在终局复盘揭晓。",
-        tone: "day",
-      };
-    case "SHERIFF_NOMINATION":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "警长竞选开始",
-        line: "所有存活玩家依次选择是否上警。",
-        detail: "上警玩家稍后发表竞选发言，警下玩家参与警长投票。",
-        tone: "day",
-      };
-    case "SHERIFF_SPEECH":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "警上发言",
-        line: "警上候选人依次发表竞选发言。",
-        detail: "发言结束后候选人可以选择退水或留在警上。",
-        tone: "day",
-      };
-    case "SHERIFF_WITHDRAWAL":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "退水选择",
-        line: "警上候选人依次选择是否退水。",
-        detail: "剩余候选人进入警长投票；如果只剩一人则直接当选。",
-        tone: "day",
-      };
-    case "SHERIFF_VOTE":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "警下投票",
-        line: "警下玩家投票选出警长。",
-        detail: "平票会进入一次 PK 发言和复投，复平则本局无警长。",
-        tone: "vote",
-      };
-    case "SHERIFF_PK_SPEECH":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "警长 PK 发言",
-        line: "平票候选人进行 PK 发言。",
-        detail: "发言结束后进入警长 PK 复投。",
-        tone: "day",
-      };
-    case "SHERIFF_PK_VOTE":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "警长 PK 投票",
-        line: "非 PK 玩家在平票候选人中复投。",
-        detail: "复投仍平票则本局无警长。",
-        tone: "vote",
-      };
-    case "DAY_SPEECH":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "按座位顺序发言",
-        line: "所有存活玩家依次发言。发言结束后才进入投票。",
-        detail: "AI 只读取公开信息和自己的私密信息，不能看到完整身份表。",
-        tone: "day",
-      };
-    case "DAY_VOTE":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "开始投票",
-        line: "所有存活玩家投票放逐一名玩家。投票结束前，票型和投票对象全部保密。",
-        detail: "结束后只公布每名候选人的得票数，再结算放逐或平票。",
-        tone: "vote",
-      };
-    case "KNIGHT_DUEL":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "骑士决斗窗口",
-        line: "骑士可以选择是否发动决斗。目标为狼人阵营时目标出局，否则骑士出局。",
-        detail: "跳过决斗会进入正常投票，骑士技能保留到后续白天。",
-        tone: "danger",
-      };
-    case "EXILE_RESOLUTION":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "公布投票结果",
-        line: "主持人公开最终票数，并结算今日放逐结果。",
-        detail: "这里不会展示个人投票理由，避免复盘之外的信息影响过程体验。",
-        tone: "vote",
-      };
-    case "LAST_WORDS":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "遗言时间",
-        line: "出局玩家发表最后一段公开发言，随后继续结算猎人或夜晚流程。",
-        detail: "遗言会进入公开发言席，也会影响后续玩家的桌面判断。",
-        tone: "danger",
-      };
-    case "HUNTER_REVEAL":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "出局结算",
-        line: "出局玩家正在完成后续结算。",
-        detail: "如果后续有公开技能结果，系统会在结果产生后再播报。",
-        tone: "danger",
-      };
-    case "HUNTER_SHOT":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "猎人行动窗口",
-        line: "猎人已翻牌发动技能，必须带走一名存活玩家。",
-        detail: "如果猎人选择不翻牌，或被女巫毒死，则不会进入这个公开开枪阶段。",
-        tone: "danger",
-      };
-    case "WOLF_KING_SHOT":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "狼王行动窗口",
-        line: "狼王出局后可以选择是否发动狼王枪带走一名玩家。",
-        detail: "被夜间击杀或女巫毒死不会触发狼王枪。",
-        tone: "danger",
-      };
-    case "SHERIFF_HANDOFF":
-      return {
-        badge: `第 ${game.day} 天`,
-        title: "警徽移交",
-        line: "警长出局后选择移交警徽或撕掉警徽。",
-        detail: "警徽持有者白天放逐投票计 1.5 票。",
-        tone: "danger",
-      };
-    case "GAME_OVER":
-      return {
-        badge: "终局",
-        title: "游戏结束",
-        line: game.result ? `${game.result.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜。` : "对局已经结束。",
-        detail: game.result?.reason ?? "可以查看复盘了解关键节点。",
-        tone: "end",
-      };
-    default:
-      return {
-        badge: "准备",
-        title: "准备开局",
-        line: "正在创建本局座位和身份。",
-        detail: "规则引擎会先生成事件，再投影出当前玩家视角。",
-        tone: "day",
-      };
-  }
-}
-
-function hostToneClass(tone: HostCue["tone"]): string {
-  const tones = {
-    night: "border-[#6d93d4]/28 bg-[#0c1424]/82",
-    day: "border-[#f1c76e]/26 bg-[#1c150e]/82",
-    vote: "border-[#e46d55]/28 bg-[#2a1110]/84",
-    danger: "border-[#ff9a6b]/30 bg-[#30140d]/86",
-    end: "border-[#77d898]/28 bg-[#0f2118]/84",
-  };
-  return tones[tone];
-}
-
-export function FlowStatusBar({
-  game,
-  loading,
-  pendingCommandType,
-  liveAiSpeech,
-  hostAudioStatus,
-  aiSpeechAudioStatus,
-  aiSpeechAudioUnavailable,
-  onPauseAiSpeechAudio,
-  onResumeAiSpeechAudio,
-  onSkipAiSpeechAudio,
-  onToggleAiSpeechAudio,
-}: {
-  game: HumanGameView;
-  loading: boolean;
-  pendingCommandType: CommandPayload["type"] | null;
-  liveAiSpeech: LiveAiSpeech | null;
-  hostAudioStatus: HostAudioStatus | null;
-  aiSpeechAudioStatus: AiSpeechAudioStatus | null;
-  aiSpeechAudioUnavailable: boolean;
-  onPauseAiSpeechAudio: () => void;
-  onResumeAiSpeechAudio: () => void;
-  onSkipAiSpeechAudio: () => void;
-  onToggleAiSpeechAudio: () => void;
-}) {
-  const status = getFlowStatus(
-    game,
-    loading,
-    pendingCommandType,
-    liveAiSpeech,
-    hostAudioStatus,
-    aiSpeechAudioStatus,
-    aiSpeechAudioUnavailable,
-  );
-  const isPaused = aiSpeechAudioStatus?.state === "paused";
-  const isLoadingSpeechAudio = aiSpeechAudioStatus?.state === "loading";
-  const speechTextPreview = aiSpeechAudioStatus?.text ? stripSpeechStageDirections(aiSpeechAudioStatus.text).trim() : "";
-
-  return (
-    <section className={`${flowStatusToneClass(status.tone)} flow-status-bar rounded-[22px] border px-4 py-3 shadow-xl shadow-black/25 backdrop-blur-md`}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            <span className="flow-status-pulse h-2.5 w-2.5 rounded-full" aria-hidden="true" />
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-white/48">System Status</span>
-            {status.seatLabel && (
-              <span className="rounded-full border border-white/12 bg-black/18 px-2 py-0.5 text-xs text-white/68">
-                {status.seatLabel}
-              </span>
-            )}
-          </div>
-          <div className="text-base font-semibold text-white sm:text-lg">{status.title}</div>
-          <div className="mt-1 text-sm leading-6 text-white/64">{status.detail}</div>
-        </div>
-
-        {aiSpeechAudioStatus && (
-          <div className="grid shrink-0 gap-2 lg:min-w-[310px]">
-            <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
-              <button
-                type="button"
-                disabled={isLoadingSpeechAudio}
-                onClick={isPaused ? onResumeAiSpeechAudio : onPauseAiSpeechAudio}
-                className="rounded-full border border-[#77d898]/28 bg-[#14311f]/58 px-3 py-2 text-xs font-semibold text-[#a8f0b6] transition hover:bg-[#1d4e33]/75 disabled:cursor-not-allowed disabled:opacity-55"
-              >
-                {isLoadingSpeechAudio ? "准备中" : isPaused ? "继续语音" : "暂停语音"}
-              </button>
-              <button
-                type="button"
-                onClick={onSkipAiSpeechAudio}
-                className="rounded-full border border-[#f1c76e]/25 bg-black/18 px-3 py-2 text-xs font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10"
-              >
-                跳过当前
-              </button>
-              <button
-                type="button"
-                onClick={onToggleAiSpeechAudio}
-                className="rounded-full border border-white/12 bg-black/18 px-3 py-2 text-xs font-semibold text-white/68 transition hover:bg-white/8"
-              >
-                关闭语音
-              </button>
-            </div>
-            {speechTextPreview && (
-              <div className="line-clamp-2 rounded-2xl border border-white/10 bg-black/18 px-3 py-2 text-xs leading-5 text-white/58 lg:text-right">
-                {seatNumber(aiSpeechAudioStatus.speaker)}：{speechTextPreview}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function getFlowStatus(
-  game: HumanGameView,
-  loading: boolean,
-  pendingCommandType: CommandPayload["type"] | null,
-  liveAiSpeech: LiveAiSpeech | null,
-  hostAudioStatus: HostAudioStatus | null,
-  aiSpeechAudioStatus: AiSpeechAudioStatus | null,
-  aiSpeechAudioUnavailable: boolean,
-): { title: string; detail: string; tone: "green" | "gold" | "blue" | "red"; seatLabel?: string } {
-  if (liveAiSpeech) {
-    return {
-      title: "AI 正在生成发言",
-      detail: aiSpeechAudioUnavailable
-        ? "语音已自动降级为文字，流程会按发言长度留出阅读时间。"
-        : liveAiSpeech.text
-          ? "文字正在流式出现，语音会跟随生成并按顺序播放。"
-          : "模型正在整理公开信息和自己的私有视角。",
-      tone: "green",
-      seatLabel: seatNumber(liveAiSpeech.speaker),
-    };
-  }
-
-  if (aiSpeechAudioStatus) {
-    const stateText =
-      aiSpeechAudioStatus.state === "loading"
-        ? "正在生成这一段 TTS"
-        : aiSpeechAudioStatus.state === "paused"
-          ? "AI 语音已暂停"
-          : "正在播放 AI 发言";
-    return {
-      title: stateText,
-      detail: aiSpeechAudioStatus.state === "paused" ? "继续后才会进入下一步。" : "这段说完后，系统再进入下一段强交互。",
-      tone: "green",
-      seatLabel: seatNumber(aiSpeechAudioStatus.speaker),
-    };
-  }
-
-  if (hostAudioStatus) {
-    return {
-      title: "主持人正在播报",
-      detail: "系统节点音频播放完成后，流程会继续推进。",
-      tone: game.phase.startsWith("NIGHT") ? "blue" : game.phase === "DAY_VOTE" || game.phase === "EXILE_RESOLUTION" ? "red" : "gold",
-    };
-  }
-
-  if (aiSpeechAudioUnavailable && game.phase === "DAY_SPEECH") {
-    return {
-      title: "AI 语音已转文字",
-      detail: "TTS 暂不可用，本局不会反复请求语音；系统仍会等文字读完再推进。",
-      tone: "gold",
-    };
-  }
-
-  if (loading && pendingCommandType === "vote") {
-    return {
-      title: "你已锁票",
-      detail: "正在等待其他玩家完成投票；开票前不会显示任何人的投票对象。",
-      tone: "red",
-    };
-  }
-
-  if (loading) {
-    return {
-      title: pendingCommandType === "continue" ? "正在推进流程" : "正在结算你的操作",
-      detail: pendingCommandType === "continue" ? "系统正在处理下一位玩家或主持节点。" : "规则引擎正在写入结果并刷新牌桌。",
-      tone: game.phase.startsWith("NIGHT") ? "blue" : "gold",
-    };
-  }
-
-  const action = game.availableActions[0];
-  if (action?.type === "continue") {
-    return {
-      title: "系统会自动播放下一步",
-      detail: action.description,
-      tone: game.phase.startsWith("NIGHT") ? "blue" : game.phase === "DAY_VOTE" || game.phase === "EXILE_RESOLUTION" ? "red" : "gold",
-    };
-  }
-
-  if (action) {
-    const meta = getActionMeta(action);
-    return {
-      title: meta.title,
-      detail: meta.description,
-      tone: action.type === "vote" ? "red" : game.phase.startsWith("NIGHT") ? "blue" : "gold",
-    };
-  }
-
-  return {
-    title: game.phase === "DAY_VOTE" ? "等待投票完成" : "等待流程推进",
-    detail: game.phase === "DAY_VOTE" ? "票箱封存中，统一开票前只显示锁票状态。" : "当前没有需要你点击的操作。",
-    tone: game.phase === "DAY_VOTE" ? "red" : "gold",
-  };
-}
-
-function flowStatusToneClass(tone: "green" | "gold" | "blue" | "red"): string {
-  const tones = {
-    green: "border-[#77d898]/24 bg-[#0f2118]/80",
-    gold: "border-[#f1c76e]/24 bg-[#1c150e]/80",
-    blue: "border-[#7da8e3]/24 bg-[#0d1623]/82",
-    red: "border-[#e46d55]/26 bg-[#2b1110]/82",
   };
   return tones[tone];
 }

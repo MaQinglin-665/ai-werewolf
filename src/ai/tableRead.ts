@@ -10,9 +10,16 @@ import type {
   SpeechPlan,
   VotePlan,
   WolfTeamAssignment,
+  WolfVoteTactic,
 } from "@/game/types";
 import { clampProbability, stableRoll, stableSignedJitter } from "@/game/decisionNoise";
 import { isWolfRole } from "@/game/roleUtils";
+import {
+  findDeadSeerBlackLegacyForSeat,
+  findDeadSeerGoldLegacyForSeat,
+  hasHardOverrideAgainstDeadSeerGold,
+  isProtectedDeadSeerGoldSeat,
+} from "./protectedGold";
 
 const GOD_ROLES: Role[] = ["SEER", "WITCH", "HUNTER", "IDIOT", "KNIGHT", "GUARD"];
 const NON_SEER_POWER_ROLES = new Set<Role>(["WITCH", "HUNTER", "IDIOT", "KNIGHT", "GUARD"]);
@@ -27,6 +34,10 @@ const DEFAULT_PERSONA_PREFERENCES = {
   caution: 0.55,
 };
 type PersonaPreferences = typeof DEFAULT_PERSONA_PREFERENCES;
+type WolfVoteChoice = {
+  target: SeatRead;
+  tactic: WolfVoteTactic;
+};
 
 export function buildAiTableRead(view: AgentView): AiTableRead {
   const preferences = personaPreferences(view);
@@ -158,9 +169,9 @@ export function buildAiTableRead(view: AgentView): AiTableRead {
       }
       if (legacyCheck?.result === "GOOD") {
         const goldWeight = Math.max(preferences.logic, preferences.memory);
-        trust += weighted(12, goldWeight);
-        suspicion -= weighted(6, goldWeight);
-        pressure.push(`${legacy.claimant.name}夜死后遗留金水`);
+        trust += weighted(16, goldWeight);
+        suspicion -= weighted(12, goldWeight);
+        pressure.push(`${legacy.claimant.name}夜死后遗留金水，先按公开好人保护`);
       }
 
       const legacyStance = legacy.stancesGiven
@@ -954,10 +965,21 @@ function buildSpeechInteraction(
     .reverse()
     .find((speech) => speech.speaker && speech.speaker.seatId !== view.mySeatId);
   const previousRead = previousSpeech?.speaker
-    ? tableRead.seats.find((seat) => seat.seatId === previousSpeech.speaker?.seatId && !seat.isWolfTeammate)
+    ? tableRead.seats.find(
+        (seat) =>
+          seat.seatId === previousSpeech.speaker?.seatId &&
+          !seat.isWolfTeammate &&
+          !isProtectedGoodSpeechTarget(view, tableRead, seat),
+      )
     : undefined;
   const planTarget = plan.target
-    ? tableRead.seats.find((seat) => seat.seatId === plan.target?.seatId && !seat.isSelf && !seat.isWolfTeammate)
+    ? tableRead.seats.find(
+        (seat) =>
+          seat.seatId === plan.target?.seatId &&
+          !seat.isSelf &&
+          !seat.isWolfTeammate &&
+          !isProtectedGoodSpeechTarget(view, tableRead, seat),
+      )
     : undefined;
   const target = planTarget ?? focus;
   const sourceSpeaker = previousSpeech?.speaker;
@@ -1362,19 +1384,15 @@ export function createVotePlan(view: AgentView, tableRead = buildAiTableRead(vie
   const candidates = tableRead.seats.filter((seat) => legalTargetIds.has(seat.seatId));
   const candidatePool = !isWolfRole(view.myRole, view.rules.wolfRoles)
     ? withoutProtectedGoodVoteTargets(view, tableRead, candidates)
-    : candidates;
+    : withoutWeakProtectedGoldTargetsForWolf(view, tableRead, candidates);
   const hasVoteTarget = candidatePool.length > 0;
   const safeReferenceTarget =
     candidates.find((seat) => isProtectedGoodVoteTarget(view, tableRead, seat)) ?? candidates[0];
   const knownWolf = candidates.find((seat) => seat.isKnownWolf);
   const sorted = rankVoteCandidates(view, tableRead, candidatePool);
-  const wolfDistanceTarget = chooseWolfDistanceVoteTarget(view, candidates);
-  const wolfTeamTarget = chooseWolfTeamVoteTarget(view, candidates);
+  const wolfVoteChoice = chooseWolfVoteChoice(view, tableRead, candidatePool, sorted);
   const claimTarget = chooseClaimAwareVoteTarget(view, tableRead, candidatePool);
-  const picked =
-    isWolfRole(view.myRole, view.rules.wolfRoles)
-      ? wolfDistanceTarget ?? wolfTeamTarget ?? sorted[0]
-      : knownWolf ?? claimTarget ?? sorted[0];
+  const picked = isWolfRole(view.myRole, view.rules.wolfRoles) ? wolfVoteChoice?.target ?? sorted[0] : knownWolf ?? claimTarget ?? sorted[0];
 
   if (!picked) {
     if (!safeReferenceTarget) {
@@ -1409,11 +1427,19 @@ export function createVotePlan(view: AgentView, tableRead = buildAiTableRead(vie
       .filter((seat) => seat.seatId !== picked.seatId)
       .slice(0, 2)
       .map((seat) => ({ seatId: seat.seatId, name: seat.name })),
+    wolfVoteTactic: isWolfRole(view.myRole, view.rules.wolfRoles) ? wolfVoteChoice?.tactic : undefined,
   };
 }
 
 function withoutProtectedGoodVoteTargets(view: AgentView, tableRead: AiTableRead, candidates: SeatRead[]): SeatRead[] {
   return candidates.filter((seat) => !isProtectedGoodVoteTarget(view, tableRead, seat));
+}
+
+function withoutWeakProtectedGoldTargetsForWolf(view: AgentView, tableRead: AiTableRead, candidates: SeatRead[]): SeatRead[] {
+  const filtered = candidates.filter(
+    (seat) => !isProtectedPublicGoldVoteTarget(tableRead, seat) || hasHardWolfCounterEvidenceAgainstProtectedGold(view, tableRead, seat),
+  );
+  return filtered.length > 0 ? filtered : candidates;
 }
 
 function buildNoSafeVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRead): string {
@@ -1438,15 +1464,6 @@ function buildVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRe
     return "我的查验指向这里，今天优先归票。";
   }
 
-  const memory = view.privateKnowledge.aiMemory;
-  if (memory?.lastVoteTargetSeatId === target.seatId) {
-    return `上一轮我票过${target.name}，疑点还没有解除，这一轮继续压这里。`;
-  }
-
-  if (memory?.lastSpeechTargetSeatId === target.seatId) {
-    return `我上一轮发言已经点过${target.name}，这一轮投票先保持一致。`;
-  }
-
   if (isWolfRole(view.myRole, view.rules.wolfRoles)) {
     const assignment = view.privateKnowledge.wolfTeamPlan?.assignments.find((item) => item.seat.seatId === view.mySeatId);
     if (target.isWolfTeammate) {
@@ -1465,6 +1482,15 @@ function buildVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRe
     return target.pressure[0] ? `${target.pressure[0]}，这个位置适合先压一票。` : "这个位置发言留白较多，先压票看反应。";
   }
 
+  const memory = view.privateKnowledge.aiMemory;
+  if (memory?.lastVoteTargetSeatId === target.seatId) {
+    return `上一轮我票过${target.name}，疑点还没有解除，这一轮继续压这里。`;
+  }
+
+  if (memory?.lastSpeechTargetSeatId === target.seatId) {
+    return `我上一轮发言已经点过${target.name}，这一轮投票先保持一致。`;
+  }
+
   const deadSeerCounterclaim = findDeadSeerCounterclaimAgainst(tableRead, target);
   if (deadSeerCounterclaim) {
     return `${deadSeerCounterclaim.claimant.name}夜死后，${target.name}还在对跳预言家位，这轮先验这个悍跳风险。`;
@@ -1473,6 +1499,11 @@ function buildVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRe
   const deadSeerBlackCheck = findDeadSeerLegacyBlackCheckAgainst(tableRead, target);
   if (deadSeerBlackCheck) {
     return `${deadSeerBlackCheck.claimant.name}夜死后遗留这里查杀，今天先按死预验人线归票。`;
+  }
+
+  const deadSeerGoldCheck = findDeadSeerLegacyGoldCheckFor(tableRead, target);
+  if (deadSeerGoldCheck && hasHardOverrideAgainstDeadSeerGold(tableRead, target)) {
+    return `${deadSeerGoldCheck.claimant.name}的夜死金水已经被多重公开反证打穿，今天可以按硬证据归票${target.name}。`;
   }
 
   const trustedSeerCheck = findTrustedSeerCheckAgainst(tableRead, target);
@@ -1510,29 +1541,57 @@ function buildVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRe
   return "发言和票型都不够扎实，先投这里观察归票。";
 }
 
-function chooseWolfTeamVoteTarget(view: AgentView, candidates: SeatRead[]): SeatRead | undefined {
-  const assignment = view.privateKnowledge.wolfTeamPlan?.assignments.find((item) => item.seat.seatId === view.mySeatId);
-  if (!assignment?.target) return undefined;
-  const risk = view.persona?.riskTolerance ?? 0.45;
-  const threshold = clampProbability(
-    (assignment.task === "PUSH_MISLYNCH" ? 0.34 : assignment.task === "HIDE" ? 0.16 : 0.24) + risk * 0.08,
-  );
-  const roll = stableRoll([
-    "wolf-team-vote-follow",
-    view.day,
-    view.mySeatId,
-    view.persona?.id,
-    assignment.task,
-    assignment.target.seatId,
-  ]);
-  if (roll >= threshold) return undefined;
-  return candidates.find((seat) => seat.seatId === assignment.target?.seatId);
-}
-
-function chooseWolfDistanceVoteTarget(view: AgentView, candidates: SeatRead[]): SeatRead | undefined {
+function chooseWolfVoteChoice(
+  view: AgentView,
+  tableRead: AiTableRead,
+  candidates: SeatRead[],
+  sorted: SeatRead[],
+): WolfVoteChoice | undefined {
   if (!isWolfRole(view.myRole, view.rules.wolfRoles)) return undefined;
 
+  const assignment = view.privateKnowledge.wolfTeamPlan?.assignments.find((item) => item.seat.seatId === view.mySeatId);
+  const nonTeammates = candidates.filter((seat) => !seat.isWolfTeammate);
   const teammateCandidates = candidates.filter((seat) => seat.isWolfTeammate);
+  const assignedTarget = assignment?.target ? candidates.find((seat) => seat.seatId === assignment.target?.seatId) : undefined;
+
+  const distanceTarget = chooseWolfDistanceVoteTarget(view, teammateCandidates);
+  if (distanceTarget) {
+    return { target: distanceTarget, tactic: "planned_distance" };
+  }
+
+  const emergencyCut = sorted.find((seat) => seat.isWolfTeammate && hasHardPublicTeammateVoteEvidence(view, seat));
+  if (emergencyCut && sorted[0]?.seatId === emergencyCut.seatId) {
+    return { target: emergencyCut, tactic: "emergency_cut" };
+  }
+
+  if (assignment?.task === "PUSH_MISLYNCH" && assignedTarget && !assignedTarget.isWolfTeammate) {
+    return { target: assignedTarget, tactic: "team_target" };
+  }
+
+  const claimTarget = chooseClaimAwareVoteTarget(view, tableRead, nonTeammates);
+  if (assignment?.task === "COUNTERCLAIM_SEER" && claimTarget) {
+    return { target: claimTarget, tactic: "team_target" };
+  }
+
+  const rankedNonTeammate = sorted.find((seat) => !seat.isWolfTeammate);
+  if (rankedNonTeammate) {
+    const avoidedTeammate = teammateCandidates.length > 0 && (assignment?.task === "HIDE" || sorted[0]?.isWolfTeammate);
+    return {
+      target: rankedNonTeammate,
+      tactic: avoidedTeammate ? "avoid_teammate" : "team_target",
+    };
+  }
+
+  const fallbackEmergencyCut = teammateCandidates.find((seat) => hasHardPublicTeammateVoteEvidence(view, seat));
+  if (fallbackEmergencyCut) {
+    return { target: fallbackEmergencyCut, tactic: "emergency_cut" };
+  }
+
+  return undefined;
+}
+
+function chooseWolfDistanceVoteTarget(view: AgentView, teammateCandidates: SeatRead[]): SeatRead | undefined {
+  if (!isWolfRole(view.myRole, view.rules.wolfRoles)) return undefined;
   if (teammateCandidates.length === 0) return undefined;
 
   const assignment = view.privateKnowledge.wolfTeamPlan?.assignments.find((item) => item.seat.seatId === view.mySeatId);
@@ -1543,32 +1602,23 @@ function chooseWolfDistanceVoteTarget(view: AgentView, candidates: SeatRead[]): 
   const publicIdentitySeat = teammateCandidates.find((seat) => seat.publicClaims.length > 0);
   const target = supportSeat ?? publicIdentitySeat ?? teammateCandidates[0];
   if (!target) return undefined;
+  if (assignment?.task !== "DISTANCE" || !supportSeat || supportSeat.seatId !== target.seatId) return undefined;
+  if (!hasHardPublicTeammateVoteEvidence(view, target)) return undefined;
 
   const personaRisk = view.persona?.riskTolerance ?? 0.45;
   const bluffing = view.persona?.bluffing ?? 0.45;
   const negativeActors = publicVotePressureActors(target).length;
   const publicBlackChecks = target.publicChecksAgainst.filter((check) => check.result === "WEREWOLF").length;
-  const hasPublicReason =
-    target.publicClaims.length > 0 ||
-    target.publicStancedBy.some((stance) => stance.kind === "QUESTION" || stance.kind === "PRESSURE") ||
-    publicBlackChecks > 0 ||
-    view.publicSummary.tableMemory.counterclaims.some((group) =>
-      group.claimants.some((claimant) => claimant.seatId === target.seatId),
-    );
 
-  if (!hasPublicReason) return undefined;
-
-  if (personaRisk >= 0.9 && bluffing >= 0.85 && hasPublicReason) {
+  if (personaRisk >= 0.9 && bluffing >= 0.85) {
     return target;
   }
 
   const threshold = clampProbability(
-    0.03 +
+    0.12 +
       personaRisk * 0.12 +
       bluffing * 0.12 +
-      (assignment?.task === "DISTANCE" && supportSeat ? 0.18 : 0) +
-      (hasPublicReason ? 0.12 : 0) +
-      Math.min(0.1, negativeActors * 0.04 + publicBlackChecks * 0.05) +
+      Math.min(0.12, negativeActors * 0.04 + publicBlackChecks * 0.05) +
       (view.day >= 2 ? 0.06 : 0),
   );
   const roll = stableRoll([
@@ -1581,6 +1631,32 @@ function chooseWolfDistanceVoteTarget(view: AgentView, candidates: SeatRead[]): 
   ]);
 
   return roll < threshold ? target : undefined;
+}
+
+function hasHardPublicTeammateVoteEvidence(view: AgentView, target: SeatRead): boolean {
+  const negativeActors = publicVotePressureActors(target).length;
+  const publicBlackChecks = target.publicChecksAgainst.filter((check) => check.result === "WEREWOLF").length;
+  const pressureGap = target.suspicion - target.trust;
+  const inCounterclaim = view.publicSummary.tableMemory.counterclaims.some((group) =>
+    group.claimants.some((claimant) => claimant.seatId === target.seatId),
+  );
+  const hasDeadSeerBlack = hasDeadSeerLegacyBlackCheckAgainst(view.publicSummary.tableMemory, target.seatId);
+  const hardCue = view.publicSummary.tableMemory.reasoningCues.some(
+    (cue) =>
+      cue.target?.seatId === target.seatId &&
+      (cue.weight === "strong" || (cue.weight === "medium" && (cue.kind === "counterclaim" || cue.kind === "seer_legacy"))),
+  );
+  const isVoteLeader =
+    view.publicSummary.voteSnapshot.leaders.some((leader) => leader.seatId === target.seatId) || target.votesReceived >= 2;
+
+  if (hasDeadSeerBlack || publicBlackChecks >= 2) return true;
+  if (publicBlackChecks >= 1 && inCounterclaim) return true;
+  if (publicBlackChecks >= 1 && (negativeActors >= 2 || pressureGap >= 48 || hardCue)) return true;
+  if (inCounterclaim && negativeActors >= 2 && (pressureGap >= 30 || hardCue)) return true;
+  if (view.day >= 2 && negativeActors >= 3 && pressureGap >= 28) return true;
+  if (isVoteLeader && (negativeActors >= 2 || publicBlackChecks >= 1 || inCounterclaim)) return true;
+
+  return false;
 }
 
 function chooseClaimAwareVoteTarget(view: AgentView, tableRead: AiTableRead, candidates: SeatRead[]): SeatRead | undefined {
@@ -1836,13 +1912,13 @@ function goodPublicVoteEvidenceScore(view: AgentView, tableRead: AiTableRead, se
   }
 
   if (isProtectedDeadSeerLegacyGoldTarget(tableRead, seat)) {
-    score -= 70;
+    score -= 90;
   }
 
   for (const legacy of view.publicSummary.tableMemory.seerLegacies) {
     const legacyCheck = legacy.checks.find((check) => check.target.seatId === seat.seatId);
     if (legacyCheck?.result === "WEREWOLF") score += 30;
-    if (legacyCheck?.result === "GOOD") score -= 22;
+    if (legacyCheck?.result === "GOOD") score -= isProtectedDeadSeerGoldSeat(tableRead, seat) ? 32 : 6;
   }
 
   const protectedClaim = chooseUnchallengedPowerClaim(view, seat.publicClaims, seat.publicChecksAgainst);
@@ -2127,6 +2203,10 @@ function shouldTrustPublicSeerCheck(
     return false;
   }
 
+  if (forVote && target && isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, target)) {
+    return false;
+  }
+
   if (forVote && tableRead.day === 1 && isUnansweredDayOneSeerBlackCheckFromRead(tableRead, targetSeatId, seer.seatId)) {
     const targetPressure = target ? target.suspicion - target.trust : 0;
     const negativeActors =
@@ -2229,37 +2309,18 @@ function findDeadSeerLegacyBlackCheckAgainst(
   tableRead: AiTableRead,
   target: SeatRead,
 ): AiTableRead["tableMemory"]["seerLegacies"][number] | undefined {
-  return tableRead.tableMemory.seerLegacies.find((legacy) =>
-    legacy.checks.some((check) => check.target.seatId === target.seatId && check.result === "WEREWOLF"),
-  );
+  return findDeadSeerBlackLegacyForSeat(tableRead.tableMemory, target.seatId);
 }
 
 function findDeadSeerLegacyGoldCheckFor(
   tableRead: AiTableRead,
   target: SeatRead,
 ): AiTableRead["tableMemory"]["seerLegacies"][number] | undefined {
-  return tableRead.tableMemory.seerLegacies.find((legacy) =>
-    legacy.checks.some((check) => check.target.seatId === target.seatId && check.result === "GOOD"),
-  );
+  return findDeadSeerGoldLegacyForSeat(tableRead.tableMemory, target.seatId);
 }
 
 function isProtectedDeadSeerLegacyGoldTarget(tableRead: AiTableRead, target: SeatRead): boolean {
-  const legacy = findDeadSeerLegacyGoldCheckFor(tableRead, target);
-  if (!legacy) return false;
-  if (findDeadSeerLegacyBlackCheckAgainst(tableRead, target)) return false;
-  const trustedBlackCheck = findTrustedSeerCheckAgainst(tableRead, target);
-  if (trustedBlackCheck && hasOverridingEvidenceAgainstDeadSeerGold(tableRead, target)) return false;
-
-  return true;
-}
-
-function hasOverridingEvidenceAgainstDeadSeerGold(tableRead: AiTableRead, target: SeatRead): boolean {
-  const pressureActors = publicVotePressureActors(target).length;
-  const pressureGap = target.suspicion - target.trust;
-  const hardCue = targetReasoningCues(tableRead, target).some((cue) => cue.weight === "strong");
-  const blackChecks = target.publicChecksAgainst.filter((check) => check.result === "WEREWOLF");
-
-  return blackChecks.length >= 2 || (blackChecks.length >= 1 && pressureActors >= 3 && pressureGap >= 48 && hardCue);
+  return isProtectedDeadSeerGoldSeat(tableRead, target);
 }
 
 function hasDeadSeerLegacyBlackCheckAgainst(
@@ -2343,10 +2404,43 @@ function shouldTrustPublicSeerGoldCheck(tableRead: AiTableRead, seer: SeatRead, 
   const target = tableRead.seats.find((seat) => seat.seatId === targetSeatId);
 
   if (!inCounterclaim) {
-    return seer.trust >= seer.suspicion + 2 || Boolean(target && target.trust >= target.suspicion + 10);
+    const targetHasBlackCheck = target?.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ?? false;
+    return !targetHasBlackCheck || seer.trust >= seer.suspicion + 8 || Boolean(target && target.trust >= target.suspicion + 10);
   }
 
   return seer.trust - seer.suspicion >= 20 && Boolean(target && target.trust >= target.suspicion);
+}
+
+export function isProtectedSeerGoldTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
+  return Boolean(findTrustedSeerGoldCheckAgainst(tableRead, seat) || isProtectedDeadSeerLegacyGoldTarget(tableRead, seat));
+}
+
+function isProtectedPublicGoldVoteTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
+  return isProtectedSeerGoldTarget(tableRead, seat);
+}
+
+function hasHardWolfCounterEvidenceAgainstProtectedGold(view: AgentView, tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (hasHardOverrideAgainstDeadSeerGold(tableRead, seat)) return true;
+  if (findDeadSeerLegacyBlackCheckAgainst(tableRead, seat)) return true;
+
+  const publicBlackChecks = seat.publicChecksAgainst.filter((check) => check.result === "WEREWOLF").length;
+  const pressureGap = seat.suspicion - seat.trust;
+  const pressureActors = new Set(
+    seat.publicStancedBy
+      .filter((stance) => stance.kind === "QUESTION" || stance.kind === "PRESSURE")
+      .map((stance) => stance.actor.seatId),
+  );
+  const strongStructuralCue = view.publicSummary.tableMemory.reasoningCues.some(
+    (cue) =>
+      cue.target?.seatId === seat.seatId &&
+      cue.weight === "strong" &&
+      (cue.kind === "counterclaim" || cue.kind === "seer_legacy" || cue.kind === "vote"),
+  );
+
+  if (publicBlackChecks >= 2 && pressureActors.size >= 2 && pressureGap >= 36) return true;
+  if (publicBlackChecks >= 1 && pressureActors.size >= 3 && pressureGap >= 48 && strongStructuralCue) return true;
+
+  return false;
 }
 
 function isProtectedGoodVoteTarget(view: AgentView, tableRead: AiTableRead, seat: SeatRead): boolean {
@@ -2357,6 +2451,7 @@ function isProtectedGoodVoteTarget(view: AgentView, tableRead: AiTableRead, seat
       chooseUnchallengedPowerClaim(view, seat.publicClaims, seat.publicChecksAgainst) ||
       isUnchallengedPowerBlackCheckedOnlyByCounterclaim(tableRead, seat) ||
       isDayOneSoftPowerHintProtectedTarget(tableRead, seat) ||
+      isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat) ||
       isDayOneSeerGoldClaimProtectedFromAnyBlackCheck(tableRead, seat.seatId) ||
       isTargetOfReactiveSeerBlackCheck(view.publicSummary.tableMemory, seat.seatId),
   );
@@ -2368,8 +2463,34 @@ function isProtectedGoodSpeechTarget(view: AgentView, tableRead: AiTableRead, se
     seat.isKnownGood ||
       findTrustedSeerGoldCheckAgainst(tableRead, seat) ||
       isProtectedDeadSeerLegacyGoldTarget(tableRead, seat) ||
+      isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat) ||
       isDayOneSeerGoldClaimProtectedFromAnyBlackCheck(tableRead, seat.seatId),
   );
+}
+
+export function isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (tableRead.day < 1 || tableRead.day > 2 || !seat.lastSpeech) return false;
+  if (seat.publicClaims.length > 0) return false;
+  if (!hasDayOneSoftPowerHintText(1, seat.lastSpeech)) return false;
+  if (hasDeadSeerLegacyBlackCheckAgainst(tableRead.tableMemory, seat.seatId)) return false;
+
+  const wolfChecks = seat.publicChecksAgainst.filter((check) => check.result === "WEREWOLF");
+  if (wolfChecks.length !== 1 || wolfChecks[0]?.day !== 1) return false;
+
+  const checkerSeatId = wolfChecks[0]?.claimant.seatId;
+  const checker = tableRead.seats.find((item) => item.seatId === checkerSeatId);
+  const independentNegativeActors = publicVotePressureActors(seat).filter((actor) => actor.seatId !== checkerSeatId).length;
+  const pressureGap = seat.suspicion - seat.trust;
+  const checkerCredibility = checker ? checker.trust - checker.suspicion : 0;
+  const hardCue = targetReasoningCues(tableRead, seat).some(
+    (cue) => cue.weight === "strong" && (cue.kind === "counterclaim" || cue.kind === "seer_legacy" || cue.kind === "vote"),
+  );
+
+  if (checkerCredibility >= 30 && pressureGap >= 50 && independentNegativeActors >= 3 && hardCue) {
+    return false;
+  }
+
+  return true;
 }
 
 function isDayOneSoftPowerHintProtectedTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
@@ -2382,7 +2503,7 @@ function isDayOneSoftPowerHintProtectedTarget(tableRead: AiTableRead, seat: Seat
 
 function hasDayOneSoftPowerHintText(day: number, message?: string): boolean {
   if (day !== 1 || !message) return false;
-  return /底牌不虚|不急着拍身份|不乱拍身份|身份先藏|别逼身份|不怕吃抗推|能吃刀|狼夜里可以来试/.test(message);
+  return /底牌不虚|枪牌不用抢着拍|不用抢着拍|不急着拍身份|不乱拍身份|身份先藏|别逼身份|不怕吃抗推|能吃刀|狼夜里可以来试/.test(message);
 }
 
 function isDayOneSeerGoldClaimProtectedFromAnyBlackCheck(tableRead: AiTableRead, targetSeatId: number): boolean {

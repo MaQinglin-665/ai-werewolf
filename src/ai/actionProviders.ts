@@ -31,6 +31,7 @@ import { buildDebateAgenda, type AiDebateAgenda } from "./debateAgenda";
 import { buildExpertStrategyNotes } from "./expertStrategy";
 import { buildReasoningFrame, type AiReasoningFrame } from "./reasoningFrame";
 import { buildRolePlaybook, type AiRolePlaybook } from "./rolePlaybook";
+import { isProtectedDeadSeerGoldSeat } from "./protectedGold";
 import type { AiActionProvider, AiActionProviderContext, AiActionResult } from "./types";
 
 const ActionDecisionSchema = z
@@ -102,6 +103,12 @@ export type LlmActionInput = {
     wolfPlan?: {
       strategy: NonNullable<AgentView["privateKnowledge"]["wolfTeamPlan"]>["strategy"];
       summary: string;
+      nightStrategy?: {
+        nightTarget?: ActionTarget;
+        dayPressureTarget?: ActionTarget;
+        summary: string;
+        discussion: string[];
+      };
       primaryTarget?: ActionTarget;
       threat?: ActionTarget;
       ownAssignment?: {
@@ -255,9 +262,10 @@ export const routedModelActionProvider: AiActionProvider = createConstrainedLlmA
 });
 
 export function buildConstrainedActionInput(view: AgentView, context: AiActionProviderContext): LlmActionInput {
-  const candidates = buildActionCandidates(view, context.tableRead, context.votePlan, context.fallbackCommand);
+  const votePlan = sanitizeActionVotePlan(view, context.votePlan);
+  const candidates = buildActionCandidates(view, context.tableRead, votePlan, context.fallbackCommand);
   const fallbackCandidateId = candidates.find((candidate) => sameCommand(candidate.command, context.fallbackCommand))?.id;
-  const debateAgenda = buildDebateAgenda(view, { tableRead: context.tableRead, target: context.votePlan?.target });
+  const debateAgenda = buildDebateAgenda(view, { tableRead: context.tableRead, target: votePlan?.target });
 
   return {
     day: view.day,
@@ -300,12 +308,19 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
     rolePlaybook: buildRolePlaybook(view),
     claimAudit: buildClaimAudit(view),
     debateAgenda,
-    votePlan: context.votePlan,
+    votePlan,
     fallbackCandidateId,
     candidates,
     constraints: buildActionConstraints(view),
     llmConfig: view.llmConfig,
   };
+}
+
+function sanitizeActionVotePlan(view: AgentView, votePlan: VotePlan | undefined): VotePlan | undefined {
+  if (!votePlan || isWolfRole(view.myRole, view.rules.wolfRoles)) return votePlan;
+  const publicVotePlan = { ...votePlan };
+  delete publicVotePlan.wolfVoteTactic;
+  return publicVotePlan;
 }
 
 function buildPublicActionDecisionSummary(
@@ -615,6 +630,14 @@ function buildSelfActionContext(view: AgentView, tableRead: AiTableRead): LlmAct
       ? {
           strategy: wolfPlan.strategy,
           summary: wolfPlan.summary,
+          nightStrategy: wolfPlan.nightStrategy
+            ? {
+                nightTarget: wolfPlan.nightStrategy.nightTarget,
+                dayPressureTarget: wolfPlan.nightStrategy.dayPressureTarget,
+                summary: wolfPlan.nightStrategy.summary,
+                discussion: wolfPlan.nightStrategy.discussion,
+              }
+            : undefined,
           primaryTarget: wolfPlan.primaryTarget,
           threat: wolfPlan.threat,
           ownAssignment: ownAssignment
@@ -673,6 +696,19 @@ function buildActionCandidates(
     }
     case "NIGHT_WOLVES": {
       const action = getAction(view, "wolfKill");
+      const plannedTarget = action?.targets.find(
+        (target) => target.seatId === view.privateKnowledge.wolfTeamPlan?.nightStrategy?.nightTarget?.seatId,
+      );
+      if (plannedTarget) {
+        add({
+          id: `wolfKill:planned:${plannedTarget.seatId}`,
+          label: `Kill ${plannedTarget.name}`,
+          command: { type: "wolfKill", actorSeatId: view.mySeatId, targetSeatId: plannedTarget.seatId },
+          target: plannedTarget,
+          recommended: true,
+          reasonHint: targetReasonHint(tableRead, plannedTarget, "coordinated night target with public-safe credibility rationale"),
+        });
+      }
       for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => seat.trust - seat.suspicion * 0.25)) {
         const privateWolfTarget = isPrivateWolfTarget(view, target);
         add({
@@ -855,9 +891,7 @@ function buildActionCandidates(
         });
         break;
       }
-      const targetOrder = orderVoteTargets(tableRead, action?.targets ?? [], votePlan, {
-        restrictToVotePlan: Boolean(votePlan) && !isWolfRole(view.myRole, view.rules.wolfRoles),
-      });
+      const targetOrder = orderVoteTargets(tableRead, action?.targets ?? [], votePlan);
       for (const target of targetOrder) {
         add({
           id: `vote:${target.seatId}`,
@@ -867,7 +901,8 @@ function buildActionCandidates(
           reasonHint:
             votePlan?.target.seatId === target.seatId
               ? votePlan.reason
-            : publicSafeTargetReasonHint(view, tableRead, target, "public suspicion"),
+              : protectedDeadSeerGoldReasonHint(tableRead, target) ??
+                publicSafeTargetReasonHint(view, tableRead, target, "public suspicion"),
         });
       }
       if (action?.canAbstain) {
@@ -890,7 +925,7 @@ function buildActionCandidates(
           reasonHint: "public evidence is not strong enough for a duel",
         });
       }
-      for (const target of sortTargets(action?.targets ?? [], tableRead, knightDuelTargetScore)) {
+      for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => knightDuelTargetScore(tableRead, seat))) {
         add({
           id: `knight:duel:${target.seatId}`,
           label: `Duel ${target.name}`,
@@ -1026,21 +1061,33 @@ function orderVoteTargets(
   tableRead: AiTableRead,
   legalTargets: ActionTarget[],
   votePlan: VotePlan | undefined,
-  options: { restrictToVotePlan?: boolean } = {},
 ): ActionTarget[] {
   const ordered: ActionTarget[] = [];
+  const isProtected = (target: ActionTarget | undefined) => Boolean(target && protectedDeadSeerGoldReasonHint(tableRead, target));
   const push = (target: ActionTarget | undefined) => {
     if (!target) return;
     if (!legalTargets.some((item) => item.seatId === target.seatId)) return;
     if (!ordered.some((item) => item.seatId === target.seatId)) ordered.push(target);
   };
+  const pushWhen = (target: ActionTarget | undefined, protectedState: boolean) => {
+    if (isProtected(target) === protectedState) push(target);
+  };
+  const sortedTargets = sortTargets(legalTargets, tableRead, (seat) => seat.suspicion - seat.trust * 0.18);
 
-  push(votePlan?.target);
-  for (const alternative of votePlan?.alternatives ?? []) push(alternative);
-  if (options.restrictToVotePlan && ordered.length > 0) return ordered;
-  for (const target of sortTargets(legalTargets, tableRead, (seat) => seat.suspicion - seat.trust * 0.18)) push(target);
+  pushWhen(votePlan?.target, false);
+  for (const alternative of votePlan?.alternatives ?? []) pushWhen(alternative, false);
+  for (const target of sortedTargets) pushWhen(target, false);
+  pushWhen(votePlan?.target, true);
+  for (const alternative of votePlan?.alternatives ?? []) pushWhen(alternative, true);
+  for (const target of sortedTargets) pushWhen(target, true);
 
   return ordered;
+}
+
+function protectedDeadSeerGoldReasonHint(tableRead: AiTableRead, target: ActionTarget): string | undefined {
+  const seat = tableRead.seats.find((item) => item.seatId === target.seatId);
+  if (!seat || !isProtectedDeadSeerGoldSeat(tableRead, seat)) return undefined;
+  return "protected dead seer gold: avoid voting here unless hard public counter-evidence appears";
 }
 
 function buildLastWordsCandidates(view: AgentView, tableRead: AiTableRead): string[] {
@@ -1119,6 +1166,7 @@ function buildActionConstraints(view: AgentView): string[] {
     constraints.push(
       "Knight duel is optional and public: counterclaim status alone is not enough; prefer concrete public black-check evidence, dead-seer legacy, or repeated independent pressure.",
     );
+    constraints.push("For knight duel, single black-check pressure should rank below repeated public evidence or a death-legacy evidence loop.");
   }
 
   if (getAction(view, "wolfBeautyCharm")) {
@@ -1215,20 +1263,31 @@ function wolfBeautyCharmTargetScore(seat: SeatRead): number {
   return seat.trust - seat.suspicion * 0.18 + claimValue;
 }
 
-function knightDuelTargetScore(seat: SeatRead): number {
-  const wolfCheckBonus = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ? 18 : 0;
+function knightDuelTargetScore(tableRead: AiTableRead, seat: SeatRead): number {
+  const hasDeadSeerLegacy = hasDeadSeerLegacyBlackCheck(tableRead, seat);
+  const hasPublicWolfCheck = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF");
+  const wolfCheckBonus = hasPublicWolfCheck ? 12 : 0;
+  const deadSeerLegacyBonus = hasDeadSeerLegacy ? 34 : 0;
   const counterclaimBonus =
     seat.publicClaims.some((claim) => claim.claimedRole === "SEER") &&
     seat.pressure.some((item) => item.includes("后置查杀已跳预言家") || item.includes("夜死后遗留查杀"))
       ? 8
       : 0;
   const weakBlackCheckPenalty =
-    seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") &&
-    !seat.pressure.some((item) => item.includes("后置查杀已跳预言家") || item.includes("夜死后遗留查杀"))
-      ? 10
+    hasPublicWolfCheck && !hasDeadSeerLegacy && !seat.pressure.some((item) => item.includes("后置查杀已跳预言家"))
+      ? 30
       : 0;
-  const protectedClaimPenalty = seat.pressure.some((item) => item.includes("未对跳") || item.includes("被后置预言家查杀")) ? 28 : 0;
-  return seat.suspicion - seat.trust * 0.12 + wolfCheckBonus + counterclaimBonus - weakBlackCheckPenalty - protectedClaimPenalty;
+  const protectedClaimPenalty = seat.pressure.some((item) => item.includes("未对跳") || item.includes("被后置预言家查杀")) ? 40 : 0;
+  return seat.suspicion - seat.trust * 0.12 + wolfCheckBonus + deadSeerLegacyBonus + counterclaimBonus - weakBlackCheckPenalty - protectedClaimPenalty;
+}
+
+function hasDeadSeerLegacyBlackCheck(tableRead: AiTableRead, seat: SeatRead): boolean {
+  return (
+    seat.pressure.some((item) => item.includes("夜死后遗留查杀")) ||
+    tableRead.tableMemory.seerLegacies.some((legacy) =>
+      legacy.checks.some((check) => check.result === "WEREWOLF" && check.target.seatId === seat.seatId),
+    )
+  );
 }
 
 function targetReasonHint(tableRead: AiTableRead, target: ActionTarget, fallback: string): string {

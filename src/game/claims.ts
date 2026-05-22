@@ -175,7 +175,7 @@ function extractClaimChecks(params: {
 
 function inferClaimStrength(message: string, role: Role): ClaimStrength {
   if (/软|不跳|不拍|不明说|不急着跳|底牌不虚|偏神|神职/.test(message)) return "soft";
-  if (role === "SEER" || /我是|我跳|我起跳|我拍|明牌|我底牌是/.test(message)) return "hard";
+  if (role === "SEER" || /我是|我跳|我起跳|我拍|我这里是|我这张|明牌|我底牌是/.test(message)) return "hard";
   return "soft";
 }
 

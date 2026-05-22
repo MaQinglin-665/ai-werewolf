@@ -231,6 +231,140 @@ describe("mock AI strong actions", () => {
     });
   });
 
+  it("skips a knight duel when the only evidence is an untrusted black check with follow-up pressure", () => {
+    const checker = { seatId: 3, name: "Contested Seer" };
+    const target = { seatId: 2, name: "Target" };
+    const tableRead = knightTableReadWithTarget({
+      suspicion: 97,
+      trust: 20,
+      pressure: ["Contested Seer公开报查杀", "公开线索被多人接住"],
+      publicChecksAgainst: [{ claimant: checker, result: "WEREWOLF", day: 3 }],
+      publicStancedBy: [
+        publicPressure(checker, target),
+        publicPressure({ seatId: 4, name: "Follower A" }, target),
+        publicPressure({ seatId: 5, name: "Follower B" }, target),
+      ],
+    });
+    tableRead.tableMemory.reasoningCues = [
+      reasoningCue(target, "speech_influence", "strong", "单个查杀被后置接住", ["后置继续施压但没有死预遗产"]),
+    ];
+
+    const command = createMockCommand(knightView(), tableRead);
+
+    expect(command).toMatchObject({
+      type: "knightDuel",
+      targetSeatId: undefined,
+    });
+  });
+
+  it("skips a day-one knight duel from a strong cue without a public black check", () => {
+    const target = { seatId: 2, name: "Target" };
+    const tableRead = knightTableReadWithTarget({
+      suspicion: 97,
+      trust: 20,
+      pressure: ["公开线索被多人接住"],
+      publicStancedBy: [
+        publicPressure({ seatId: 3, name: "Opener" }, target),
+        publicPressure({ seatId: 4, name: "Follower A" }, target),
+        publicPressure({ seatId: 5, name: "Follower B" }, target),
+      ],
+    });
+    tableRead.day = 1;
+    tableRead.tableMemory.day = 1;
+    tableRead.tableMemory.reasoningCues = [
+      reasoningCue(target, "speech_influence", "strong", "首日多人接住同一压力", ["但还没有查杀或死预遗产"]),
+    ];
+    const view = knightView();
+    view.day = 1;
+
+    const command = createMockCommand(view, tableRead);
+
+    expect(command).toMatchObject({
+      type: "knightDuel",
+      targetSeatId: undefined,
+    });
+  });
+
+  it("skips a day-two knight duel from a live seer black check without death legacy", () => {
+    const target = { seatId: 2, name: "Target" };
+    const trustedSeer = { seatId: 3, name: "Trusted Seer" };
+    const tableRead = knightTableReadWithTarget({
+      suspicion: 97,
+      trust: 20,
+      pressure: ["Trusted Seer公开报查杀", "多人跟进施压"],
+      publicChecksAgainst: [{ claimant: trustedSeer, result: "WEREWOLF", day: 2 }],
+      publicStancedBy: [
+        publicPressure(trustedSeer, target),
+        publicPressure({ seatId: 4, name: "Follower A" }, target),
+        publicPressure({ seatId: 5, name: "Follower B" }, target),
+      ],
+    });
+    tableRead.day = 2;
+    tableRead.tableMemory.day = 2;
+    tableRead.seats.push({
+      ...tableRead.seats[1],
+      ...trustedSeer,
+      suspicion: 20,
+      trust: 72,
+      pressure: ["公开预言家线暂时顺"],
+      publicChecksAgainst: [],
+      publicStancedBy: [],
+    });
+    const view = knightView();
+    view.day = 2;
+
+    const command = createMockCommand(view, tableRead);
+
+    expect(command).toMatchObject({
+      type: "knightDuel",
+      targetSeatId: undefined,
+    });
+  });
+
+  it("lets a knight duel fall through to a dead-seer legacy instead of the noisiest untrusted check", () => {
+    const noisy = { seatId: 2, name: "Noisy Check" };
+    const legacyTarget = { seatId: 3, name: "Legacy Black" };
+    const checker = { seatId: 4, name: "Contested Seer" };
+    const deadSeer = { seatId: 6, name: "Dead Seer" };
+    const tableRead = knightTableReadWithTarget({
+      ...noisy,
+      suspicion: 98,
+      trust: 20,
+      pressure: ["Contested Seer公开报查杀", "多人跟进施压"],
+      publicChecksAgainst: [{ claimant: checker, result: "WEREWOLF", day: 3 }],
+      publicStancedBy: [
+        publicPressure(checker, noisy),
+        publicPressure({ seatId: 7, name: "Follower A" }, noisy),
+        publicPressure({ seatId: 8, name: "Follower B" }, noisy),
+      ],
+    });
+    tableRead.seats.push({
+      ...tableRead.seats[1],
+      ...legacyTarget,
+      suspicion: 82,
+      trust: 38,
+      pressure: ["Dead Seer夜死后遗留查杀"],
+      publicChecksAgainst: [],
+      publicStancedBy: [],
+    });
+    tableRead.tableMemory.seerLegacies = [
+      {
+        claimant: deadSeer,
+        deathDay: 3,
+        summary: "Dead Seer died with a black check.",
+        checks: [{ day: 2, target: legacyTarget, result: "WEREWOLF" }],
+        stancesGiven: [],
+      },
+    ];
+
+    const command = createMockCommand(knightView([noisy, legacyTarget]), tableRead);
+
+    expect(command).toMatchObject({
+      type: "knightDuel",
+      targetSeatId: legacyTarget.seatId,
+    });
+    expect(command.reason).toContain("夜死后留下查杀线");
+  });
 });
 
 function publicPressure(actor: ActionTarget, target: ActionTarget): SeatRead["publicStancedBy"][number] {
@@ -312,6 +446,30 @@ function hunterRevealView(targets: ActionTarget[] = [{ seatId: 2, name: "Target"
   } as AgentView;
 }
 
+function knightView(targets: ActionTarget[] = [{ seatId: 2, name: "Target" }]): AgentView {
+  return {
+    gameId: "test",
+    mySeatId: 1,
+    myRole: "KNIGHT",
+    phase: "KNIGHT_DUEL",
+    day: 3,
+    rules: { hasGuard: false, guardSaveConflictKills: false, hasWolfBeauty: false, hasKnight: true },
+    aliveSeats: [{ seatId: 1, name: "Knight" }, ...targets],
+    publicEvents: [],
+    publicSummary: {
+      recentSpeeches: [],
+      recentVotes: [],
+      voteSnapshot: { votes: [], tally: [], leaders: [], revealed: false },
+      recentDeaths: [],
+      deathSummary: [],
+      claimBoard: [],
+      tableMemory: emptyTableMemory(),
+    },
+    privateKnowledge: {},
+    allowedActions: [{ type: "knightDuel", targets, canSkip: true }],
+  } as AgentView;
+}
+
 function tableReadWithTarget(overrides: Partial<SeatRead>): AiTableRead {
   const target = {
     seatId: 2,
@@ -358,6 +516,16 @@ function tableReadWithTarget(overrides: Partial<SeatRead>): AiTableRead {
     tableMemory: emptyTableMemory(),
     tableMood: "test",
   } as AiTableRead;
+}
+
+function knightTableReadWithTarget(overrides: Partial<SeatRead>): AiTableRead {
+  const tableRead = tableReadWithTarget(overrides);
+  return {
+    ...tableRead,
+    myRole: "KNIGHT",
+    day: 3,
+    tableMemory: { ...tableRead.tableMemory, day: 3 },
+  };
 }
 
 function emptyTableMemory(): AgentView["publicSummary"]["tableMemory"] {

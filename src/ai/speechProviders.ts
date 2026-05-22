@@ -32,6 +32,7 @@ import { buildDebateAgenda, type AiDebateAgenda } from "./debateAgenda";
 import { buildExpertStrategyNotes } from "./expertStrategy";
 import { buildReasoningFrame, type AiReasoningFrame } from "./reasoningFrame";
 import { buildRolePlaybook, type AiRolePlaybook } from "./rolePlaybook";
+import { deadSeerGoldSeatIds } from "./protectedGold";
 import { createSpeechPlan } from "./tableRead";
 import type { AiSpeechProvider, AiSpeechProviderContext, AiSpeechResult } from "./types";
 
@@ -125,6 +126,7 @@ export type LlmSpeechInput = {
       target?: ActionTarget;
       supportSeat?: ActionTarget;
       publicInstruction: string;
+      nightInstruction?: string;
     };
   };
   expertStrategy: string[];
@@ -159,7 +161,7 @@ export const mockSpeechProvider: AiSpeechProvider = {
   providerId: "mock-speech",
   async generateSpeech(view, plan = createSpeechPlan(view)) {
     return {
-      speech: createMockSpeech(view, plan),
+      speech: protectPublicGoldReferences(view, createMockSpeech(view, plan)),
       provider: "mock-speech",
       isFallback: false,
     };
@@ -1028,6 +1030,7 @@ function buildPrivateSpeechContext(view: AgentView): LlmSpeechInput["privateCont
         target: assignment.target,
         supportSeat: assignment.supportSeat,
         publicInstruction: describeWolfAssignmentForSpeech(assignment.taskLabel),
+        nightInstruction: view.privateKnowledge.wolfTeamPlan?.nightStrategy?.summary,
       };
     }
   }
@@ -1091,6 +1094,15 @@ function buildSpeechConstraints(view: AgentView, plan: SpeechPlan, strictness: S
 
     if (isWolfRole(view.myRole, view.rules.wolfRoles)) {
       strictConstraints.push("狼人视角只用于表达策略，不得在发言里暴露狼队或把狼队友报成查杀。");
+    }
+
+    const protectedDeadSeerGoldIds = [...deadSeerGoldSeatIds(view.publicSummary.tableMemory)];
+    if (protectedDeadSeerGoldIds.length > 0) {
+      strictConstraints.push(
+        `Public dead seer gold protection: dead seer gold seat ${protectedDeadSeerGoldIds.join(
+          ", ",
+        )} should be treated as protected public gold water; do not pressure, exile, or make it today's vote focus unless you cite hard public counter-evidence.`,
+      );
     }
 
     return strictConstraints;
@@ -1333,7 +1345,7 @@ function readSpeechFallbackPersonaNames(primaryPersonaName: string | undefined):
 
 function createStructuredMockSpeech(view: AgentView, plan = createSpeechPlan(view)): string | undefined {
   const persona = `${view.persona?.name ?? ""} ${view.persona?.label ?? "稳健型"}`.trim();
-  const target = plan.target ?? view.aliveSeats.find((seat) => seat.seatId !== view.mySeatId);
+  const target = selectMockSpeechTarget(view, plan);
   const debateAgenda = buildDebateAgenda(view, { plan, target });
   const opener = personaOpener(persona, view.mySeatId + view.day);
   const dynamicText = renderSpeechDynamicText(plan);
@@ -1902,6 +1914,64 @@ function buildSeerCheckCondition(result: "WEREWOLF" | "GOOD", target: ActionTarg
     return `今天先让${targetText}正面解释，外置位不要分票。`;
   }
   return `${targetText}先放一轮，不作为今天出人焦点；后面谁无理由硬踩金水位，我再重点看。`;
+}
+
+function selectMockSpeechTarget(view: AgentView, plan: SpeechPlan): ActionTarget | undefined {
+  if (plan.target) return plan.target;
+  const protectedGoldSeatIds = publicUnchallengedGoldSeatIds(view);
+  return (
+    view.aliveSeats.find((seat) => seat.seatId !== view.mySeatId && !protectedGoldSeatIds.has(seat.seatId)) ??
+    view.aliveSeats.find((seat) => seat.seatId !== view.mySeatId)
+  );
+}
+
+function protectPublicGoldReferences(view: AgentView, speech: string): string {
+  const protectedGoldSeatIds = publicUnchallengedGoldSeatIds(view);
+  if (protectedGoldSeatIds.size === 0) return speech;
+
+  const protectedSpeech = speech
+    .split(/([。！？；，、])/)
+    .map((part) => {
+      for (const seatId of protectedGoldSeatIds) {
+        if (pressuresSeatInMockSpeech(part, seatId) && !isProtectiveGoldSpeechSegment(part)) {
+          return `${seatId}号先按公开金水放一轮`;
+        }
+      }
+      return part;
+    })
+    .join("");
+  return compactSpeech(protectedSpeech);
+}
+
+function publicUnchallengedGoldSeatIds(view: AgentView): Set<number> {
+  const counterclaimSeatIds = new Set(
+    view.publicSummary.tableMemory.counterclaims
+      .filter((group) => group.claimedRole === "SEER")
+      .flatMap((group) => group.claimants.map((claimant) => claimant.seatId)),
+  );
+  const seatIds = new Set<number>();
+  for (const claim of view.publicSummary.claimBoard) {
+    if (claim.claimedRole !== "SEER" || counterclaimSeatIds.has(claim.claimant.seatId)) continue;
+    for (const check of claim.checks) {
+      if (check.result === "GOOD") seatIds.add(check.target.seatId);
+    }
+  }
+  for (const seatId of deadSeerGoldSeatIds(view.publicSummary.tableMemory)) {
+    seatIds.add(seatId);
+  }
+  return seatIds;
+}
+
+function pressuresSeatInMockSpeech(text: string, seatId: number): boolean {
+  const seatPattern = `${seatId}\\s*(?:号|號|seat|座|位)?`;
+  return (
+    new RegExp(`${seatPattern}[^。！？；，、]{0,28}(查杀|狼面|狼坑|悍跳|反打|不认|怀疑|焦点|抗推|归票|收票|出票|出人|出局|票口|票压|先压|硬踩|讲实|讲完整|补清楚|放进观察|挂疑问)`, "i").test(text) ||
+    new RegExp(`(归票|收票|出票|出人|票口|票压|票型往|把票(?:型)?往|投给|压到|压向|先压|硬踩|不认|怀疑|焦点|观察位|放进观察|挂疑问)[^。！？；，、]{0,22}${seatPattern}`, "i").test(text)
+  );
+}
+
+function isProtectiveGoldSpeechSegment(text: string): boolean {
+  return /(金水|好人|先放|放一轮|不进|别进|不要进|不作为.*出人|不围绕|不直接打死|不把.*打死|不把票压|先不把票压|别乱出|别硬踩|无理由硬踩|保护|稳住|可信)/.test(text);
 }
 
 function createMockSpeech(view: AgentView, plan = createSpeechPlan(view)): string {

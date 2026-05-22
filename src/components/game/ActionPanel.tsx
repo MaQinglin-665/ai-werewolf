@@ -21,6 +21,7 @@ import {
   formatSpeechRecognitionError,
   getSpeechRecognitionConstructor,
 } from "./viewHelpers";
+import { buildActionGuidance, type ActionGuidance } from "./actionGuidance";
 
 export function ActionPanel({
   game,
@@ -76,6 +77,7 @@ export function ActionPanel({
   }
 
   const meta = getActionMeta(game.availableActions[0]);
+  const guidance = buildActionGuidance(game.availableActions[0], game);
   const isContinueOnly = game.availableActions.every((action) => action.type === "continue");
 
   if (isContinueOnly && game.availableActions[0]?.type === "continue") {
@@ -88,6 +90,8 @@ export function ActionPanel({
             <h2 className="mobile-action-panel-title text-lg font-semibold text-[#f7ead5]">{meta.title}</h2>
             <p className="mobile-action-panel-description mt-1 text-sm text-[#dcc9a7]">{meta.description}</p>
           </div>
+          {!mobileCompact && <ActionGuidanceStrip guidance={guidance} />}
+          {game.wolfStrategy && <WolfStrategyPanel strategy={game.wolfStrategy} />}
           <div className="mobile-action-panel-controls flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-[#77d898]/25 bg-[#14311f]/55 px-3 py-2 text-xs text-[#a8f0b6]">
               <span className="h-2 w-2 rounded-full bg-[#77d898]" />
@@ -120,6 +124,8 @@ export function ActionPanel({
           {isContinueOnly ? "观看流程" : "轮到你行动"}
         </span>
       </div>
+      {!mobileCompact && <ActionGuidanceStrip guidance={guidance} />}
+      {game.wolfStrategy && <WolfStrategyPanel strategy={game.wolfStrategy} />}
       <div className="mobile-action-panel-controls grid gap-3">
         {game.availableActions.map((action) => (
           <ActionControl
@@ -140,6 +146,67 @@ export function ActionPanel({
 
 function getActionPanelClassName(mobileCompact: boolean, className: string): string {
   return ["mobile-action-panel", mobileCompact ? "mobile-action-panel-compact" : "", className].filter(Boolean).join(" ");
+}
+
+function ActionGuidanceStrip({ guidance }: { guidance: ActionGuidance }) {
+  return (
+    <div className="mb-4 grid gap-2 rounded-2xl border border-[#f1c76e]/16 bg-black/18 p-3 text-xs leading-5 text-[#dcc9a7] sm:grid-cols-[1fr_1fr]">
+      <div className="min-w-0">
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-[#f7ead5]">{guidance.title}</span>
+          <span className="rounded-full border border-[#f1c76e]/20 bg-[#f1c76e]/8 px-2 py-0.5 text-[11px] text-[#f1d796]">
+            {guidance.visibility}
+          </span>
+        </div>
+        <p>{guidance.detail}</p>
+      </div>
+      <div className="min-w-0 rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-[#f1d796]">{guidance.outcome}</div>
+    </div>
+  );
+}
+
+function WolfStrategyPanel({ strategy }: { strategy: NonNullable<HumanGameView["wolfStrategy"]> }) {
+  return (
+    <div className="mobile-wolf-strategy mb-4 rounded-2xl border border-[#d84a3a]/24 bg-[#2b1110]/55 p-3 text-xs leading-5 text-[#ffd8cf]">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm font-semibold text-[#ffe5da]">狼队首夜战术</div>
+        <span className="rounded-full border border-[#ff9a6b]/25 px-2 py-0.5 text-[11px] text-[#ffbd99]">私密</span>
+      </div>
+      <p className="mt-2 text-[#ffd8cf]/88">{strategy.summary}</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <WolfStrategyTarget label="今晚刀口" target={strategy.nightTarget} fallback="先看公开可信度" />
+        <WolfStrategyTarget label="明天压力" target={strategy.dayPressureTarget} fallback="先听白天发言" />
+      </div>
+      {strategy.discussion.length > 0 && (
+        <ul className="mt-3 grid gap-1.5 text-[#ffd8cf]/82">
+          {strategy.discussion.map((line, index) => (
+            <li key={`${line}-${index}`} className="rounded-xl bg-black/16 px-2.5 py-1.5">
+              {line}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function WolfStrategyTarget({
+  label,
+  target,
+  fallback,
+}: {
+  label: string;
+  target?: { seatId: number; name: string };
+  fallback: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border border-[#ff9a6b]/12 bg-black/16 px-2.5 py-2">
+      <div className="text-[11px] text-[#ffbd99]/82">{label}</div>
+      <div className="mt-1 truncate text-sm font-semibold text-[#ffe5da]">
+        {target ? `${target.seatId}号 ${target.name}` : fallback}
+      </div>
+    </div>
+  );
 }
 
 function getActionTargetSeat(game: HumanGameView, target: ActionTargetView) {
@@ -394,7 +461,7 @@ function ActionControl({
   }
 
   if (action.type === "seerCheck") {
-    return <SeerCheckPanel game={game} action={action} loading={loading} onSubmit={onSubmit} />;
+    return <SeerCheckPanel game={game} action={action} loading={loading} onSubmit={onSubmit} mobileCompact={mobileCompact} />;
   }
 
   if (action.type === "witchAction") {
@@ -402,11 +469,11 @@ function ActionControl({
   }
 
   if (action.type === "wolfBeautyCharm") {
-    return <WolfBeautyCharmPanel game={game} action={action} loading={loading} onSubmit={onSubmit} />;
+    return <WolfBeautyCharmPanel game={game} action={action} loading={loading} onSubmit={onSubmit} mobileCompact={mobileCompact} />;
   }
 
   if (action.type === "guardAction") {
-    return <GuardActionPanel game={game} action={action} loading={loading} onSubmit={onSubmit} />;
+    return <GuardActionPanel game={game} action={action} loading={loading} onSubmit={onSubmit} mobileCompact={mobileCompact} />;
   }
 
   if (action.type === "sheriffNominate") {
@@ -436,15 +503,19 @@ function ActionControl({
   }
 
   if (action.type === "sheriffVote") {
-    return <SheriffVoteActionPanel game={game} action={action} loading={loading} onSubmit={onSubmit} />;
+    return <SheriffVoteActionPanel game={game} action={action} loading={loading} onSubmit={onSubmit} mobileCompact={mobileCompact} />;
   }
 
   if (action.type === "sheriffHandoff") {
-    if (mobileCompact && action.canTear) {
+    if (mobileCompact) {
       return (
-        <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "sheriffHandoff" })}>
-          撕警徽
-        </ActionButton>
+        <MobileAvatarTargetPrompt targets={action.targets} verb="移交" tone="sheriff">
+          {action.canTear && (
+            <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "sheriffHandoff" })}>
+              撕警徽
+            </ActionButton>
+          )}
+        </MobileAvatarTargetPrompt>
       );
     }
 
@@ -472,27 +543,11 @@ function ActionControl({
   }
 
   if (action.type === "vote") {
-    if (mobileCompact && action.canAbstain) {
-      return (
-        <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "vote" })}>
-          弃票
-        </ActionButton>
-      );
-    }
-
-    return <VoteActionPanel game={game} action={action} loading={loading} onSubmit={onSubmit} />;
+    return <VoteActionPanel game={game} action={action} loading={loading} onSubmit={onSubmit} mobileCompact={mobileCompact} />;
   }
 
   if (action.type === "knightDuel") {
-    if (mobileCompact && action.canSkip) {
-      return (
-        <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "knightDuel" })}>
-          保留技能
-        </ActionButton>
-      );
-    }
-
-    return <KnightDuelActionPanel game={game} action={action} loading={loading} onSubmit={onSubmit} />;
+    return <KnightDuelActionPanel game={game} action={action} loading={loading} onSubmit={onSubmit} mobileCompact={mobileCompact} />;
   }
 
   if (action.type === "hunterReveal") {
@@ -514,11 +569,15 @@ function ActionControl({
   }
 
   if (action.type === "hunterShoot") {
-    if (mobileCompact && action.canSkip) {
+    if (mobileCompact) {
       return (
-        <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "hunterShoot" })}>
-          不开枪
-        </ActionButton>
+        <MobileAvatarTargetPrompt targets={action.targets} verb="带走" tone="danger">
+          {action.canSkip && (
+            <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "hunterShoot" })}>
+              不开枪
+            </ActionButton>
+          )}
+        </MobileAvatarTargetPrompt>
       );
     }
 
@@ -544,11 +603,15 @@ function ActionControl({
   }
 
   if (action.type === "wolfKingShoot") {
-    if (mobileCompact && action.canSkip) {
+    if (mobileCompact) {
       return (
-        <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "wolfKingShoot" })}>
-          不开枪
-        </ActionButton>
+        <MobileAvatarTargetPrompt targets={action.targets} verb="开枪" tone="danger">
+          {action.canSkip && (
+            <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "wolfKingShoot" })}>
+              不开枪
+            </ActionButton>
+          )}
+        </MobileAvatarTargetPrompt>
       );
     }
 
@@ -572,6 +635,10 @@ function ActionControl({
   }
 
   if (action.type === "whiteWolfKingExplode") {
+    if (mobileCompact) {
+      return <MobileAvatarTargetPrompt targets={action.targets} verb="自爆带走" tone="danger" />;
+    }
+
     return (
       <div className="rounded-2xl border border-[#b74332]/28 bg-[#2a1110]/45 p-3">
         <div className="mb-3 text-sm leading-6 text-[#ffcabd]">
@@ -591,6 +658,10 @@ function ActionControl({
         </div>
       </div>
     );
+  }
+
+  if (mobileCompact) {
+    return <MobileAvatarTargetPrompt targets={action.targets} verb="击杀" tone="danger" />;
   }
 
   return (
@@ -614,15 +685,21 @@ function SeerCheckPanel({
   action,
   loading,
   onSubmit,
+  mobileCompact,
 }: {
   game: HumanGameView;
   action: SeerCheckAction;
   loading: boolean;
   onSubmit: (payload: CommandPayload) => Promise<void>;
+  mobileCompact: boolean;
 }) {
+  if (mobileCompact) {
+    return <MobileAvatarTargetPrompt targets={action.targets} verb="查验" tone="seer" />;
+  }
+
   return (
-    <div className="night-action-shell grid gap-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="night-action-shell mobile-night-action-shell grid gap-3">
+      <div className="mobile-night-action-summary flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#9dbbe6]">Private Check</div>
           <div className="mt-1 text-sm leading-6 text-[#d8e6f7]">选择一名玩家查验阵营，结果只进入你的私密信息。</div>
@@ -632,7 +709,7 @@ function SeerCheckPanel({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="mobile-night-target-grid grid grid-cols-2 gap-2 sm:grid-cols-3">
         {action.targets.map((target, index) => (
           <NightTargetButton
             key={target.seatId}
@@ -671,7 +748,11 @@ function WitchActionPanel({
   if (mobileCompact) {
     return (
       <div className="mobile-compact-action-stack">
-        {!action.canPoison && <div className="mobile-avatar-action-note">毒药不可用</div>}
+        {action.canPoison ? (
+          <MobileAvatarTargetPrompt targets={action.poisonTargets} verb="毒" tone="danger" />
+        ) : (
+          <div className="mobile-avatar-action-note">毒药不可用</div>
+        )}
         <div className="mobile-witch-quick-actions">
           {action.canSave && action.saveTarget && (
             <ActionButton disabled={loading} tone="green" onClick={() => onSubmit({ type: "witchAction", mode: "save" })}>
@@ -777,12 +858,26 @@ function WolfBeautyCharmPanel({
   action,
   loading,
   onSubmit,
+  mobileCompact,
 }: {
   game: HumanGameView;
   action: WolfBeautyCharmAction;
   loading: boolean;
   onSubmit: (payload: CommandPayload) => Promise<void>;
+  mobileCompact: boolean;
 }) {
+  if (mobileCompact) {
+    return (
+      <MobileAvatarTargetPrompt targets={action.targets} verb="魅惑" tone="charm">
+        {action.canSkip && (
+          <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "wolfBeautyCharm" })}>
+            不魅惑
+          </ActionButton>
+        )}
+      </MobileAvatarTargetPrompt>
+    );
+  }
+
   return (
     <div className="night-action-shell grid gap-3">
       <div className="rounded-2xl border border-[#d885c7]/24 bg-[#2b1128]/58 p-3 text-sm leading-6 text-[#ffd6f7]">
@@ -826,12 +921,26 @@ function VoteActionPanel({
   action,
   loading,
   onSubmit,
+  mobileCompact,
 }: {
   game: HumanGameView;
   action: VoteAction;
   loading: boolean;
   onSubmit: (payload: CommandPayload) => Promise<void>;
+  mobileCompact: boolean;
 }) {
+  if (mobileCompact) {
+    return (
+      <MobileAvatarTargetPrompt targets={action.targets} verb="投票" tone="vote">
+        {action.canAbstain && (
+          <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "vote" })}>
+            弃票
+          </ActionButton>
+        )}
+      </MobileAvatarTargetPrompt>
+    );
+  }
+
   return (
     <div className="vote-action-panel grid gap-3">
       <div className="rounded-2xl border border-[#e46d55]/24 bg-[#351210]/48 px-3 py-2 text-sm leading-6 text-[#ffd8cf]">
@@ -875,12 +984,26 @@ function KnightDuelActionPanel({
   action,
   loading,
   onSubmit,
+  mobileCompact,
 }: {
   game: HumanGameView;
   action: KnightDuelAction;
   loading: boolean;
   onSubmit: (payload: CommandPayload) => Promise<void>;
+  mobileCompact: boolean;
 }) {
+  if (mobileCompact) {
+    return (
+      <MobileAvatarTargetPrompt targets={action.targets} verb="决斗" tone="knight">
+        {action.canSkip && (
+          <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "knightDuel" })}>
+            保留技能
+          </ActionButton>
+        )}
+      </MobileAvatarTargetPrompt>
+    );
+  }
+
   return (
     <div className="vote-action-panel grid gap-3">
       <div className="rounded-2xl border border-[#f1c76e]/24 bg-[#3a2412]/48 px-3 py-2 text-sm leading-6 text-[#f1d796]">
@@ -924,12 +1047,26 @@ function GuardActionPanel({
   action,
   loading,
   onSubmit,
+  mobileCompact,
 }: {
   game: HumanGameView;
   action: Extract<AvailableHumanAction, { type: "guardAction" }>;
   loading: boolean;
   onSubmit: (payload: CommandPayload) => Promise<void>;
+  mobileCompact: boolean;
 }) {
+  if (mobileCompact) {
+    return (
+      <MobileAvatarTargetPrompt targets={action.targets} verb="守护" tone="guard">
+        {action.canSkip && (
+          <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "guardAction" })}>
+            空守
+          </ActionButton>
+        )}
+      </MobileAvatarTargetPrompt>
+    );
+  }
+
   return (
     <div className="night-action-shell grid gap-3">
       <div className="rounded-2xl border border-[#7da8e3]/20 bg-[#0d1623]/62 p-3 text-sm leading-6 text-[#d8e6f7]">
@@ -975,12 +1112,26 @@ function SheriffVoteActionPanel({
   action,
   loading,
   onSubmit,
+  mobileCompact,
 }: {
   game: HumanGameView;
   action: SheriffVoteAction;
   loading: boolean;
   onSubmit: (payload: CommandPayload) => Promise<void>;
+  mobileCompact: boolean;
 }) {
+  if (mobileCompact) {
+    return (
+      <MobileAvatarTargetPrompt targets={action.targets} verb="警长票" tone="sheriff">
+        {action.canAbstain && (
+          <ActionButton disabled={loading} tone="neutral" onClick={() => onSubmit({ type: "sheriffVote" })}>
+            弃票
+          </ActionButton>
+        )}
+      </MobileAvatarTargetPrompt>
+    );
+  }
+
   return (
     <div className="vote-action-panel grid gap-3">
       <div className="rounded-2xl border border-[#f1c76e]/24 bg-[#3a2412]/48 px-3 py-2 text-sm leading-6 text-[#f1d796]">
@@ -1067,6 +1218,18 @@ function NightTargetButton({
       </div>
     </button>
   );
+}
+
+function MobileAvatarTargetPrompt({
+  children,
+}: {
+  targets: ActionTargetView[];
+  verb: string;
+  tone: "danger" | "seer" | "guard" | "vote" | "sheriff" | "charm" | "knight";
+  children?: React.ReactNode;
+}) {
+  if (!children) return null;
+  return <div className="mobile-avatar-action-options">{children}</div>;
 }
 
 function ActionButton({

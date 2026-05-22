@@ -17,7 +17,13 @@ import type {
 import { createConfiguredActionProvider } from "./actionProviders";
 import { refreshAiSeatMemory, rememberAiDecision, storeAiSeatMemory } from "./seatMemory";
 import { createConfiguredSpeechProvider, mockSpeechProvider } from "./speechProviders";
-import { buildAiTableRead, createSpeechPlan, createVotePlan } from "./tableRead";
+import {
+  buildAiTableRead,
+  createSpeechPlan,
+  createVotePlan,
+  isDayOneSoftPowerHintBlackCheckProtectedTarget,
+  isProtectedSeerGoldTarget,
+} from "./tableRead";
 import type { AiActionProvider, AiDecisionLog, AiSpeechProvider, AiSpeechProviderContext } from "./types";
 
 const POWER_CLAIM_ROLES = new Set(["SEER", "WITCH", "HUNTER", "IDIOT", "KNIGHT", "GUARD"]);
@@ -112,6 +118,7 @@ export async function advanceWithMockAi(
     state = storeAiSeatMemory(state, memoryAfterDecision);
     aiLogs.push({
       gameId: state.id,
+      day: prompt.day,
       seatNumber: actorSeatId,
       phase: requirement.phase,
       provider: speechResult?.provider ?? actionResult?.provider ?? mockActionProvider.providerId,
@@ -242,6 +249,7 @@ async function advanceAiTurn(
     state,
     aiLog: {
       gameId: state.id,
+      day: prompt.day,
       seatNumber: requirement.actorSeatId,
       phase: requirement.phase,
       provider: speechResult?.provider ?? actionResult?.provider ?? mockActionProvider.providerId,
@@ -781,14 +789,16 @@ function chooseShotTarget(
 function chooseKnightDuelTarget(view: AgentView, tableRead: AiTableRead): ActionTarget | undefined {
   const action = getAction(view, "knightDuel");
   const legalTargetIds = new Set(action.targets.map((target) => target.seatId));
-  const target = tableRead.seats
+  const candidates = tableRead.seats
     .filter((seat) => legalTargetIds.has(seat.seatId))
-    .sort((a, b) => knightDuelScore(tableRead, b) - knightDuelScore(tableRead, a) || a.seatId - b.seatId)[0];
+    .sort((a, b) => knightDuelScore(tableRead, b) - knightDuelScore(tableRead, a) || a.seatId - b.seatId);
+  const target = candidates.find((seat) => {
+    const publicWolfCheck = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF");
+    const threshold = (publicWolfCheck ? 64 : 84) - (view.persona?.riskTolerance ?? 0.45) * 8;
+    return hasStrongKnightDuelEvidence(tableRead, seat) && seat.suspicion >= threshold;
+  });
 
-  const publicWolfCheck = target?.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ?? false;
-  const threshold = (publicWolfCheck ? 64 : 84) - (view.persona?.riskTolerance ?? 0.45) * 8;
-  if (!target || !hasStrongKnightDuelEvidence(tableRead, target) || target.suspicion < threshold) return undefined;
-  return toTarget(target);
+  return target ? toTarget(target) : undefined;
 }
 
 function knightDuelScore(tableRead: AiTableRead, seat: SeatRead): number {
@@ -798,6 +808,10 @@ function knightDuelScore(tableRead: AiTableRead, seat: SeatRead): number {
 }
 
 function hasStrongKnightDuelEvidence(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (isProtectedStrongActionGoldTarget(tableRead, seat) || isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat)) {
+    return false;
+  }
+
   if (seat.pressure.some((item) => item.includes("未对跳") || item.includes("被后置预言家查杀"))) {
     return false;
   }
@@ -810,8 +824,12 @@ function hasStrongKnightDuelEvidence(tableRead: AiTableRead, seat: SeatRead): bo
       .map((stance) => stance.actor.seatId),
   );
   const hasPublicBlackCheck = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF");
-  if (hasStrongPublicActionCue(tableRead, seat) && seat.suspicion >= 88) return true;
-  return hasPublicBlackCheck && seat.suspicion >= 92 && negativeActors.size >= 3;
+  const trustedBlackCheck = hasTrustedPublicWolfCheck(tableRead, seat);
+  if (hasPublicBlackCheck && !trustedBlackCheck) return false;
+  if (trustedBlackCheck && tableRead.day >= 3 && seat.suspicion >= 90 && (negativeActors.size >= 2 || hasStrongPublicActionCue(tableRead, seat))) {
+    return true;
+  }
+  return !hasPublicBlackCheck && tableRead.day >= 3 && hasStrongPublicActionCue(tableRead, seat) && seat.suspicion >= 96 && negativeActors.size >= 3;
 }
 
 function chooseWhiteWolfKingExplodeTarget(
@@ -883,12 +901,10 @@ function sanitizeAgentViewForLog(view: AgentView): AgentView {
 function shouldSaveVictim(view: AgentView, tableRead: AiTableRead, victim: ActionTarget): boolean {
   const victimRead = tableRead.seats.find((seat) => seat.seatId === victim.seatId);
   if (shouldDeferPublicSeerSaveToGuard(view, victimRead)) return false;
-  if (victimRead && hasStrongWitchPoisonEvidence(tableRead, victimRead)) return false;
   if (victimRead?.publicClaims.some((claim) => claim.claimedRole === "SEER")) return true;
   if (victimRead && publicRoleValueScore(victimRead) >= 18 && victimRead.trust >= victimRead.suspicion - 8) {
     return true;
   }
-  if (victimRead && shouldPreferWitchSave(view, victimRead)) return true;
   if (view.day === 1) {
     const trustDelta = victimRead ? (victimRead.trust - victimRead.suspicion) / 160 : 0;
     const threshold = clampProbability(0.58 + trustDelta - (view.persona?.riskTolerance ?? 0.45) * 0.16);
@@ -899,21 +915,6 @@ function shouldSaveVictim(view: AgentView, tableRead: AiTableRead, victim: Actio
 
   const threshold = clampProbability(0.34 + (victimRead.trust - victimRead.suspicion) / 120 - (view.persona?.riskTolerance ?? 0.45) * 0.12);
   return stableRoll(["witch-save", view.day, view.mySeatId, view.persona?.id, victim.seatId]) < threshold;
-}
-
-function shouldPreferWitchSave(view: AgentView, victimRead: SeatRead): boolean {
-  const pressureGap = victimRead.suspicion - victimRead.trust;
-  const pressureActors = victimRead.publicStancedBy.filter(
-    (stance) => stance.kind === "QUESTION" || stance.kind === "PRESSURE",
-  ).length;
-  const hardPublicFocus = victimRead.suspicion >= 72 && pressureGap >= 24 && pressureActors >= 2;
-  if (hardPublicFocus) return false;
-
-  if (view.day <= 2) {
-    return victimRead.suspicion < 70 || victimRead.trust >= victimRead.suspicion - 18;
-  }
-
-  return victimRead.trust >= victimRead.suspicion - 10 || victimRead.publicStancedBy.some((stance) => stance.kind === "SUPPORT");
 }
 
 function shouldDeferPublicSeerSaveToGuard(view: AgentView, victimRead: SeatRead | undefined): boolean {
@@ -930,7 +931,13 @@ function witchPoisonScore(tableRead: AiTableRead, seat: SeatRead): number {
   const counterclaimBonus = isSeerCounterclaimant(tableRead, seat.seatId) ? 12 : 0;
   const reactiveClaimantBonus = isReactiveSeerClaimant(tableRead.tableMemory, seat.seatId) ? 18 : 0;
   const deadSeerLegacyBonus = hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId) ? 22 : 0;
-  const protectedTargetPenalty = isProtectedPowerClaim(tableRead, seat) || isTargetOfReactiveSeerBlackCheck(tableRead, seat.seatId) ? 32 : 0;
+  const protectedTargetPenalty =
+    isProtectedPowerClaim(tableRead, seat) ||
+    isTargetOfReactiveSeerBlackCheck(tableRead, seat.seatId) ||
+    isProtectedStrongActionGoldTarget(tableRead, seat) ||
+    isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat)
+      ? 32
+      : 0;
   return (
     seat.suspicion -
     seat.trust * 0.08 +
@@ -944,7 +951,12 @@ function witchPoisonScore(tableRead: AiTableRead, seat: SeatRead): number {
 }
 
 function hasStrongWitchPoisonEvidence(tableRead: AiTableRead, seat: SeatRead): boolean {
-  if (isProtectedPowerClaim(tableRead, seat) || isTargetOfReactiveSeerBlackCheck(tableRead, seat.seatId)) {
+  if (
+    isProtectedPowerClaim(tableRead, seat) ||
+    isTargetOfReactiveSeerBlackCheck(tableRead, seat.seatId) ||
+    isProtectedStrongActionGoldTarget(tableRead, seat) ||
+    isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat)
+  ) {
     return false;
   }
 
@@ -969,6 +981,20 @@ function hasStrongWitchPoisonEvidence(tableRead: AiTableRead, seat: SeatRead): b
   }
 
   return hasTrustedPublicWolfCheck(tableRead, seat) && seat.suspicion >= 86;
+}
+
+function isProtectedStrongActionGoldTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (!isProtectedSeerGoldTarget(tableRead, seat)) return false;
+  if (seat.isKnownWolf || hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId)) return false;
+
+  const challengePressure = seat.suspicion - seat.trust;
+  const overwhelmingPublicCase =
+    hasTrustedPublicWolfCheck(tableRead, seat) &&
+    seat.suspicion >= 96 &&
+    challengePressure >= 54 &&
+    publicActionPressureActors(seat).length >= 4;
+
+  return !overwhelmingPublicCase;
 }
 
 function isProtectedPowerClaim(tableRead: AiTableRead, seat: SeatRead): boolean {
@@ -1223,6 +1249,10 @@ function hunterShotScore(tableRead: AiTableRead, seat: SeatRead): number {
 }
 
 function hasStrongHunterShotEvidence(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (isProtectedStrongActionGoldTarget(tableRead, seat) || isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat)) {
+    return false;
+  }
+
   if (seat.pressure.some((item) => item.includes("被后置预言家查杀") || item.includes("未对跳"))) {
     return false;
   }

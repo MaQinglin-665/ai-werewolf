@@ -1,6 +1,7 @@
 "use client";
 
 import { DEATH_LABELS } from "@/game/labels";
+import { buildReviewCredibilityHighlights, type ReviewCredibilityHighlight } from "@/game/reviewHighlights";
 import { isWolfRole } from "@/game/roleUtils";
 import type { HumanGameView } from "@/game/types";
 import { SectionTitle } from "./PanelPrimitives";
@@ -17,6 +18,7 @@ export function ReviewPanel({
 }) {
   const review = game.review;
   if (!review) return null;
+  const credibilityHighlights = buildReviewCredibilityHighlights(game);
 
   return (
     <section id={reviewId} className="rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
@@ -34,6 +36,8 @@ export function ReviewPanel({
           查看关键事件
         </a>
       </div>
+
+      {credibilityHighlights.length > 0 && <ReviewCredibilityStrip highlights={credibilityHighlights} />}
 
       {review.turningPoints.length > 0 && (
         <div className="mt-4">
@@ -158,6 +162,29 @@ export function ReviewPanel({
         </div>
       </div>
     </section>
+  );
+}
+
+function ReviewCredibilityStrip({ highlights }: { highlights: ReviewCredibilityHighlight[] }) {
+  const toneClass: Record<ReviewCredibilityHighlight["tone"], string> = {
+    good: "border-[#8fd29a]/22 bg-[#0f2118]/48 text-[#dff4df]",
+    warning: "border-[#f1c76e]/22 bg-[#261510]/54 text-[#f1d796]",
+    neutral: "border-[#f1c76e]/18 bg-black/20 text-[#dcc9a7]",
+    danger: "border-[#e46d55]/24 bg-[#2b1110]/45 text-[#ffd8cf]",
+  };
+
+  return (
+    <div className="mt-4">
+      <SectionTitle>本局结论</SectionTitle>
+      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {highlights.map((item) => (
+          <div key={item.title} className={`${toneClass[item.tone]} rounded-2xl border p-3 text-sm`}>
+            <div className="font-semibold text-[#f7ead5]">{item.title}</div>
+            <p className="mt-2 text-xs leading-5 opacity-90">{item.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
