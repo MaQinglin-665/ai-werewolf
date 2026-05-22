@@ -16,6 +16,7 @@
 # local scratch and Codex workflow artifacts
 /tmp/
 /.superpowers/
+/promo-ai-werewolf/
 
 # local database and generated prisma client
 /prisma/dev.db
