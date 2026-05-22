@@ -1,30 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type * as React from "react";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
 import type {
-  ActionTargetView,
-  BrowserSpeechRecognition,
   CommandPayload,
-  HumanSpeechActionType,
   KnightDuelAction,
   SeerCheckAction,
   SheriffVoteAction,
   VoteAction,
-  VoiceInputState,
   WolfBeautyCharmAction,
   WitchAction,
 } from "./clientTypes";
-import {
-  HUMAN_SPEECH_MAX_LENGTH,
-  formatSpeechRecognitionError,
-  getSpeechRecognitionConstructor,
-} from "./viewHelpers";
-
-function getActionTargetSeat(game: HumanGameView, target: ActionTargetView) {
-  return game.seats.find((seat) => seat.seatId === target.seatId);
-}
+import { ActionButton, MobileAvatarTargetPrompt, NightTargetButton } from "./ActionTargetPrimitives";
+import { SpeechActionControl } from "./SpeechActionControl";
 
 export function ActionControl({
   game,
@@ -43,224 +30,19 @@ export function ActionControl({
   mobileCompact: boolean;
   onOpenSpeechPanel?: () => void;
 }) {
-  const [message, setMessage] = useState("");
-  const [voiceInputAvailable, setVoiceInputAvailable] = useState(false);
-  const [voiceInputState, setVoiceInputState] = useState<VoiceInputState>("idle");
-  const [voiceInputMessage, setVoiceInputMessage] = useState<string | null>(null);
-  const speechRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
-  const recognizedTranscriptRef = useRef("");
-  const recognitionErrorRef = useRef(false);
-  const voiceInputMode: HumanSpeechActionType | undefined =
-    action.type === "speak" || action.type === "lastWords" ? action.type : undefined;
-
-  useEffect(() => {
-    if (!voiceInputEnabled) return;
-    const timer = window.setTimeout(() => {
-      setVoiceInputAvailable(Boolean(getSpeechRecognitionConstructor()));
-    }, 0);
-    return () => {
-      window.clearTimeout(timer);
-      const recognition = speechRecognitionRef.current;
-      speechRecognitionRef.current = null;
-      recognition?.abort();
-    };
-  }, [voiceInputEnabled]);
-
-  const rewriteVoiceTranscript = useCallback(
-    async (transcript: string) => {
-      const cleanTranscript = transcript.replace(/\s+/g, " ").trim();
-      if (!voiceInputMode || !cleanTranscript) {
-        setVoiceInputState("idle");
-        return;
-      }
-
-      setVoiceInputState("processing");
-      setVoiceInputMessage("正在整理语义...");
-      try {
-        const response = await fetch(`/api/games/${game.id}/voice-input`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: voiceInputMode, transcript: cleanTranscript }),
-        });
-        const data = (await response.json().catch(() => ({}))) as {
-          message?: string;
-          error?: string;
-        };
-        if (!response.ok || !data.message) {
-          throw new Error(data.error ?? "语义整理失败。");
-        }
-
-        setMessage(data.message);
-        setVoiceInputMessage("已整理为草稿。");
-      } catch (error) {
-        setMessage(cleanTranscript.slice(0, HUMAN_SPEECH_MAX_LENGTH));
-        setVoiceInputMessage(
-          `${error instanceof Error ? error.message : "语义整理失败。"} 已保留原始转写。`,
-        );
-      } finally {
-        setVoiceInputState("idle");
-      }
-    },
-    [game.id, voiceInputMode],
-  );
-
-  const startVoiceInput = useCallback(() => {
-    const SpeechRecognition = getSpeechRecognitionConstructor();
-    if (!SpeechRecognition || !voiceInputMode) {
-      setVoiceInputMessage("当前浏览器不支持语音输入。");
-      return;
-    }
-
-    const currentRecognition = speechRecognitionRef.current;
-    if (currentRecognition) {
-      currentRecognition.abort();
-      speechRecognitionRef.current = null;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = "zh-CN";
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    speechRecognitionRef.current = recognition;
-    recognizedTranscriptRef.current = "";
-    recognitionErrorRef.current = false;
-    setVoiceInputMessage(null);
-    setVoiceInputState("listening");
-
-    recognition.onresult = (event) => {
-      let finalTranscript = "";
-      let interimTranscript = "";
-      const startIndex = event.resultIndex ?? 0;
-
-      for (let index = startIndex; index < event.results.length; index += 1) {
-        const result = event.results[index];
-        const transcript = result?.[0]?.transcript ?? "";
-        if (result?.isFinal) {
-          finalTranscript += transcript;
-        } else {
-          interimTranscript += transcript;
-        }
-      }
-
-      if (finalTranscript) {
-        recognizedTranscriptRef.current = `${recognizedTranscriptRef.current} ${finalTranscript}`.trim();
-      }
-
-      const preview = `${recognizedTranscriptRef.current} ${interimTranscript}`.trim();
-      if (preview) {
-        setMessage(preview.slice(0, HUMAN_SPEECH_MAX_LENGTH));
-      }
-    };
-
-    recognition.onerror = (event) => {
-      recognitionErrorRef.current = true;
-      speechRecognitionRef.current = null;
-      setVoiceInputState("idle");
-      setVoiceInputMessage(formatSpeechRecognitionError(event));
-    };
-
-    recognition.onend = () => {
-      if (speechRecognitionRef.current !== recognition) return;
-      speechRecognitionRef.current = null;
-      if (recognitionErrorRef.current) return;
-
-      const transcript = recognizedTranscriptRef.current.trim();
-      if (!transcript) {
-        setVoiceInputState("idle");
-        setVoiceInputMessage("没有识别到发言内容。");
-        return;
-      }
-
-      void rewriteVoiceTranscript(transcript);
-    };
-
-    try {
-      recognition.start();
-    } catch (error) {
-      speechRecognitionRef.current = null;
-      setVoiceInputState("idle");
-      setVoiceInputMessage(error instanceof Error ? error.message : "语音输入启动失败。");
-    }
-  }, [rewriteVoiceTranscript, voiceInputMode]);
-
-  const stopVoiceInput = useCallback(() => {
-    if (!speechRecognitionRef.current) return;
-    setVoiceInputState("processing");
-    setVoiceInputMessage("正在结束识别...");
-    speechRecognitionRef.current.stop();
-  }, []);
-
   if (action.type === "speak" || action.type === "lastWords" || action.type === "sheriffSpeech") {
-    const isLastWords = action.type === "lastWords";
-    const isSheriffSpeech = action.type === "sheriffSpeech";
-    if (mobileCompact && onOpenSpeechPanel) {
-      return (
-        <button
-          type="button"
-          disabled={loading}
-          onClick={onOpenSpeechPanel}
-          className="rounded-full bg-[#2f8157] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#379566] disabled:opacity-60"
-        >
-          {isLastWords ? "打开遗言" : isSheriffSpeech ? "打开竞选发言" : "打开发言"}
-        </button>
-      );
-    }
-
-    const voiceButtonText =
-      voiceInputState === "listening"
-        ? "停止录音"
-        : voiceInputState === "processing"
-          ? "处理中"
-          : voiceInputAvailable
-            ? "语音输入"
-            : "语音不可用";
     return (
-      <div className="grid gap-3">
-        <textarea
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          maxLength={HUMAN_SPEECH_MAX_LENGTH}
-          className="min-h-28 resize-none rounded-2xl border border-[#f1c76e]/25 bg-black/30 px-4 py-3 text-sm text-[#f7ead5] outline-none transition placeholder:text-[#8f8065] focus:border-[#f1d796]"
-          placeholder={isLastWords ? "输入遗言" : isSheriffSpeech ? "输入警长竞选发言" : "输入本轮发言"}
-        />
-        {voiceInputEnabled && (
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              disabled={loading || voiceInputState === "processing" || !voiceInputAvailable}
-              aria-pressed={voiceInputState === "listening"}
-              onClick={voiceInputState === "listening" ? stopVoiceInput : startVoiceInput}
-              className={[
-                "rounded-full border px-4 py-2 text-xs font-semibold transition disabled:opacity-60",
-                voiceInputState === "listening"
-                  ? "border-[#e46d55]/45 bg-[#572017]/60 text-[#ffb1a4] hover:bg-[#6f271b]/72"
-                  : "border-[#f1c76e]/25 bg-black/18 text-[#f1d796] hover:bg-[#f1c76e]/10",
-              ].join(" ")}
-            >
-              {voiceButtonText}
-            </button>
-            {voiceInputMessage && (
-              <span aria-live="polite" className="text-xs leading-5 text-[#ad9c7d]">
-                {voiceInputMessage}
-              </span>
-            )}
-          </div>
-        )}
-        <button
-          type="button"
-          disabled={loading || voiceInputState !== "idle" || message.trim().length === 0}
-          onClick={() =>
-            onSubmit(isLastWords ? { type: "lastWords", message } : isSheriffSpeech ? { type: "sheriffSpeech", message } : { type: "speak", message })
-          }
-          className="rounded-full bg-[#2f8157] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#379566] disabled:opacity-60"
-        >
-          {isLastWords ? "确认遗言" : isSheriffSpeech ? "确认竞选发言" : "确认发言"}
-        </button>
-      </div>
+      <SpeechActionControl
+        game={game}
+        action={action}
+        loading={loading}
+        onSubmit={onSubmit}
+        voiceInputEnabled={voiceInputEnabled}
+        mobileCompact={mobileCompact}
+        onOpenSpeechPanel={onOpenSpeechPanel}
+      />
     );
   }
-
   if (action.type === "continue") {
     return (
       <button
@@ -980,98 +762,5 @@ export function SheriffVoteActionPanel({
         )}
       </div>
     </div>
-  );
-}
-
-function NightTargetButton({
-  game,
-  target,
-  disabled,
-  index,
-  tone,
-  actionLabel,
-  onClick,
-}: {
-  game: HumanGameView;
-  target: ActionTargetView;
-  disabled: boolean;
-  index: number;
-  tone: "seer" | "poison" | "vote" | "guard" | "sheriff" | "charm" | "knight";
-  actionLabel: string;
-  onClick: () => void;
-}) {
-  const seat = getActionTargetSeat(game, target);
-  const toneClass = {
-    seer: "border-[#7da8e3]/24 bg-[#10243a]/64 text-[#d8e6f7] hover:border-[#9dbbe6]/58 hover:bg-[#153253]/76",
-    poison: "border-[#e46d55]/24 bg-[#2b1110]/66 text-[#ffd8cf] hover:border-[#ff9a6b]/58 hover:bg-[#3a1713]/82",
-    vote: "border-[#e46d55]/24 bg-[#2b1110]/62 text-[#ffd8cf] hover:border-[#ff9a6b]/58 hover:bg-[#3a1713]/78",
-    guard: "border-[#77d898]/24 bg-[#14311f]/62 text-[#dff4df] hover:border-[#a8f0b6]/58 hover:bg-[#1d4e33]/78",
-    sheriff: "border-[#f1c76e]/24 bg-[#3a2412]/62 text-[#f1d796] hover:border-[#f1d796]/58 hover:bg-[#4a2d12]/78",
-    charm: "border-[#d885c7]/24 bg-[#2b1128]/66 text-[#ffd6f7] hover:border-[#f5a9e8]/58 hover:bg-[#3d1838]/82",
-    knight: "border-[#f1c76e]/30 bg-[#2b2110]/66 text-[#fff0bf] hover:border-[#fff0bf]/62 hover:bg-[#3b2d13]/82",
-  }[tone];
-
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      style={{ animationDelay: `${index * 42}ms` }}
-      className={`${toneClass} night-target-card min-h-[92px] rounded-2xl border p-3 text-left shadow-lg shadow-black/18 transition disabled:opacity-60`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <span className="rounded-full bg-black/28 px-2 py-0.5 text-xs font-semibold">{target.seatId}号</span>
-        <span className="text-[11px] opacity-64">{actionLabel}</span>
-      </div>
-      <div className="mt-3 truncate text-sm font-semibold">{target.name}</div>
-      <div className="mt-1 flex flex-wrap gap-1 text-[11px] opacity-72">
-        <span>{seat?.alive ? "存活" : "出局"}</span>
-        {seat?.isHuman && <span>你</span>}
-        {seat?.roleLabel && <span>{seat.roleLabel}</span>}
-      </div>
-    </button>
-  );
-}
-
-export function MobileAvatarTargetPrompt({
-  children,
-}: {
-  targets: ActionTargetView[];
-  verb: string;
-  tone: "danger" | "seer" | "guard" | "vote" | "sheriff" | "charm" | "knight";
-  children?: React.ReactNode;
-}) {
-  if (!children) return null;
-  return <div className="mobile-avatar-action-options">{children}</div>;
-}
-
-export function ActionButton({
-  children,
-  disabled,
-  tone,
-  onClick,
-}: {
-  children: React.ReactNode;
-  disabled: boolean;
-  tone: "green" | "red" | "gold" | "neutral";
-  onClick: () => void;
-}) {
-  const className =
-    tone === "red"
-      ? "bg-[#b74332] text-white hover:bg-[#cf513d]"
-      : tone === "green"
-        ? "bg-[#2f8157] text-white hover:bg-[#379566]"
-        : tone === "gold"
-          ? "bg-[#9f6b24] text-white hover:bg-[#b77c2a]"
-        : "border border-[#f1c76e]/30 text-[#f1d796] hover:bg-[#f1c76e]/10";
-
-  return (
-    <button
-      disabled={disabled}
-      onClick={onClick}
-      className={`${className} min-h-11 rounded-full px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60`}
-    >
-      {children}
-    </button>
   );
 }
