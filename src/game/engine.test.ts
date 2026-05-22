@@ -20,9 +20,11 @@ import {
   createGame,
   evaluateWinCondition,
   getSeat,
+  getTurnRequirement,
   hydrateGameState,
   isIdiotRevealed,
 } from "./engine";
+import { BOARD_PRESETS } from "./boards";
 
 describe("game engine", () => {
   it("assigns the 9-player preset role counts", () => {
@@ -406,6 +408,42 @@ describe("game engine", () => {
     state = applySystemStep(state);
     expect(state.phase).toBe("NIGHT_SEER");
     expect(state.events.at(-1)).toMatchObject({ type: "ROLE_PHASE_SKIPPED", payload: { role: "GUARD" } });
+  });
+
+  it("does not enter night wake-up phases for roles absent from any official board", () => {
+    const roleByNightPhase = {
+      NIGHT_WOLF_BEAUTY: "WOLF_BEAUTY",
+      NIGHT_GUARD: "GUARD",
+      NIGHT_SEER: "SEER",
+      NIGHT_WITCH: "WITCH",
+    } as const;
+    type NightRolePhase = keyof typeof roleByNightPhase;
+    const roleByNightPhaseEntries = Object.entries(roleByNightPhase) as Array<
+      [NightRolePhase, (typeof roleByNightPhase)[NightRolePhase]]
+    >;
+
+    for (const board of Object.values(BOARD_PRESETS)) {
+      let state = createGame({ boardId: board.id, seed: 44, humanSeatId: null });
+      const boardRoles = new Set(board.roles);
+      const visitedNightPhases = [state.phase];
+
+      for (let step = 0; state.phase.startsWith("NIGHT") && step < 8; step += 1) {
+        const requirement = getTurnRequirement(state);
+        if (requirement.type === "ai" || requirement.type === "human") {
+          state = applyCommand(state, createMockCommand(buildAgentView(state, requirement.actorSeatId)));
+        } else if (requirement.type === "system") {
+          state = applySystemStep(state);
+        } else {
+          break;
+        }
+        if (state.phase.startsWith("NIGHT")) visitedNightPhases.push(state.phase);
+      }
+
+      const absentRolePhases = roleByNightPhaseEntries
+        .filter(([phase, role]) => !boardRoles.has(role) && visitedNightPhases.includes(phase))
+        .map(([phase, role]) => `${board.id}:${phase}:${role}`);
+      expect(absentRolePhases).toEqual([]);
+    }
   });
 
   it("resolves sheriff election, pk ties, and sheriff weighted exile votes", () => {
