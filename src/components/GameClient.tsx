@@ -42,6 +42,7 @@ import {
   resolveSelectedAiFriends,
   type AiFriendLlmSecretMap,
 } from "./game/aiFriendStorage";
+import { getDefaultBoardOptions, getInitialBoardSelection } from "./game/boardSelectionModel";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
 import { MobileGameTable } from "./game/MobileGameTable";
 import type {
@@ -68,6 +69,8 @@ let recentGameIdsSnapshotCache: string[] = EMPTY_RECENT_GAME_IDS;
 const AI_SPEECH_MIN_READ_MS = 2600;
 const AI_SPEECH_MAX_READ_MS = 22000;
 const AI_SPEECH_AUDIO_MAX_ATTEMPTS = 1;
+const DEFAULT_BOARD_OPTIONS = getDefaultBoardOptions();
+const DEFAULT_BOARD_SELECTION = getInitialBoardSelection(DEFAULT_BOARD_OPTIONS);
 const AI_SPEECH_AUDIO_PLAYBACK_RATE = 1.12;
 const AI_SPEECH_TTS_MIN_CHUNK_CHARS = 12;
 const AI_SPEECH_TTS_SOFT_CHUNK_CHARS = 28;
@@ -951,10 +954,10 @@ async function submitStreamingContinue(
 
 export function GameClient() {
   const [game, setGame] = useState<HumanGameView | null>(null);
-  const [boards, setBoards] = useState<BoardOption[]>([]);
-  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
+  const [boards, setBoards] = useState<BoardOption[]>(DEFAULT_BOARD_OPTIONS);
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(DEFAULT_BOARD_SELECTION.selectedBoardId);
   const [humanSeatMode, setHumanSeatMode] = useState<HumanSeatMode>("random");
-  const [selectedHumanSeatId, setSelectedHumanSeatId] = useState<number | null>(null);
+  const [selectedHumanSeatId, setSelectedHumanSeatId] = useState<number | null>(DEFAULT_BOARD_SELECTION.selectedHumanSeatId);
   const [customAiFriends, setCustomAiFriends] = useState<AiFriendConfig[]>(EMPTY_CUSTOM_AI_FRIENDS);
   const [aiLlmSecrets, setAiLlmSecrets] = useState<AiFriendLlmSecretMap>({});
   const [selectedAiFriendIds, setSelectedAiFriendIds] = useState<string[]>(getDefaultSelectedAiFriendIds);
