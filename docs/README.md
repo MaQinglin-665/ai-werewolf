@@ -13,6 +13,7 @@
 - `/alpha-report`：阶段三反馈模板生成页，玩家在本地生成可复制的问题报告，不上传数据。
 - `alpha-playtest.md`：维护者版本的阶段二试玩说明，固定公开链接、已知限制和 smoke 命令。
 - `alpha-feedback-ops.md`：阶段三反馈分级、试玩前检查、排障顺序和修复验收口径。
+- `tencent-cloud-deploy.md`：腾讯云 Ubuntu 服务器部署流程。每次准备让公网用户看到新版本时，除了推 Render/GitHub，也必须同步推送到这台云服务器并跑 smoke。
 - `working-agreements.md`：多线程协作规则。
 - `threads/`：不同协作线程的责任范围。
 - `tasks/`：具体任务说明和任务模板。
