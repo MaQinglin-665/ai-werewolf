@@ -567,6 +567,13 @@ function buildHostAudioCue(game: HumanGameView, completedKeys: ReadonlySet<strin
     return { key: `${game.id}:${game.day}:exile`, clips: [hostClip("vote-revealed")] };
   }
 
+  if (game.phase === "HUNTER_REVEAL") {
+    return {
+      key: `${game.id}:${game.day}:hunter-reveal:${currentActor?.isHuman ? "human" : "ai"}`,
+      clips: [],
+    };
+  }
+
   if (game.phase === "HUNTER_SHOT") {
     return {
       key: `${game.id}:${game.day}:hunter:${currentActor?.isHuman ? "human" : "ai"}`,
@@ -1091,10 +1098,19 @@ export function GameClient() {
   }, []);
 
   const rememberGame = useCallback((gameId: string) => {
-    const nextIds = [gameId, ...readRecentGameIds().filter((id) => id !== gameId)].slice(0, 5);
-    window.localStorage.setItem(CURRENT_GAME_KEY, gameId);
-    window.localStorage.setItem(RECENT_GAMES_KEY, JSON.stringify(nextIds));
-    window.dispatchEvent(new Event("ai-werewolf-recent-games-changed"));
+    try {
+      const nextIds = [gameId, ...readRecentGameIds().filter((id) => id !== gameId)].slice(0, 5);
+      window.localStorage.setItem(CURRENT_GAME_KEY, gameId);
+      window.localStorage.setItem(RECENT_GAMES_KEY, JSON.stringify(nextIds));
+    } catch {
+      recentGameIdsRawCache = null;
+      recentGameIdsSnapshotCache = EMPTY_RECENT_GAME_IDS;
+    }
+    try {
+      window.dispatchEvent(new Event("ai-werewolf-recent-games-changed"));
+    } catch {
+      // Recent-game history is a convenience; it must not block starting a game.
+    }
   }, []);
 
   useEffect(() => {
@@ -1111,6 +1127,7 @@ export function GameClient() {
 
   useEffect(() => {
     let cancelled = false;
+    if (typeof fetch !== "function") return;
     void fetch("/api/games/boards")
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error("读取板子失败。"))))
       .then((data: { boards?: BoardOption[] }) => {

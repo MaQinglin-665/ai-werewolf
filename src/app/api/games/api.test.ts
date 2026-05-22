@@ -337,6 +337,8 @@ function commandFromAction(action: AvailableHumanAction): Record<string, unknown
       return action.targets[0] ? { type: "sheriffHandoff", targetSeatId: action.targets[0].seatId } : { type: "sheriffHandoff" };
     case "lastWords":
       return { type: "lastWords", message: "我留下最后视角，重点看今天票型和谁在跟风。" };
+    case "hunterReveal":
+      return { type: "hunterReveal", reveal: true };
     case "hunterShoot":
       return action.targets[0]
         ? { type: "hunterShoot", targetSeatId: action.targets[0].seatId }

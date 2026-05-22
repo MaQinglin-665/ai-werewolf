@@ -254,6 +254,13 @@ function buildRoomHostAudioCue(game: HumanGameView, completedKeys: ReadonlySet<s
     };
   }
 
+  if (game.phase === "HUNTER_REVEAL") {
+    return {
+      key: `${game.id}:${game.day}:hunter-reveal:${currentActor?.isHuman ? "human" : "ai"}`,
+      clips: [],
+    };
+  }
+
   if (game.phase === "HUNTER_SHOT") {
     return {
       key: `${game.id}:${game.day}:hunter:${currentActor?.isHuman ? "human" : "ai"}`,

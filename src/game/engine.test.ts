@@ -9,7 +9,7 @@ import {
 } from "@/ai/speechProviders";
 import { buildAiTableRead, createSpeechPlan, createVotePlan } from "@/ai/tableRead";
 import { getAiRoster } from "./personas";
-import { buildAgentView, buildHumanView } from "./projection";
+import { buildAgentView, buildHumanView, buildPlayerView } from "./projection";
 import { buildGameReview } from "./review";
 import { stripSpeechStageDirections } from "./speechText";
 import { buildTableMemory } from "./tableMemory";
@@ -410,6 +410,25 @@ describe("game engine", () => {
     expect(state.events.at(-1)).toMatchObject({ type: "ROLE_PHASE_SKIPPED", payload: { role: "GUARD" } });
   });
 
+  it("skips the witch wake-up on the 6-player beginner board", () => {
+    let state = createGame({ boardId: "6p-beginner-seer", seed: 43, humanSeatId: null });
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const victim = state.seats.find((seat) => seat.role === "VILLAGER")!;
+    const checkTarget = state.seats.find((seat) => seat.seatId !== seer.seatId)!;
+
+    expect(state.seats.some((seat) => seat.role === "WITCH")).toBe(false);
+
+    state = applyCommand(state, { type: "wolfKill", actorSeatId: wolf.seatId, targetSeatId: victim.seatId });
+    expect(state.phase).toBe("NIGHT_SEER");
+
+    state = applyCommand(state, { type: "seerCheck", actorSeatId: seer.seatId, targetSeatId: checkTarget.seatId });
+
+    expect(state.phase).toBe("DAY_ANNOUNCEMENT");
+    expect(state.events.some((event) => event.type === "ROLE_PHASE_SKIPPED" && event.payload.role === "WITCH")).toBe(false);
+    expect(buildHumanView(state).phaseLabel).toBe("天亮结算");
+  });
+
   it("does not enter night wake-up phases for roles absent from any official board", () => {
     const roleByNightPhase = {
       NIGHT_WOLF_BEAUTY: "WOLF_BEAUTY",
@@ -798,7 +817,7 @@ describe("game engine", () => {
     expect(state.phase).toBe("DAY_SPEECH");
   });
 
-  it("only lets hunter shoot after wolf kill or exile", () => {
+  it("only lets hunter choose whether to reveal after wolf kill or exile", () => {
     let wolfKilledHunter = createGame({ seed: 7 });
     const wolf = wolfKilledHunter.seats.find((seat) => seat.role === "WEREWOLF")!;
     const hunter = wolfKilledHunter.seats.find((seat) => seat.role === "HUNTER")!;
@@ -809,12 +828,13 @@ describe("game engine", () => {
     });
     wolfKilledHunter.phase = "DAY_ANNOUNCEMENT";
     wolfKilledHunter = applySystemStep(wolfKilledHunter);
-    expect(wolfKilledHunter.phase).toBe("HUNTER_SHOT");
+    expect(wolfKilledHunter.phase).toBe("HUNTER_REVEAL");
 
     let poisonedHunter = createGame({ seed: 7 });
     poisonedHunter.phase = "DAY_ANNOUNCEMENT";
     poisonedHunter.night.witchPoisonTargetSeatId = hunter.seatId;
     poisonedHunter = applySystemStep(poisonedHunter);
+    expect(poisonedHunter.phase).not.toBe("HUNTER_REVEAL");
     expect(poisonedHunter.phase).not.toBe("HUNTER_SHOT");
     expect(getSeat(poisonedHunter, hunter.seatId).deathReason).toBe("WITCH_POISON");
   });
@@ -924,10 +944,28 @@ describe("game engine", () => {
 
     state = applySystemStep(state);
 
-    expect(state.phase).toBe("HUNTER_SHOT");
+    expect(state.phase).toBe("HUNTER_REVEAL");
     expect(state.pendingHunterShot?.shooterSeatId).toBe(hunter.seatId);
     expect(state.lastWordsSeatId).toBeUndefined();
     expect(state.lastWordsQueue).toEqual([hunter.seatId]);
+
+    state = applyCommand(state, {
+      type: "hunterReveal",
+      actorSeatId: hunter.seatId,
+      reveal: true,
+    });
+
+    expect(state.phase).toBe("HUNTER_SHOT");
+    expect(state.events.at(-1)?.type).toBe("HUNTER_REVEALED");
+    expect(buildHumanView(state).availableActions[0]).toEqual(
+      expect.objectContaining({ type: "hunterShoot", canSkip: false }),
+    );
+    expect(() =>
+      applyCommand(state, {
+        type: "hunterShoot",
+        actorSeatId: hunter.seatId,
+      }),
+    ).toThrow(/必须带走/);
 
     state = applyCommand(state, {
       type: "hunterShoot",
@@ -959,6 +997,56 @@ describe("game engine", () => {
       .filter((event) => event.type === "LAST_WORDS_CREATED")
       .map((event) => event.actorSeatId);
     expect(lastWordActors.slice(-2)).toEqual([hunter.seatId, target.seatId]);
+  });
+
+  it("lets an exiled hunter decline reveal without a public hunter broadcast", () => {
+    let state = createGame({ seed: 35 });
+    const hunter = state.seats.find((seat) => seat.role === "HUNTER")!;
+    state.phase = "EXILE_RESOLUTION";
+    state.votes = Object.fromEntries(state.seats.map((seat) => [String(seat.seatId), hunter.seatId]));
+
+    state = applySystemStep(state);
+    state = applyCommand(state, {
+      type: "hunterReveal",
+      actorSeatId: hunter.seatId,
+      reveal: false,
+    });
+
+    expect(state.phase).toBe("LAST_WORDS");
+    expect(state.lastWordsSeatId).toBe(hunter.seatId);
+    expect(state.lastWordsQueue).toBeUndefined();
+    expect(state.pendingHunterShot).toBeUndefined();
+    expect(state.events.some((event) => event.type === "HUNTER_SHOT")).toBe(false);
+    expect(buildHumanView(state).publicEvents.some((event) => event.type === "HUNTER_SKIPPED")).toBe(false);
+
+    state = applyCommand(state, {
+      type: "lastWords",
+      actorSeatId: hunter.seatId,
+      message: "I will not reveal hunter.",
+    });
+
+    expect(state.phase).toBe("NIGHT_WOLVES");
+  });
+
+  it("keeps hunter reveal prompt private until the hunter flips", () => {
+    let state = createGame({ seed: 35 });
+    const hunter = state.seats.find((seat) => seat.role === "HUNTER")!;
+    const viewer = state.seats.find((seat) => seat.seatId !== hunter.seatId)!;
+    state.phase = "EXILE_RESOLUTION";
+    state.votes = Object.fromEntries(state.seats.map((seat) => [String(seat.seatId), hunter.seatId]));
+
+    state = applySystemStep(state);
+
+    const hunterView = buildPlayerView(state, hunter.seatId, { allowFlowControls: true });
+    const publicView = buildPlayerView(state, viewer.seatId, { allowFlowControls: true });
+    const publicPromptText = [
+      publicView.phaseLabel,
+      ...publicView.availableActions.map((action) => `${action.type === "continue" ? action.label : action.type} ${"description" in action ? action.description : ""}`),
+    ].join(" ");
+
+    expect(hunterView.availableActions).toContainEqual(expect.objectContaining({ type: "hunterReveal" }));
+    expect(publicView.currentActorSeatId).toBeUndefined();
+    expect(publicPromptText).not.toMatch(/猎人|翻牌|发动技能|技能确认/);
   });
 
   it("gives the hunter-shot target last words before continuing", () => {
@@ -1808,7 +1896,7 @@ describe("game engine", () => {
     state = applyCommand(state, {
       type: "speak",
       actorSeatId: first!.seatId,
-      message: "我这里是平民牌，先按公开信息投。",
+      message: "我是平民牌，先按公开信息投。",
     });
     state = applyCommand(state, {
       type: "speak",
@@ -2862,8 +2950,8 @@ describe("game engine", () => {
     expect(review.claims).toHaveLength(2);
     expect(review.claims.every((claim) => claim.isCounterclaim)).toBe(true);
     expect(review.claims.find((claim) => claim.claimant.seatId === wolf.seatId)?.truthful).toBe(false);
-    expect(review.strategyNotes.some((note) => note.title === "狼队悍跳")).toBe(true);
-    expect(review.turningPoints.some((point) => point.title.includes("对跳") || point.description.includes("声称"))).toBe(true);
+    expect(review.strategyNotes.some((note) => note.title === "狼队悍跳")).toBe(false);
+    expect(review.turningPoints.some((point) => point.title.includes("对跳") || point.description.includes("声称"))).toBe(false);
   });
 
   it("lets bold wolf AI distance-vote a teammate from hard public identity pressure", () => {

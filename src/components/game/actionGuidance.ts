@@ -69,6 +69,13 @@ export function buildActionGuidance(action: AvailableHumanAction, game: Pick<Hum
         outcome: "命中狼人会直接放逐目标；戳错好人则骑士出局。",
         detail: action.canSkip ? "证据不足时保留技能，先进入投票通常更稳。" : "本轮需要在合法目标中选择决斗对象。",
       };
+    case "hunterReveal":
+      return {
+        title: "确认是否翻牌",
+        visibility: "先私下确认",
+        outcome: "翻牌后系统才会公开猎人发动技能；不翻牌不会有猎人公开播报。",
+        detail: action.canReveal ? "翻牌意味着必须随后带走一名存活玩家，先确认枪口是否值得公开。" : "当前只能选择不翻牌继续流程。",
+      };
     case "hunterShoot":
     case "wolfKingShoot":
       return {

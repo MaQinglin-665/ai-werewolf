@@ -11,12 +11,10 @@ type AuxiliaryInfoTab = "private" | "notes" | "log";
 
 export function AuxiliaryInfoPanel({ game, events }: { game: HumanGameView; events: HumanGameView["publicEvents"] }) {
   const [activeTab, setActiveTab] = useState<AuxiliaryInfoTab>("private");
-  const memory = game.tableSummary.tableMemory;
-  const claimCount = memory.claimBoard.length;
   const eventCount = events.length;
   const tabs: Array<{ key: AuxiliaryInfoTab; label: string; meta: string }> = [
     { key: "private", label: "私密", meta: game.myRoleLabel ?? "观战" },
-    { key: "notes", label: "局势", meta: claimCount > 0 ? `${claimCount} 声明` : "公开线" },
+    { key: "notes", label: "局势", meta: "公开线" },
     { key: "log", label: "记录", meta: eventCount > 0 ? `${eventCount} 条` : "暂无" },
   ];
 
@@ -81,52 +79,6 @@ export function TableNotesPanel({ game, embedded = false }: { game: HumanGameVie
         </div>
       )}
       <div className={`${embedded ? "grid gap-4 text-sm text-[#dff4df]" : "grid gap-4 p-4 text-sm text-[#dff4df]"}`}>
-        <div>
-          <div className="mb-2 text-xs text-[#9ecfac]">身份声明</div>
-          {memory.claimBoard.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#8fd29a]/20 px-3 py-4 text-center text-xs text-[#9ecfac]">
-              暂无玩家公开声称身份
-            </div>
-          ) : (
-            <div className="grid gap-2">
-              {memory.claimBoard.slice(0, 5).map((claim) => (
-                <div key={claim.claimId} className="rounded-2xl border border-[#8fd29a]/18 bg-black/22 px-3 py-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-semibold text-[#f7ead5]">
-                      {claim.claimant.seatId}号 · {claim.claimant.name}
-                    </span>
-                    <span className="rounded-full bg-[#8fd29a]/12 px-2 py-0.5 text-xs text-[#a8f0b6]">
-                      {claim.strength === "hard" ? "明确声称" : "软声明"}{claim.claimedRoleLabel}
-                    </span>
-                  </div>
-                  {claim.checks.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {claim.checks.map((check) => (
-                        <span key={`${claim.claimId}-${check.day}-${check.target.seatId}-${check.result}`} className="rounded-full border border-white/10 bg-white/8 px-2 py-0.5 text-xs text-[#dff4df]">
-                          D{check.day} 报{check.target.seatId}号{check.result === "WEREWOLF" ? "查杀" : "金水"}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {memory.counterclaims.length > 0 && (
-          <div>
-            <div className="mb-2 text-xs text-[#9ecfac]">对跳关系</div>
-            <div className="grid gap-2">
-              {memory.counterclaims.map((group) => (
-                <div key={group.claimedRole} className="rounded-2xl border border-[#e46d55]/20 bg-[#2b1110]/42 px-3 py-2 text-[#ffd8cf]">
-                  {group.claimedRoleLabel}：{group.claimants.map((seat) => `${seat.seatId}号`).join("、")}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div>
           <div className="mb-2 text-xs text-[#9ecfac]">站边时间线</div>
           {memory.stanceBoard.length === 0 ? (
@@ -337,6 +289,7 @@ export function SpeechFeed({
     ? game.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId)
     : undefined;
   const isTableVariant = variant === "table";
+  const hasVisibleSpeechContent = speeches.length > 0 || Boolean(activeLiveAiSpeech);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -362,7 +315,11 @@ export function SpeechFeed({
         ref={scrollRef}
         className={[
           "grid gap-3 overflow-y-auto p-4",
-          isTableVariant ? "max-h-[280px] lg:max-h-[260px]" : "max-h-[300px]",
+          isTableVariant
+            ? hasVisibleSpeechContent
+              ? "max-h-[56vh] overscroll-contain [scrollbar-gutter:stable] lg:max-h-[58vh] xl:max-h-[60vh]"
+              : "max-h-[220px] lg:max-h-[200px]"
+            : "max-h-[300px]",
         ].join(" ")}
       >
         {speeches.length === 0 && !activeLiveAiSpeech ? (
@@ -374,16 +331,9 @@ export function SpeechFeed({
             {speeches.map((speech, index) => {
               const isHuman = speech.speaker?.seatId === game.humanSeatId;
               const startsNewDay = speeches[index - 1]?.day !== speech.day;
-              const claims = speech.speaker
-                ? game.tableSummary.claimBoard.filter(
-                    (claim) => claim.claimant.seatId === speech.speaker?.seatId && claim.sourceSpeechSeq === speech.seq,
-                  )
-                : [];
-
               return (
                 <SpeechFeedItem
                   key={`speech-day-block-${speech.seq}`}
-                  claims={claims}
                   day={speech.day}
                   isHuman={isHuman}
                   isStreaming={false}
@@ -402,7 +352,6 @@ export function SpeechFeed({
 }
 
 function SpeechFeedItem({
-  claims,
   day,
   isHuman,
   isStreaming,
@@ -410,7 +359,6 @@ function SpeechFeedItem({
   speaker,
   startsNewDay,
 }: {
-  claims: HumanGameView["tableSummary"]["claimBoard"];
   day: number;
   isHuman: boolean;
   isStreaming: boolean;
@@ -440,15 +388,6 @@ function SpeechFeedItem({
           <span className="min-w-0">{speaker ? `${speaker.seatId}号 · ${speaker.name}` : "未知发言人"}</span>
           <span>D{day}</span>
         </div>
-        {claims.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1">
-            {claims.map((claim) => (
-              <span key={claim.claimId} className="rounded-full border border-[#77d898]/20 bg-[#77d898]/10 px-2 py-0.5 text-[11px] text-[#a8f0b6]">
-                玩家声称{claim.claimedRoleLabel}
-              </span>
-            ))}
-          </div>
-        )}
         <span>{message}</span>
         {isStreaming && <span className="speech-stream-cursor" aria-hidden="true" />}
       </div>

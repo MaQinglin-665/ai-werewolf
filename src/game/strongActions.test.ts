@@ -3,12 +3,12 @@ import { createMockCommand } from "@/ai/mockAgent";
 import type { ActionTarget, AgentView, AiTableRead, ClaimBoardItem, PublicReasoningCue, SeatRead } from "./types";
 
 describe("mock AI strong actions", () => {
-  it("skips a hunter shot when suspicion only comes from personal or vote noise", () => {
-    const command = createMockCommand(hunterView(), tableReadWithTarget({ pressure: ["投过我", "当前吃到 1 票"] }));
+  it("declines hunter reveal when suspicion only comes from personal or vote noise", () => {
+    const command = createMockCommand(hunterRevealView(), tableReadWithTarget({ pressure: ["投过我", "当前吃到 1 票"] }));
 
     expect(command).toMatchObject({
-      type: "hunterShoot",
-      targetSeatId: undefined,
+      type: "hunterReveal",
+      reveal: false,
     });
   });
 
@@ -100,10 +100,10 @@ describe("mock AI strong actions", () => {
     });
   });
 
-  it("does not shoot a hard power claim from public black-check pressure alone", () => {
+  it("declines hunter reveal for a hard power claim from public black-check pressure alone", () => {
     const claim = powerClaim({ seatId: 2, name: "Target" }, "WITCH");
     const command = createMockCommand(
-      hunterView(),
+      hunterRevealView(),
       tableReadWithTarget({
         suspicion: 96,
         trust: 28,
@@ -119,14 +119,14 @@ describe("mock AI strong actions", () => {
     );
 
     expect(command).toMatchObject({
-      type: "hunterShoot",
-      targetSeatId: undefined,
+      type: "hunterReveal",
+      reveal: false,
     });
   });
 
-  it("does not shoot a non-claim target from an untrusted public black check alone", () => {
+  it("declines hunter reveal for a non-claim target from an untrusted public black check alone", () => {
     const command = createMockCommand(
-      hunterView(),
+      hunterRevealView(),
       tableReadWithTarget({
         suspicion: 94,
         trust: 30,
@@ -140,12 +140,12 @@ describe("mock AI strong actions", () => {
     );
 
     expect(command).toMatchObject({
-      type: "hunterShoot",
-      targetSeatId: undefined,
+      type: "hunterReveal",
+      reveal: false,
     });
   });
 
-  it("does not shoot a non-claim target from an unresolved seer-counterclaim black check alone", () => {
+  it("declines hunter reveal for a non-claim target from an unresolved seer-counterclaim black check alone", () => {
     const target = { seatId: 2, name: "Target" };
     const seer = { seatId: 3, name: "Contested Seer" };
     const otherSeer = { seatId: 4, name: "Other Seer" };
@@ -168,11 +168,11 @@ describe("mock AI strong actions", () => {
       },
     ];
 
-    const command = createMockCommand(hunterView(), tableRead);
+    const command = createMockCommand(hunterRevealView(), tableRead);
 
     expect(command).toMatchObject({
-      type: "hunterShoot",
-      targetSeatId: undefined,
+      type: "hunterReveal",
+      reveal: false,
     });
   });
 
@@ -204,7 +204,7 @@ describe("mock AI strong actions", () => {
     });
   });
 
-  it("does not shoot from an exiled seer legacy black check alone", () => {
+  it("declines hunter reveal from an exiled seer legacy black check alone", () => {
     const target = { seatId: 2, name: "Target" };
     const legacySeer = { seatId: 6, name: "Exiled Seer Claimant" };
     const tableRead = tableReadWithTarget({
@@ -223,11 +223,11 @@ describe("mock AI strong actions", () => {
       },
     ];
 
-    const command = createMockCommand(hunterView(), tableRead);
+    const command = createMockCommand(hunterRevealView(), tableRead);
 
     expect(command).toMatchObject({
-      type: "hunterShoot",
-      targetSeatId: undefined,
+      type: "hunterReveal",
+      reveal: false,
     });
   });
 
@@ -435,6 +435,14 @@ function hunterView(targets: ActionTarget[] = [{ seatId: 2, name: "Target" }]): 
     },
     privateKnowledge: {},
     allowedActions: [{ type: "hunterShoot", targets, canSkip: true }],
+  } as AgentView;
+}
+
+function hunterRevealView(targets: ActionTarget[] = [{ seatId: 2, name: "Target" }]): AgentView {
+  return {
+    ...hunterView(targets),
+    phase: "HUNTER_REVEAL",
+    allowedActions: [{ type: "hunterReveal", canReveal: true }],
   } as AgentView;
 }
 

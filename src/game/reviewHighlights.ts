@@ -19,19 +19,6 @@ export function buildReviewCredibilityHighlights(game: Pick<HumanGameView, "revi
     });
   }
 
-  if (review.claims.length > 0) {
-    const falseClaims = review.claims.filter((claim) => !claim.truthful);
-    const counterclaims = review.claims.filter((claim) => claim.isCounterclaim);
-    highlights.push({
-      title: "身份线",
-      detail:
-        falseClaims.length > 0
-          ? `${falseClaims.length} 条身份声明被证伪，${counterclaims.length} 条处在对跳关系中。`
-          : `${review.claims.length} 条身份声明均已对照真实身份回看。`,
-      tone: falseClaims.length > 0 ? "warning" : "good",
-    });
-  }
-
   const decisiveVote = [...review.voteImpacts].reverse().find((impact) => impact.outcome === "exile") ?? review.voteImpacts.at(-1);
   if (decisiveVote) {
     const targetText = decisiveVote.target

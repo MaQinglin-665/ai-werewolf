@@ -32,6 +32,7 @@ export const PHASES = [
   "DAY_VOTE",
   "EXILE_RESOLUTION",
   "LAST_WORDS",
+  "HUNTER_REVEAL",
   "HUNTER_SHOT",
   "WOLF_KING_SHOT",
   "SHERIFF_HANDOFF",
@@ -89,6 +90,7 @@ export type GameEventType =
   | "IDIOT_REVEALED"
   | "LAST_WORDS_CREATED"
   | "PLAYER_DIED"
+  | "HUNTER_REVEALED"
   | "HUNTER_SHOT"
   | "HUNTER_SKIPPED"
   | "WOLF_KING_SHOT"
@@ -570,6 +572,7 @@ export type Command =
   | ({ type: "speak"; actorSeatId: number; message: string } & CommandReason)
   | ({ type: "lastWords"; actorSeatId: number; message: string } & CommandReason)
   | ({ type: "vote"; actorSeatId: number; targetSeatId?: number } & CommandReason)
+  | ({ type: "hunterReveal"; actorSeatId: number; reveal: boolean } & CommandReason)
   | ({ type: "hunterShoot"; actorSeatId: number; targetSeatId?: number } & CommandReason)
   | ({ type: "wolfKingShoot"; actorSeatId: number; targetSeatId?: number } & CommandReason)
   | ({ type: "whiteWolfKingExplode"; actorSeatId: number; targetSeatId: number } & CommandReason)
@@ -909,6 +912,7 @@ export type AvailableHumanAction =
   | { type: "speak" }
   | { type: "lastWords" }
   | { type: "vote"; targets: ActionTarget[]; canAbstain: boolean }
+  | { type: "hunterReveal"; canReveal: boolean }
   | { type: "hunterShoot"; targets: ActionTarget[]; canSkip: boolean }
   | { type: "wolfKingShoot"; targets: ActionTarget[]; canSkip: boolean }
   | { type: "whiteWolfKingExplode"; targets: ActionTarget[] }

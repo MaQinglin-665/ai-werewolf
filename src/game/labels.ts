@@ -33,6 +33,7 @@ export const PHASE_LABELS: Record<Phase, string> = {
   DAY_VOTE: "投票放逐",
   EXILE_RESOLUTION: "放逐结算",
   LAST_WORDS: "发表遗言",
+  HUNTER_REVEAL: "出局结算",
   HUNTER_SHOT: "猎人开枪",
   WOLF_KING_SHOT: "狼王开枪",
   SHERIFF_HANDOFF: "警徽移交",

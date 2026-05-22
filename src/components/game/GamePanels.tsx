@@ -25,6 +25,7 @@ import {
   ROLE_CARD_BOOK_IMAGES,
   ROLE_CARD_IMAGES,
   formatSystemMessage,
+  getNightRoleTrackSteps,
   getSeatCardImage,
   getSeatOrbitStyle,
   seatNumber,
@@ -67,12 +68,12 @@ export function RoomHeader({
     : "选择板子后可指定真人座位或观战 AI 对局";
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f1c76e]/25 bg-[#130d0b]/75 px-4 py-3 shadow-2xl shadow-black/25 backdrop-blur-md">
+    <header className="mobile-home-header flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f1c76e]/25 bg-[#130d0b]/75 px-4 py-3 shadow-2xl shadow-black/25 backdrop-blur-md">
       <div className="flex min-w-0 items-center gap-3">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#f1c76e]/45 bg-[#2a1712] text-lg font-semibold text-[#f1c76e] shadow-inner">
+        <div className="mobile-home-logo grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#f1c76e]/45 bg-[#2a1712] text-lg font-semibold text-[#f1c76e] shadow-inner">
           狼
         </div>
-        <div className="min-w-0">
+        <div className="mobile-home-brand min-w-0">
           <h1 className="truncate text-xl font-semibold tracking-normal sm:text-2xl">单人 AI 狼人杀</h1>
           <p className="mt-1 text-xs text-[#cab995] sm:text-sm">
             {gameMeta}
@@ -80,7 +81,7 @@ export function RoomHeader({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="mobile-home-header-actions flex flex-wrap items-center gap-2">
         {game && (
           <>
             <StatusPill tone="gold">第 {game.day} 天</StatusPill>
@@ -89,43 +90,43 @@ export function RoomHeader({
         )}
         <Link
           href="/rooms"
-          className="rounded-full border border-[#77d898]/35 bg-[#12301f]/70 px-4 py-2 text-sm font-semibold text-[#a8f0b6] transition hover:bg-[#1d4e33]/75"
+          className="mobile-home-quick-action rounded-full border border-[#77d898]/35 bg-[#12301f]/70 px-4 py-2 text-sm font-semibold text-[#a8f0b6] transition hover:bg-[#1d4e33]/75"
         >
-          联机房间
+          <MobileHomeToolContent icon="房" label="联机" />
         </Link>
         <button
           type="button"
           onClick={onOpenIdentityBook}
-          className="rounded-full border border-[#f1c76e]/25 bg-black/15 px-4 py-2 text-sm font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10"
+          className="mobile-home-quick-action rounded-full border border-[#f1c76e]/25 bg-black/15 px-4 py-2 text-sm font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10"
         >
-          身份书
+          <MobileHomeToolContent icon="书" label="身份" />
         </button>
         <button
           type="button"
           onClick={onOpenGlossary}
-          className="rounded-full border border-[#7da8e3]/25 bg-black/15 px-4 py-2 text-sm font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/10"
+          className="mobile-home-quick-action rounded-full border border-[#7da8e3]/25 bg-black/15 px-4 py-2 text-sm font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/10"
         >
-          术语表
+          <MobileHomeToolContent icon="?" label="术语" />
         </button>
         <button
           type="button"
           onClick={onToggleHostAudio}
           aria-pressed={hostAudioEnabled}
           className={[
-            "rounded-full border px-4 py-2 text-sm font-semibold transition",
+            "mobile-home-quick-action mobile-home-audio-toggle rounded-full border px-4 py-2 text-sm font-semibold transition",
             hostAudioEnabled
               ? "border-[#77d898]/35 bg-[#14311f]/70 text-[#a8f0b6] hover:bg-[#1d4e33]/75"
               : "border-[#f1c76e]/25 bg-black/15 text-[#f1d796] hover:bg-[#f1c76e]/10",
           ].join(" ")}
         >
-          {hostAudioEnabled ? "主持音频开" : "主持音频关"}
+          <MobileHomeToolContent icon="音" label={hostAudioEnabled ? "主持开" : "主持关"} />
         </button>
         <button
           type="button"
           onClick={onToggleAiSpeechAudio}
           aria-pressed={aiSpeechAudioEnabled}
           className={[
-            "rounded-full border px-4 py-2 text-sm font-semibold transition",
+            "mobile-home-quick-action mobile-home-audio-toggle rounded-full border px-4 py-2 text-sm font-semibold transition",
             aiSpeechAudioEnabled && !aiSpeechAudioUnavailable
               ? "border-[#77d898]/35 bg-[#14311f]/70 text-[#a8f0b6] hover:bg-[#1d4e33]/75"
               : aiSpeechAudioUnavailable
@@ -133,17 +134,30 @@ export function RoomHeader({
               : "border-[#f1c76e]/25 bg-black/15 text-[#f1d796] hover:bg-[#f1c76e]/10",
           ].join(" ")}
         >
-          {aiSpeechAudioUnavailable ? "AI 语音转文字" : aiSpeechAudioEnabled ? "AI 语音开" : "AI 语音关"}
+          <MobileHomeToolContent icon="播" label={aiSpeechAudioUnavailable ? "转写" : aiSpeechAudioEnabled ? "AI开" : "AI关"} />
         </button>
-        <button
-          onClick={onNewGame}
-          disabled={loading}
-          className="rounded-full bg-[#b74332] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#220806]/35 transition hover:bg-[#cf513d] disabled:opacity-60"
-        >
-          {game ? "新开一局" : "开始对局"}
-        </button>
+        {game && (
+          <button
+            onClick={onNewGame}
+            disabled={loading}
+            className="mobile-home-quick-action mobile-home-header-start rounded-full bg-[#b74332] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#220806]/35 transition hover:bg-[#cf513d] disabled:opacity-60"
+          >
+            <MobileHomeToolContent icon="新" label="新局" />
+          </button>
+        )}
       </div>
     </header>
+  );
+}
+
+function MobileHomeToolContent({ icon, label }: { icon: string; label: string }) {
+  return (
+    <>
+      <span className="mobile-home-tool-icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="mobile-home-tool-label">{label}</span>
+    </>
   );
 }
 
@@ -190,14 +204,17 @@ export function LandingPanel({
         : "随机真人座位";
   const boardSummaryLabel = selectedBoard ? `${selectedBoard.name} · ${selectedBoard.seatCount}人` : "待选板子";
   const aiSummaryLabel = selectedAiFriendCount > 0 ? `${selectedAiFriendCount} 位 AI 入局` : "默认 AI 阵容";
+  const lobbySeatIds = buildMobileLobbySeatIds(selectedBoard?.seatCount ?? 6);
+  const lobbySeatDensityClass = getMobileLobbySeatDensityClass(lobbySeatIds.length);
+  const lobbyLineupBySeatId = new Map(aiLineupPreview.map((friend) => [friend.seatId, friend]));
 
   return (
-    <section className="flex flex-1 items-start justify-center py-4 lg:py-6">
-      <div className="grid w-full max-w-[1240px] gap-4 xl:grid-cols-[minmax(0,1fr)_382px]">
-        <div className="overflow-hidden rounded-[28px] border border-[#f1c76e]/22 bg-[#120d0b]/86 shadow-2xl shadow-black/40 backdrop-blur-md">
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_300px]">
-            <div className="p-4 sm:p-5">
-              <div className="mb-5 flex flex-col gap-3 border-b border-[#f1c76e]/12 pb-4 sm:flex-row sm:items-end sm:justify-between">
+    <section className="mobile-home-shell flex flex-1 items-start justify-center py-4 lg:py-6">
+      <div className="mobile-home-layout grid w-full max-w-[1240px] gap-4 xl:grid-cols-[minmax(0,1fr)_382px]">
+        <div className="mobile-home-card overflow-hidden rounded-[28px] border border-[#f1c76e]/22 bg-[#120d0b]/86 shadow-2xl shadow-black/40 backdrop-blur-md">
+          <div className="mobile-home-hero-grid grid lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="mobile-home-intro p-4 sm:p-5">
+              <div className="mobile-home-title-row mb-5 flex flex-col gap-3 border-b border-[#f1c76e]/12 pb-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#f1c76e]/64">AI Werewolf Studio</div>
                   <h2 className="text-2xl font-semibold leading-tight text-[#f7ead5] sm:text-3xl">开一桌 AI 狼人杀</h2>
@@ -205,24 +222,77 @@ export function LandingPanel({
                     选择板子、真人座位和 AI 阵容，确认后直接进入牌桌。
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2 text-xs">
+                <div className="mobile-home-status-bar flex flex-wrap gap-2 text-xs">
                   <StatusPill tone="gold">{selectedBoard ? `${selectedBoard.seatCount} 人局` : "未选板子"}</StatusPill>
                   <StatusPill tone={humanSeatMode === "none" ? "green" : "blue"}>{humanModeLabel}</StatusPill>
                 </div>
               </div>
 
-              <div className="mb-5 grid gap-2 sm:grid-cols-3">
-                <LandingMetric label="板子" value={boardSummaryLabel} tone="gold" />
-                <LandingMetric label="真人位" value={humanModeLabel} tone={humanSeatMode === "none" ? "green" : "blue"} />
-                <LandingMetric label="AI 阵容" value={aiSummaryLabel} tone="green" />
-              </div>
             </div>
 
             <LandingPromoCard boardLabel={boardSummaryLabel} humanLabel={humanModeLabel} aiLabel={aiSummaryLabel} />
           </div>
 
-          <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-            <div className="grid gap-3 md:grid-cols-2">
+          <div className="mobile-lobby-stage" aria-label="手机端狼人杀房间大厅预览">
+            <div className="mobile-lobby-moon" />
+            <div className="mobile-lobby-table-glow" />
+            <div className="mobile-lobby-seat-ring">
+              {lobbySeatIds.map((seatId, index) => {
+                const lineupSeat = lobbyLineupBySeatId.get(seatId);
+                const isHumanSeat = lineupSeat?.isHuman ?? (humanSeatMode !== "none" && selectedHumanSeatId === seatId);
+                const avatarImage = lineupSeat && !lineupSeat.isHuman ? getLineupAvatarImage(lineupSeat) : undefined;
+                return (
+                  <div
+                    key={`${seatId}-${index}`}
+                    aria-label={lineupSeat ? `${seatId}号 ${lineupSeat.nickname}` : `${seatId}号空位`}
+                    className={[
+                      "mobile-lobby-seat",
+                      `mobile-lobby-seat-${index + 1}`,
+                      lobbySeatDensityClass,
+                      avatarImage ? "mobile-lobby-seat-with-avatar" : "",
+                      isHumanSeat ? "mobile-lobby-seat-human" : "",
+                    ].join(" ")}
+                    style={getMobileLobbySeatStyle(index, lobbySeatIds.length)}
+                  >
+                    {avatarImage ? (
+                      <span className="mobile-lobby-seat-avatar" aria-hidden="true" style={{ backgroundImage: `url(${avatarImage})` }} />
+                    ) : (
+                      <span className="mobile-lobby-seat-empty" aria-hidden="true" />
+                    )}
+                    <span className="mobile-lobby-seat-number">{seatId}</span>
+                    {isHumanSeat && <em>你</em>}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mobile-lobby-stage-core">
+              <div className="mobile-lobby-orbit" />
+              <div className="mobile-lobby-room-seal">
+                <span>{selectedBoard?.seatCount ?? 6}</span>
+              </div>
+              <div className="mobile-lobby-primary-copy">
+                <span>AI WEREWOLF ROOM</span>
+                <strong>{selectedBoard ? `${selectedBoard.seatCount} 位入座` : "开一桌 AI 狼人杀"}</strong>
+                <small>{humanModeLabel} · {aiSummaryLabel}</small>
+              </div>
+            </div>
+          </div>
+
+          <div className="mobile-home-dock px-4 pb-4 sm:px-5 sm:pb-5">
+            <div className="mobile-dock-grip" />
+            <div className="mobile-dock-board-console">
+              <div className="mobile-dock-board-copy min-w-0">
+                <span>选择板子</span>
+                <strong>{selectedBoard?.name ?? "待选板子"}</strong>
+              </div>
+              <Link
+                href="/ai-pool"
+                className="mobile-dock-ai-pool-action inline-flex shrink-0 items-center justify-center rounded-full border border-[#77d898]/28 bg-[#10271d] px-3 py-1.5 text-xs font-semibold text-[#a8f0b6] shadow-lg shadow-black/20 transition hover:bg-[#183b2a] sm:hidden"
+              >
+                AI阵容 {selectedAiFriendCount}位 ›
+              </Link>
+            </div>
+            <div className="mobile-board-strip grid gap-3 md:grid-cols-2">
               {boards.map((board) => {
                 const selected = selectedBoardId === board.id;
                 return (
@@ -233,7 +303,7 @@ export function LandingPanel({
                     aria-label={selected ? `取消选择${board.name}` : `选择${board.name}`}
                     onClick={() => onSelectBoard(board.id)}
                     className={[
-                      "group min-h-[148px] rounded-2xl border p-4 text-left transition",
+                      "mobile-board-chip group min-h-[148px] rounded-2xl border p-4 text-left transition",
                       selected
                         ? "border-[#f1c76e]/68 bg-[#2c2015]/88 shadow-lg shadow-black/24"
                         : "border-white/10 bg-black/20 hover:border-[#f1c76e]/40 hover:bg-[#1c1512]/84",
@@ -246,7 +316,7 @@ export function LandingPanel({
                       </div>
                       <span
                         className={[
-                          "shrink-0 rounded-full border px-2 py-0.5 text-xs",
+                          "mobile-board-badge shrink-0 rounded-full border px-2 py-0.5 text-xs",
                           selected ? "border-[#f1c76e]/38 bg-[#f1c76e]/12 text-[#f1d796]" : "border-white/12 text-[#ad9c7d]",
                         ].join(" ")}
                       >
@@ -268,31 +338,33 @@ export function LandingPanel({
             </div>
 
             {selectedBoard && (
-              <HumanSeatPicker
-                seatCount={selectedBoard.seatCount}
-                mode={humanSeatMode}
-                selectedSeatId={selectedHumanSeatId}
-                onRandom={onSelectRandomHumanSeat}
-                onSelect={onSelectFixedHumanSeat}
-                onNone={onSelectNoHumanSeat}
-              />
+              <div className="mobile-seat-console">
+                <HumanSeatPicker
+                  seatCount={selectedBoard.seatCount}
+                  mode={humanSeatMode}
+                  selectedSeatId={selectedHumanSeatId}
+                  onRandom={onSelectRandomHumanSeat}
+                  onSelect={onSelectFixedHumanSeat}
+                  onNone={onSelectNoHumanSeat}
+                />
+              </div>
             )}
 
-            <div className="mt-4 flex flex-col gap-3 border-t border-[#f1c76e]/12 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mobile-cta-console mobile-home-actions mt-4 flex flex-col gap-3 border-t border-[#f1c76e]/12 pt-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs leading-5 text-[#ad9c7d]">
                 {selectedBoard ? "当前配置会自动补齐 AI 阵容并保存最近对局入口。" : "先选择一个板子，再确认真人座位。"}
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                 <Link
                   href="/rooms"
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#77d898]/28 bg-[#10271d] px-6 py-3 text-sm font-semibold text-[#a8f0b6] shadow-lg shadow-black/20 transition hover:bg-[#183b2a]"
+                  className="mobile-home-secondary-action inline-flex min-h-11 items-center justify-center rounded-xl border border-[#77d898]/28 bg-[#10271d] px-6 py-3 text-sm font-semibold text-[#a8f0b6] shadow-lg shadow-black/20 transition hover:bg-[#183b2a]"
                 >
                   进入联机房间
                 </Link>
                 <button
                   onClick={onStartGame}
                   disabled={loading || !selectedBoardId}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#c64f3c] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/30 transition hover:bg-[#dc5b45] disabled:cursor-not-allowed disabled:bg-[#6f3b31] disabled:text-white/55"
+                  className="mobile-home-primary-action inline-flex min-h-11 items-center justify-center rounded-xl bg-[#c64f3c] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/30 transition hover:bg-[#dc5b45] disabled:cursor-not-allowed disabled:bg-[#6f3b31] disabled:text-white/55"
                 >
                   {loading ? "创建中" : selectedBoardId ? "进入牌桌" : "先选择板子"}
                 </button>
@@ -303,7 +375,7 @@ export function LandingPanel({
           </div>
         </div>
 
-        <div className="grid gap-4 xl:content-start">
+        <div className="mobile-home-secondary-rail grid gap-4 xl:content-start">
           <AiPoolEntryCard selectedCount={selectedAiFriendCount} customCount={customAiFriendCount} />
           <AiLineupPreviewCard lineup={aiLineupPreview} />
           <RecentGamesCard loading={loading} recentGameIds={recentGameIds} onLoadGame={onLoadGame} />
@@ -313,24 +385,96 @@ export function LandingPanel({
   );
 }
 
-function LandingMetric({ label, value, tone }: { label: string; value: string; tone: "gold" | "green" | "blue" }) {
-  const toneClass = {
-    gold: "border-[#f1c76e]/20 bg-[#2a1b10]/58 text-[#f1d796]",
-    green: "border-[#77d898]/18 bg-[#0f2118]/58 text-[#a8f0b6]",
-    blue: "border-[#7da8e3]/18 bg-[#0d1623]/58 text-[#b8d6ff]",
-  }[tone];
+type MobileLobbySeatStyle = React.CSSProperties & {
+  "--lobby-seat-size": string;
+  "--lobby-seat-x": string;
+  "--lobby-seat-y": string;
+};
 
-  return (
-    <div className={`${toneClass} min-w-0 rounded-2xl border px-3 py-2.5`}>
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-60">{label}</div>
-      <div className="mt-1 truncate text-sm font-semibold">{value}</div>
-    </div>
-  );
+type MobileLobbySeatPoint = {
+  x: number;
+  y: number;
+  size: number;
+};
+
+const MOBILE_LOBBY_SEAT_POINTS: Record<number, MobileLobbySeatPoint[]> = {
+  6: [
+    { x: 22, y: 20, size: 52 },
+    { x: 78, y: 20, size: 52 },
+    { x: 7, y: 50, size: 52 },
+    { x: 93, y: 50, size: 52 },
+    { x: 22, y: 80, size: 52 },
+    { x: 78, y: 80, size: 52 },
+  ],
+  9: [
+    { x: 23, y: 18, size: 44 },
+    { x: 77, y: 18, size: 44 },
+    { x: 11, y: 34, size: 44 },
+    { x: 89, y: 34, size: 44 },
+    { x: 7, y: 52, size: 44 },
+    { x: 93, y: 52, size: 44 },
+    { x: 15, y: 70, size: 44 },
+    { x: 85, y: 70, size: 44 },
+    { x: 50, y: 84, size: 44 },
+  ],
+  12: [
+    { x: 24, y: 16, size: 38 },
+    { x: 76, y: 16, size: 38 },
+    { x: 11, y: 28, size: 38 },
+    { x: 89, y: 28, size: 38 },
+    { x: 21, y: 42, size: 38 },
+    { x: 79, y: 42, size: 38 },
+    { x: 8, y: 58, size: 38 },
+    { x: 92, y: 58, size: 38 },
+    { x: 21, y: 72, size: 38 },
+    { x: 79, y: 72, size: 38 },
+    { x: 16, y: 88, size: 38 },
+    { x: 84, y: 88, size: 38 },
+  ],
+};
+
+function buildMobileLobbySeatIds(seatCount: number): number[] {
+  const visibleCount = Math.max(1, Math.min(12, Math.floor(seatCount)));
+  return Array.from({ length: visibleCount }, (_, index) => index + 1);
+}
+
+function getMobileLobbySeatDensityClass(seatCount: number): string {
+  if (seatCount >= 10) return "mobile-lobby-seat-dense";
+  if (seatCount >= 8) return "mobile-lobby-seat-many";
+  return "";
+}
+
+function getMobileLobbySeatStyle(index: number, seatCount: number): MobileLobbySeatStyle {
+  const presetPoint = MOBILE_LOBBY_SEAT_POINTS[seatCount]?.[index];
+  if (presetPoint) {
+    return {
+      "--lobby-seat-size": `${presetPoint.size}px`,
+      "--lobby-seat-x": `${presetPoint.x.toFixed(1)}%`,
+      "--lobby-seat-y": `${presetPoint.y.toFixed(1)}%`,
+    };
+  }
+
+  const pairCount = Math.max(1, Math.ceil(seatCount / 2));
+  const pairIndex = Math.floor(index / 2);
+  const progress = pairCount === 1 ? 0.5 : pairIndex / (pairCount - 1);
+  const sideArc = Math.abs(progress - 0.5) * 2;
+  const isRightSide = index % 2 === 1;
+  const isOddCenterSeat = seatCount % 2 === 1 && index === seatCount - 1;
+  const xInset = seatCount >= 10 ? 8 + sideArc * 10 : 8 + sideArc * 14;
+  const x = isOddCenterSeat ? 50 : isRightSide ? 100 - xInset : xInset;
+  const y = seatCount >= 10 ? 16 + progress * 72 : seatCount >= 8 ? 18 + progress * 68 : 18 + progress * 66;
+  const size = seatCount >= 10 ? 38 : seatCount >= 8 ? 44 : 52;
+
+  return {
+    "--lobby-seat-size": `${size}px`,
+    "--lobby-seat-x": `${x.toFixed(1)}%`,
+    "--lobby-seat-y": `${y.toFixed(1)}%`,
+  };
 }
 
 function LandingPromoCard({ boardLabel, humanLabel, aiLabel }: { boardLabel: string; humanLabel: string; aiLabel: string }) {
   return (
-    <div className="relative min-h-[260px] overflow-hidden border-t border-[#f1c76e]/14 bg-[#0d1018] lg:min-h-full lg:border-l lg:border-t-0">
+    <div className="mobile-home-promo relative min-h-[260px] overflow-hidden border-t border-[#f1c76e]/14 bg-[#0d1018] lg:min-h-full lg:border-l lg:border-t-0">
       <Image
         src="/images/promo-ai-werewolf-reference-personas.png"
         alt="AI 狼人杀宣传图"
@@ -374,7 +518,7 @@ function HumanSeatPicker({
   const seats = Array.from({ length: seatCount }, (_, index) => index + 1);
   const seatLabel = mode === "none" ? "无真人" : selectedSeatId ? `${selectedSeatId}号` : "随机";
   return (
-    <section className="mt-4 rounded-lg border border-[#7da8e3]/18 bg-[#0d1623]/48 p-3">
+    <section className="mobile-seat-picker mt-4 rounded-lg border border-[#7da8e3]/18 bg-[#0d1623]/48 p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-[#e4efff]">真人座位</h3>
         <span className="rounded-full border border-[#7da8e3]/20 bg-[#7da8e3]/10 px-2.5 py-1 text-xs text-[#b8d6ff]">
@@ -386,23 +530,23 @@ function HumanSeatPicker({
           type="button"
           onClick={onRandom}
           className={[
-            "rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition",
+            "mobile-seat-mode-button rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition",
             mode === "random" ? "border-[#7da8e3]/50 bg-[#0d2642]/78 text-[#d8e7ff]" : "border-[#7da8e3]/16 bg-black/18 text-[#b8d6ff] hover:bg-[#7da8e3]/10",
           ].join(" ")}
         >
-          随机座位{selectedSeatId ? ` · 本局预览 ${selectedSeatId}号` : ""}
+          真人模式{selectedSeatId ? ` · 本局预览 ${selectedSeatId}号` : ""}
         </button>
         <button
           type="button"
           onClick={onNone}
           className={[
-            "rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition",
+            "mobile-seat-mode-button rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition",
             mode === "none" ? "border-[#77d898]/50 bg-[#12301e]/78 text-[#dff4df]" : "border-[#77d898]/16 bg-black/18 text-[#a8f0b6] hover:bg-[#77d898]/10",
           ].join(" ")}
         >
           无真人 · 只看 AI 对局
         </button>
-        <div className="grid grid-cols-6 gap-1.5 sm:col-span-2 md:grid-cols-9">
+        <div className="mobile-seat-strip grid grid-cols-6 gap-1.5 sm:col-span-2 md:grid-cols-9">
           {seats.map((seatId) => {
             const selected = mode === "fixed" && selectedSeatId === seatId;
             return (
@@ -411,7 +555,7 @@ function HumanSeatPicker({
                 type="button"
                 onClick={() => onSelect(seatId)}
                 className={[
-                  "min-h-10 rounded-md border px-2 py-2 text-sm font-semibold transition",
+                  "mobile-seat-chip-option min-h-10 rounded-md border px-2 py-2 text-sm font-semibold transition",
                   selected ? "border-[#f1c76e]/58 bg-[#3a2412]/88 text-[#f1d796]" : "border-white/10 bg-black/18 text-[#dcc9a7] hover:bg-white/8",
                 ].join(" ")}
               >
@@ -548,7 +692,7 @@ function RulesMiniCard() {
   ];
 
   return (
-    <section className="mt-4">
+    <section className="mobile-home-rules mt-4">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-[#dff4df]">流程提示</h3>
         <span className="text-xs text-[#86c797]">本地规则引擎</span>
@@ -1332,10 +1476,10 @@ export function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnt
   const teammates = game.wolfTeammates.map((seat) => seat.name).join("、");
 
   return (
-    <div className="role-intro-backdrop fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/86 px-4 py-6 backdrop-blur-md">
-      <section className="mx-auto grid w-full max-w-5xl gap-6 rounded-[30px] border border-[#f1c76e]/30 bg-[#120c0a]/95 p-4 shadow-2xl shadow-black/70 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="flex min-h-[500px] flex-col items-center justify-start rounded-[24px] border border-[#f1c76e]/18 bg-black/28 p-5 sm:p-6">
-          <div className="role-card-scene mt-1">
+    <div className="role-intro-backdrop role-intro-mobile-backdrop fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/86 px-4 py-6 backdrop-blur-md">
+      <section className="role-intro-shell mx-auto grid w-full max-w-5xl gap-6 rounded-[30px] border border-[#f1c76e]/30 bg-[#120c0a]/95 p-4 shadow-2xl shadow-black/70 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="role-intro-hero flex min-h-[500px] flex-col items-center justify-start rounded-[24px] border border-[#f1c76e]/18 bg-black/28 p-5 sm:p-6">
+          <div className="role-card-scene role-intro-card-scene mt-1">
             <Image
               fill
               sizes="240px"
@@ -1352,13 +1496,13 @@ export function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnt
               className="role-card-reveal rounded-[18px] border border-[#f1c76e]/60 shadow-2xl"
             />
           </div>
-          <div className="mt-6 text-center">
-            <div className="text-xs uppercase tracking-[0.28em] text-[#ad9c7d]">Your Role</div>
-            <div className="mt-2 text-3xl font-semibold text-[#f1d796]">{intro.title}</div>
+          <div className="role-intro-identity mt-6 text-center">
+            <div className="role-intro-eyebrow text-xs uppercase tracking-[0.28em] text-[#ad9c7d]">Your Role</div>
+            <div className="role-intro-title mt-2 text-3xl font-semibold text-[#f1d796]">{intro.title}</div>
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-col justify-between gap-6">
+        <div className="role-intro-copy flex min-w-0 flex-col justify-between gap-6">
           <div>
             <div className="inline-flex rounded-full border border-[#f1c76e]/25 bg-[#f1c76e]/10 px-3 py-1 text-xs text-[#f1d796]">
               身份已发放
@@ -1371,7 +1515,7 @@ export function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnt
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="role-intro-detail-grid grid gap-3 sm:grid-cols-2">
             <RoleIntroItem label="阵营" value={intro.camp} />
             <RoleIntroItem label="胜利条件" value={intro.goal} />
             <RoleIntroItem label="行动时机" value={intro.timing} />
@@ -1383,7 +1527,7 @@ export function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnt
 
           <button
             onClick={onEnter}
-            className="min-h-12 rounded-full bg-[#b74332] px-6 py-3 text-sm font-semibold text-white shadow-xl shadow-black/35 transition hover:bg-[#cf513d]"
+            className="role-intro-confirm min-h-12 rounded-full bg-[#b74332] px-6 py-3 text-sm font-semibold text-white shadow-xl shadow-black/35 transition hover:bg-[#cf513d]"
           >
             确认身份，进入游戏
           </button>
@@ -1395,7 +1539,7 @@ export function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnt
 
 function RoleIntroItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-[#f1c76e]/16 bg-black/24 px-4 py-3">
+    <div className="role-intro-item rounded-2xl border border-[#f1c76e]/16 bg-black/24 px-4 py-3">
       <div className="mb-1 text-xs text-[#ad9c7d]">{label}</div>
       <div className="text-sm leading-6 text-[#f7ead5]">{value}</div>
     </div>
@@ -1439,16 +1583,16 @@ export function IdentityBookOverlay({
       role="dialog"
       aria-modal="true"
       aria-labelledby="identity-book-title"
-      className="role-intro-backdrop fixed inset-0 z-50 overflow-y-auto bg-black/86 px-3 py-5 backdrop-blur-md sm:px-5"
+      className="role-intro-backdrop mobile-knowledge-overlay fixed inset-0 z-50 overflow-y-auto bg-black/86 px-3 py-5 backdrop-blur-md sm:px-5"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <section
-        className="mx-auto w-full max-w-6xl rounded-[30px] border border-[#f1c76e]/30 bg-[#120c0a]/96 p-4 shadow-2xl shadow-black/70 sm:p-5"
+        className="mobile-knowledge-card mx-auto w-full max-w-6xl rounded-[30px] border border-[#f1c76e]/30 bg-[#120c0a]/96 p-4 shadow-2xl shadow-black/70 sm:p-5"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="mb-4 flex flex-col gap-3 border-b border-[#f1c76e]/15 pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mobile-knowledge-head mb-4 flex flex-col gap-3 border-b border-[#f1c76e]/15 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="mb-2 inline-flex rounded-full border border-[#f1c76e]/24 bg-[#f1c76e]/10 px-3 py-1 text-xs text-[#f1d796]">
               身份书 · {visibleRoles.length}/{IDENTITY_BOOK_ROLE_ORDER.length} 个角色
@@ -1479,7 +1623,7 @@ export function IdentityBookOverlay({
           onPreview={setPreviewRole}
         />
 
-        <div className="mb-4 grid gap-3 rounded-2xl border border-[#f1c76e]/14 bg-black/20 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="mobile-knowledge-tools mb-4 grid gap-3 rounded-2xl border border-[#f1c76e]/14 bg-black/20 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_auto]">
             <div className="flex min-h-10 items-center rounded-full border border-[#f1c76e]/18 bg-[#090605]/70 px-3 focus-within:border-[#f1c76e]/48">
               <input
@@ -1532,7 +1676,7 @@ export function IdentityBookOverlay({
           </div>
         </div>
 
-        <div className="soft-scrollbar grid gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3" style={{ maxHeight: "min(74vh, 760px)" }}>
+        <div className="soft-scrollbar mobile-knowledge-scroll grid gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3" style={{ maxHeight: "min(74vh, 760px)" }}>
           {visibleRoles.length > 0 ? (
             visibleRoles.map((role) => {
               const enabled = !hasActiveBoard || activeBoardRoleSet.has(role);
@@ -1602,7 +1746,7 @@ function IdentityBookFocusPanel({
   const currentTone = currentIntro ? roleCampTone(currentIntro.camp) : undefined;
 
   return (
-    <div className="mb-4 grid gap-3 rounded-2xl border border-[#f1c76e]/16 bg-[#1b120d]/58 p-3 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
+    <div className="mobile-knowledge-focus mb-4 grid gap-3 rounded-2xl border border-[#f1c76e]/16 bg-[#1b120d]/58 p-3 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
       <section className="rounded-2xl border border-[#f1c76e]/16 bg-black/20 p-3">
         {currentIntro && currentRole ? (
           <div className="grid gap-3">
@@ -1782,10 +1926,17 @@ function getActiveHumanActionHint(role: Role, game: HumanGameView): RolePhaseHin
       tone: "gold",
     };
   }
+  if (hasHumanAction(game, "hunterReveal")) {
+    return {
+      title: "现在确认是否翻牌",
+      detail: "翻牌后会公开猎人身份并必须带走一名玩家；不翻牌则不会公开猎人发动技能。",
+      tone: "gold",
+    };
+  }
   if (hasHumanAction(game, "hunterShoot")) {
     return {
       title: "现在可以开枪",
-      detail: "猎人枪会立即带走目标。枪口最好落在公开狼面最重、且能改变轮次的位置。",
+      detail: "你已经翻牌发动猎人技能，必须选择一名存活玩家带走。",
       tone: "gold",
     };
   }
@@ -1881,10 +2032,14 @@ function getRolePhaseHint(role: Role, game: HumanGameView, isCurrentRole: boolea
     case "SHERIFF_VOTE":
     case "SHERIFF_PK_VOTE":
       return { title: "投票阶段", detail: "所有阵营都要通过投票留下公开立场。票型会成为后续复盘证据。", tone: "gold" };
+    case "HUNTER_REVEAL":
+      return role === "HUNTER"
+        ? { title: "猎人翻牌确认", detail: "你已死亡出局，先选择是否翻牌发动技能；不翻牌不会公开猎人播报。", tone: "gold" }
+        : { title: "等待出局结算", detail: "出局玩家正在完成结算，随后继续遗言或后续流程。", tone: "gold" };
     case "HUNTER_SHOT":
       return role === "HUNTER"
-        ? { title: "猎人开枪窗口", detail: "猎人出局后可以选择是否开枪，枪口要服务于好人轮次。", tone: "gold" }
-        : { title: "等待猎人枪", detail: "猎人枪会改变死亡名单和后续遗言顺序。", tone: "gold" };
+        ? { title: "猎人开枪窗口", detail: "猎人已经翻牌，必须选择一名存活玩家带走。", tone: "gold" }
+        : { title: "等待猎人枪", detail: "猎人已翻牌发动技能，枪口会改变死亡名单和后续遗言顺序。", tone: "gold" };
     case "WOLF_KING_SHOT":
       return role === "WOLF_KING"
         ? { title: "狼王开枪窗口", detail: "狼王出局后可以开枪带人，优先破坏好人核心信息位。", tone: "red" }
@@ -1930,16 +2085,16 @@ export function GlossaryOverlay({ onClose }: { onClose: () => void }) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="glossary-title"
-      className="role-intro-backdrop fixed inset-0 z-50 overflow-y-auto bg-black/86 px-3 py-5 backdrop-blur-md sm:px-5"
+      className="role-intro-backdrop mobile-knowledge-overlay fixed inset-0 z-50 overflow-y-auto bg-black/86 px-3 py-5 backdrop-blur-md sm:px-5"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <section
-        className="mx-auto w-full max-w-6xl rounded-[30px] border border-[#7da8e3]/30 bg-[#0d1118]/96 p-4 shadow-2xl shadow-black/70 sm:p-5"
+        className="mobile-knowledge-card mx-auto w-full max-w-6xl rounded-[30px] border border-[#7da8e3]/30 bg-[#0d1118]/96 p-4 shadow-2xl shadow-black/70 sm:p-5"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="mb-4 flex flex-col gap-3 border-b border-[#7da8e3]/15 pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mobile-knowledge-head mb-4 flex flex-col gap-3 border-b border-[#7da8e3]/15 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="mb-2 inline-flex rounded-full border border-[#7da8e3]/24 bg-[#7da8e3]/10 px-3 py-1 text-xs text-[#b8d6ff]">
               术语表 · {normalizedSearchQuery ? `${visibleEntryCount}/${totalEntries}` : totalEntries} 个常见说法
@@ -1960,7 +2115,7 @@ export function GlossaryOverlay({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="mb-4 grid gap-2 rounded-2xl border border-[#7da8e3]/18 bg-black/22 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="mobile-knowledge-tools mb-4 grid gap-2 rounded-2xl border border-[#7da8e3]/18 bg-black/22 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
@@ -1982,7 +2137,7 @@ export function GlossaryOverlay({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="soft-scrollbar grid gap-5 overflow-y-auto pr-1" style={{ maxHeight: "min(74vh, 760px)" }}>
+        <div className="soft-scrollbar mobile-knowledge-scroll grid gap-5 overflow-y-auto pr-1" style={{ maxHeight: "min(74vh, 760px)" }}>
           {filteredSections.length > 0 ? (
             filteredSections.map((section) => (
               <section key={section.title} className="grid gap-3">
@@ -2087,7 +2242,7 @@ function IdentityBookRoleCard({
       onClick={() => onPreview(role)}
       className={[
         enabled ? tone.card : tone.mutedCard,
-        "group grid min-h-[330px] gap-3 rounded-2xl border p-3 text-left shadow-xl shadow-black/24 transition",
+        "mobile-knowledge-role-card group grid min-h-[330px] gap-3 rounded-2xl border p-3 text-left shadow-xl shadow-black/24 transition",
         "hover:-translate-y-0.5 hover:border-[#f1c76e]/44 hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-[#f1d796]/55",
         enabled ? "" : "opacity-58 grayscale-[0.72] hover:opacity-88 hover:grayscale-0",
       ].join(" ")}
@@ -2099,7 +2254,7 @@ function IdentityBookRoleCard({
           title={intro.title}
           src={ROLE_CARD_BOOK_IMAGES[role]}
           sizes="112px"
-          className="w-[92px] rounded-xl border border-[#f1c76e]/28 shadow-lg shadow-black/30"
+          className="mobile-knowledge-role-art w-[92px] rounded-xl border border-[#f1c76e]/28 shadow-lg shadow-black/30"
         />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap gap-1.5">
@@ -2119,11 +2274,11 @@ function IdentityBookRoleCard({
             </span>
           </div>
           <h3 className="mt-3 text-xl font-semibold text-[#f7ead5]">{intro.title}</h3>
-          <p className="mt-2 text-xs leading-5 text-[#ad9c7d]">{intro.goal}</p>
+          <p className="mobile-knowledge-role-summary mt-2 text-xs leading-5 text-[#ad9c7d]">{intro.goal}</p>
         </div>
       </div>
 
-      <div className="grid gap-2 text-xs leading-5">
+      <div className="mobile-knowledge-role-lines grid gap-2 text-xs leading-5">
         {isCurrentRole && phaseHint && <RoleBookLine label="当前阶段" value={phaseHint.title} />}
         {linkTips[0] && <RoleBookLine label="联动提醒" value={linkTips[0].detail} />}
         <RoleBookLine label="行动时机" value={intro.timing} />
@@ -2237,7 +2392,7 @@ function IdentityBookPreview({
 
 function RoleBookLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+    <div className="mobile-knowledge-line rounded-xl border border-white/10 bg-black/20 px-3 py-2">
       <div className="mb-1 text-[11px] text-[#ad9c7d]">{label}</div>
       <div className="text-[#f7ead5]">{value}</div>
     </div>
@@ -2247,7 +2402,7 @@ function RoleBookLine({ label, value }: { label: string; value: string }) {
 function GlossaryTermCard({ entry }: { entry: GlossaryEntry }) {
   const toneClass = glossaryToneClass(entry.tone);
   return (
-    <article className={`${toneClass.card} grid min-h-[250px] gap-3 rounded-2xl border p-3 shadow-xl shadow-black/24`}>
+    <article className={`${toneClass.card} mobile-knowledge-term-card grid min-h-[250px] gap-3 rounded-2xl border p-3 shadow-xl shadow-black/24`}>
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <span className={`${toneClass.pill} rounded-full border px-2.5 py-1 text-sm font-semibold`}>{entry.term}</span>
@@ -2265,7 +2420,7 @@ function GlossaryTermCard({ entry }: { entry: GlossaryEntry }) {
 
 function GlossaryLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+    <div className="mobile-knowledge-line rounded-xl border border-white/10 bg-black/20 px-3 py-2">
       <div className="mb-1 text-[11px] text-[#9fb2d0]">{label}</div>
       <div className="text-[#dce8f8]">{value}</div>
     </div>
@@ -2433,11 +2588,19 @@ export function getPhaseCurtainCue(game: HumanGameView): PhaseCurtainCue {
         durationMs: 1200,
         presentation: "ribbon",
       };
+    case "HUNTER_REVEAL":
+      return {
+        eyebrow: "出局结算",
+        title: "等待结算",
+        subtitle: "出局玩家正在完成后续流程。",
+        tone: "danger",
+        durationMs: 1300,
+      };
     case "HUNTER_SHOT":
       return {
         eyebrow: "猎人阶段",
         title: "猎人请行动",
-        subtitle: "选择是否发动最后一枪。",
+        subtitle: "猎人已翻牌，必须带走一名玩家。",
         tone: "danger",
         durationMs: 1450,
       };
@@ -2585,7 +2748,7 @@ export function HostStage({ game }: { game: HumanGameView }) {
 
 function HostStageDetail({ game, action }: { game: HumanGameView; action?: AvailableHumanAction }) {
   if (game.phase.startsWith("NIGHT")) {
-    return <NightRoleTrack phase={game.phase} />;
+    return <NightRoleTrack game={game} />;
   }
 
   if (game.phase === "DAY_SPEECH") {
@@ -2626,11 +2789,20 @@ function HostStageDetail({ game, action }: { game: HumanGameView; action?: Avail
     );
   }
 
+  if (game.phase === "HUNTER_REVEAL") {
+    return (
+      <div className="grid gap-2 text-sm leading-6 text-white/75">
+        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Death Resolve</div>
+        <div>出局玩家正在完成结算，随后继续遗言或后续流程。</div>
+      </div>
+    );
+  }
+
   if (game.phase === "HUNTER_SHOT") {
     return (
       <div className="grid gap-2 text-sm leading-6 text-white/75">
         <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Hunter Window</div>
-        <div>猎人进入最后行动窗口，结算完成后继续进入白天或终局。</div>
+        <div>猎人已翻牌发动技能，必须带走一名存活玩家。</div>
       </div>
     );
   }
@@ -2662,14 +2834,9 @@ function HostStageDetail({ game, action }: { game: HumanGameView; action?: Avail
   );
 }
 
-function NightRoleTrack({ phase }: { phase: HumanGameView["phase"] }) {
-  const steps = [
-    { phase: "NIGHT_WOLVES", label: "狼人睁眼", detail: "选择今晚刀口" },
-    { phase: "NIGHT_GUARD", label: "守卫睁眼", detail: "选择守护目标" },
-    { phase: "NIGHT_SEER", label: "预言家睁眼", detail: "查验一名玩家" },
-    { phase: "NIGHT_WITCH", label: "女巫睁眼", detail: "决定是否用药" },
-  ] as const;
-  const currentIndex = steps.findIndex((step) => step.phase === phase);
+function NightRoleTrack({ game }: { game: HumanGameView }) {
+  const steps = getNightRoleTrackSteps(game.board);
+  const currentIndex = steps.findIndex((step) => step.phase === game.phase);
 
   return (
     <div className="grid gap-3">
@@ -3050,12 +3217,20 @@ function getHostCue(game: HumanGameView): HostCue {
         detail: "遗言会进入公开发言席，也会影响后续玩家的桌面判断。",
         tone: "danger",
       };
+    case "HUNTER_REVEAL":
+      return {
+        badge: `第 ${game.day} 天`,
+        title: "出局结算",
+        line: "出局玩家正在完成后续结算。",
+        detail: "如果后续有公开技能结果，系统会在结果产生后再播报。",
+        tone: "danger",
+      };
     case "HUNTER_SHOT":
       return {
         badge: `第 ${game.day} 天`,
         title: "猎人行动窗口",
-        line: "猎人出局后可以选择是否开枪带走一名玩家。",
-        detail: "如果猎人被女巫毒死，则不会触发开枪。",
+        line: "猎人已翻牌发动技能，必须带走一名存活玩家。",
+        detail: "如果猎人选择不翻牌，或被女巫毒死，则不会进入这个公开开枪阶段。",
         tone: "danger",
       };
     case "WOLF_KING_SHOT":
@@ -3408,7 +3583,6 @@ function SeatToken({
   const isSheriffBadgeHolder = game.sheriff?.badgeHolder?.seatId === seat.seatId;
   const hasAiAvatar = Boolean(seat.avatarDataUrl);
   const isModelCard = seat.isAi && !hasAiAvatar && Boolean(MODEL_CARD_IMAGES[seat.personaName ?? seat.name]);
-  const seatClaims = game.tableSummary.claimBoard.filter((claim) => claim.claimant.seatId === seat.seatId);
   const seatStyle = { ...orbitStyle, "--seat-index": seat.seatId - 1 } as React.CSSProperties & Record<
     "--seat-x" | "--seat-y" | "--seat-index",
     string | number
@@ -3509,15 +3683,6 @@ function SeatToken({
               <span />
               <span />
               <span />
-            </div>
-          )}
-          {!compact && seatClaims.length > 0 && (
-            <div className="mt-2 flex flex-wrap justify-center gap-1">
-              {seatClaims.slice(0, compact ? 1 : 2).map((claim) => (
-                <span key={claim.claimId} className="rounded-full border border-[#77d898]/25 bg-[#0f2118]/75 px-2 py-0.5 text-[10px] text-[#a8f0b6]">
-                  声称{claim.claimedRoleLabel}
-                </span>
-              ))}
             </div>
           )}
         </div>

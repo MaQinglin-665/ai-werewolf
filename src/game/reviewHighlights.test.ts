@@ -3,7 +3,7 @@ import type { HumanGameView } from "./types";
 import { buildReviewCredibilityHighlights } from "./reviewHighlights";
 
 describe("buildReviewCredibilityHighlights", () => {
-  it("summarizes result, claim truth, vote shape, and power actions from the review", () => {
+  it("summarizes result, vote shape, and turning points without claim-truth highlights", () => {
     const game = {
       review: {
         result: { winner: "GOOD", reason: "狼人全部出局" },
@@ -53,7 +53,7 @@ describe("buildReviewCredibilityHighlights", () => {
     const titles = buildReviewCredibilityHighlights(game).map((item) => item.title);
 
     expect(titles).toContain("胜负原因");
-    expect(titles).toContain("身份线");
+    expect(titles).not.toContain("身份线");
     expect(titles).toContain("票型");
     expect(titles).toContain("关键转折");
   });
