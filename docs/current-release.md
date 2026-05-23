@@ -14,11 +14,13 @@ Use this file as the first stop before sharing the public Alpha link or starting
 ## Current Source State
 
 - Working branch: `codex/render-main-game-env-fix`
-- GitHub branch head at last check: `3e8b883 docs: add tencent cloud deploy runbook`
-- Local worktree at last check: clean and synced with `origin/codex/render-main-game-env-fix`
+- Current public runtime baseline: `3e8b883 docs: add tencent cloud deploy runbook`
+- Local worktree at runtime check: clean and synced with `origin/codex/render-main-game-env-fix`
 - Render deployment branch at last check: `f09b3d5 deploy: sync refactored game UI`
 
 Render is intentionally tracked through `codex/room-render-production-minimum`. Tencent Cloud is deployed from the current source archive path. When a release should be visible in both public environments, update both lanes and record the two heads here.
+
+This file may be updated by documentation-only commits after the runtime baseline. Use `git log -1` when you need the exact repository documentation head.
 
 ## Tencent Cloud
 
