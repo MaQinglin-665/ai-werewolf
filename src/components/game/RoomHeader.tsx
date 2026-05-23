@@ -11,6 +11,7 @@ export function RoomHeader({
   aiSpeechAudioUnavailable,
   hostAudioEnabled,
   onNewGame,
+  onReturnHome,
   onOpenIdentityBook,
   onOpenGlossary,
   onToggleAiSpeechAudio,
@@ -22,6 +23,7 @@ export function RoomHeader({
   aiSpeechAudioUnavailable: boolean;
   hostAudioEnabled: boolean;
   onNewGame: () => Promise<void>;
+  onReturnHome?: () => Promise<void> | void;
   onOpenIdentityBook: () => void;
   onOpenGlossary: () => void;
   onToggleAiSpeechAudio: () => void;
@@ -103,13 +105,26 @@ export function RoomHeader({
           <MobileHomeToolContent icon="播" label={aiSpeechAudioUnavailable ? "转写" : aiSpeechAudioEnabled ? "AI开" : "AI关"} />
         </button>
         {game && (
-          <button
-            onClick={onNewGame}
-            disabled={loading}
-            className="mobile-home-quick-action mobile-home-header-start rounded-full bg-[#b74332] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#220806]/35 transition hover:bg-[#cf513d] disabled:opacity-60"
-          >
-            <MobileHomeToolContent icon="新" label="新局" />
-          </button>
+          <>
+            {onReturnHome && (
+              <button
+                onClick={() => void onReturnHome()}
+                disabled={loading}
+                className="mobile-home-quick-action rounded-full border border-[#7da8e3]/30 bg-[#101d2d]/70 px-4 py-2 text-sm font-semibold text-[#b8d6ff] transition hover:bg-[#172b44] disabled:opacity-60"
+                type="button"
+              >
+                <MobileHomeToolContent icon="主" label="返回主页面" />
+              </button>
+            )}
+            <button
+              onClick={onNewGame}
+              disabled={loading}
+              className="mobile-home-quick-action mobile-home-header-start rounded-full bg-[#b74332] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#220806]/35 transition hover:bg-[#cf513d] disabled:opacity-60"
+              type="button"
+            >
+              <MobileHomeToolContent icon="新" label="新局" />
+            </button>
+          </>
         )}
       </div>
     </header>

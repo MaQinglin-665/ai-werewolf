@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { HumanGameView } from "@/game/types";
 import { GlossaryOverlay, IdentityBookOverlay, LandingPanel, RoleIntroOverlay, RoomHeader } from "./GamePanels";
 import { getDefaultBoardOptions } from "./boardSelectionModel";
+import { MobileTopStrip } from "./MobileSeatStage";
 
 function buildGame(): HumanGameView {
   return {
@@ -51,6 +52,12 @@ describe("mobile game panels", () => {
     expect(html).toContain("role-intro-hero");
     expect(html).toContain("role-intro-detail-grid");
     expect(html).toContain("role-intro-confirm");
+  });
+
+  it("lets players return home from the role intro overlay", () => {
+    const html = renderToStaticMarkup(createElement(RoleIntroOverlay, { game: buildGame(), onEnter: () => undefined, onReturnHome: () => undefined }));
+
+    expect(html).toContain("返回主页面");
   });
 
   it("marks identity book and glossary overlays as compact mobile knowledge panels", () => {
@@ -266,5 +273,46 @@ describe("mobile game panels", () => {
     expect(html).not.toContain("mobile-home-header-start");
     expect(html).toContain("mobile-home-tool-icon");
     expect(html).toContain("mobile-home-tool-label");
+  });
+
+  it("shows a desktop return-home action while a game is in progress", () => {
+    const html = renderToStaticMarkup(
+      createElement(RoomHeader, {
+        game: buildGame(),
+        loading: false,
+        aiSpeechAudioEnabled: false,
+        aiSpeechAudioUnavailable: false,
+        hostAudioEnabled: false,
+        onNewGame: async () => undefined,
+        onReturnHome: () => undefined,
+        onOpenIdentityBook: () => undefined,
+        onOpenGlossary: () => undefined,
+        onToggleAiSpeechAudio: () => undefined,
+        onToggleHostAudio: () => undefined,
+      }),
+    );
+
+    expect(html).toContain("返回主页面");
+  });
+
+  it("shows a mobile return-home action while a game is in progress", () => {
+    const html = renderToStaticMarkup(
+      createElement(MobileTopStrip, {
+        game: buildGame(),
+        loading: false,
+        hostAudioEnabled: false,
+        aiSpeechAudioEnabled: false,
+        aiSpeechAudioUnavailable: false,
+        actionStatus: "等待 AI 行动",
+        onNewGame: async () => undefined,
+        onReturnHome: () => undefined,
+        onOpenIdentityBook: () => undefined,
+        onOpenGlossary: () => undefined,
+        onToggleAiSpeechAudio: () => undefined,
+        onToggleHostAudio: () => undefined,
+      }),
+    );
+
+    expect(html).toContain("返回主页面");
   });
 });

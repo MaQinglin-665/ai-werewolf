@@ -121,6 +121,7 @@ export function MobileInfoDrawer({
   selectedSpeechSeat,
   onClearSpeechSeatFilter,
   onNewGame,
+  onReturnHome,
   onSubmit,
 }: {
   activeTab: MobileInfoTabKey;
@@ -133,6 +134,7 @@ export function MobileInfoDrawer({
   selectedSpeechSeat?: HumanGameView["seats"][number];
   onClearSpeechSeatFilter: () => void;
   onNewGame: () => Promise<void>;
+  onReturnHome?: () => Promise<void> | void;
   onSubmit: (payload: CommandPayload) => Promise<void>;
 }) {
   const showSpeechComposer = activeTab === "speech" && hasMobileSpeechDrawerAction(game);
@@ -173,7 +175,14 @@ export function MobileInfoDrawer({
               )}
               {showSpeechComposer && (
                 <div className="mobile-drawer-speech-composer">
-                  <ActionPanel game={game} loading={loading} onNewGame={onNewGame} onSubmit={onSubmit} reviewHref="#mobile-review" />
+                  <ActionPanel
+                    game={game}
+                    loading={loading}
+                    onNewGame={onNewGame}
+                    onReturnHome={onReturnHome}
+                    onSubmit={onSubmit}
+                    reviewHref="#mobile-review"
+                  />
                 </div>
               )}
               {selectedSpeechSeat && filteredSpeeches.length === 0 && !filteredLiveAiSpeech ? (

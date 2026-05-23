@@ -10,6 +10,7 @@ export function ActionPanel({
   loading,
   onSubmit,
   onNewGame,
+  onReturnHome,
   reviewHref = "#review",
   voiceInputEnabled = true,
   mobileCompact = false,
@@ -18,6 +19,7 @@ export function ActionPanel({
   game: HumanGameView;
   loading: boolean;
   onNewGame: () => Promise<void>;
+  onReturnHome?: () => Promise<void> | void;
   onSubmit: (payload: CommandPayload) => Promise<void>;
   reviewHref?: string;
   voiceInputEnabled?: boolean;
@@ -45,6 +47,15 @@ export function ActionPanel({
           >
             新开一局
           </button>
+          {onReturnHome && (
+            <button
+              onClick={() => void onReturnHome()}
+              disabled={loading}
+              className="rounded-full border border-[#7da8e3]/30 px-5 py-2.5 text-sm font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/10 disabled:opacity-60"
+            >
+              返回主页面
+            </button>
+          )}
         </div>
       </section>
     );

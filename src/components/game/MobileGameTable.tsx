@@ -31,6 +31,7 @@ export function MobileGameTable({
   aiSpeechAudioUnavailable,
   events,
   onNewGame,
+  onReturnHome,
   onSubmit,
   onOpenIdentityBook,
   onOpenGlossary,
@@ -48,6 +49,7 @@ export function MobileGameTable({
   aiSpeechAudioUnavailable: boolean;
   events: HumanGameView["publicEvents"];
   onNewGame: () => Promise<void>;
+  onReturnHome?: () => Promise<void> | void;
   onSubmit: (payload: CommandPayload) => Promise<void>;
   onOpenIdentityBook: () => void;
   onOpenGlossary: () => void;
@@ -117,6 +119,7 @@ export function MobileGameTable({
           aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
           actionStatus={actionStatus}
           onNewGame={onNewGame}
+          onReturnHome={onReturnHome}
           onOpenIdentityBook={onOpenIdentityBook}
           onOpenGlossary={onOpenGlossary}
           onToggleAiSpeechAudio={onToggleAiSpeechAudio}
@@ -135,6 +138,7 @@ export function MobileGameTable({
           actionLayerClassName={actionPanelLayout.actionLayerClassName}
           showStageAction={showStageAction}
           onNewGame={onNewGame}
+          onReturnHome={onReturnHome}
           onSubmit={onSubmit}
           onOpenSpeechPanel={() => selectMobileTab("speech")}
           onOpenSeatSpeech={(seatId) => {
@@ -162,6 +166,7 @@ export function MobileGameTable({
           selectedSpeechSeat={selectedSpeechSeat}
           onClearSpeechSeatFilter={() => setSelectedSpeechSeatId(null)}
           onNewGame={onNewGame}
+          onReturnHome={onReturnHome}
           onSubmit={onSubmit}
         />
       )}
