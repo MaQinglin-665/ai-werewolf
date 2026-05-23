@@ -106,6 +106,16 @@ describe("MobileRoomLobby", () => {
     expect(html).toContain("移除");
   });
 
+  it("exposes stable CSS hooks for the mobile table-stage design", () => {
+    const html = renderLobby({ isHost: true });
+
+    expect(html).toContain("mobile-room-lobby-table-glow");
+    expect(html).toContain("mobile-room-lobby-seat-ring");
+    expect(html).toContain("mobile-room-lobby-dock");
+    expect(html).toContain("mobile-room-lobby-dock-actions");
+    expect(html).toContain("mobile-room-lobby-player-backdrop");
+  });
+
   it("renders the mobile lobby shell, header, and stage", () => {
     const html = renderLobby();
 
