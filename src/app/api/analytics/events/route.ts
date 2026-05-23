@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const analyticsEventSchema = z
   .object({
     eventType: z.enum(["home_view", "room_page_view", "room_recovery_restored"]),
-    path: z.string().startsWith("/").max(120).optional(),
+    path: z.enum(["/", "/rooms"]).optional(),
   })
   .strict();
 
