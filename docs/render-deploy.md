@@ -74,6 +74,21 @@ The metrics track public-test usage:
 
 They do not track raw IP addresses, browser fingerprints, or model/API keys.
 
+### Shared Render Analytics Dashboard
+
+For the first two-server public Alpha, keep Render as the owner dashboard and use the Render PostgreSQL analytics table as the shared historical metrics store.
+
+Configuration shape:
+
+- Render continues to serve `/admin/metrics?token=<AI_WEREWOLF_METRICS_TOKEN>`.
+- Render writes analytics through its existing PostgreSQL-backed room analytics configuration.
+- Tencent Cloud sets `AI_WEREWOLF_ROOM_ANALYTICS_DATABASE_URL` to the Render PostgreSQL external connection string.
+- The connection string is a secret environment variable and must not be committed or copied into public docs.
+
+With this setup, historical counters such as homepage opens, starts, finishes, durations, completion rates, and recent-day trends can include events from both Render and Tencent Cloud. Current live room state remains local to the service instance serving the dashboard unless room state is also shared, so do not read the live room panels as cross-server totals.
+
+If Render PostgreSQL external access is unavailable or unreliable from Tencent Cloud, use a neutral hosted PostgreSQL database for `AI_WEREWOLF_ROOM_ANALYTICS_DATABASE_URL` on both servers instead.
+
 ## After First Deploy
 
 First open:
