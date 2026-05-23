@@ -26,6 +26,20 @@ Minimum checklist after each public-facing update:
 4. Run production preflight against `https://175.178.199.245`.
 5. Run room SSE smoke against `https://175.178.199.245`.
 
+## Optional Shared Analytics
+
+The public Alpha can report anonymous aggregate usage to the existing Render owner dashboard without sharing gameplay state.
+
+When this is enabled, set this secret on the Tencent Cloud app environment:
+
+```text
+AI_WEREWOLF_ROOM_ANALYTICS_DATABASE_URL=<Render PostgreSQL external connection string>
+```
+
+Keep the value out of source control, shell transcripts, screenshots, and chat summaries. Restart the app container after changing it. If the variable is absent or the database cannot be reached, analytics should fail softly and gameplay should continue.
+
+The Render dashboard then shows shared historical usage totals. Its current live room panels remain local to the dashboard service instance, not a two-server live room total.
+
 ## Safe Deploy Shape
 
 Use a clean source archive instead of copying the working directory directly. Exclude `.git`, `.next`, `node_modules`, `tmp`, `.env*`, logs, generated caches, and local database files.
