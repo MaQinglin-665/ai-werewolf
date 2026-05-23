@@ -95,10 +95,15 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
     { label: "完局", note: "Main Game Finished", value: metrics.history.mainGamesFinished },
   ];
   const roomFunnelSteps: FunnelStep[] = [
+    { label: "打开", note: "/rooms View", value: metrics.history.roomPageViews },
     { label: "建房", note: "Room Created", value: metrics.history.totalRoomsEver },
     { label: "加入", note: "Room Players", value: metrics.history.totalPlayersEver },
     { label: "开局", note: "Room Started", value: metrics.history.gamesStarted },
-    { label: "完局", note: "Room Finished", value: metrics.history.gamesFinished },
+    { label: "发言", note: "Speech", value: metrics.history.roomsReachedSpeech },
+    { label: "投票", note: "Vote", value: metrics.history.roomsReachedVote },
+    { label: "票决", note: "Resolved", value: metrics.history.roomsResolvedVote },
+    { label: "完局", note: "Finished", value: metrics.history.gamesFinished },
+    { label: "恢复", note: "Restored", value: metrics.history.roomRecoveriesRestored },
   ];
   const roomStatusTotal = Math.max(1, metrics.current.rooms.total);
   const activeRoomTotal = Math.max(1, metrics.current.rooms.activeInGame);
@@ -125,7 +130,7 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
   ];
   const historicalScopeCopy =
     metrics.history.adapter === "postgres"
-      ? "共享历史指标：打开、开局、完局和趋势会按同一个 PostgreSQL 指标库合计，可用于汇总 Render 和腾讯云的匿名使用情况。"
+      ? "共享历史指标：打开、开局、房间发言/投票里程碑、完局和趋势会按同一个 PostgreSQL 指标库合计，可用于汇总 Render 和腾讯云的匿名使用情况。"
       : "本进程历史指标：当前未连接 PostgreSQL 指标库，统计只来自本服务进程，重启后内存统计会清空。";
   const liveScopeCopy =
     "本机实时状态：大厅、进行中、疑似流失和待清理房间来自当前服务实例，不代表腾讯云实时房间总量。";
@@ -150,7 +155,7 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               AI 狼人杀运营驾驶舱
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#aeb8ad]">
-              私有数据面板，统计主界面打开、主界面开局/完局、联机房间创建/加入/开局/完局、完局时长和开局后流失；不记录 IP。{historicalScopeCopy}
+              私有数据面板，统计主界面打开、主界面开局/完局、联机房间打开/创建/加入/开局/发言/投票/完局、完局时长和恢复使用；不记录 IP。{historicalScopeCopy}
             </p>
             <p className="mt-2 max-w-3xl text-xs leading-5 text-[#8f9a90]">{liveScopeCopy}</p>
           </div>
@@ -298,6 +303,7 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               <MetricDefinition label="联机房间时长" text="累计值包含已完局房间时长和进行中房间的可观测运行时长；无人在线房间只算到最后一次房间更新或玩家可见时间。" />
               <MetricDefinition label="全站累计时长" text="主界面完局时长 + 联机累计房间时长；不会把无人在线房间的保留等待时间继续当作游戏时长。" />
               <MetricDefinition label="全站开局" text="主界面单人/纯 AI 开局 + 联机房间开局。顶部总数用这个口径。" />
+              <MetricDefinition label="联机房间漏斗" text="/rooms 打开、建房、加入、开局、发言、投票、票决、完局和恢复里程碑，用于定位 Alpha 流程卡点。" />
               <MetricDefinition label="待完成局" text="已开局但尚未记录完局的局数，主要用于观察中途流失或等待房主继续推进。" />
               <MetricDefinition label="进行中房间" text="房间已经开局且尚未产生胜负；即使玩家离开，房间也会保留到清理时间。" />
               <MetricDefinition label="无人在线的进行中房间" text="已经开局、未完局、且当前没有任何 presence 连接的房间，比实时连接数更适合判断疑似流失。" />
@@ -548,16 +554,7 @@ function RoomSpectrum({ signals, total }: { signals: RoomStatusSignal[]; total: 
 }
 
 function RecentDaysChart({ metrics }: { metrics: RoomMetricsSnapshot }) {
-  const totals = metrics.history.recentDays.map(
-    (day) =>
-      day.homeViews +
-      day.mainGamesStarted +
-      day.mainGamesFinished +
-      day.roomsCreated +
-      day.playersJoined +
-      day.gamesStarted +
-      day.gamesFinished,
-  );
+  const totals = metrics.history.recentDays.map((day) => getRecentDayTotal(day));
   const maxValue = Math.max(
     1,
     ...totals,
@@ -597,14 +594,7 @@ function RecentDaysChart({ metrics }: { metrics: RoomMetricsSnapshot }) {
         style={{ gridTemplateColumns: `repeat(${Math.max(1, metrics.history.recentDays.length)}, minmax(56px, 1fr))` }}
       >
         {metrics.history.recentDays.map((day) => {
-          const total =
-            day.homeViews +
-            day.mainGamesStarted +
-            day.mainGamesFinished +
-            day.roomsCreated +
-            day.playersJoined +
-            day.gamesStarted +
-            day.gamesFinished;
+          const total = getRecentDayTotal(day);
           return (
             <div key={day.date} className="flex min-w-0 flex-col items-center gap-2">
               <div className="text-xs font-black text-white tabular-nums">{total}</div>
@@ -614,9 +604,14 @@ function RecentDaysChart({ metrics }: { metrics: RoomMetricsSnapshot }) {
                   style={{ height: `${Math.max(5, (total / maxValue) * 100)}%` }}
                 >
                   <StackSegment color="#f27e6f" total={total} value={day.gamesFinished} />
+                  <StackSegment color="#e85d9e" total={total} value={day.roomsResolvedVote} />
+                  <StackSegment color="#ff8f3d" total={total} value={day.roomsReachedVote} />
+                  <StackSegment color="#17c3b2" total={total} value={day.roomsReachedSpeech} />
                   <StackSegment color="#f2c56f" total={total} value={day.gamesStarted} />
                   <StackSegment color="#3e69a6" total={total} value={day.playersJoined} />
                   <StackSegment color="#2f9f68" total={total} value={day.roomsCreated} />
+                  <StackSegment color="#d0d8de" total={total} value={day.roomRecoveriesRestored} />
+                  <StackSegment color="#b995ff" total={total} value={day.roomPageViews} />
                   <StackSegment color="#79b7ff" total={total} value={day.mainGamesFinished} />
                   <StackSegment color="#76e4a4" total={total} value={day.mainGamesStarted} />
                   <StackSegment color="#8f9a90" total={total} value={day.homeViews} />
@@ -631,12 +626,36 @@ function RecentDaysChart({ metrics }: { metrics: RoomMetricsSnapshot }) {
         <Legend color="#8f9a90" label="首页打开" />
         <Legend color="#76e4a4" label="主开局" />
         <Legend color="#79b7ff" label="主完局" />
+        <Legend color="#b995ff" label="房间打开" />
+        <Legend color="#d0d8de" label="房间恢复" />
         <Legend color="#2f9f68" label="房间建房" />
         <Legend color="#3e69a6" label="房间加入" />
         <Legend color="#f2c56f" label="房间开局" />
+        <Legend color="#17c3b2" label="发言到达" />
+        <Legend color="#ff8f3d" label="投票到达" />
+        <Legend color="#e85d9e" label="票决完成" />
         <Legend color="#f27e6f" label="房间完局" />
       </div>
     </div>
+  );
+}
+
+type RecentDayBucket = RoomMetricsSnapshot["history"]["recentDays"][number];
+
+function getRecentDayTotal(day: RecentDayBucket): number {
+  return (
+    day.homeViews +
+    day.mainGamesStarted +
+    day.mainGamesFinished +
+    day.roomPageViews +
+    day.roomRecoveriesRestored +
+    day.roomsCreated +
+    day.playersJoined +
+    day.gamesStarted +
+    day.roomsReachedSpeech +
+    day.roomsReachedVote +
+    day.roomsResolvedVote +
+    day.gamesFinished
   );
 }
 
@@ -663,14 +682,14 @@ function Funnel({ steps }: { steps: FunnelStep[] }) {
         const previous = index === 0 ? step.value : steps[index - 1].value;
         const conversion = index === 0 ? 100 : Math.round((step.value / Math.max(1, previous)) * 100);
         return (
-          <div key={step.label} className="funnel-row grid gap-2 sm:grid-cols-[86px_1fr_70px] sm:items-center">
-            <div>
+          <div key={step.label} className="funnel-row grid grid-cols-[64px_minmax(0,1fr)_50px] items-center gap-2 sm:grid-cols-[96px_minmax(0,1fr)_70px]">
+            <div className="min-w-0">
               <div className="text-sm font-black text-white">{step.label}</div>
-              <div className="text-xs text-[#7f8a7f]">{step.note}</div>
+              <div className="truncate text-xs text-[#7f8a7f]" title={step.note}>{step.note}</div>
             </div>
-            <div className="h-10 rounded-md border border-white/10 bg-white/[0.05] p-1">
+            <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.05] p-1">
               <div
-                className="metric-fill flex h-full items-center justify-end rounded px-3 text-sm font-black text-[#07100c]"
+                className="metric-fill flex h-10 min-w-9 items-center justify-end rounded px-2 text-sm font-black text-[#07100c] sm:px-3"
                 style={{
                   background: "linear-gradient(90deg, #76e4a4, #f2c56f)",
                   width: `${width}%`,
@@ -679,7 +698,7 @@ function Funnel({ steps }: { steps: FunnelStep[] }) {
                 {step.value}
               </div>
             </div>
-            <div className="text-right text-xs font-black text-[#a9f4bf] tabular-nums">{conversion}%</div>
+            <div className="truncate text-right text-xs font-black text-[#a9f4bf] tabular-nums">{conversion}%</div>
           </div>
         );
       })}
