@@ -35,11 +35,28 @@ describe("AdminMetricsPage", () => {
     const html = renderToStaticMarkup(element);
 
     expect(html).toContain("共享历史指标");
-    expect(html).toContain("打开、开局、完局和趋势会按同一个 PostgreSQL 指标库合计");
+    expect(html).toContain("打开、开局、房间发言/投票里程碑、完局和趋势会按同一个 PostgreSQL 指标库合计");
     expect(html).toContain("本机实时状态");
     expect(html).toContain("不代表腾讯云实时房间总量");
     expect(html).toContain("本机实时房间光谱");
     expect(html).toContain("本机房间状态和风险");
+  });
+
+  it("renders expanded room flow funnel milestones", async () => {
+    const element = await AdminMetricsPage({
+      searchParams: Promise.resolve({ token: "test-owner-token" }),
+    });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain("/rooms View");
+    expect(html).toContain("Room Created");
+    expect(html).toContain("Room Players");
+    expect(html).toContain("Room Started");
+    expect(html).toContain("Speech");
+    expect(html).toContain("Vote");
+    expect(html).toContain("Resolved");
+    expect(html).toContain("Finished");
+    expect(html).toContain("Restored");
   });
 });
 
@@ -70,11 +87,11 @@ function createMetricsSnapshot(): RoomMetricsSnapshot {
       mainCompletionRate: 50,
       mainGamesFinished: 1,
       mainGamesStarted: 2,
-      roomPageViews: 0,
-      roomRecoveriesRestored: 0,
-      roomsReachedSpeech: 0,
-      roomsReachedVote: 0,
-      roomsResolvedVote: 0,
+      roomPageViews: 12,
+      roomRecoveriesRestored: 3,
+      roomsReachedSpeech: 5,
+      roomsReachedVote: 4,
+      roomsResolvedVote: 3,
       recentDays: [
         {
           date: "2026-05-23",
@@ -84,11 +101,11 @@ function createMetricsSnapshot(): RoomMetricsSnapshot {
           mainGamesFinished: 1,
           mainGamesStarted: 2,
           playersJoined: 2,
-          roomPageViews: 0,
-          roomRecoveriesRestored: 0,
-          roomsReachedSpeech: 0,
-          roomsReachedVote: 0,
-          roomsResolvedVote: 0,
+          roomPageViews: 12,
+          roomRecoveriesRestored: 3,
+          roomsReachedSpeech: 5,
+          roomsReachedVote: 4,
+          roomsResolvedVote: 3,
           roomsCreated: 1,
         },
       ],
