@@ -1009,7 +1009,12 @@ export function RoomClient() {
           </header>
 
           <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-            <section className="rounded-[24px] border border-[#7b5a28]/45 bg-[#140c09]/88 p-4 shadow-xl shadow-black/35">
+            <section
+              className={[
+                "rounded-[24px] border border-[#7b5a28]/45 bg-[#140c09]/88 p-4 shadow-xl shadow-black/35",
+                roomView ? "order-2 xl:order-none" : "",
+              ].join(" ")}
+            >
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-black text-[#fff1c2]">房间入口</h2>
                 {roomView ? (
@@ -1098,7 +1103,12 @@ export function RoomClient() {
               />
             </section>
 
-            <section className="min-h-[620px] rounded-[28px] border border-[#7b5a28]/45 bg-[#120c09]/88 p-4 shadow-xl shadow-black/35 sm:p-5">
+            <section
+              className={[
+                "min-h-[620px] rounded-[28px] border border-[#7b5a28]/45 bg-[#120c09]/88 p-4 shadow-xl shadow-black/35 sm:p-5",
+                roomView ? "order-1 xl:order-none" : "",
+              ].join(" ")}
+            >
               {roomView ? (
                 <div className="flex h-full flex-col gap-5">
                   <div className={roomView.room.status === "lobby" ? "hidden sm:block" : undefined}>
