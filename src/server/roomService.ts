@@ -1208,6 +1208,7 @@ export async function startRoomSession(
   room.gameState = state;
   room.status = "in_game";
   await touchRoom(room, { previousRevision });
+  await recordRoomFlowMilestones(room, null);
   await recordRoomAnalyticsEvent({
     eventType: "room_started",
     playerId: requester.playerId,
@@ -1308,6 +1309,7 @@ export async function submitRoomPlayerCommand(
   if (!state) {
     throw new RoomSessionError("房间尚未开局。", 409);
   }
+  const previousState = state;
   const wasFinished = Boolean(state.result);
 
   const playerView = buildPlayerView(state, player.seatId, { allowFlowControls: player.isHost });
@@ -1324,6 +1326,7 @@ export async function submitRoomPlayerCommand(
 
   room.gameState = nextState;
   await touchRoom(room, { previousRevision });
+  await recordRoomFlowMilestones(room, previousState);
   await recordRoomFinishedIfNeeded(room, wasFinished);
   return buildRoomView(room, player.playerId);
 }
@@ -1380,6 +1383,7 @@ async function applyIdempotentRoomPlayerCommand(
   if (!state) {
     throw new RoomSessionError("房间尚未开局。", 409);
   }
+  const previousState = state;
   const wasFinished = Boolean(state.result);
 
   const playerView = buildPlayerView(state, player.seatId, { allowFlowControls: player.isHost });
@@ -1397,6 +1401,7 @@ async function applyIdempotentRoomPlayerCommand(
   room.gameState = nextState;
   rememberCompletedRoomIdempotentWrite(room, idempotency);
   await touchRoom(room, { previousRevision });
+  await recordRoomFlowMilestones(room, previousState);
   await recordRoomFinishedIfNeeded(room, wasFinished);
   return buildRoomView(room, player.playerId);
 }
@@ -1707,6 +1712,7 @@ async function continueRoom(room: RoomRecord, player: RoomPlayer, idempotency?: 
   if (!state) {
     throw new RoomSessionError("房间尚未开局。", 409);
   }
+  const previousState = state;
   const wasFinished = Boolean(state.result);
 
   const requirement = getTurnRequirement(state);
@@ -1723,8 +1729,36 @@ async function continueRoom(room: RoomRecord, player: RoomPlayer, idempotency?: 
     rememberCompletedRoomIdempotentWrite(room, idempotency);
   }
   await touchRoom(room, { previousRevision });
+  await recordRoomFlowMilestones(room, previousState);
   await recordRoomFinishedIfNeeded(room, wasFinished);
   return buildRoomView(room, player.playerId);
+}
+
+async function recordRoomFlowMilestones(room: RoomRecord, previousState: GameState | null | undefined): Promise<void> {
+  const nextState = room.gameState;
+  if (!nextState) return;
+
+  const base = {
+    roomId: room.id,
+    roomCode: room.code,
+    payload: {
+      boardId: room.boardId,
+      day: nextState.day,
+      phase: nextState.phase,
+    },
+  };
+
+  if (nextState.phase === "DAY_SPEECH" && previousState?.phase !== "DAY_SPEECH") {
+    await recordRoomAnalyticsEvent({ eventType: "room_speech_reached", ...base });
+  }
+
+  if (nextState.phase === "DAY_VOTE" && previousState?.phase !== "DAY_VOTE") {
+    await recordRoomAnalyticsEvent({ eventType: "room_vote_reached", ...base });
+  }
+
+  if (previousState?.phase === "DAY_VOTE" && nextState.phase !== "DAY_VOTE") {
+    await recordRoomAnalyticsEvent({ eventType: "room_vote_resolved", ...base });
+  }
 }
 
 async function recordRoomFinishedIfNeeded(room: RoomRecord, wasFinished: boolean): Promise<void> {

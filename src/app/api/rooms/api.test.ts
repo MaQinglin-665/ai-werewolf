@@ -314,6 +314,37 @@ describe("room api routes", () => {
     }
   });
 
+  it("records server-side room flow milestones behind owner metrics", async () => {
+    const previousMetricsToken = process.env.AI_WEREWOLF_METRICS_TOKEN;
+    process.env.AI_WEREWOLF_METRICS_TOKEN = "test-owner-token";
+
+    try {
+      const { roomId, hostPlayerId, guestPlayerId } = await createStartedTwoPlayerRoom();
+
+      await driveRoomThroughVoteResolution(roomId, hostPlayerId, guestPlayerId);
+
+      const metricsResponse = await getRoomMetrics(new Request("http://localhost/api/rooms/metrics?token=test-owner-token"));
+      expect(metricsResponse.status).toBe(200);
+      const metrics = (await metricsResponse.json()) as {
+        history: {
+          roomsReachedSpeech: number;
+          roomsReachedVote: number;
+          roomsResolvedVote: number;
+        };
+      };
+
+      expect(metrics.history.roomsReachedSpeech).toBeGreaterThanOrEqual(1);
+      expect(metrics.history.roomsReachedVote).toBeGreaterThanOrEqual(1);
+      expect(metrics.history.roomsResolvedVote).toBeGreaterThanOrEqual(1);
+    } finally {
+      if (previousMetricsToken === undefined) {
+        delete process.env.AI_WEREWOLF_METRICS_TOKEN;
+      } else {
+        process.env.AI_WEREWOLF_METRICS_TOKEN = previousMetricsToken;
+      }
+    }
+  });
+
   it("rate limits repeated room creation from the same client", async () => {
     const previousEnabled = process.env.AI_WEREWOLF_ROOM_RATE_LIMIT;
     const previousCreateLimit = process.env.AI_WEREWOLF_ROOM_CREATE_LIMIT;
@@ -1197,6 +1228,64 @@ async function findNextHumanAction(
   }
 
   throw new Error("Could not reach a room human action.");
+}
+
+async function driveRoomThroughVoteResolution(roomId: string, hostPlayerId: string, guestPlayerId: string): Promise<void> {
+  let previousPhase: string | undefined;
+  let reachedSpeech = false;
+  let reachedVote = false;
+  let resolvedVote = false;
+
+  for (let step = 0; step < 180; step += 1) {
+    const hostView = await readRoomView(roomId, hostPlayerId);
+    const phase = hostView.game?.phase;
+    if (phase === "DAY_SPEECH") reachedSpeech = true;
+    if (phase === "DAY_VOTE") reachedVote = true;
+    if (previousPhase === "DAY_VOTE" && phase !== "DAY_VOTE") resolvedVote = true;
+    if (reachedSpeech && reachedVote && resolvedVote) return;
+    expect(hostView.game?.result).toBeUndefined();
+
+    const hostAction = readPlayableAction(hostView);
+    if (hostAction) {
+      const response = await submitRoomCommand(
+        new Request(`http://localhost/api/rooms/${roomId}/commands`, {
+          method: "POST",
+          body: JSON.stringify({ playerId: hostPlayerId, ...commandFromAction(hostAction) }),
+        }),
+        { params: Promise.resolve({ roomId }) },
+      );
+      expect(response.status).toBe(200);
+      previousPhase = phase;
+      continue;
+    }
+
+    const guestView = await readRoomView(roomId, guestPlayerId);
+    const guestAction = readPlayableAction(guestView);
+    if (guestAction) {
+      const response = await submitRoomCommand(
+        new Request(`http://localhost/api/rooms/${roomId}/commands`, {
+          method: "POST",
+          body: JSON.stringify({ playerId: guestPlayerId, ...commandFromAction(guestAction) }),
+        }),
+        { params: Promise.resolve({ roomId }) },
+      );
+      expect(response.status).toBe(200);
+      previousPhase = phase;
+      continue;
+    }
+
+    const continueResponse = await submitRoomCommand(
+      new Request(`http://localhost/api/rooms/${roomId}/commands`, {
+        method: "POST",
+        body: JSON.stringify({ playerId: hostPlayerId, type: "continue" }),
+      }),
+      { params: Promise.resolve({ roomId }) },
+    );
+    expect(continueResponse.status).toBe(200);
+    previousPhase = phase;
+  }
+
+  throw new Error("Could not drive room through vote resolution.");
 }
 
 async function readRoomView(roomId: string, playerId: string): Promise<RoomView> {
