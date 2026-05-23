@@ -19,8 +19,12 @@ function buildRoomView(overrides: Partial<RoomView> = {}): RoomView {
       board: {
         id: "9p-seer-witch-hunter",
         name: "9 人标准局",
+        description: "测试板子",
         seatCount: 9,
         roleSummary: "3狼 3民 预言家 女巫 猎人",
+        hasGuard: false,
+        hasSheriff: false,
+        winCondition: "side-slaughter",
       },
       hostPlayerId: "host",
       players: [
