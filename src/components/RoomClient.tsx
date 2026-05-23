@@ -17,6 +17,7 @@ import {
   type PhaseCurtainCue,
   type IdiotRevealCue,
 } from "@/components/game/GamePanels";
+import { MobileRoomLobby } from "@/components/rooms/MobileRoomLobby";
 import type { CommandPayload, HostAudioStatus } from "@/components/game/clientTypes";
 import type { HumanCommandInput } from "@/game/commandSchemas";
 import type { HumanGameView } from "@/game/types";
@@ -1113,12 +1114,17 @@ export function RoomClient() {
                   {roomView.room.status === "lobby" ? (
                     <LobbyView
                       isHost={isHost}
+                      onCopyInviteLink={() => void handleCopyInviteLink()}
                       onCopyPlayerRecoveryLink={(player) => void handleCopyPlayerRecoveryLink(player)}
+                      onCopyRecoveryLink={() => void handleCopyRecoveryLink()}
                       onRemovePlayer={(playerId) => void handleRemovePlayer(playerId)}
+                      onRefresh={() => void refreshView(false)}
                       onSeatChange={(seatId) => void handleSeatChange(seatId)}
+                      onStart={() => void handleStartRoom()}
                       pending={pending}
                       roomView={roomView}
                       seatIds={boardSeatIds}
+                      shareOrigin={shareOrigin}
                     />
                   ) : roomView.game ? (
                     <GameRoomView
@@ -1388,25 +1394,50 @@ function HostPlayerRecoveryPanel({
 
 function LobbyView({
   isHost,
+  onCopyInviteLink,
   onCopyPlayerRecoveryLink,
+  onCopyRecoveryLink,
   onRemovePlayer,
+  onRefresh,
   onSeatChange,
+  onStart,
   pending,
   roomView,
   seatIds,
+  shareOrigin,
 }: {
   isHost: boolean;
+  onCopyInviteLink: () => void;
   onCopyPlayerRecoveryLink: (player: RoomPlayerView) => void;
+  onCopyRecoveryLink: () => void;
   onRemovePlayer: (playerId: string) => void;
+  onRefresh: () => void;
   onSeatChange: (seatId: number | null) => void;
+  onStart: () => void;
   pending: PendingKind;
   roomView: RoomView;
   seatIds: number[];
+  shareOrigin?: string;
 }) {
   const occupiedBySelf = roomView.playerSeatId;
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+    <>
+      <MobileRoomLobby
+        isHost={isHost}
+        onCopyInviteLink={onCopyInviteLink}
+        onCopyPlayerRecoveryLink={onCopyPlayerRecoveryLink}
+        onCopyRecoveryLink={onCopyRecoveryLink}
+        onRefresh={onRefresh}
+        onRemovePlayer={onRemovePlayer}
+        onSeatChange={onSeatChange}
+        onStart={onStart}
+        pending={pending}
+        roomView={roomView}
+        seatIds={seatIds}
+        shareOrigin={shareOrigin}
+      />
+      <div className="hidden gap-5 sm:grid lg:grid-cols-[minmax(0,1fr)_280px]">
       <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-xl font-black text-[#fff1c2]">选座大厅</h2>
@@ -1499,7 +1530,8 @@ function LobbyView({
           ))}
         </div>
       </aside>
-    </div>
+      </div>
+    </>
   );
 }
 
