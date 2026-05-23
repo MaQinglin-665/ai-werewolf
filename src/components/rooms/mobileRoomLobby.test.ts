@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { RoomView } from "@/server/roomService";
+import { getMobileRoomLobbyDrawerControlState } from "./mobileRoomLobbyModel";
 import { MobileRoomLobby } from "./MobileRoomLobby";
 
 type RoomViewOverrides = Omit<Partial<RoomView>, "room" | "turn"> & {
@@ -175,6 +176,20 @@ describe("MobileRoomLobby", () => {
     expect(html).toMatch(/tab(?:I|i)ndex="-1"/);
     expect(html).toContain("复制恢复");
     expect(html).toContain("移除");
+  });
+
+  it("keeps drawer close controls available while room actions are pending", () => {
+    expect(getMobileRoomLobbyDrawerControlState({ isOpen: true, pending: "remove" })).toEqual({
+      actionDisabled: true,
+      closeDisabled: false,
+      tabIndex: undefined,
+    });
+
+    expect(getMobileRoomLobbyDrawerControlState({ isOpen: false, pending: "remove" })).toEqual({
+      actionDisabled: true,
+      closeDisabled: true,
+      tabIndex: -1,
+    });
   });
 
   it("counts human-controlled seats instead of connected players", () => {
