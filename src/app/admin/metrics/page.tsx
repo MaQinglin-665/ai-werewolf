@@ -123,6 +123,12 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
     { color: "#f27e6f", label: "疑似流失", value: metrics.current.rooms.inactiveInGame },
     { color: "#8f9a90", label: "待清理", value: metrics.current.rooms.finished },
   ];
+  const historicalScopeCopy =
+    metrics.history.adapter === "postgres"
+      ? "共享历史指标：打开、开局、完局和趋势会按同一个 PostgreSQL 指标库合计，可用于汇总 Render 和腾讯云的匿名使用情况。"
+      : "本进程历史指标：当前未连接 PostgreSQL 指标库，统计只来自本服务进程，重启后内存统计会清空。";
+  const liveScopeCopy =
+    "本机实时状态：大厅、进行中、疑似流失和待清理房间来自当前服务实例，不代表腾讯云实时房间总量。";
 
   return (
     <main className="metrics-dashboard min-h-screen overflow-hidden bg-[#070a0f] text-[#edf3ea]">
@@ -144,8 +150,9 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               AI 狼人杀运营驾驶舱
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#aeb8ad]">
-              私有数据面板，统计主界面打开、主界面开局/完局、联机房间创建/加入/开局/完局、完局时长和开局后流失；不记录 IP。
+              私有数据面板，统计主界面打开、主界面开局/完局、联机房间创建/加入/开局/完局、完局时长和开局后流失；不记录 IP。{historicalScopeCopy}
             </p>
+            <p className="mt-2 max-w-3xl text-xs leading-5 text-[#8f9a90]">{liveScopeCopy}</p>
           </div>
 
           <div className="rounded-lg border border-white/10 bg-white/[0.045] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
@@ -160,10 +167,10 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
               </span>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2 text-center">
-              <MiniHeaderStat label="大厅房间" value={metrics.current.rooms.lobby} />
-              <MiniHeaderStat label="进行中房间" value={metrics.current.rooms.activeInGame} />
-              <MiniHeaderStat label="疑似流失" value={metrics.current.rooms.inactiveInGame} />
-              <MiniHeaderStat label="待清理房间" value={metrics.current.rooms.finished} />
+              <MiniHeaderStat label="本机大厅" value={metrics.current.rooms.lobby} />
+              <MiniHeaderStat label="本机进行中" value={metrics.current.rooms.activeInGame} />
+              <MiniHeaderStat label="本机疑似流失" value={metrics.current.rooms.inactiveInGame} />
+              <MiniHeaderStat label="本机待清理" value={metrics.current.rooms.finished} />
             </div>
           </div>
         </header>
@@ -179,7 +186,7 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
             <OperationsRadar metrics={signalMetrics} />
           </GlassPanel>
 
-          <GlassPanel title="实时房间光谱" kicker="Room Spectrum">
+          <GlassPanel title="本机实时房间光谱" kicker="Local Room Spectrum">
             <RoomSpectrum signals={roomStatusSignals} total={roomStatusTotal} />
           </GlassPanel>
         </section>
@@ -244,7 +251,7 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-          <GlassPanel title="房间状态和风险" kicker="Current Rooms">
+          <GlassPanel title="本机房间状态和风险" kicker="Local Current Rooms">
             <div className="space-y-4">
               <RoomStatusBar
                 color="#76e4a4"
@@ -282,6 +289,8 @@ export default async function AdminMetricsPage({ searchParams }: AdminMetricsPag
 
           <GlassPanel title="数据口径" kicker="Definitions">
             <div className="grid gap-3 text-sm leading-6 text-[#c6d0c2]">
+              <MetricDefinition label="共享历史指标" text={historicalScopeCopy} />
+              <MetricDefinition label="本机实时状态" text={liveScopeCopy} />
               <MetricDefinition label="首页打开" text="用户加载主界面 / 的次数，刷新也会计入。" />
               <MetricDefinition label="主界面开局" text="用户在主界面点击新开一局并成功创建单人/纯 AI 对局。" />
               <MetricDefinition label="主界面完局" text="主界面对局产生胜负结果。" />
