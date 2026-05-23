@@ -15,6 +15,7 @@
 
 # local scratch and Codex workflow artifacts
 /tmp/
+/.worktrees/
 /.superpowers/
 /promo-ai-werewolf/
 
