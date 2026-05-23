@@ -17,6 +17,7 @@ import {
   type PhaseCurtainCue,
   type IdiotRevealCue,
 } from "@/components/game/GamePanels";
+import { MobileRoomEntryPanel, getRoomEntryBoardSeatCount } from "@/components/rooms/MobileRoomEntryPanel";
 import { MobileRoomLobby } from "@/components/rooms/MobileRoomLobby";
 import type { CommandPayload, HostAudioStatus } from "@/components/game/clientTypes";
 import type { HumanCommandInput } from "@/game/commandSchemas";
@@ -1011,7 +1012,7 @@ export function RoomClient() {
           <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
             <section
               className={[
-                "rounded-[24px] border border-[#7b5a28]/45 bg-[#140c09]/88 p-4 shadow-xl shadow-black/35",
+                "mobile-room-entry-panel rounded-[24px] border border-[#7b5a28]/45 bg-[#140c09]/88 p-4 shadow-xl shadow-black/35",
                 roomView ? "order-2 xl:order-none" : "",
               ].join(" ")}
             >
@@ -1029,66 +1030,26 @@ export function RoomClient() {
                 ) : null}
               </div>
 
-              <div className="mt-4 space-y-4">
-                <form className="space-y-3 rounded-2xl border border-[#7b5a28]/35 bg-black/20 p-3" onSubmit={handleCreateRoom}>
-                  <FormField label="昵称">
-                    <input
-                      className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-[#fff7df] outline-none transition focus:border-[#f0cf79]/60"
-                      maxLength={16}
-                      onChange={(event) => setHostName(event.target.value)}
-                      value={hostName}
-                    />
-                  </FormField>
-                  <FormField label="板子">
-                    <select
-                      className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-[#fff7df] outline-none transition focus:border-[#f0cf79]/60"
-                      onChange={(event) => setBoardId(event.target.value)}
-                      value={boardId}
-                    >
-                      {BOARD_OPTIONS.map((board) => (
-                        <option className="bg-[#160f0b]" key={board.id} value={board.id}>
-                          {board.label}
-                        </option>
-                      ))}
-                    </select>
-                  </FormField>
-                  <SeatPicker maxSeat={boardId.startsWith("9p") ? 9 : 12} onChange={setPreferredSeatId} value={preferredSeatId} />
-                  <button
-                    className="w-full rounded-xl border border-[#f0cf79]/45 bg-[#f0cf79] px-4 py-2.5 text-sm font-black text-[#1c1208] transition hover:bg-[#ffe29a] disabled:opacity-55"
-                    disabled={pending !== null || isRestoringSession}
-                    type="submit"
-                  >
-                    {isRestoringSession ? "恢复中..." : pending === "create" ? "创建中..." : "创建房间"}
-                  </button>
-                </form>
-
-                <form className="space-y-3 rounded-2xl border border-[#7b5a28]/35 bg-black/20 p-3" onSubmit={handleJoinRoom}>
-                  <FormField label="房间码">
-                    <input
-                      className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm uppercase text-[#fff7df] outline-none transition focus:border-[#f0cf79]/60"
-                      maxLength={12}
-                      onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
-                      value={roomCode}
-                    />
-                  </FormField>
-                  <FormField label="昵称">
-                    <input
-                      className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-[#fff7df] outline-none transition focus:border-[#f0cf79]/60"
-                      maxLength={16}
-                      onChange={(event) => setPlayerName(event.target.value)}
-                      value={playerName}
-                    />
-                  </FormField>
-                  <SeatPicker maxSeat={12} onChange={setPreferredSeatId} value={preferredSeatId} />
-                  <button
-                    className="w-full rounded-xl border border-emerald-400/35 bg-emerald-500 px-4 py-2.5 text-sm font-black text-[#04140a] transition hover:bg-emerald-300 disabled:opacity-55"
-                    disabled={pending !== null || isRestoringSession}
-                    type="submit"
-                  >
-                    {isRestoringSession ? "恢复中..." : pending === "join" ? "加入中..." : "加入房间"}
-                  </button>
-                </form>
-              </div>
+              <MobileRoomEntryPanel
+                boardId={boardId}
+                boards={BOARD_OPTIONS}
+                hostName={hostName}
+                isRestoringSession={isRestoringSession}
+                onBoardIdChange={(nextBoardId) => {
+                  setBoardId(nextBoardId);
+                  setPreferredSeatId((currentSeatId) => Math.min(currentSeatId, getRoomEntryBoardSeatCount(nextBoardId)));
+                }}
+                onCreateRoom={handleCreateRoom}
+                onHostNameChange={setHostName}
+                onJoinRoom={handleJoinRoom}
+                onPlayerNameChange={setPlayerName}
+                onPreferredSeatChange={setPreferredSeatId}
+                onRoomCodeChange={setRoomCode}
+                pending={pending}
+                playerName={playerName}
+                preferredSeatId={preferredSeatId}
+                roomCode={roomCode}
+              />
 
               <Feedback error={error} notice={notice} />
               <AlphaPreflightPanel
@@ -1604,40 +1565,6 @@ function GameRoomView({
         </aside>
       </section>
     </div>
-  );
-}
-
-function SeatPicker({ maxSeat, onChange, value }: { maxSeat: number; onChange: (seatId: number) => void; value: number }) {
-  return (
-    <div>
-      <div className="mb-2 text-xs font-bold text-[#bba98a]">座位</div>
-      <div className="grid grid-cols-6 gap-1.5">
-        {Array.from({ length: maxSeat }, (_, index) => index + 1).map((seatId) => (
-          <button
-            className={[
-              "rounded-lg border px-2 py-1.5 text-xs font-black transition",
-              value === seatId
-                ? "border-[#f0cf79] bg-[#f0cf79] text-[#1c1208]"
-                : "border-white/10 bg-black/25 text-[#d9c9a8] hover:border-[#f0cf79]/45",
-            ].join(" ")}
-            key={seatId}
-            onClick={() => onChange(seatId)}
-            type="button"
-          >
-            {seatId}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function FormField({ children, label }: { children: React.ReactNode; label: string }) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-xs font-bold text-[#bba98a]">{label}</span>
-      {children}
-    </label>
   );
 }
 

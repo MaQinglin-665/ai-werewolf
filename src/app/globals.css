@@ -4301,6 +4301,102 @@ button:disabled {
     font-weight: 800;
   }
 
+  .mobile-room-entry-panel {
+    border-radius: 22px;
+    padding: 12px;
+  }
+
+  .mobile-room-entry-panel > .flex {
+    min-height: 28px;
+  }
+
+  .mobile-room-entry-stack {
+    display: grid;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .mobile-room-entry-card {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    border-radius: 18px;
+    padding: 10px;
+  }
+
+  .mobile-room-entry-card-create {
+    background:
+      linear-gradient(135deg, rgba(241, 199, 110, 0.14), rgba(0, 0, 0, 0.2)),
+      rgba(0, 0, 0, 0.22);
+  }
+
+  .mobile-room-entry-card-join {
+    background:
+      linear-gradient(135deg, rgba(52, 211, 153, 0.12), rgba(0, 0, 0, 0.2)),
+      rgba(0, 0, 0, 0.22);
+  }
+
+  .mobile-room-entry-field {
+    min-width: 0;
+  }
+
+  .mobile-room-entry-field-label,
+  .mobile-room-entry-seat-label {
+    margin-bottom: 5px;
+    font-size: 11px;
+    line-height: 1.1;
+  }
+
+  .mobile-room-entry-input,
+  .mobile-room-entry-select {
+    min-height: 38px;
+    border-radius: 12px;
+    padding: 8px 9px;
+    font-size: 12px;
+  }
+
+  .mobile-room-entry-seat-picker,
+  .mobile-room-entry-primary,
+  .mobile-room-entry-secondary {
+    grid-column: 1 / -1;
+  }
+
+  .mobile-room-entry-seat-picker {
+    min-width: 0;
+  }
+
+  .mobile-room-entry-seat-rail {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-room-entry-seat-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-room-entry-seat-chip {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    scroll-snap-align: start;
+    border-radius: 999px;
+    padding: 0;
+    font-size: 11px;
+  }
+
+  .mobile-room-entry-primary,
+  .mobile-room-entry-secondary {
+    min-height: 40px;
+    border-radius: 14px;
+    padding: 9px 10px;
+    font-size: 13px;
+  }
+
   .mobile-room-lobby {
     display: grid;
     gap: 12px;
