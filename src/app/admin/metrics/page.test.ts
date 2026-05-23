@@ -70,6 +70,11 @@ function createMetricsSnapshot(): RoomMetricsSnapshot {
       mainCompletionRate: 50,
       mainGamesFinished: 1,
       mainGamesStarted: 2,
+      roomPageViews: 0,
+      roomRecoveriesRestored: 0,
+      roomsReachedSpeech: 0,
+      roomsReachedVote: 0,
+      roomsResolvedVote: 0,
       recentDays: [
         {
           date: "2026-05-23",
@@ -79,6 +84,11 @@ function createMetricsSnapshot(): RoomMetricsSnapshot {
           mainGamesFinished: 1,
           mainGamesStarted: 2,
           playersJoined: 2,
+          roomPageViews: 0,
+          roomRecoveriesRestored: 0,
+          roomsReachedSpeech: 0,
+          roomsReachedVote: 0,
+          roomsResolvedVote: 0,
           roomsCreated: 1,
         },
       ],
