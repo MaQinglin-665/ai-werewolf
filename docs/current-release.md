@@ -1,6 +1,6 @@
 # Current Release Status
 
-Last checked: 2026-05-23 09:09 Asia/Shanghai.
+Last checked: 2026-05-23 10:04 Asia/Shanghai.
 
 Use this file as the first stop before sharing the public Alpha link or starting a new deployment. Update it after every public-facing release.
 
@@ -14,9 +14,9 @@ Use this file as the first stop before sharing the public Alpha link or starting
 ## Current Source State
 
 - Working branch: `codex/render-main-game-env-fix`
-- Current public runtime baseline: `3e8b883 docs: add tencent cloud deploy runbook`
-- Local worktree at runtime check: clean and synced with `origin/codex/render-main-game-env-fix`
-- Render deployment branch at last check: `f09b3d5 deploy: sync refactored game UI`
+- Current public runtime baseline: `c4f5b0a feat: polish mobile interaction signals`
+- Local worktree at runtime check: pushed to `origin/codex/render-main-game-env-fix`
+- Render deployment branch at last check: `1cb8eb2 deploy: sync mobile interaction signals`
 
 Render is intentionally tracked through `codex/room-render-production-minimum`. Tencent Cloud is deployed from the current source archive path. When a release should be visible in both public environments, update both lanes and record the two heads here.
 
@@ -28,9 +28,9 @@ This file may be updated by documentation-only commits after the runtime baselin
 - Compose root: `/opt/ai-werewolf`
 - Live app source: `/opt/ai-werewolf/app`
 - Main service: `ai-werewolf-app`
-- Latest deployed source: `3e8b883 docs: add tencent cloud deploy runbook`
-- Rollback source tree: `/opt/ai-werewolf/app-backup-20260522-235056`
-- Last container status: `ai-werewolf-app` healthy, nginx and Postgres running
+- Latest deployed source: `c4f5b0a feat: polish mobile interaction signals`
+- Rollback source tree: `/opt/ai-werewolf/app-backup-20260523-100154`
+- Last container status: `ai-werewolf-app` healthy, image `sha256:9e3c2a327cd3d271f1a0267e87fda3ae02611cf7e531bb683487e3f97825b624`, nginx and Postgres running
 
 Latest verification:
 
@@ -38,37 +38,53 @@ Latest verification:
 npm run preflight:production -- --base-url=https://175.178.199.245
 ```
 
-Result at 2026-05-23 09:09 Asia/Shanghai: `ok=true`, all production minimum checks passed.
+Result at 2026-05-23 10:04 Asia/Shanghai: `ok=true`, all production minimum checks passed.
 
-Previous deep smoke from the same deployed app:
+Latest room smoke:
 
 ```powershell
-$env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; node scripts/room-action-smoke.mjs --coverage=vote
+$env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-sse
 ```
 
-Result: `ok=true`, covered `wolfKill`, `seerCheck`, `speak`, and `vote`; wrong-player commands returned `409`.
+Result at 2026-05-23 10:04 Asia/Shanghai: `ok=true`, room `ZJNUZS`, host seat `1`, guest seat `2`.
+
+Latest mobile UI asset probe:
+
+```powershell
+# fetched public HTML assets and searched for the shipped mobile UI classes
+```
+
+Result: found `mobile-seat-token-action-ready`, `mobile-drawer-tab-has-activity`, and `mobile-speech-filter-chip-active`.
 
 ## Render Free Mirror
 
 - Service URL: `https://ai-werewolf-free.onrender.com`
 - Deployment branch: `codex/room-render-production-minimum`
-- Latest deployed branch head at last check: `f09b3d5 deploy: sync refactored game UI`
+- Latest deployed branch head at last check: `1cb8eb2 deploy: sync mobile interaction signals`
 
 Latest verification:
 
 ```powershell
-$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run preflight:production
+npm run preflight:production -- --base-url=https://ai-werewolf-free.onrender.com
 ```
 
-Result at 2026-05-23 09:09 Asia/Shanghai: `ok=true`, all production minimum checks passed.
+Result at 2026-05-23 09:53 Asia/Shanghai: `ok=true`, all production minimum checks passed.
 
-Previous room/action smoke from the same UI deploy:
+Latest room smoke:
 
 ```powershell
-$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; node scripts/room-action-smoke.mjs --coverage=vote
+$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run smoke:room-sse
 ```
 
-Result: `ok=true`, covered `wolfKill`, `speak`, and `vote`; wrong-player commands returned `409`.
+Result at 2026-05-23 09:53 Asia/Shanghai: `ok=true`, room `GR0CVF`, host seat `1`, guest seat `2`.
+
+Latest mobile DOM probe:
+
+```powershell
+# Headless Chrome, 390x844 mobile viewport, public Render URL
+```
+
+Result: found `mobile-drawer-tab-has-activity`, `mobile-drawer-tab-unread`, `mobile-drawer-tab-recommendation`, updated drawer aria labels, and no drawer/action-label overflow.
 
 ## Release Checklist
 
@@ -96,5 +112,5 @@ Next focus:
 
 - keep Tencent Cloud as the primary public test environment;
 - keep Render as a free mirror / deployment comparison lane;
-- finish mobile action feedback, drawer status, and phase rhythm polish;
-- run a small real-player test round and record the top friction points.
+- run a small real-player mobile test round and record the top friction points;
+- continue phase rhythm polish only where it improves table readability.
