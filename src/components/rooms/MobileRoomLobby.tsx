@@ -38,22 +38,27 @@ export function MobileRoomLobby({
   seatIds: number[];
   shareOrigin?: string;
 }) {
-  const [playerDrawerOpen, setPlayerDrawerOpen] = useState(true);
+  const [playerDrawerOpen, setPlayerDrawerOpen] = useState(false);
   const board = roomView.room.board;
   const visibleSeatIds = seatIds.length > 0 ? seatIds : buildMobileRoomLobbySeatIds(board.seatCount);
   const dockCopy = getMobileRoomLobbyDockCopy({ isHost, roomView });
-  const humanCount = roomView.room.players.length;
+  const humanCount = roomView.room.seats.filter((seat) => seat.controller === "human").length;
+  const playerCount = roomView.room.players.length;
   const onlineCount = roomView.room.players.filter((player) => player.online).length;
   const disabled = pending !== null;
+  const drawerControlDisabled = disabled || !playerDrawerOpen;
+  const drawerControlTabIndex = playerDrawerOpen ? undefined : -1;
 
   return (
     <section className="mobile-room-lobby sm:hidden" aria-label="手机选座大厅">
       <header className="mobile-room-lobby-header">
-        <div className="mobile-room-lobby-room-code">房间 {roomView.room.code}</div>
-        <div className="mobile-room-lobby-board-title">{board.name} · 大厅</div>
-        <div className="mobile-room-lobby-header-counts" aria-label="房间人数">
-          <span>真人 {humanCount} / {board.seatCount}</span>
-          <span>在线 {onlineCount} / {humanCount}</span>
+        <div className="mobile-room-lobby-header-copy">
+          <div className="mobile-room-lobby-room-code mobile-room-lobby-code">房间 {roomView.room.code}</div>
+          <div className="mobile-room-lobby-board-title">{board.name} · 大厅</div>
+          <div className="mobile-room-lobby-header-counts" aria-label="房间人数">
+            <span>真人 {humanCount} / {board.seatCount}</span>
+            <span>在线 {onlineCount} / {playerCount}</span>
+          </div>
         </div>
         {shareOrigin ? <div className="mobile-room-lobby-share-origin">手机链接将使用：{shareOrigin}</div> : null}
         <button className="mobile-room-lobby-invite-button" disabled={disabled} onClick={onCopyInviteLink} type="button">
@@ -87,9 +92,11 @@ export function MobileRoomLobby({
                 style={getMobileRoomLobbySeatStyle(index, board.seatCount)}
                 type="button"
               >
-                <span className="mobile-room-lobby-seat-number">{seatId}</span>
-                <span className="mobile-room-lobby-seat-name">{seatState.label}</span>
-                <span className="mobile-room-lobby-seat-status">{seatState.statusLabel}</span>
+                <span className="mobile-room-lobby-seat-core">
+                  <span className="mobile-room-lobby-seat-number">{seatId}</span>
+                  <span className="mobile-room-lobby-seat-name">{seatState.label}</span>
+                  <span className="mobile-room-lobby-seat-status">{seatState.statusLabel}</span>
+                </span>
               </button>
             );
           })}
@@ -102,7 +109,7 @@ export function MobileRoomLobby({
       </div>
 
       <div className="mobile-room-lobby-dock">
-        <div className="mobile-room-lobby-dock-copy">
+        <div className="mobile-room-lobby-dock-copy mobile-room-lobby-dock-status">
           <strong>{dockCopy.primary}</strong>
           <span>{pending === "seat" ? "换座中..." : dockCopy.secondary}</span>
         </div>
@@ -136,53 +143,68 @@ export function MobileRoomLobby({
         ) : null}
       </div>
 
-      {playerDrawerOpen ? (
+      <div className={joinClassNames("mobile-room-lobby-player-drawer", playerDrawerOpen && "mobile-room-lobby-player-drawer-open")}>
         <button
           aria-label="关闭玩家列表"
-          className="mobile-room-lobby-player-drawer-backdrop"
+          className="mobile-room-lobby-player-backdrop"
+          disabled={!playerDrawerOpen}
           onClick={() => setPlayerDrawerOpen(false)}
+          tabIndex={drawerControlTabIndex}
           type="button"
         />
-      ) : null}
-      <aside
-        aria-labelledby="mobile-room-lobby-player-drawer-title"
-        className={joinClassNames("mobile-room-lobby-player-drawer", playerDrawerOpen && "mobile-room-lobby-player-drawer-open")}
-      >
-        <div className="mobile-room-lobby-player-drawer-header">
-          <h2 id="mobile-room-lobby-player-drawer-title">房间玩家列表</h2>
-          <button aria-label="关闭玩家列表" onClick={() => setPlayerDrawerOpen(false)} type="button">
-            收起
-          </button>
-        </div>
-        <div className="mobile-room-lobby-player-list">
-          {roomView.room.players.map((player) => (
-            <div className="mobile-room-lobby-player-row" key={player.playerId}>
-              <div className="mobile-room-lobby-player-main">
-                <span className="mobile-room-lobby-player-name">{player.name}</span>
-                {player.isHost ? <span className="mobile-room-lobby-player-host-pill">房主</span> : null}
-              </div>
-              <div className="mobile-room-lobby-player-meta">
-                <span>{player.seatId ? `${player.seatId} 号位` : "未入座"}</span>
-                <span className={player.online ? "mobile-room-lobby-player-online" : "mobile-room-lobby-player-offline"}>
-                  {player.online ? "在线" : "离线"}
-                </span>
-              </div>
-              {isHost ? (
-                <div className="mobile-room-lobby-player-controls">
-                  <button disabled={disabled} onClick={() => onCopyPlayerRecoveryLink(player)} type="button">
-                    复制恢复
-                  </button>
-                  {player.playerId !== roomView.playerId ? (
-                    <button disabled={disabled} onClick={() => onRemovePlayer(player.playerId)} type="button">
-                      {pending === "remove" ? "移除中" : "移除"}
-                    </button>
-                  ) : null}
+        <section aria-label="房间玩家列表" aria-hidden={!playerDrawerOpen}>
+          <div className="mobile-room-lobby-player-head">
+            <h2>房间玩家列表</h2>
+            <button
+              aria-label="关闭玩家列表"
+              disabled={drawerControlDisabled}
+              onClick={() => setPlayerDrawerOpen(false)}
+              tabIndex={drawerControlTabIndex}
+              type="button"
+            >
+              收起
+            </button>
+          </div>
+          <div className="mobile-room-lobby-player-list">
+            {roomView.room.players.map((player) => (
+              <div className="mobile-room-lobby-player-row" key={player.playerId}>
+                <div className="mobile-room-lobby-player-main">
+                  <span className="mobile-room-lobby-player-name">{player.name}</span>
+                  {player.isHost ? <span className="mobile-room-lobby-host-pill">房主</span> : null}
                 </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </aside>
+                <div className="mobile-room-lobby-player-meta">
+                  <span>{player.seatId ? `${player.seatId} 号位` : "未入座"}</span>
+                  <span className={player.online ? "mobile-room-lobby-player-online" : "mobile-room-lobby-player-offline"}>
+                    {player.online ? "在线" : "离线"}
+                  </span>
+                </div>
+                {isHost ? (
+                  <div className="mobile-room-lobby-player-actions">
+                    <button
+                      disabled={drawerControlDisabled}
+                      onClick={() => onCopyPlayerRecoveryLink(player)}
+                      tabIndex={drawerControlTabIndex}
+                      type="button"
+                    >
+                      复制恢复
+                    </button>
+                    {player.playerId !== roomView.playerId ? (
+                      <button
+                        disabled={drawerControlDisabled}
+                        onClick={() => onRemovePlayer(player.playerId)}
+                        tabIndex={drawerControlTabIndex}
+                        type="button"
+                      >
+                        {pending === "remove" ? "移除中" : "移除"}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
     </section>
   );
 }

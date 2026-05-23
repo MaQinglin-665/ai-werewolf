@@ -4,7 +4,12 @@ import { describe, expect, it } from "vitest";
 import type { RoomView } from "@/server/roomService";
 import { MobileRoomLobby } from "./MobileRoomLobby";
 
-function buildRoomView(overrides: Partial<RoomView> = {}): RoomView {
+type RoomViewOverrides = Omit<Partial<RoomView>, "room" | "turn"> & {
+  room?: Partial<RoomView["room"]>;
+  turn?: Partial<RoomView["turn"]>;
+};
+
+function buildRoomView(overrides: RoomViewOverrides = {}): RoomView {
   const base: RoomView = {
     room: {
       id: "room-1",
@@ -94,12 +99,15 @@ describe("MobileRoomLobby", () => {
 
     expect(html).toContain("mobile-room-lobby");
     expect(html).toContain("mobile-room-lobby-header");
+    expect(html).toContain("mobile-room-lobby-header-copy");
+    expect(html).toContain("mobile-room-lobby-code");
     expect(html).toContain("房间 M7Q2K9");
     expect(html).toContain("9 人标准局 · 大厅");
     expect(html).toContain("真人 3 / 9");
     expect(html).toContain("在线 2 / 3");
     expect(html).toContain("mobile-room-lobby-stage");
     expect(html).toContain("mobile-room-lobby-center-seal");
+    expect(html).toContain("mobile-room-lobby-dock-status");
     expect(html).toContain("3 / 9");
     expect(html).toContain("已入座");
   });
@@ -111,6 +119,7 @@ describe("MobileRoomLobby", () => {
     expect(html).toContain("mobile-room-lobby-seat-host");
     expect(html).toContain("mobile-room-lobby-seat-offline");
     expect(html).toContain("mobile-room-lobby-seat-open");
+    expect(html).toContain("mobile-room-lobby-seat-core");
     expect(html).toContain('aria-label="1 号 玩家 Alpha 房主 在线 当前玩家"');
     expect(html).toContain('aria-label="2 号 玩家 Beta 在线"');
     expect(html).toContain('aria-label="4 号 玩家 Gamma 离线"');
@@ -125,7 +134,46 @@ describe("MobileRoomLobby", () => {
     expect(html).toContain("mobile-room-lobby-player-drawer");
     expect(html).toContain("复制恢复");
     expect(html).toContain("移除");
+    expect(html).toContain("mobile-room-lobby-player-backdrop");
+    expect(html).toContain("mobile-room-lobby-player-head");
+    expect(html).toContain("mobile-room-lobby-host-pill");
+    expect(html).toContain("mobile-room-lobby-player-actions");
     expect(html).toContain("手机链接将使用：https://example.test");
+  });
+
+  it("mounts the player drawer closed by default without exposing it to accessibility", () => {
+    const html = renderLobby();
+    const drawerIndex = html.indexOf('class="mobile-room-lobby-player-drawer');
+    const playerListIndex = html.indexOf('<section aria-label="房间玩家列表"', drawerIndex);
+
+    expect(drawerIndex).toBeGreaterThan(-1);
+    expect(playerListIndex).toBeGreaterThan(drawerIndex);
+    expect(html).not.toContain("mobile-room-lobby-player-drawer-open");
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toMatch(/tab(?:I|i)ndex="-1"/);
+    expect(html).toContain("复制恢复");
+    expect(html).toContain("移除");
+  });
+
+  it("counts human-controlled seats instead of connected players", () => {
+    const html = renderLobby({
+      roomView: buildRoomView({
+        room: {
+          players: [
+            { playerId: "host", playerToken: "host-token", name: "Alpha", isHost: true, online: true, seatId: 1 },
+            { playerId: "self", playerToken: "self-token", name: "Beta", isHost: false, online: true, seatId: 2 },
+            { playerId: "spectator", playerToken: "spectator-token", name: "Delta", isHost: false, online: true },
+          ],
+          seats: [
+            { seatId: 1, controller: "human", playerId: "host", playerName: "Alpha" },
+            { seatId: 2, controller: "human", playerId: "self", playerName: "Beta" },
+          ],
+        },
+      }),
+    });
+
+    expect(html).toContain("真人 2 / 9");
+    expect(html).toContain("2 / 9");
   });
 
   it("renders a non-host waiting state without the start button", () => {
