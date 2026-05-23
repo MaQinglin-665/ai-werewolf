@@ -1101,16 +1101,18 @@ export function RoomClient() {
             <section className="min-h-[620px] rounded-[28px] border border-[#7b5a28]/45 bg-[#120c09]/88 p-4 shadow-xl shadow-black/35 sm:p-5">
               {roomView ? (
                 <div className="flex h-full flex-col gap-5">
-                  <RoomToolbar
-                    isHost={isHost}
-                    onCopyInviteLink={() => void handleCopyInviteLink()}
-                    onCopyRecoveryLink={() => void handleCopyRecoveryLink()}
-                    onRefresh={() => void refreshView(false)}
-                    onStart={() => void handleStartRoom()}
-                    pending={pending}
-                    roomView={roomView}
-                    shareOrigin={shareOrigin}
-                  />
+                  <div className={roomView.room.status === "lobby" ? "hidden sm:block" : undefined}>
+                    <RoomToolbar
+                      isHost={isHost}
+                      onCopyInviteLink={() => void handleCopyInviteLink()}
+                      onCopyRecoveryLink={() => void handleCopyRecoveryLink()}
+                      onRefresh={() => void refreshView(false)}
+                      onStart={() => void handleStartRoom()}
+                      pending={pending}
+                      roomView={roomView}
+                      shareOrigin={shareOrigin}
+                    />
+                  </div>
                   {roomView.room.status === "lobby" ? (
                     <LobbyView
                       isHost={isHost}
