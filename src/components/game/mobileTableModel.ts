@@ -160,7 +160,14 @@ export type MobileDrawerSeenState = {
 export type MobileDrawerSnapshot = MobileDrawerSeenState & {
   latestSpeechSeatId?: number;
   latestSpeechLabel?: string;
+  logCount: number;
   recommendedTab: MobileInfoTabKey;
+};
+
+export type MobileDrawerActivityMeta = {
+  kind: "none" | "role" | "speaker" | "count";
+  label?: string;
+  unreadCount: number;
 };
 
 export function getMobileFilteredSpeeches(
@@ -185,7 +192,42 @@ export function getMobileDrawerSnapshot(
     latestSpeechLabel: latestSpeech?.speaker ? `${latestSpeech.speaker.seatId}号 ${latestSpeech.speaker.name}` : undefined,
     voteMarker,
     logMarker,
+    logCount: events.length,
     recommendedTab: getMobileRecommendedInfoTab(game),
+  };
+}
+
+export function getMobileDrawerActivityMeta(
+  tab: MobileInfoTabKey,
+  snapshot: MobileDrawerSnapshot,
+  seen: MobileDrawerSeenState,
+  roleLabel?: string,
+): MobileDrawerActivityMeta {
+  if (tab === "identity") {
+    return { kind: roleLabel ? "role" : "none", label: roleLabel, unreadCount: 0 };
+  }
+
+  if (tab === "speech") {
+    return {
+      kind: snapshot.latestSpeechLabel ? "speaker" : "none",
+      label: snapshot.latestSpeechLabel,
+      unreadCount: snapshot.latestSpeechSeq > seen.latestSpeechSeq ? 1 : 0,
+    };
+  }
+
+  if (tab === "vote") {
+    const unreadCount = Math.max(0, snapshot.voteMarker - seen.voteMarker);
+    return {
+      kind: snapshot.voteMarker > 0 ? "count" : "none",
+      label: snapshot.voteMarker > 0 ? `${snapshot.voteMarker}` : undefined,
+      unreadCount,
+    };
+  }
+
+  return {
+    kind: snapshot.logCount > 0 ? "count" : "none",
+    label: snapshot.logCount > 0 ? `${snapshot.logCount}` : undefined,
+    unreadCount: snapshot.logMarker > seen.logMarker ? 1 : 0,
   };
 }
 

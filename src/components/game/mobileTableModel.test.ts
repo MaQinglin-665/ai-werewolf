@@ -5,6 +5,7 @@ import {
   getMobileActionMode,
   getMobileAudioButtonStates,
   getMobileDrawerSnapshot,
+  getMobileDrawerActivityMeta,
   getMobileFilteredSpeeches,
   getMobileFocusSeat,
   getMobilePhaseSignalTone,
@@ -278,6 +279,7 @@ describe("getMobileDrawerSnapshot", () => {
       latestSpeechLabel: "4号 GPT",
       voteMarker: 1,
       logMarker: 9,
+      logCount: 1,
       recommendedTab: "vote",
     });
   });
@@ -289,6 +291,73 @@ describe("getMobileDrawerSnapshot", () => {
 
   it("recommends the identity drawer during night phases", () => {
     expect(getMobileDrawerSnapshot(buildGame({ phase: "NIGHT_SEER" }), []).recommendedTab).toBe("identity");
+  });
+});
+
+describe("getMobileDrawerActivityMeta", () => {
+  it("labels the latest speech speaker and unread speech activity", () => {
+    const snapshot = getMobileDrawerSnapshot(
+      buildGame({
+        tableSummary: {
+          ...buildGame().tableSummary,
+          recentSpeeches: [speechOne, speechTwo],
+        },
+      }),
+      [],
+    );
+
+    expect(getMobileDrawerActivityMeta("speech", snapshot, { latestSpeechSeq: 1, voteMarker: 0, logMarker: 0 })).toEqual({
+      kind: "speaker",
+      label: "4号 GPT",
+      unreadCount: 1,
+    });
+  });
+
+  it("counts unseen vote and log activity for drawer badges", () => {
+    const snapshot = getMobileDrawerSnapshot(
+      buildGame({
+        tableSummary: {
+          ...buildGame().tableSummary,
+          voteSnapshot: {
+            votes: [
+              {
+                seq: 7,
+                day: 1,
+                voter: { seatId: 1, name: "You" },
+                target: { seatId: 2, name: "DeepSeek" },
+              },
+            ],
+            tally: [{ target: { seatId: 2, name: "DeepSeek" }, count: 1 }],
+            leaders: [{ seatId: 2, name: "DeepSeek" }],
+            revealed: true,
+          },
+        },
+        publicEvents: [{ seq: 11, type: "VOTE_CAST", day: 1, phase: "DAY_VOTE", message: "Vote locked", payload: {} }],
+      } as Partial<HumanGameView>),
+      [{ seq: 11, type: "VOTE_CAST", day: 1, phase: "DAY_VOTE", message: "Vote locked", payload: {} }],
+    );
+    const seen = { latestSpeechSeq: 0, voteMarker: 1, logMarker: 8 };
+
+    expect(getMobileDrawerActivityMeta("vote", snapshot, seen)).toEqual({
+      kind: "count",
+      label: "3",
+      unreadCount: 2,
+    });
+    expect(getMobileDrawerActivityMeta("log", snapshot, seen)).toEqual({
+      kind: "count",
+      label: "1",
+      unreadCount: 1,
+    });
+  });
+
+  it("uses the role label for identity without unread activity", () => {
+    const snapshot = getMobileDrawerSnapshot(buildGame(), []);
+
+    expect(getMobileDrawerActivityMeta("identity", snapshot, { latestSpeechSeq: 0, voteMarker: 0, logMarker: 0 }, "预言家")).toEqual({
+      kind: "role",
+      label: "预言家",
+      unreadCount: 0,
+    });
   });
 });
 

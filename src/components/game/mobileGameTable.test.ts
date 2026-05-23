@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
 import { MobileGameTable } from "./MobileGameTable";
+import { MobileInfoDrawer } from "./MobileInfoDrawer";
 
 function buildMobileActionGame(availableActions: AvailableHumanAction[]): HumanGameView {
   return {
@@ -97,8 +98,10 @@ describe("MobileGameTable", () => {
     );
 
     expect(html).toContain("mobile-seat-actionable");
+    expect(html).toContain("mobile-seat-token-action-ready");
     expect(html).toContain("mobile-seat-action-hit");
     expect(html).toContain("mobile-seat-action-feedback-source");
+    expect(html).toContain("mobile-seat-action-label");
     expect(html).toContain('aria-label="击杀2号 DeepSeek"');
     expect(html).not.toContain("mobile-centered-action");
     expect(html).not.toContain("点头像选择目标");
@@ -116,6 +119,38 @@ describe("MobileGameTable", () => {
     } as HumanGameView);
 
     expect(html).toContain("mobile-seat-open-speech");
+  });
+
+  it("shows a clear mobile speech filter state for the selected speaker", () => {
+    const game = {
+      ...buildMobileActionGame([]),
+      tableSummary: {
+        ...buildMobileActionGame([]).tableSummary,
+        recentSpeeches: [{ seq: 1, day: 1, speaker: { seatId: 2, name: "DeepSeek" }, message: "Seat two speech" }],
+      },
+    } as HumanGameView;
+
+    const html = renderToStaticMarkup(
+      createElement(MobileInfoDrawer, {
+        activeTab: "speech",
+        game,
+        loading: false,
+        pendingCommandType: null,
+        liveAiSpeech: null,
+        events: game.publicEvents,
+        selectedSpeechSeat: game.seats[2],
+        onClose: () => undefined,
+        onClearSpeechSeatFilter: () => undefined,
+        onNewGame: async () => undefined,
+        onSubmit: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain("mobile-speech-filter-chip-active");
+    expect(html).toContain("mobile-speech-filter-seat");
+    expect(html).toContain("mobile-speech-filter-clear");
+    expect(html).toContain("全部发言");
+    expect(html).toContain("该玩家暂无最近发言");
   });
 
   it("renders a lightweight mobile phase signal", () => {
@@ -149,6 +184,10 @@ describe("MobileGameTable", () => {
     } as HumanGameView);
 
     expect(html).toContain("mobile-drawer-tab-recommended");
+    expect(html).toContain("mobile-drawer-tab-has-activity");
+    expect(html).toContain("mobile-drawer-tab-unread");
+    expect(html).toContain("mobile-drawer-tab-recommendation");
+    expect(html).toContain('aria-label="打开票型，有新内容，当前阶段推荐"');
     expect(html.match(/mobile-drawer-tab-dot/g) ?? []).toHaveLength(2);
   });
 

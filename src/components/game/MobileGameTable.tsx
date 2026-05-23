@@ -71,8 +71,8 @@ export function MobileGameTable({
   const selectedSpeechSeat = selectedSpeechSeatId ? game.seats.find((seat) => seat.seatId === selectedSpeechSeatId) : undefined;
   const visibleSeatFeedback = seatFeedback?.gameId === game.id ? seatFeedback : null;
   const drawerTabs = useMemo(
-    () => buildMobileDrawerTabs(drawerSnapshot, activeTab ? markMobileTabSeen(seenDrawerState, drawerSnapshot, activeTab) : seenDrawerState, game, events),
-    [activeTab, drawerSnapshot, seenDrawerState, game, events],
+    () => buildMobileDrawerTabs(drawerSnapshot, activeTab ? markMobileTabSeen(seenDrawerState, drawerSnapshot, activeTab) : seenDrawerState, game),
+    [activeTab, drawerSnapshot, seenDrawerState, game],
   );
   const actionStatus = getMobileActionStatus(
     game,

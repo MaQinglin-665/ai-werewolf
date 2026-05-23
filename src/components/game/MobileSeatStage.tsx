@@ -254,7 +254,7 @@ export function MobileSeatStage({
               isFocused ? "mobile-seat-focus" : "",
               opensSpeech ? "mobile-seat-open-speech" : "",
               isSelectedFeedbackSeat ? "mobile-seat-token-selected" : "",
-              primarySeatAction ? `mobile-seat-actionable mobile-seat-action-${primarySeatAction.tone}` : "",
+              primarySeatAction ? `mobile-seat-actionable mobile-seat-token-action-ready mobile-seat-action-${primarySeatAction.tone}` : "",
               seatActions.length > 1 ? "mobile-seat-action-multiple" : "",
             ].join(" ")}
           >
@@ -291,7 +291,7 @@ export function MobileSeatStage({
                     void onSubmit(primarySeatAction.payload);
                   }}
                 >
-                  <span className="mobile-seat-action-badge">{primarySeatAction.label}</span>
+                  <span className="mobile-seat-action-badge mobile-seat-action-label">{primarySeatAction.label}</span>
                 </button>
               )}
               {seatActions.length > 1 && (
@@ -315,7 +315,7 @@ export function MobileSeatStage({
                         void onSubmit(action.payload);
                       }}
                     >
-                      <span className="mobile-seat-action-badge">{action.label}</span>
+                      <span className="mobile-seat-action-badge mobile-seat-action-label">{action.label}</span>
                     </button>
                   ))}
                 </div>
