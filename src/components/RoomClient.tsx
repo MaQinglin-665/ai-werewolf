@@ -19,6 +19,7 @@ import {
 } from "@/components/game/GamePanels";
 import { MobileRoomEntryPanel, getRoomEntryBoardSeatCount } from "@/components/rooms/MobileRoomEntryPanel";
 import { MobileRoomLobby } from "@/components/rooms/MobileRoomLobby";
+import { sendRoomFlowAnalytics } from "@/components/rooms/roomFlowAnalytics";
 import type { CommandPayload, HostAudioStatus } from "@/components/game/clientTypes";
 import type { HumanCommandInput } from "@/game/commandSchemas";
 import type { HumanGameView } from "@/game/types";
@@ -362,6 +363,8 @@ export function RoomClient() {
   const idiotRevealTimerRef = useRef<number | null>(null);
   const commandRequestKeyRef = useRef<string | null>(null);
   const silentRefreshInFlightRef = useRef(false);
+  const didTrackRoomPageViewRef = useRef(false);
+  const didTrackRecoveryRef = useRef(false);
 
   const activeRoomId = roomView?.room.id;
   const activePlayerId = roomView?.playerId;
@@ -403,6 +406,12 @@ export function RoomClient() {
     },
     [saveRoomSession],
   );
+
+  const trackRecoveryRestored = useCallback(() => {
+    if (didTrackRecoveryRef.current) return;
+    didTrackRecoveryRef.current = true;
+    sendRoomFlowAnalytics({ eventType: "room_recovery_restored", path: "/rooms" });
+  }, []);
 
   const stopRoomHostAudio = useCallback(() => {
     hostAudioRunRef.current += 1;
@@ -584,6 +593,12 @@ export function RoomClient() {
   }, []);
 
   useEffect(() => {
+    if (didTrackRoomPageViewRef.current) return;
+    didTrackRoomPageViewRef.current = true;
+    sendRoomFlowAnalytics({ eventType: "room_page_view", path: "/rooms" });
+  }, []);
+
+  useEffect(() => {
     let canceled = false;
     const timer = window.setTimeout(() => {
       const urlSession = readUrlRoomSession();
@@ -609,6 +624,7 @@ export function RoomClient() {
         .then((view) => {
           if (canceled) return;
           applyRoomView(view);
+          trackRecoveryRestored();
           setNotice(urlSession ? "已通过链接恢复房间。" : "已恢复上次房间。");
         })
         .catch((err) => {
@@ -634,7 +650,7 @@ export function RoomClient() {
       canceled = true;
       window.clearTimeout(timer);
     };
-  }, [applyRoomView]);
+  }, [applyRoomView, trackRecoveryRestored]);
 
   useEffect(() => {
     return () => stopRoomHostAudio();
@@ -777,6 +793,7 @@ export function RoomClient() {
         try {
           const restored = await getRoomView(stored.roomId, stored);
           applyRoomView(restored);
+          trackRecoveryRestored();
           setNotice(`已恢复房间：${restored.room.code}`);
           return;
         } catch (err) {
