@@ -323,15 +323,7 @@ describe("room api routes", () => {
 
       await driveRoomThroughVoteResolution(roomId, hostPlayerId, guestPlayerId);
 
-      const metricsResponse = await getRoomMetrics(new Request("http://localhost/api/rooms/metrics?token=test-owner-token"));
-      expect(metricsResponse.status).toBe(200);
-      const metrics = (await metricsResponse.json()) as {
-        history: {
-          roomsReachedSpeech: number;
-          roomsReachedVote: number;
-          roomsResolvedVote: number;
-        };
-      };
+      const metrics = await waitForRoomFlowMetrics();
 
       expect(metrics.history.roomsReachedSpeech).toBeGreaterThanOrEqual(1);
       expect(metrics.history.roomsReachedVote).toBeGreaterThanOrEqual(1);
@@ -1286,6 +1278,34 @@ async function driveRoomThroughVoteResolution(roomId: string, hostPlayerId: stri
   }
 
   throw new Error("Could not drive room through vote resolution.");
+}
+
+type RoomFlowMetricsSnapshot = {
+  history: {
+    roomsReachedSpeech: number;
+    roomsReachedVote: number;
+    roomsResolvedVote: number;
+  };
+};
+
+async function waitForRoomFlowMetrics(): Promise<RoomFlowMetricsSnapshot> {
+  let latest: RoomFlowMetricsSnapshot | undefined;
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const metricsResponse = await getRoomMetrics(new Request("http://localhost/api/rooms/metrics?token=test-owner-token"));
+    expect(metricsResponse.status).toBe(200);
+    latest = (await metricsResponse.json()) as RoomFlowMetricsSnapshot;
+    if (
+      latest.history.roomsReachedSpeech >= 1 &&
+      latest.history.roomsReachedVote >= 1 &&
+      latest.history.roomsResolvedVote >= 1
+    ) {
+      return latest;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+
+  return latest ?? { history: { roomsReachedSpeech: 0, roomsReachedVote: 0, roomsResolvedVote: 0 } };
 }
 
 async function readRoomView(roomId: string, playerId: string): Promise<RoomView> {

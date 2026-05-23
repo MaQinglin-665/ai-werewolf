@@ -1208,7 +1208,7 @@ export async function startRoomSession(
   room.gameState = state;
   room.status = "in_game";
   await touchRoom(room, { previousRevision });
-  await recordRoomFlowMilestones(room, null);
+  recordRoomFlowMilestonesBestEffort(room, null);
   await recordRoomAnalyticsEvent({
     eventType: "room_started",
     playerId: requester.playerId,
@@ -1326,7 +1326,7 @@ export async function submitRoomPlayerCommand(
 
   room.gameState = nextState;
   await touchRoom(room, { previousRevision });
-  await recordRoomFlowMilestones(room, previousState);
+  recordRoomFlowMilestonesBestEffort(room, previousState);
   await recordRoomFinishedIfNeeded(room, wasFinished);
   return buildRoomView(room, player.playerId);
 }
@@ -1401,7 +1401,7 @@ async function applyIdempotentRoomPlayerCommand(
   room.gameState = nextState;
   rememberCompletedRoomIdempotentWrite(room, idempotency);
   await touchRoom(room, { previousRevision });
-  await recordRoomFlowMilestones(room, previousState);
+  recordRoomFlowMilestonesBestEffort(room, previousState);
   await recordRoomFinishedIfNeeded(room, wasFinished);
   return buildRoomView(room, player.playerId);
 }
@@ -1729,34 +1729,55 @@ async function continueRoom(room: RoomRecord, player: RoomPlayer, idempotency?: 
     rememberCompletedRoomIdempotentWrite(room, idempotency);
   }
   await touchRoom(room, { previousRevision });
-  await recordRoomFlowMilestones(room, previousState);
+  recordRoomFlowMilestonesBestEffort(room, previousState);
   await recordRoomFinishedIfNeeded(room, wasFinished);
   return buildRoomView(room, player.playerId);
 }
 
-async function recordRoomFlowMilestones(room: RoomRecord, previousState: GameState | null | undefined): Promise<void> {
+type RoomFlowMilestoneSnapshot = {
+  boardId: string;
+  day: number;
+  nextPhase: Phase;
+  previousPhase?: Phase;
+  roomId: string;
+};
+
+function recordRoomFlowMilestonesBestEffort(room: RoomRecord, previousState: GameState | null | undefined): void {
   const nextState = room.gameState;
   if (!nextState) return;
 
-  const base = {
+  const snapshot: RoomFlowMilestoneSnapshot = {
+    boardId: room.boardId,
+    day: nextState.day,
+    nextPhase: nextState.phase,
+    previousPhase: previousState?.phase,
     roomId: room.id,
-    roomCode: room.code,
+  };
+
+  void recordRoomFlowMilestones(snapshot).catch((error) => {
+    console.warn(`记录房间流程里程碑失败：${error instanceof Error ? error.message : String(error)}`);
+  });
+}
+
+async function recordRoomFlowMilestones(snapshot: RoomFlowMilestoneSnapshot): Promise<void> {
+  const base = {
+    roomId: snapshot.roomId,
     payload: {
-      boardId: room.boardId,
-      day: nextState.day,
-      phase: nextState.phase,
+      boardId: snapshot.boardId,
+      day: snapshot.day,
+      phase: snapshot.nextPhase,
     },
   };
 
-  if (nextState.phase === "DAY_SPEECH" && previousState?.phase !== "DAY_SPEECH") {
+  if (snapshot.nextPhase === "DAY_SPEECH" && snapshot.previousPhase !== "DAY_SPEECH") {
     await recordRoomAnalyticsEvent({ eventType: "room_speech_reached", ...base });
   }
 
-  if (nextState.phase === "DAY_VOTE" && previousState?.phase !== "DAY_VOTE") {
+  if (snapshot.nextPhase === "DAY_VOTE" && snapshot.previousPhase !== "DAY_VOTE") {
     await recordRoomAnalyticsEvent({ eventType: "room_vote_reached", ...base });
   }
 
-  if (previousState?.phase === "DAY_VOTE" && nextState.phase !== "DAY_VOTE") {
+  if (snapshot.previousPhase === "DAY_VOTE" && snapshot.nextPhase !== "DAY_VOTE") {
     await recordRoomAnalyticsEvent({ eventType: "room_vote_resolved", ...base });
   }
 }
