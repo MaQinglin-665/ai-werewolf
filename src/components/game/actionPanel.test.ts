@@ -76,6 +76,20 @@ describe("ActionPanel", () => {
     expect(html).toContain('href="#mobile-review"');
   });
 
+  it("shows a return-home action when a finished game can go back to the landing page", () => {
+    const html = renderToStaticMarkup(
+      createElement(ActionPanel, {
+        game: buildResultGame(),
+        loading: false,
+        onNewGame: async () => undefined,
+        onReturnHome: async () => undefined,
+        onSubmit: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain("返回主页面");
+  });
+
   it("keeps mobile compact target actions out of the old card grids", () => {
     const html = renderToStaticMarkup(
       createElement(ActionPanel, {

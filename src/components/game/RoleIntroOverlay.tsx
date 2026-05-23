@@ -77,7 +77,15 @@ export function IdiotRevealOverlay({ cue }: { cue: IdiotRevealCue }) {
   );
 }
 
-export function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnter: () => void }) {
+export function RoleIntroOverlay({
+  game,
+  onEnter,
+  onReturnHome,
+}: {
+  game: HumanGameView;
+  onEnter: () => void;
+  onReturnHome?: () => Promise<void> | void;
+}) {
   if (!game.myRole) return null;
   const intro = ROLE_INTROS[game.myRole];
   const teammates = game.wolfTeammates.map((seat) => seat.name).join("、");
@@ -132,12 +140,24 @@ export function RoleIntroOverlay({ game, onEnter }: { game: HumanGameView; onEnt
             {teammates && <RoleIntroItem label="狼队友" value={teammates} />}
           </div>
 
-          <button
-            onClick={onEnter}
-            className="role-intro-confirm min-h-12 rounded-full bg-[#b74332] px-6 py-3 text-sm font-semibold text-white shadow-xl shadow-black/35 transition hover:bg-[#cf513d]"
-          >
-            确认身份，进入游戏
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              onClick={onEnter}
+              className="role-intro-confirm min-h-12 flex-1 rounded-full bg-[#b74332] px-6 py-3 text-sm font-semibold text-white shadow-xl shadow-black/35 transition hover:bg-[#cf513d]"
+              type="button"
+            >
+              确认身份，进入游戏
+            </button>
+            {onReturnHome && (
+              <button
+                onClick={() => void onReturnHome()}
+                className="min-h-12 rounded-full border border-[#7da8e3]/30 bg-[#101d2d]/70 px-6 py-3 text-sm font-semibold text-[#b8d6ff] transition hover:bg-[#172b44]"
+                type="button"
+              >
+                返回主页面
+              </button>
+            )}
+          </div>
         </div>
       </section>
     </div>

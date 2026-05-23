@@ -50,6 +50,7 @@ export function MobileTopStrip({
   aiSpeechAudioUnavailable,
   actionStatus,
   onNewGame,
+  onReturnHome,
   onOpenIdentityBook,
   onOpenGlossary,
   onToggleAiSpeechAudio,
@@ -62,6 +63,7 @@ export function MobileTopStrip({
   aiSpeechAudioUnavailable: boolean;
   actionStatus: string;
   onNewGame: () => Promise<void>;
+  onReturnHome?: () => Promise<void> | void;
   onOpenIdentityBook: () => void;
   onOpenGlossary: () => void;
   onToggleAiSpeechAudio: () => void;
@@ -108,6 +110,11 @@ export function MobileTopStrip({
         <MobileQuickButton label={audioButtonStates.hostActive ? "主持开" : "主持关"} active={audioButtonStates.hostActive} onClick={onToggleHostAudio}>
           播
         </MobileQuickButton>
+        {onReturnHome && (
+          <MobileQuickButton label="返回主页面" disabled={loading} onClick={() => void onReturnHome()}>
+            主
+          </MobileQuickButton>
+        )}
         <MobileQuickButton label="新开一局" disabled={loading} onClick={() => void onNewGame()}>
           新
         </MobileQuickButton>
@@ -154,6 +161,7 @@ export function MobileSeatStage({
   actionLayerClassName,
   showStageAction,
   onNewGame,
+  onReturnHome,
   onSubmit,
   onOpenSpeechPanel,
   onOpenSeatSpeech,
@@ -167,6 +175,7 @@ export function MobileSeatStage({
   actionLayerClassName: string;
   showStageAction: boolean;
   onNewGame: () => Promise<void>;
+  onReturnHome?: () => Promise<void> | void;
   onSubmit: (payload: CommandPayload) => Promise<void>;
   onOpenSpeechPanel: () => void;
   onOpenSeatSpeech: (seatId: number) => void;
@@ -194,6 +203,7 @@ export function MobileSeatStage({
             game={game}
             loading={loading}
             onNewGame={onNewGame}
+            onReturnHome={onReturnHome}
             onSubmit={onSubmit}
             reviewHref="#mobile-review"
             mobileCompact

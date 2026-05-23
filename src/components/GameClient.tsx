@@ -1398,6 +1398,43 @@ export function GameClient() {
     }
   }, [humanSeatMode, rememberGame, selectedAiFriends, selectedBoardId, selectedHumanSeatId]);
 
+  const returnHome = useCallback(() => {
+    setGame(null);
+    setLoading(false);
+    setError(null);
+    setRoleIntroGameId(null);
+    setPhaseCurtain(null);
+    setIdiotReveal(null);
+    setIdentityBookOpen(false);
+    setGlossaryOpen(false);
+    setLiveAiSpeech(null);
+    setPendingCommandType(null);
+    stopHostAudio();
+    stopAiSpeechAudio();
+    lastCurtainKeyRef.current = null;
+    activeIdiotRevealKeyRef.current = null;
+    autoReadGameIdRef.current = null;
+    autoReadSpeechKeysRef.current.clear();
+    completedHostAudioKeysRef.current.clear();
+    completedAiSpeechAudioKeysRef.current.clear();
+    streamingAiSpeechAudioKeysRef.current.clear();
+    textFallbackAiSpeechKeysRef.current.clear();
+    aiSpeechAudioAttemptCountsRef.current.clear();
+    aiSpeechAudioGameIdRef.current = null;
+    lastHostAudioKeyRef.current = null;
+    lastAiSpeechAudioKeyRef.current = null;
+    if (idiotRevealTimerRef.current !== null) {
+      window.clearTimeout(idiotRevealTimerRef.current);
+      idiotRevealTimerRef.current = null;
+    }
+    try {
+      window.localStorage.removeItem(CURRENT_GAME_KEY);
+      window.dispatchEvent(new Event("ai-werewolf-recent-games-changed"));
+    } catch {
+      // Returning home is a UI transition; storage cleanup should not block it.
+    }
+  }, [stopAiSpeechAudio, stopHostAudio]);
+
   const submitCommand = useCallback(async (payload: CommandPayload) => {
     if (!game) return;
     setLoading(true);
@@ -1746,6 +1783,7 @@ export function GameClient() {
             aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
             hostAudioEnabled={hostAudioEnabled}
             onNewGame={startGame}
+            onReturnHome={game ? returnHome : undefined}
             onOpenIdentityBook={() => setIdentityBookOpen(true)}
             onOpenGlossary={() => setGlossaryOpen(true)}
             onToggleAiSpeechAudio={toggleAiSpeechAudio}
@@ -1791,6 +1829,7 @@ export function GameClient() {
               aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
               events={latestEvents}
               onNewGame={() => startGame()}
+              onReturnHome={returnHome}
               onSubmit={submitCommand}
               onOpenIdentityBook={() => setIdentityBookOpen(true)}
               onOpenGlossary={() => setGlossaryOpen(true)}
@@ -1821,7 +1860,7 @@ export function GameClient() {
                 </div>
 
                 <aside className="grid content-start gap-4">
-                  <ActionPanel game={game} loading={loading} onNewGame={startGame} onSubmit={submitCommand} />
+                  <ActionPanel game={game} loading={loading} onNewGame={startGame} onReturnHome={returnHome} onSubmit={submitCommand} />
                   <VoteTable game={game} loading={loading} pendingCommandType={pendingCommandType} />
                   <AuxiliaryInfoPanel game={game} events={latestEvents} />
                 </aside>
@@ -1832,7 +1871,7 @@ export function GameClient() {
       </div>
 
       {game && game.humanSeatId !== null && roleIntroGameId === game.id && (
-        <RoleIntroOverlay game={game} onEnter={() => setRoleIntroGameId(null)} />
+        <RoleIntroOverlay game={game} onEnter={() => setRoleIntroGameId(null)} onReturnHome={returnHome} />
       )}
       {identityBookOpen && (
         <IdentityBookOverlay game={game} activeBoardId={game?.board.id ?? selectedBoardId ?? undefined} onClose={() => setIdentityBookOpen(false)} />
