@@ -7,7 +7,12 @@ export type RoomAnalyticsEventType =
   | "room_created"
   | "player_joined"
   | "room_started"
-  | "room_finished";
+  | "room_finished"
+  | "room_page_view"
+  | "room_recovery_restored"
+  | "room_speech_reached"
+  | "room_vote_reached"
+  | "room_vote_resolved";
 
 export type RoomAnalyticsEventInput = {
   eventType: RoomAnalyticsEventType;
@@ -27,6 +32,11 @@ export type RoomAnalyticsDayBucket = {
   playersJoined: number;
   gamesStarted: number;
   gamesFinished: number;
+  roomPageViews: number;
+  roomRecoveriesRestored: number;
+  roomsReachedSpeech: number;
+  roomsReachedVote: number;
+  roomsResolvedVote: number;
 };
 
 export type RoomAnalyticsHistorySnapshot = {
@@ -42,7 +52,12 @@ export type RoomAnalyticsHistorySnapshot = {
   mainGamesFinished: number;
   mainGamesStarted: number;
   recentDays: RoomAnalyticsDayBucket[];
+  roomPageViews: number;
+  roomRecoveriesRestored: number;
   roomCompletionRate: number | null;
+  roomsReachedSpeech: number;
+  roomsReachedVote: number;
+  roomsResolvedVote: number;
   siteCompletionRate: number | null;
   totalFinishedGameMinutes: number;
   totalMainGameMinutes: number;
@@ -56,6 +71,10 @@ export type RoomAnalyticsHistorySnapshot = {
 type StoredRoomAnalyticsEvent = Omit<RoomAnalyticsEventInput, "roomId" | "subjectId"> & {
   occurredAt: string;
   roomId: string;
+};
+
+type RoomAnalyticsHistoryOptions = {
+  days?: number;
 };
 
 const POSTGRES_ROOM_ANALYTICS_EVENTS_TABLE = "ai_werewolf_room_analytics_events";
@@ -100,11 +119,12 @@ export async function recordRoomAnalyticsEvent(input: RoomAnalyticsEventInput): 
   }
 }
 
-export async function getRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsHistorySnapshot> {
+export async function getRoomAnalyticsHistorySnapshot(options: RoomAnalyticsHistoryOptions = {}): Promise<RoomAnalyticsHistorySnapshot> {
+  const days = normalizeHistoryDays(options.days);
   if (isPostgresRoomAnalyticsEnabled()) {
-    return getPostgresRoomAnalyticsHistorySnapshot();
+    return getPostgresRoomAnalyticsHistorySnapshot({ days });
   }
-  return summarizeInProcessRoomAnalytics(roomAnalyticsEvents);
+  return summarizeInProcessRoomAnalytics(roomAnalyticsEvents, { days });
 }
 
 export async function clearRoomAnalyticsForTests(): Promise<void> {
@@ -115,16 +135,21 @@ export async function clearRoomAnalyticsForTests(): Promise<void> {
   }
 }
 
-async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsHistorySnapshot> {
+async function getPostgresRoomAnalyticsHistorySnapshot({ days }: { days: number }): Promise<RoomAnalyticsHistorySnapshot> {
   const pool = getPostgresRoomAnalyticsPool();
   await ensurePostgresRoomAnalyticsSchema(pool);
-  const [totals, duration, mainDuration, days, trackedSince] = await Promise.all([
+  const [totals, duration, mainDuration, dailyRows, trackedSince] = await Promise.all([
     pool.query<{
       games_finished: number;
       games_started: number;
       home_views: number;
       main_games_finished: number;
       main_games_started: number;
+      room_page_views: number;
+      room_recoveries_restored: number;
+      rooms_reached_speech: number;
+      rooms_reached_vote: number;
+      rooms_resolved_vote: number;
       total_players_ever: number;
       total_rooms_ever: number;
     }>(
@@ -136,7 +161,12 @@ async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsH
           count(distinct room_id) filter (where event_type = 'room_created')::int as total_rooms_ever,
           count(distinct player_id) filter (where event_type in ('room_created', 'player_joined') and player_id is not null)::int as total_players_ever,
           count(distinct room_id) filter (where event_type = 'room_started')::int as games_started,
-          count(distinct room_id) filter (where event_type = 'room_finished')::int as games_finished
+          count(distinct room_id) filter (where event_type = 'room_finished')::int as games_finished,
+          count(*) filter (where event_type = 'room_page_view')::int as room_page_views,
+          count(*) filter (where event_type = 'room_recovery_restored')::int as room_recoveries_restored,
+          count(distinct room_id) filter (where event_type = 'room_speech_reached')::int as rooms_reached_speech,
+          count(distinct room_id) filter (where event_type = 'room_vote_reached')::int as rooms_reached_vote,
+          count(distinct room_id) filter (where event_type = 'room_vote_resolved')::int as rooms_resolved_vote
         from ${POSTGRES_ROOM_ANALYTICS_EVENTS_TABLE}
       `,
     ),
@@ -191,14 +221,16 @@ async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsH
           event_type,
           case
             when event_type = 'home_view' then count(*)::int
+            when event_type in ('room_page_view', 'room_recovery_restored') then count(*)::int
             when event_type in ('room_created', 'player_joined') then count(distinct player_id)::int
             else count(distinct room_id)::int
           end as count
         from ${POSTGRES_ROOM_ANALYTICS_EVENTS_TABLE}
-        where occurred_at >= now() - interval '6 days'
+        where occurred_at >= now() - (($1::int - 1) * interval '1 day')
         group by day, event_type
         order by day asc
       `,
+      [days],
     ),
     pool.query<{ tracked_since: Date | null }>(
       `select min(occurred_at) as tracked_since from ${POSTGRES_ROOM_ANALYTICS_EVENTS_TABLE}`,
@@ -229,8 +261,13 @@ async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsH
     mainCompletionRate: mainGamesStarted > 0 ? Math.round((mainGamesFinished / mainGamesStarted) * 100) : null,
     mainGamesFinished,
     mainGamesStarted,
-    recentDays: buildRecentDayBuckets(new Date(), days.rows, trackedSinceValue ?? undefined),
+    recentDays: buildRecentDayBuckets(new Date(), dailyRows.rows, trackedSinceValue ?? undefined, days),
+    roomPageViews: totalRow?.room_page_views ?? 0,
+    roomRecoveriesRestored: totalRow?.room_recoveries_restored ?? 0,
     roomCompletionRate: gamesStarted > 0 ? Math.round((gamesFinished / gamesStarted) * 100) : null,
+    roomsReachedSpeech: totalRow?.rooms_reached_speech ?? 0,
+    roomsReachedVote: totalRow?.rooms_reached_vote ?? 0,
+    roomsResolvedVote: totalRow?.rooms_resolved_vote ?? 0,
     siteCompletionRate: siteGamesStarted > 0 ? Math.round((siteGamesFinished / siteGamesStarted) * 100) : null,
     totalFinishedGameMinutes: roundOneDecimal(totalFinishedSeconds / 60),
     totalMainGameMinutes: roundOneDecimal(totalMainSeconds / 60),
@@ -242,28 +279,41 @@ async function getPostgresRoomAnalyticsHistorySnapshot(): Promise<RoomAnalyticsH
   };
 }
 
-function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): RoomAnalyticsHistorySnapshot {
+function summarizeInProcessRoomAnalytics(
+  events: StoredRoomAnalyticsEvent[],
+  { days }: { days: number },
+): RoomAnalyticsHistorySnapshot {
   const roomIds = new Set<string>();
   const playerIds = new Set<string>();
   const startedRoomIds = new Set<string>();
   const finishedRoomIds = new Set<string>();
   const mainStartedGameIds = new Set<string>();
   const mainFinishedGameIds = new Set<string>();
+  const reachedSpeechRoomIds = new Set<string>();
+  const reachedVoteRoomIds = new Set<string>();
+  const resolvedVoteRoomIds = new Set<string>();
   const startedAtByRoom = new Map<string, number>();
   const mainStartedAtByGame = new Map<string, number>();
   const finishedDurationsSeconds: number[] = [];
   const mainDurationsSeconds: number[] = [];
+  const recentDayRows = new Map<string, { count: number; day: string; event_type: RoomAnalyticsEventType }>();
+  const recentDayRoomSets = new Map<string, Set<string>>();
   let totalFinishedDurationSeconds = 0;
   let totalMainDurationSeconds = 0;
   let homeViews = 0;
+  let roomPageViews = 0;
+  let roomRecoveriesRestored = 0;
   let trackedSinceMs: number | undefined;
 
   for (const event of events) {
     const occurredAtMs = Date.parse(event.occurredAt);
+    const metricsDay = formatMetricsDay(new Date(event.occurredAt));
     if (Number.isFinite(occurredAtMs)) {
       trackedSinceMs = trackedSinceMs === undefined ? occurredAtMs : Math.min(trackedSinceMs, occurredAtMs);
     }
     if (event.eventType === "home_view") homeViews += 1;
+    if (event.eventType === "room_page_view") roomPageViews += 1;
+    if (event.eventType === "room_recovery_restored") roomRecoveriesRestored += 1;
     if (event.eventType === "main_game_started" && event.roomId) {
       mainStartedGameIds.add(event.roomId);
       if (Number.isFinite(occurredAtMs) && !mainStartedAtByGame.has(event.roomId)) {
@@ -298,6 +348,23 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
         totalFinishedDurationSeconds += durationSeconds;
       }
     }
+    if (event.eventType === "room_speech_reached" && event.roomId) reachedSpeechRoomIds.add(event.roomId);
+    if (event.eventType === "room_vote_reached" && event.roomId) reachedVoteRoomIds.add(event.roomId);
+    if (event.eventType === "room_vote_resolved" && event.roomId) resolvedVoteRoomIds.add(event.roomId);
+
+    if (isMilestoneRoomAnalyticsEvent(event.eventType)) {
+      if (!event.roomId) continue;
+      const key = `${metricsDay}:${event.eventType}`;
+      const roomSet = recentDayRoomSets.get(key) ?? new Set<string>();
+      roomSet.add(event.roomId);
+      recentDayRoomSets.set(key, roomSet);
+      recentDayRows.set(key, { count: roomSet.size, day: metricsDay, event_type: event.eventType });
+    } else {
+      const key = `${metricsDay}:${event.eventType}`;
+      const row = recentDayRows.get(key) ?? { count: 0, day: metricsDay, event_type: event.eventType };
+      row.count += 1;
+      recentDayRows.set(key, row);
+    }
   }
 
   const siteGamesStarted = mainStartedGameIds.size + startedRoomIds.size;
@@ -325,15 +392,17 @@ function summarizeInProcessRoomAnalytics(events: StoredRoomAnalyticsEvent[]): Ro
     mainGamesStarted: mainStartedGameIds.size,
     recentDays: buildRecentDayBuckets(
       new Date(),
-      events.map((event) => ({
-        count: 1,
-        day: formatMetricsDay(new Date(event.occurredAt)),
-        event_type: event.eventType,
-      })),
+      [...recentDayRows.values()],
       trackedSinceMs === undefined ? undefined : new Date(trackedSinceMs),
+      days,
     ),
+    roomPageViews,
+    roomRecoveriesRestored,
     roomCompletionRate:
       startedRoomIds.size > 0 ? Math.round((finishedRoomIds.size / startedRoomIds.size) * 100) : null,
+    roomsReachedSpeech: reachedSpeechRoomIds.size,
+    roomsReachedVote: reachedVoteRoomIds.size,
+    roomsResolvedVote: resolvedVoteRoomIds.size,
     siteCompletionRate: siteGamesStarted > 0 ? Math.round((siteGamesFinished / siteGamesStarted) * 100) : null,
     totalFinishedGameMinutes: roundOneDecimal(totalFinishedDurationSeconds / 60),
     totalMainGameMinutes: roundOneDecimal(totalMainDurationSeconds / 60),
@@ -349,10 +418,11 @@ function buildRecentDayBuckets(
   now: Date,
   rows: Array<{ count: number; day: string; event_type: RoomAnalyticsEventType }>,
   trackedSince?: Date,
+  dayCount = 7,
 ): RoomAnalyticsDayBucket[] {
   const buckets = new Map<string, RoomAnalyticsDayBucket>();
   const earliestVisibleDay = trackedSince ? formatMetricsDay(trackedSince) : formatMetricsDay(now);
-  for (let offset = 6; offset >= 0; offset -= 1) {
+  for (let offset = dayCount - 1; offset >= 0; offset -= 1) {
     const day = new Date(now);
     day.setDate(now.getDate() - offset);
     const key = formatMetricsDay(day);
@@ -366,6 +436,11 @@ function buildRecentDayBuckets(
       playersJoined: 0,
       gamesStarted: 0,
       gamesFinished: 0,
+      roomPageViews: 0,
+      roomRecoveriesRestored: 0,
+      roomsReachedSpeech: 0,
+      roomsReachedVote: 0,
+      roomsResolvedVote: 0,
     });
   }
   if (buckets.size === 0) {
@@ -379,6 +454,11 @@ function buildRecentDayBuckets(
       playersJoined: 0,
       gamesStarted: 0,
       gamesFinished: 0,
+      roomPageViews: 0,
+      roomRecoveriesRestored: 0,
+      roomsReachedSpeech: 0,
+      roomsReachedVote: 0,
+      roomsResolvedVote: 0,
     });
   }
 
@@ -393,9 +473,22 @@ function buildRecentDayBuckets(
     if (row.event_type === "player_joined") bucket.playersJoined += count;
     if (row.event_type === "room_started") bucket.gamesStarted += count;
     if (row.event_type === "room_finished") bucket.gamesFinished += count;
+    if (row.event_type === "room_page_view") bucket.roomPageViews += count;
+    if (row.event_type === "room_recovery_restored") bucket.roomRecoveriesRestored += count;
+    if (row.event_type === "room_speech_reached") bucket.roomsReachedSpeech += count;
+    if (row.event_type === "room_vote_reached") bucket.roomsReachedVote += count;
+    if (row.event_type === "room_vote_resolved") bucket.roomsResolvedVote += count;
   }
 
   return [...buckets.values()];
+}
+
+function isMilestoneRoomAnalyticsEvent(eventType: RoomAnalyticsEventType): boolean {
+  return eventType === "room_speech_reached" || eventType === "room_vote_reached" || eventType === "room_vote_resolved";
+}
+
+function normalizeHistoryDays(days: number | undefined): number {
+  return Number.isInteger(days) && days !== undefined && days > 0 ? days : 7;
 }
 
 function formatMetricsDay(date: Date): string {
