@@ -4880,6 +4880,8 @@ button:disabled {
   .phase-rhythm-progress,
   .phase-step-dot,
   .phase-step-connector,
+  .mobile-room-lobby-player-backdrop,
+  .mobile-room-lobby-player-drawer > section,
   .mobile-seat-chip,
   .seat-token,
   .seat-token-shell,

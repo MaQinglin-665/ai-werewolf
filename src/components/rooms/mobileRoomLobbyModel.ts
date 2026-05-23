@@ -36,6 +36,12 @@ export type MobileRoomLobbyDockCopy = {
   primaryAction: string;
 };
 
+export type MobileRoomLobbyDrawerControlState = {
+  actionDisabled: boolean;
+  closeDisabled: boolean;
+  tabIndex?: -1;
+};
+
 const MOBILE_ROOM_LOBBY_SEAT_POINTS: Record<number, MobileRoomLobbySeatPoint[]> = {
   6: [
     { x: 22, y: 20, size: 52 },
@@ -170,6 +176,20 @@ export function getMobileRoomLobbyDockCopy({ isHost, roomView }: { isHost: boole
     primary: seatCopy,
     secondary: "等待房主开局；可以先换到空位。",
     primaryAction: "等待房主开局",
+  };
+}
+
+export function getMobileRoomLobbyDrawerControlState({
+  isOpen,
+  pending,
+}: {
+  isOpen: boolean;
+  pending: MobileRoomLobbyPending;
+}): MobileRoomLobbyDrawerControlState {
+  return {
+    actionDisabled: !isOpen || pending !== null,
+    closeDisabled: !isOpen,
+    tabIndex: isOpen ? undefined : -1,
   };
 }
 

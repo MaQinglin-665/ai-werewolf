@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { RoomPlayerView, RoomView } from "@/server/roomService";
 import {
   buildMobileRoomLobbySeatIds,
+  getMobileRoomLobbyDrawerControlState,
   getMobileRoomLobbyDockCopy,
   getMobileRoomLobbySeatDensityClass,
   getMobileRoomLobbySeatState,
@@ -46,8 +47,7 @@ export function MobileRoomLobby({
   const playerCount = roomView.room.players.length;
   const onlineCount = roomView.room.players.filter((player) => player.online).length;
   const disabled = pending !== null;
-  const drawerControlDisabled = disabled || !playerDrawerOpen;
-  const drawerControlTabIndex = playerDrawerOpen ? undefined : -1;
+  const drawerControlState = getMobileRoomLobbyDrawerControlState({ isOpen: playerDrawerOpen, pending });
 
   return (
     <section className="mobile-room-lobby sm:hidden" aria-label="手机选座大厅">
@@ -147,9 +147,9 @@ export function MobileRoomLobby({
         <button
           aria-label="关闭玩家列表"
           className="mobile-room-lobby-player-backdrop"
-          disabled={!playerDrawerOpen}
+          disabled={drawerControlState.closeDisabled}
           onClick={() => setPlayerDrawerOpen(false)}
-          tabIndex={drawerControlTabIndex}
+          tabIndex={drawerControlState.tabIndex}
           type="button"
         />
         <section aria-label="房间玩家列表" aria-hidden={!playerDrawerOpen}>
@@ -157,9 +157,9 @@ export function MobileRoomLobby({
             <h2>房间玩家列表</h2>
             <button
               aria-label="关闭玩家列表"
-              disabled={drawerControlDisabled}
+              disabled={drawerControlState.closeDisabled}
               onClick={() => setPlayerDrawerOpen(false)}
-              tabIndex={drawerControlTabIndex}
+              tabIndex={drawerControlState.tabIndex}
               type="button"
             >
               收起
@@ -181,18 +181,18 @@ export function MobileRoomLobby({
                 {isHost ? (
                   <div className="mobile-room-lobby-player-actions">
                     <button
-                      disabled={drawerControlDisabled}
+                      disabled={drawerControlState.actionDisabled}
                       onClick={() => onCopyPlayerRecoveryLink(player)}
-                      tabIndex={drawerControlTabIndex}
+                      tabIndex={drawerControlState.tabIndex}
                       type="button"
                     >
                       复制恢复
                     </button>
                     {player.playerId !== roomView.playerId ? (
                       <button
-                        disabled={drawerControlDisabled}
+                        disabled={drawerControlState.actionDisabled}
                         onClick={() => onRemovePlayer(player.playerId)}
-                        tabIndex={drawerControlTabIndex}
+                        tabIndex={drawerControlState.tabIndex}
                         type="button"
                       >
                         {pending === "remove" ? "移除中" : "移除"}
