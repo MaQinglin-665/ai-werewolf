@@ -94,6 +94,18 @@ function renderLobby(props: Partial<Parameters<typeof MobileRoomLobby>[0]> = {})
 }
 
 describe("MobileRoomLobby", () => {
+  it("keeps all RoomClient lobby actions represented on mobile", () => {
+    const html = renderLobby({ isHost: true });
+
+    expect(html).toContain("邀请");
+    expect(html).toContain("刷新");
+    expect(html).toContain("恢复");
+    expect(html).toContain("玩家");
+    expect(html).toContain("开始游戏");
+    expect(html).toContain("复制恢复");
+    expect(html).toContain("移除");
+  });
+
   it("renders the mobile lobby shell, header, and stage", () => {
     const html = renderLobby();
 
