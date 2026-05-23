@@ -202,6 +202,8 @@ export function applyCommand(state: GameState, command: Command): GameState {
       return applyLastWords(next, command.actorSeatId, command.message);
     case "vote":
       return applyVote(next, command.actorSeatId, command.targetSeatId, command.reason);
+    case "hunterReveal":
+      return applyHunterReveal(next, command.actorSeatId, command.reveal, command.reason);
     case "hunterShoot":
       return applyHunterShot(next, command.actorSeatId, command.targetSeatId, command.reason);
     case "wolfKingShoot":
@@ -234,25 +236,22 @@ export function applySystemStep(state: GameState): GameState {
       return settleWinOrContinue(next);
     case "NIGHT_WOLF_BEAUTY":
       next.phase = nextNightPhaseAfterWolfBeauty(next);
-      return touch(
-        appendEvent(next, "ROLE_PHASE_SKIPPED", "system", "狼美人已出局，魅惑阶段跳过。", {
-          role: "WOLF_BEAUTY",
-        }),
-      );
+      appendEvent(next, "ROLE_PHASE_SKIPPED", "system", "狼美人已出局，魅惑阶段跳过。", {
+        role: "WOLF_BEAUTY",
+      });
+      return continueAfterNightAction(next);
     case "NIGHT_GUARD":
-      next.phase = "NIGHT_SEER";
-      return touch(
-        appendEvent(next, "ROLE_PHASE_SKIPPED", "system", "守卫已出局，守护阶段跳过。", {
-          role: "GUARD",
-        }),
-      );
+      next.phase = nextNightPhaseAfterGuard(next);
+      appendEvent(next, "ROLE_PHASE_SKIPPED", "system", "守卫已出局，守护阶段跳过。", {
+        role: "GUARD",
+      });
+      return continueAfterNightAction(next);
     case "NIGHT_SEER":
-      next.phase = "NIGHT_WITCH";
-      return touch(
-        appendEvent(next, "ROLE_PHASE_SKIPPED", "system", "预言家已出局，查验阶段跳过。", {
-          role: "SEER",
-        }),
-      );
+      next.phase = nextNightPhaseAfterSeer(next);
+      appendEvent(next, "ROLE_PHASE_SKIPPED", "system", "预言家已出局，查验阶段跳过。", {
+        role: "SEER",
+      });
+      return continueAfterNightAction(next);
     case "NIGHT_WITCH":
       next.phase = "DAY_ANNOUNCEMENT";
       appendEvent(next, "ROLE_PHASE_SKIPPED", "system", "女巫无法行动，女巫阶段跳过。", {
@@ -288,8 +287,13 @@ export function applySystemStep(state: GameState): GameState {
       return resolveVote(next);
     case "LAST_WORDS":
       return finishAfterLastWords(next);
+    case "HUNTER_REVEAL":
     case "HUNTER_SHOT":
-      return next.pendingHunterShot?.cause === "EXILED" ? finishAfterDayDeaths(next) : finishAfterNightDeaths(next);
+      return next.pendingHunterShot
+        ? next
+        : next.lastWordsNextStep === "NIGHT_DEATHS"
+          ? finishAfterNightDeaths(next)
+          : finishAfterDayDeaths(next);
     case "WOLF_KING_SHOT":
       return next.pendingWolfKingShot
         ? applyWolfKingShot(next, next.pendingWolfKingShot.shooterSeatId)
@@ -409,16 +413,15 @@ function applyWolfKill(state: GameState, actorSeatId: number, targetSeatId: numb
   const target = assertAlive(state, targetSeatId);
   state.night.wolfTargetSeatId = target.seatId;
   state.phase = nextNightPhaseAfterWolves(state);
-  return touch(
-    appendEvent(
-      state,
-      "NIGHT_KILL_SELECTED",
-      "private",
-      `${seatLabel(actor)} 选择夜间击杀 ${seatLabel(target)}。`,
-      { targetSeatId: target.seatId, ...reasonPayload(reason) },
-      actor.seatId,
-    ),
+  appendEvent(
+    state,
+    "NIGHT_KILL_SELECTED",
+    "private",
+    `${seatLabel(actor)} 选择夜间击杀 ${seatLabel(target)}。`,
+    { targetSeatId: target.seatId, ...reasonPayload(reason) },
+    actor.seatId,
   );
+  return continueAfterNightAction(state);
 }
 
 function applyGuardAction(state: GameState, actorSeatId: number, targetSeatId?: number, reason?: string): GameState {
@@ -429,10 +432,9 @@ function applyGuardAction(state: GameState, actorSeatId: number, targetSeatId?: 
   if (!targetSeatId) {
     state.night.guardTargetSeatId = undefined;
     state.guard.lastGuardedSeatId = undefined;
-    state.phase = "NIGHT_SEER";
-    return touch(
-      appendEvent(state, "GUARD_SKIPPED", "private", `${seatLabel(actor)} 没有守护。`, reasonPayload(reason), actor.seatId),
-    );
+    state.phase = nextNightPhaseAfterGuard(state);
+    appendEvent(state, "GUARD_SKIPPED", "private", `${seatLabel(actor)} 没有守护。`, reasonPayload(reason), actor.seatId);
+    return continueAfterNightAction(state);
   }
 
   const target = assertAlive(state, targetSeatId);
@@ -442,17 +444,16 @@ function applyGuardAction(state: GameState, actorSeatId: number, targetSeatId?: 
 
   state.night.guardTargetSeatId = target.seatId;
   state.guard.lastGuardedSeatId = target.seatId;
-  state.phase = "NIGHT_SEER";
-  return touch(
-    appendEvent(
-      state,
-      "GUARD_PROTECTED",
-      "private",
-      `${seatLabel(actor)} 守护了 ${seatLabel(target)}。`,
-      { targetSeatId: target.seatId, ...reasonPayload(reason) },
-      actor.seatId,
-    ),
+  state.phase = nextNightPhaseAfterGuard(state);
+  appendEvent(
+    state,
+    "GUARD_PROTECTED",
+    "private",
+    `${seatLabel(actor)} 守护了 ${seatLabel(target)}。`,
+    { targetSeatId: target.seatId, ...reasonPayload(reason) },
+    actor.seatId,
   );
+  return continueAfterNightAction(state);
 }
 
 function applySeerCheck(state: GameState, actorSeatId: number, targetSeatId: number, reason?: string): GameState {
@@ -470,18 +471,17 @@ function applySeerCheck(state: GameState, actorSeatId: number, targetSeatId: num
     targetSeatId: target.seatId,
     result,
   });
-  state.phase = "NIGHT_WITCH";
+  state.phase = nextNightPhaseAfterSeer(state);
 
-  return touch(
-    appendEvent(
-      state,
-      "SEER_CHECKED",
-      "private",
-      `你查验了 ${seatLabel(target)}，结果是 ${result === "WEREWOLF" ? "狼人" : "好人"}。`,
-      { targetSeatId: target.seatId, result, ...reasonPayload(reason) },
-      actor.seatId,
-    ),
+  appendEvent(
+    state,
+    "SEER_CHECKED",
+    "private",
+    `你查验了 ${seatLabel(target)}，结果是 ${result === "WEREWOLF" ? "狼人" : "好人"}。`,
+    { targetSeatId: target.seatId, result, ...reasonPayload(reason) },
+    actor.seatId,
   );
+  return continueAfterNightAction(state);
 }
 
 function applyWitchAction(
@@ -560,16 +560,15 @@ function applyWolfBeautyCharm(
   if (!targetSeatId) {
     state.night.wolfBeautyTargetSeatId = undefined;
     state.phase = nextNightPhaseAfterWolfBeauty(state);
-    return touch(
-      appendEvent(
-        state,
-        "WOLF_BEAUTY_CHARMED",
-        "private",
-        `${seatLabel(actor)} 今夜没有魅惑目标。`,
-        reasonPayload(reason),
-        actor.seatId,
-      ),
+    appendEvent(
+      state,
+      "WOLF_BEAUTY_CHARMED",
+      "private",
+      `${seatLabel(actor)} 今夜没有魅惑目标。`,
+      reasonPayload(reason),
+      actor.seatId,
     );
+    return continueAfterNightAction(state);
   }
 
   const target = assertAlive(state, targetSeatId);
@@ -579,16 +578,15 @@ function applyWolfBeautyCharm(
 
   state.night.wolfBeautyTargetSeatId = target.seatId;
   state.phase = nextNightPhaseAfterWolfBeauty(state);
-  return touch(
-    appendEvent(
-      state,
-      "WOLF_BEAUTY_CHARMED",
-      "private",
-      `${seatLabel(actor)} 魅惑了 ${seatLabel(target)}。`,
-      { targetSeatId: target.seatId, ...reasonPayload(reason) },
-      actor.seatId,
-    ),
+  appendEvent(
+    state,
+    "WOLF_BEAUTY_CHARMED",
+    "private",
+    `${seatLabel(actor)} 魅惑了 ${seatLabel(target)}。`,
+    { targetSeatId: target.seatId, ...reasonPayload(reason) },
+    actor.seatId,
   );
+  return continueAfterNightAction(state);
 }
 
 function applySpeech(state: GameState, actorSeatId: number, message: string): GameState {
@@ -1037,6 +1035,41 @@ function applySheriffHandoff(state: GameState, actorSeatId: number, targetSeatId
   return continueAfterSheriffHandoff(state, nextStep);
 }
 
+function applyHunterReveal(state: GameState, actorSeatId: number, reveal: boolean, reason?: string): GameState {
+  assertPhase(state, "HUNTER_REVEAL");
+  const pending = state.pendingHunterShot;
+  if (!pending || pending.shooterSeatId !== actorSeatId) {
+    throw new Error("当前没有该猎人的翻牌窗口。");
+  }
+  const actor = getSeat(state, actorSeatId);
+  const cause = pending.cause;
+
+  if (!reveal) {
+    state.pendingHunterShot = undefined;
+    state = appendEvent(
+      state,
+      "HUNTER_SKIPPED",
+      "private",
+      `${seatLabel(actor)} 选择不翻牌发动猎人技能。${cleanReason(reason) ? `理由：${cleanReason(reason)}` : ""}`,
+      { seatId: actor.seatId, reveal: false, ...reasonPayload(reason) },
+      actor.seatId,
+    );
+    return continueLastWordsOrFinish(state, cause === "EXILED" ? "DAY_DEATHS" : "NIGHT_DEATHS");
+  }
+
+  state.phase = "HUNTER_SHOT";
+  return touch(
+    appendEvent(
+      state,
+      "HUNTER_REVEALED",
+      "public",
+      `${seatLabel(actor)} 翻牌为猎人，发动技能。`,
+      { seatId: actor.seatId, cause, ...reasonPayload(reason) },
+      actor.seatId,
+    ),
+  );
+}
+
 function applyHunterShot(state: GameState, actorSeatId: number, targetSeatId?: number, reason?: string): GameState {
   assertPhase(state, "HUNTER_SHOT");
   const pending = state.pendingHunterShot;
@@ -1047,16 +1080,7 @@ function applyHunterShot(state: GameState, actorSeatId: number, targetSeatId?: n
   const cause = pending.cause;
 
   if (!targetSeatId) {
-    state.pendingHunterShot = undefined;
-    state = appendEvent(
-      state,
-      "HUNTER_SKIPPED",
-      "public",
-      `${seatLabel(actor)} 没有开枪。${cleanReason(reason) ? `理由：${cleanReason(reason)}` : ""}`,
-      reasonPayload(reason),
-      actor.seatId,
-    );
-    return continueLastWordsOrFinish(state, cause === "EXILED" ? "DAY_DEATHS" : "NIGHT_DEATHS");
+    throw new Error("猎人翻牌后必须带走一名玩家。");
   }
 
   const target = assertAlive(state, targetSeatId);
@@ -1144,7 +1168,7 @@ function enterDayAnnouncement(state: GameState): GameState {
 function continueFromDayAnnouncement(state: GameState): GameState {
   const announced = hasDayStartedEvent(state) ? state : resolveNightToAnnouncement(state);
   if (announced.pendingHunterShot) {
-    announced.phase = "HUNTER_SHOT";
+    announced.phase = "HUNTER_REVEAL";
     return touch(announced);
   }
   if (announced.pendingWolfKingShot) {
@@ -1409,7 +1433,7 @@ function resolveVote(state: GameState): GameState {
   if (state.pendingHunterShot?.cause === "EXILED" && state.pendingHunterShot.shooterSeatId === topSeatId) {
     queueLastWords(state, [topSeatId]);
     state.lastWordsNextStep = "DAY_DEATHS";
-    state.phase = "HUNTER_SHOT";
+    state.phase = "HUNTER_REVEAL";
     return touch(state);
   }
 
@@ -1488,7 +1512,23 @@ function nextNightPhaseAfterWolves(state: GameState): Phase {
 }
 
 function nextNightPhaseAfterWolfBeauty(state: GameState): Phase {
-  return state.rules.hasGuard ? "NIGHT_GUARD" : "NIGHT_SEER";
+  return hasRoleInGame(state, "GUARD") ? "NIGHT_GUARD" : nextNightPhaseAfterGuard(state);
+}
+
+function nextNightPhaseAfterGuard(state: GameState): Phase {
+  return hasRoleInGame(state, "SEER") ? "NIGHT_SEER" : nextNightPhaseAfterSeer(state);
+}
+
+function nextNightPhaseAfterSeer(state: GameState): Phase {
+  return hasRoleInGame(state, "WITCH") ? "NIGHT_WITCH" : "DAY_ANNOUNCEMENT";
+}
+
+function continueAfterNightAction(state: GameState): GameState {
+  return state.phase === "DAY_ANNOUNCEMENT" ? enterDayAnnouncement(state) : touch(state);
+}
+
+function hasRoleInGame(state: GameState, role: Role): boolean {
+  return state.seats.some((seat) => seat.role === role);
 }
 
 function hasAliveRole(state: GameState, role: Role): boolean {
@@ -1642,6 +1682,7 @@ function getActorSeatId(state: GameState): number | undefined {
     }
     case "LAST_WORDS":
       return state.lastWordsSeatId;
+    case "HUNTER_REVEAL":
     case "HUNTER_SHOT":
       return state.pendingHunterShot?.shooterSeatId;
     case "WOLF_KING_SHOT":

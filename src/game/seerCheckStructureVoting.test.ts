@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createVotePlan } from "@/ai/tableRead";
-import type { ActionTarget, AgentView, AiTableRead, ClaimBoardItem, SeatRead, TableMemory } from "./types";
+import type { ActionTarget, AgentView, AiTableRead, ClaimBoardItem, PublicReasoningCue, Role, SeatRead, TableMemory } from "./types";
 
 describe("seer counterclaim check-structure voting", () => {
   it("prefers pressuring a black-only seer counterclaim over a gold-water line", () => {
@@ -45,6 +45,316 @@ describe("seer counterclaim check-structure voting", () => {
     );
 
     expect(plan.target.seatId).toBe(3);
+  });
+
+  it("pressures a seer counterclaim whose black check hits an unchallenged power claim", () => {
+    const hunter = { seatId: 2, name: "Hunter Claim" };
+    const openTarget = { seatId: 4, name: "Open Target" };
+    const powerBlackClaim = seerClaim(
+      { seatId: 5, name: "Power Black Seer" },
+      [{ day: 1, target: hunter, result: "WEREWOLF" }],
+      22,
+    );
+    const cleanerClaim = seerClaim(
+      { seatId: 6, name: "Cleaner Seer" },
+      [{ day: 1, target: openTarget, result: "WEREWOLF" }],
+      12,
+    );
+    const hunterClaim = roleClaim(hunter, "HUNTER");
+    const memory = tableMemory({
+      day: 1,
+      claimBoard: [hunterClaim, powerBlackClaim, cleanerClaim],
+      counterclaims: [
+        {
+          claimedRole: "SEER",
+          claimedRoleLabel: "预言家",
+          claimants: [powerBlackClaim.claimant, cleanerClaim.claimant],
+        },
+      ],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [hunter, powerBlackClaim.claimant, cleanerClaim.claimant, openTarget], 1),
+      tableRead(
+        [
+          seatRead({
+            ...hunter,
+            suspicion: 92,
+            trust: 28,
+            publicClaims: [hunterClaim],
+            publicChecksAgainst: [{ claimant: powerBlackClaim.claimant, result: "WEREWOLF", day: 1 }],
+          }),
+          seatRead({
+            ...powerBlackClaim.claimant,
+            suspicion: 52,
+            trust: 54,
+            publicClaims: [powerBlackClaim],
+          }),
+          seatRead({
+            ...cleanerClaim.claimant,
+            suspicion: 58,
+            trust: 50,
+            publicClaims: [cleanerClaim],
+          }),
+          seatRead({
+            ...openTarget,
+            suspicion: 62,
+            trust: 44,
+            publicChecksAgainst: [{ claimant: cleanerClaim.claimant, result: "WEREWOLF", day: 1 }],
+          }),
+        ],
+        memory,
+        1,
+      ),
+    );
+
+    expect(plan.target.seatId).toBe(5);
+    expect(plan.alternatives.map((target) => target.seatId)).not.toContain(2);
+  });
+
+  it("prioritizes the surviving seer counterclaim after a night-dead seer legacy", () => {
+    const deadSeer = { seatId: 2, name: "Dead Seer" };
+    const liveSeer = { seatId: 3, name: "Live Counterclaim" };
+    const legacyTarget = { seatId: 4, name: "Legacy Black" };
+    const outsideFocus = { seatId: 5, name: "Outside Focus" };
+    const deadClaim = seerClaim(deadSeer, [{ day: 1, target: legacyTarget, result: "WEREWOLF" }], 10);
+    const liveClaim = seerClaim(liveSeer, [{ day: 2, target: outsideFocus, result: "WEREWOLF" }], 24);
+    const memory = tableMemory({
+      day: 2,
+      claimBoard: [deadClaim, liveClaim],
+      counterclaims: [
+        {
+          claimedRole: "SEER",
+          claimedRoleLabel: "预言家",
+          claimants: [deadSeer, liveSeer],
+        },
+      ],
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 2,
+          checks: deadClaim.checks,
+          stancesGiven: [],
+          summary: "Dead Seer died at night with a black check.",
+        },
+      ],
+      focus: [{ seat: outsideFocus, reasons: ["outside focus"], score: 90 }],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [liveSeer, legacyTarget, outsideFocus], 2),
+      tableRead(
+        [
+          seatRead({
+            ...liveSeer,
+            suspicion: 56,
+            trust: 54,
+            publicClaims: [liveClaim],
+          }),
+          seatRead({
+            ...legacyTarget,
+            suspicion: 54,
+            trust: 48,
+          }),
+          seatRead({
+            ...outsideFocus,
+            suspicion: 82,
+            trust: 35,
+            publicChecksAgainst: [{ claimant: liveSeer, result: "WEREWOLF", day: 2 }],
+          }),
+        ],
+        memory,
+        2,
+      ),
+    );
+
+    expect(plan.target.seatId).toBe(3);
+    expect(plan.reason).toContain("夜死");
+  });
+
+  it("follows a night-dead seer black-check legacy when there is no surviving counterclaim", () => {
+    const deadSeer = { seatId: 2, name: "Dead Seer" };
+    const legacyTarget = { seatId: 4, name: "Legacy Black" };
+    const outsideFocus = { seatId: 5, name: "Outside Focus" };
+    const deadClaim = seerClaim(deadSeer, [{ day: 1, target: legacyTarget, result: "WEREWOLF" }], 10);
+    const memory = tableMemory({
+      day: 2,
+      claimBoard: [deadClaim],
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 2,
+          checks: deadClaim.checks,
+          stancesGiven: [],
+          summary: "Dead Seer died at night with a black check.",
+        },
+      ],
+      focus: [{ seat: outsideFocus, reasons: ["outside focus"], score: 90 }],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [legacyTarget, outsideFocus], 2),
+      tableRead(
+        [
+          seatRead({
+            ...legacyTarget,
+            suspicion: 48,
+            trust: 48,
+          }),
+          seatRead({
+            ...outsideFocus,
+            suspicion: 86,
+            trust: 30,
+          }),
+        ],
+        memory,
+        2,
+      ),
+    );
+
+    expect(plan.target.seatId).toBe(4);
+    expect(plan.reason).toContain("夜死后遗留");
+  });
+
+  it("does not vote out a night-dead sole seer's gold-water target", () => {
+    const deadSeer = { seatId: 2, name: "Dead Seer" };
+    const goldTarget = { seatId: 4, name: "Legacy Gold" };
+    const outsideFocus = { seatId: 5, name: "Outside Focus" };
+    const deadClaim = seerClaim(deadSeer, [{ day: 1, target: goldTarget, result: "GOOD" }], 10);
+    const memory = tableMemory({
+      day: 2,
+      claimBoard: [deadClaim],
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 2,
+          checks: deadClaim.checks,
+          stancesGiven: [],
+          summary: "Dead Seer died at night with a gold-water check.",
+        },
+      ],
+      focus: [{ seat: goldTarget, reasons: ["public focus"], score: 95 }],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [goldTarget, outsideFocus], 2),
+      tableRead(
+        [
+          seatRead({
+            ...goldTarget,
+            suspicion: 98,
+            trust: 18,
+            pressure: ["公开焦点位"],
+          }),
+          seatRead({
+            ...outsideFocus,
+            suspicion: 54,
+            trust: 43,
+          }),
+        ],
+        memory,
+        2,
+      ),
+    );
+
+    expect(plan.target.seatId).toBe(5);
+    expect(plan.alternatives.map((target) => target.seatId)).not.toContain(4);
+  });
+
+  it("keeps a night-dead seer gold-water target protected despite a later single black check", () => {
+    const deadSeer = { seatId: 2, name: "Dead Seer" };
+    const liveCounter = { seatId: 3, name: "Live Counter" };
+    const goldTarget = { seatId: 4, name: "Legacy Gold" };
+    const outsideFocus = { seatId: 5, name: "Outside Focus" };
+    const deadClaim = seerClaim(deadSeer, [{ day: 1, target: goldTarget, result: "GOOD" }], 10);
+    const counterClaim = seerClaim(liveCounter, [{ day: 2, target: goldTarget, result: "WEREWOLF" }], 24);
+    const memory = tableMemory({
+      day: 3,
+      claimBoard: [deadClaim, counterClaim],
+      counterclaims: [
+        {
+          claimedRole: "SEER",
+          claimedRoleLabel: "预言家",
+          claimants: [deadSeer, liveCounter],
+        },
+      ],
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 2,
+          checks: deadClaim.checks,
+          stancesGiven: [],
+          summary: "Dead Seer died at night with a gold-water check.",
+        },
+      ],
+      focus: [{ seat: goldTarget, reasons: ["public focus"], score: 95 }],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [goldTarget, outsideFocus], 3),
+      tableRead(
+        [
+          seatRead({
+            ...goldTarget,
+            suspicion: 96,
+            trust: 24,
+            pressure: ["被Live Counter公开报查杀", "公开焦点位"],
+            publicChecksAgainst: [{ claimant: liveCounter, result: "WEREWOLF", day: 2 }],
+            publicStancedBy: [publicPressure(liveCounter, goldTarget)],
+          }),
+          seatRead({
+            ...outsideFocus,
+            suspicion: 54,
+            trust: 43,
+          }),
+        ],
+        memory,
+        3,
+      ),
+    );
+
+    expect(plan.target.seatId).toBe(outsideFocus.seatId);
+    expect(plan.alternatives.map((target) => target.seatId)).not.toContain(goldTarget.seatId);
+  });
+
+  it("abstains instead of falling back onto a protected dead-seer gold-water target", () => {
+    const deadSeer = { seatId: 2, name: "Dead Seer" };
+    const goldTarget = { seatId: 4, name: "Legacy Gold" };
+    const deadClaim = seerClaim(deadSeer, [{ day: 1, target: goldTarget, result: "GOOD" }], 10);
+    const memory = tableMemory({
+      day: 2,
+      claimBoard: [deadClaim],
+      seerLegacies: [
+        {
+          claimant: deadSeer,
+          deathDay: 2,
+          checks: deadClaim.checks,
+          stancesGiven: [],
+          summary: "Dead Seer died at night with a gold-water check.",
+        },
+      ],
+      focus: [{ seat: goldTarget, reasons: ["public focus"], score: 95 }],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [goldTarget], 2, true),
+      tableRead(
+        [
+          seatRead({
+            ...goldTarget,
+            suspicion: 99,
+            trust: 10,
+            pressure: ["公开焦点位"],
+          }),
+        ],
+        memory,
+        2,
+      ),
+    );
+
+    expect(plan.abstain).toBe(true);
+    expect(plan.target.seatId).toBe(goldTarget.seatId);
+    expect(plan.reason).toContain("公开金水");
   });
 
   it("does not consolidate votes onto a trusted public gold-water target", () => {
@@ -196,6 +506,217 @@ describe("seer counterclaim check-structure voting", () => {
 
     expect(plan.target.seatId).not.toBe(2);
   });
+
+  it("consolidates a post-tie vote onto an evidenced tied seat instead of a louder outside focus", () => {
+    const tiedPressure = { seatId: 2, name: "Tied Pressure" };
+    const tiedWitch = { seatId: 3, name: "Tied Witch" };
+    const outsideFocus = { seatId: 4, name: "Outside Focus" };
+    const witchClaim = roleClaim(tiedWitch, "WITCH");
+    const memory = tableMemory({
+      claimBoard: [witchClaim],
+      focus: [{ seat: outsideFocus, reasons: ["outside focus"], score: 70 }],
+      voteHistory: [
+        {
+          day: 1,
+          tally: [
+            { target: tiedPressure, count: 2 },
+            { target: tiedWitch, count: 2 },
+            { target: outsideFocus, count: 1 },
+          ],
+          leaders: [tiedPressure, tiedWitch],
+          tiedSeatIds: [2, 3],
+        },
+      ],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [tiedPressure, tiedWitch, outsideFocus], 2),
+      tableRead(
+        [
+          seatRead({
+            ...tiedPressure,
+            suspicion: 58,
+            trust: 42,
+            publicStancedBy: [
+              publicPressure({ seatId: 6, name: "Questioner A" }, tiedPressure),
+              publicPressure({ seatId: 7, name: "Questioner B" }, tiedPressure),
+            ],
+          }),
+          seatRead({
+            ...tiedWitch,
+            suspicion: 88,
+            trust: 24,
+            publicClaims: [witchClaim],
+          }),
+          seatRead({
+            ...outsideFocus,
+            suspicion: 78,
+            trust: 35,
+          }),
+        ],
+        memory,
+      ),
+    );
+
+    expect(plan.target.seatId).toBe(2);
+    expect(plan.reason).toContain("平票");
+  });
+
+  it("keeps an unchallenged day-one power claim out of generic public-focus voting", () => {
+    const hunter = { seatId: 2, name: "Hunter Claim" };
+    const openTarget = { seatId: 4, name: "Open Target" };
+    const hunterClaim = roleClaim(hunter, "HUNTER");
+    const memory = tableMemory({
+      day: 1,
+      claimBoard: [hunterClaim],
+      focus: [{ seat: hunter, reasons: ["public focus"], score: 90 }],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [hunter, openTarget], 1),
+      tableRead(
+        [
+          seatRead({
+            ...hunter,
+            suspicion: 96,
+            trust: 20,
+            publicClaims: [hunterClaim],
+          }),
+          seatRead({
+            ...openTarget,
+            suspicion: 54,
+            trust: 43,
+          }),
+        ],
+        memory,
+        1,
+      ),
+    );
+
+    expect(plan.target.seatId).toBe(4);
+  });
+
+  it("treats a day-one soft power hint as a low-evidence protection boundary", () => {
+    const hintedSeat = { seatId: 2, name: "Soft Hint" };
+    const openTarget = { seatId: 4, name: "Open Target" };
+    const memory = tableMemory({
+      day: 1,
+      focus: [{ seat: hintedSeat, reasons: ["public focus"], score: 85 }],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [hintedSeat, openTarget], 1),
+      tableRead(
+        [
+          seatRead({
+            ...hintedSeat,
+            suspicion: 90,
+            trust: 24,
+            lastSpeech: "我底牌不虚但不急着拍身份，先看谁强行归票。",
+          }),
+          seatRead({
+            ...openTarget,
+            suspicion: 52,
+            trust: 44,
+          }),
+        ],
+        memory,
+        1,
+      ),
+    );
+
+    expect(plan.target.seatId).toBe(4);
+  });
+
+  it("does not follow a day-one single black check onto a soft power hint before a real evidence loop forms", () => {
+    const hintedSeat = { seatId: 2, name: "Soft Hunter" };
+    const fakeSeer = { seatId: 5, name: "Single Black Seer" };
+    const openTarget = { seatId: 4, name: "Open Target" };
+    const observer = { seatId: 7, name: "Observer" };
+    const blackClaim = seerClaim(fakeSeer, [{ day: 1, target: hintedSeat, result: "WEREWOLF" }], 22);
+    const memory = tableMemory({
+      day: 1,
+      claimBoard: [blackClaim],
+      focus: [{ seat: hintedSeat, reasons: ["single black check", "soft power hint"], score: 95 }],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [hintedSeat, fakeSeer, openTarget], 1),
+      tableRead(
+        [
+          seatRead({
+            ...hintedSeat,
+            suspicion: 92,
+            trust: 18,
+            pressure: ["single day-one black check", "soft power hint"],
+            lastSpeech: "枪牌不用抢着拍，先听谁的站边讲不圆。",
+            lastSpeechSeq: 12,
+            publicChecksAgainst: [{ claimant: fakeSeer, result: "WEREWOLF", day: 1 }],
+            publicStancedBy: [publicPressure(fakeSeer, hintedSeat), publicPressure(observer, hintedSeat)],
+          }),
+          seatRead({
+            ...fakeSeer,
+            suspicion: 56,
+            trust: 48,
+            publicClaims: [blackClaim],
+          }),
+          seatRead({
+            ...openTarget,
+            suspicion: 58,
+            trust: 42,
+            pressure: ["open public process gap"],
+          }),
+        ],
+        memory,
+        1,
+      ),
+    );
+
+    expect(plan.target.seatId).not.toBe(hintedSeat.seatId);
+    expect(plan.alternatives.map((target) => target.seatId)).not.toContain(hintedSeat.seatId);
+  });
+
+  it("prefers a public reasoning loop over soft short-speech suspicion", () => {
+    const softNoise = { seatId: 2, name: "Soft Noise" };
+    const loopTarget = { seatId: 4, name: "Loop Target" };
+    const memory = tableMemory({
+      focus: [
+        { seat: softNoise, reasons: ["发言偏短"], score: 76 },
+        { seat: loopTarget, reasons: ["站边和票型不闭合"], score: 28 },
+      ],
+      reasoningCues: [
+        reasoningCue(loopTarget, "speech_influence", "strong", "4号站边和上一轮票型不闭合", [
+          "先质疑预言家又跟票同一边",
+        ]),
+      ],
+    });
+
+    const plan = createVotePlan(
+      voteView(memory, [softNoise, loopTarget], 2),
+      tableRead(
+        [
+          seatRead({
+            ...softNoise,
+            suspicion: 94,
+            trust: 24,
+            pressure: ["发言偏短", "信息量少"],
+          }),
+          seatRead({
+            ...loopTarget,
+            suspicion: 58,
+            trust: 44,
+            pressure: ["站边和票型没有闭环"],
+            publicStancedBy: [publicPressure({ seatId: 6, name: "Checker" }, loopTarget)],
+          }),
+        ],
+        memory,
+      ),
+    );
+
+    expect(plan.target.seatId).toBe(4);
+    expect(plan.reason).toContain("公开推理线索");
+    expect(plan.reason).toContain("证据链");
+  });
 });
 
 function voteView(
@@ -205,6 +726,7 @@ function voteView(
     { seatId: 3, name: "Black-Only Seer" },
   ],
   day = 2,
+  canAbstain = false,
 ): AgentView {
   return {
     gameId: "test",
@@ -229,7 +751,7 @@ function voteView(
       {
         type: "vote",
         targets,
-        canAbstain: false,
+        canAbstain,
       },
     ],
   } as AgentView;
@@ -294,6 +816,57 @@ function seerClaim(claimant: ActionTarget, checks: ClaimBoardItem["checks"], sou
     summary: `${claimant.name} claims seer.`,
     lastUpdatedDay: 2,
     sourceSpeechSeq,
+  };
+}
+
+function roleClaim(claimant: ActionTarget, claimedRole: Role): ClaimBoardItem {
+  return {
+    claimId: `${claimedRole.toLowerCase()}-${claimant.seatId}`,
+    claimant,
+    claimedRole,
+    claimedRoleLabel: roleLabel(claimedRole),
+    strength: "hard",
+    checks: [],
+    summary: `${claimant.name} claims ${claimedRole}.`,
+    lastUpdatedDay: 1,
+    sourceSpeechSeq: 10 + claimant.seatId,
+  };
+}
+
+function roleLabel(role: Role): string {
+  if (role === "HUNTER") return "猎人";
+  if (role === "WITCH") return "女巫";
+  if (role === "SEER") return "预言家";
+  return role;
+}
+
+function publicPressure(actor: ActionTarget, target: ActionTarget): SeatRead["publicStancedBy"][number] {
+  return {
+    stanceId: `pressure-${actor.seatId}-${target.seatId}`,
+    day: 1,
+    actor,
+    target,
+    kind: "PRESSURE",
+    kindLabel: "施压",
+    summary: `${actor.name} pressure ${target.name}`,
+  };
+}
+
+function reasoningCue(
+  target: ActionTarget,
+  kind: PublicReasoningCue["kind"],
+  weight: PublicReasoningCue["weight"],
+  summary: string,
+  evidence: string[],
+): PublicReasoningCue {
+  return {
+    cueId: `${kind}-${target.seatId}`,
+    day: 2,
+    kind,
+    weight,
+    summary,
+    target,
+    evidence,
   };
 }
 

@@ -8,6 +8,13 @@
 
 - `architecture.md`：当前架构、核心边界和长期拆分方向。
 - `roadmap.md`：近期优先级和阶段目标。
+- `/alpha-health`：部署后优先打开的只读健康面板，用来确认 Alpha/生产最小闭环状态和下一条 smoke 命令。
+- `/alpha-playtest`：阶段二朋友试玩说明页，面向真实玩家给出联机入口、步骤、验收清单和反馈模板。
+- `/alpha-report`：阶段三反馈模板生成页，玩家在本地生成可复制的问题报告，不上传数据。
+- `alpha-playtest.md`：维护者版本的阶段二试玩说明，固定公开链接、已知限制和 smoke 命令。
+- `alpha-feedback-ops.md`：阶段三反馈分级、试玩前检查、排障顺序和修复验收口径。
+- `current-release.md`：当前公网 Alpha 发布状态，记录本地/GitHub、Render、腾讯云版本和最近 smoke 结果。
+- `tencent-cloud-deploy.md`：腾讯云 Ubuntu 服务器部署流程。每次准备让公网用户看到新版本时，除了推 Render/GitHub，也必须同步推送到这台云服务器并跑 smoke。
 - `working-agreements.md`：多线程协作规则。
 - `threads/`：不同协作线程的责任范围。
 - `tasks/`：具体任务说明和任务模板。

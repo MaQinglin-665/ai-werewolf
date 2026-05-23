@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createGame } from "@/game/engine";
+import { applyCommand, createGame } from "@/game/engine";
 import { buildAgentView } from "@/game/projection";
+import type { PublicReasoningCue, Seat } from "@/game/types";
+import { advanceWithMockAi } from "./mockAgent";
 import { createSpeechPlan } from "./tableRead";
-import { createConstrainedLlmSpeechProvider, routedModelSpeechProvider } from "./speechProviders";
+import { buildConstrainedSpeechInput, createConstrainedLlmSpeechProvider, mockSpeechProvider, routedModelSpeechProvider } from "./speechProviders";
 
 const originalEnv = { ...process.env };
 
@@ -94,3 +96,378 @@ describe("routed speech provider", () => {
     expect(result.speech).toContain("投票不要散");
   });
 });
+
+describe("mock speech provider", () => {
+  it("varies adjacent table-player bridge and vote-condition wording", async () => {
+    let state = createGame({ seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+
+    const target = state.seats[0]!;
+    const previous = state.seats[1]!;
+    const gpt = state.seats[2]!;
+    const doubao = state.seats[3]!;
+    setTestPersona(target, "DeepSeek", "logic-checker", 0.42);
+    setTestPersona(previous, "Claude", "careful-follower", 0.36);
+    setTestPersona(gpt, "GPT", "steady-organizer", 0.48);
+    setTestPersona(doubao, "豆包", "emotional-voter", 0.72);
+    gpt.role = "VILLAGER";
+    doubao.role = "VILLAGER";
+    state.speechQueue = [previous.seatId, gpt.seatId, doubao.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: previous.seatId,
+      message: "我先给边界，前置位信息还不够完整，后面要听1号怎么补站边。",
+    });
+
+    const gptView = buildAgentView(state, gpt.seatId);
+    const gptPlan = {
+      ...createSpeechPlan(gptView),
+      kind: "pressure" as const,
+      target,
+      talkingPoints: ["1号的站边还没和票型闭合", "后置位需要给出反证"],
+    };
+    const gptResult = await mockSpeechProvider.generateSpeech(gptView, gptPlan);
+
+    state = applyCommand(state, { type: "speak", actorSeatId: gpt.seatId, message: gptResult.speech });
+
+    const doubaoView = buildAgentView(state, doubao.seatId);
+    const doubaoPlan = {
+      ...createSpeechPlan(doubaoView),
+      kind: "pressure" as const,
+      target,
+      talkingPoints: ["1号的发言任务还没交卷", "我会看他能不能给即时反应"],
+    };
+    const doubaoResult = await mockSpeechProvider.generateSpeech(doubaoView, doubaoPlan);
+
+    for (const speech of [gptResult.speech, doubaoResult.speech]) {
+      expect(speech).not.toContain("票口暂时不被他带跑");
+      expect(speech).not.toContain("后置仍只给结论不给过程");
+      expect(speech).not.toMatch(/拆因果|第一点|盘问议程|追问先落|票口按这个条件|可改票条件/);
+      expect(speech.length).toBeLessThanOrEqual(380);
+      expect(countSpeechSentences(speech)).toBeLessThanOrEqual(4);
+    }
+    expect(doubaoResult.speech).toContain("GPT");
+    expect(gptResult.speech).not.toEqual(doubaoResult.speech);
+  });
+
+  it("renders human-seat pressure without prompt-like agenda labels", async () => {
+    const state = createGame({ seed: 91, humanSeatId: 3 });
+    state.phase = "DAY_SPEECH";
+    const speaker = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const target = state.seats.find((seat) => seat.seatId === 3)!;
+    const view = buildAgentView(state, speaker.seatId);
+    const plan = {
+      ...createSpeechPlan(view),
+      kind: "pressure" as const,
+      target,
+      talkingPoints: ["3号的站边还没和票型闭合", "后面需要给出能改票的反证"],
+    };
+
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(result.speech).toContain("3号");
+    expect(result.speech).not.toContain("3号你");
+    expect(result.speech).not.toMatch(/拆因果|第一点|盘问议程|追问先落|票口按这个条件|可改票条件/);
+    expect(result.speech.length).toBeLessThanOrEqual(380);
+    expect(countSpeechSentences(result.speech)).toBeLessThanOrEqual(4);
+  });
+
+  it("does not judge an unspoken target as already failing to answer", async () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_SPEECH";
+    const speaker = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const target = state.seats.find((seat) => seat.isAi && seat.seatId !== speaker.seatId)!;
+    state.speechQueue = [speaker.seatId, target.seatId];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, speaker.seatId);
+    const plan = {
+      ...createSpeechPlan(view),
+      kind: "pressure" as const,
+      target,
+      talkingPoints: [`${target.seatId}号后面补站边和票口`],
+    };
+
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(result.speech).toContain("轮到");
+    expect(result.speech).not.toMatch(/还没发言.*别只给结论|没回应|已经信息少/);
+    expect(result.speech.length).toBeLessThanOrEqual(380);
+  });
+
+  it("anchors mock speech to a public reasoning cue when one exists", async () => {
+    const state = createGame({ seed: 93, humanSeatId: null });
+    state.phase = "DAY_SPEECH";
+    const speaker = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const target = state.seats.find((seat) => seat.isAi && seat.seatId !== speaker.seatId)!;
+    const view = buildAgentView(state, speaker.seatId);
+    view.publicSummary.tableMemory.reasoningCues = [
+      reasoningCue(target, "speech_influence", "strong", "站边和上一轮票型不闭合", [
+        "先质疑预言家又跟票同一边",
+      ]),
+    ];
+    const plan = {
+      ...createSpeechPlan(view),
+      kind: "pressure" as const,
+      target,
+      talkingPoints: ["目标位的站边和票型不闭合"],
+    };
+
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(result.speech).toContain("站边和上一轮票型不闭合");
+    expect(result.speech).toContain("先质疑预言家又跟票同一边");
+    expect(result.speech.length).toBeLessThanOrEqual(380);
+    expect(countSpeechSentences(result.speech)).toBeLessThanOrEqual(4);
+  });
+
+  it("does not reveal a hidden seer good check in mock speech", async () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const target = state.seats.find((seat) => seat.seatId !== seer.seatId)!;
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [seer.seatId];
+    state.speechIndex = 0;
+    state.seerChecks = [{ day: 1, seerSeatId: seer.seatId, targetSeatId: target.seatId, result: "GOOD" }];
+
+    const view = buildAgentView(state, seer.seatId);
+    const plan = createSpeechPlan(view);
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(plan.kind).toBe("defend");
+    expect(result.speech).not.toContain("我跳预言家");
+    expect(result.speech).not.toContain(`${target.seatId}号是金水`);
+    expect(result.speech).not.toContain("昨晚验");
+  });
+
+  it("does not use an unchallenged public gold water as the fallback mock speech target", async () => {
+    let state = createGame({ boardId: "9p-seer-witch-hunter", seed: 3, humanSeatId: null });
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const speaker = state.seats.find((seat) => seat.seatId === 1)!;
+    const gold = state.seats.find((seat) => seat.seatId === 2)!;
+    speaker.role = "VILLAGER";
+    gold.role = "VILLAGER";
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [seer.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: seer.seatId,
+      message: `我跳预言家，${gold.seatId}号是金水。`,
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, speaker.seatId);
+    const plan = {
+      ...createSpeechPlan(view),
+      target: undefined,
+      talkingPoints: ["先听完整轮发言"],
+    };
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(result.speech).not.toMatch(new RegExp(`${gold.seatId}号[^。！？；，、]{0,28}(讲实|票口|补清楚|放进观察|挂疑问|收票|压)`));
+  });
+
+  it("rewrites mock pressure on a dead-seer gold water target into protection", async () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 3, humanSeatId: null });
+    const speaker = state.seats.find((seat) => seat.seatId === 1)!;
+    const gold = state.seats.find((seat) => seat.seatId === 2)!;
+    const deadSeer = state.seats.find((seat) => seat.role === "SEER")!;
+    speaker.role = "VILLAGER";
+    gold.role = "VILLAGER";
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, speaker.seatId);
+    view.publicSummary.tableMemory.seerLegacies = [
+      {
+        claimant: { seatId: deadSeer.seatId, name: deadSeer.name },
+        deathDay: 2,
+        checks: [{ day: 1, target: { seatId: gold.seatId, name: gold.name }, result: "GOOD" }],
+        stancesGiven: [],
+        summary: `${deadSeer.name} died after leaving ${gold.name} as gold water.`,
+      },
+    ];
+    const plan = {
+      ...createSpeechPlan(view),
+      kind: "pressure" as const,
+      target: { seatId: gold.seatId, name: gold.name },
+      talkingPoints: [`${gold.seatId}号今天要进出人焦点`, `${gold.seatId}号票口需要压清楚`],
+    };
+
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(result.speech).toContain(`${gold.seatId}号先按公开金水放一轮`);
+    expect(result.speech).not.toMatch(new RegExp(`${gold.seatId}号[^。！？；，、]{0,28}(出人焦点|票口需要压|先压)`));
+  });
+
+  it("keeps early mock speeches away from prompt-like report wording", async () => {
+    const { aiLogs } = await advanceWithMockAi(createGame({ seed: 91, humanSeatId: null }), {
+      ignoreHuman: true,
+      maxSteps: 80,
+    });
+    const speeches = aiLogs
+      .filter((log) => log.output.type === "speak" || log.output.type === "sheriffSpeech")
+      .slice(0, 9)
+      .map((log) => ("message" in log.output ? log.output.message : ""));
+
+    expect(speeches.length).toBeGreaterThan(0);
+    for (const speech of speeches) {
+      expect(speech).not.toMatch(/理由是：|依据是|这个结论来自|什么公开反证|可改判断/);
+      expect(speech).not.toMatch(/成为焦点是因为|我认这个点，是因为.+是因为|我打他的点是：/);
+      expect(speech).not.toMatch(/被被|被处在身份对跳|被回避站边/);
+      expect(speech).not.toMatch(/(.{4,36})，我认的点是\1/);
+      expect(speech.length).toBeLessThanOrEqual(380);
+      expect(countSpeechSentences(speech)).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("guides model speech toward one concise table thread", () => {
+    const state = createGame({ seed: 92, humanSeatId: null });
+    state.phase = "DAY_SPEECH";
+    const speaker = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const view = buildAgentView(state, speaker.seatId);
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view));
+    const guideText = [...input.playerSpeechGuide.tablePlayerStyle, ...input.playerSpeechGuide.avoid].join(" ");
+
+    expect(guideText).toContain("2-4句短句");
+    expect(guideText).toContain("只抓一条主线");
+    expect(guideText).toContain("不要连续多句都用“我先”开头");
+  });
+
+  it("includes wolf night instruction only in wolf private speech context", () => {
+    const state = createGame({ seed: 47, humanSeatId: null });
+    state.phase = "DAY_SPEECH";
+    const wolf = state.seats.find((seat) => seat.isAi && seat.role === "WEREWOLF")!;
+    const good = state.seats.find((seat) => seat.isAi && seat.role === "VILLAGER")!;
+
+    const wolfInput = buildConstrainedSpeechInput(buildAgentView(state, wolf.seatId));
+    const wolfAssignment = wolfInput.privateContext.wolfSpeechAssignment as typeof wolfInput.privateContext.wolfSpeechAssignment & {
+      nightInstruction?: string;
+    };
+    const goodInput = buildConstrainedSpeechInput(buildAgentView(state, good.seatId));
+
+    expect(wolfAssignment).toBeDefined();
+    expect(wolfAssignment?.nightInstruction).toBeDefined();
+    expect(wolfAssignment!.nightInstruction).toContain("首夜");
+    expect(goodInput.privateContext.wolfSpeechAssignment).toBeUndefined();
+    expect(JSON.stringify(goodInput)).not.toMatch(/狼队首夜|战术|nightInstruction/);
+  });
+
+  it("adds a strict model speech constraint for dead-seer gold water", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 3, humanSeatId: null });
+    const speaker = state.seats.find((seat) => seat.seatId === 1)!;
+    const gold = state.seats.find((seat) => seat.seatId === 2)!;
+    const deadSeer = state.seats.find((seat) => seat.role === "SEER")!;
+    speaker.role = "VILLAGER";
+    gold.role = "VILLAGER";
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, speaker.seatId);
+    view.publicSummary.tableMemory.seerLegacies = [
+      {
+        claimant: { seatId: deadSeer.seatId, name: deadSeer.name },
+        deathDay: 2,
+        checks: [{ day: 1, target: { seatId: gold.seatId, name: gold.name }, result: "GOOD" }],
+        stancesGiven: [],
+        summary: `${deadSeer.name} died after leaving ${gold.name} as gold water.`,
+      },
+    ];
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "strict");
+
+    expect(input.constraints?.join("\n")).toContain(`dead seer gold seat ${gold.seatId}`);
+  });
+
+  it("briefs day-one single death as a public death-shape hypothesis without confirming potion use", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 94, humanSeatId: null });
+    const deadSeat = state.seats.find((seat) => seat.role !== "WEREWOLF")!;
+    const speaker = state.seats.find((seat) => seat.alive && seat.seatId !== deadSeat.seatId)!;
+    deadSeat.alive = false;
+    deadSeat.deathReason = "WOLF_KILL";
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+    state.events.push({
+      seq: state.events.length + 1,
+      type: "DAY_STARTED",
+      visibility: "public",
+      day: 1,
+      phase: "DAY_ANNOUNCEMENT",
+      message: `第1天清晨，${deadSeat.seatId}号 死亡。`,
+      payload: { deadSeatIds: [deadSeat.seatId] },
+    });
+
+    const input = buildConstrainedSpeechInput(buildAgentView(state, speaker.seatId));
+    const briefingText = [
+      input.tableBriefing.text,
+      input.tableBriefing.publicReasoningCues.join("\n"),
+      input.tableBriefing.publicBoundary.join("\n"),
+      input.tableBriefing.unknowns.join("\n"),
+      input.publicContext.rules.deathInfoNote,
+    ].join("\n");
+
+    expect(briefingText).toMatch(/首夜单死.*女巫没救.*合理简称/);
+    expect(briefingText).toMatch(/不应只因.*女巫没救.*质疑/);
+    expect(briefingText).not.toMatch(/狼人空刀|空刀/);
+    expect(briefingText).not.toMatch(/不能.*女巫用药|不能断定.*女巫动作/);
+    expect(briefingText).toContain("公开死亡形态");
+  });
+});
+
+function countSpeechSentences(speech: string): number {
+  return speech.split(/[。！？]/).filter((part) => part.trim().length > 0).length;
+}
+
+function reasoningCue(
+  target: { seatId: number; name: string },
+  kind: PublicReasoningCue["kind"],
+  weight: PublicReasoningCue["weight"],
+  summary: string,
+  evidence: string[],
+): PublicReasoningCue {
+  return {
+    cueId: `${kind}:${target.seatId}`,
+    day: 1,
+    kind,
+    weight,
+    summary,
+    target,
+    evidence,
+  };
+}
+
+function setTestPersona(seat: Seat, name: string, id: string, riskTolerance: number): void {
+  seat.name = name;
+  seat.persona = {
+    id,
+    name,
+    modelLabel: name,
+    label: "测试型",
+    style: "按桌面公开信息发言",
+    goal: "给出可验证的票口和追问",
+    riskTolerance,
+    bluffing: 0.3,
+    preferences: {
+      logic: 0.7,
+      identity: 0.55,
+      vote: 0.65,
+      emotion: name === "豆包" ? 0.86 : 0.35,
+      memory: 0.55,
+      leadership: riskTolerance,
+      deception: 0.3,
+      caution: 1 - riskTolerance,
+    },
+  };
+}

@@ -10,6 +10,7 @@ export type CommandPayload =
   | { type: "speak"; message: string }
   | { type: "lastWords"; message: string }
   | { type: "vote"; targetSeatId?: number }
+  | { type: "hunterReveal"; reveal: boolean }
   | { type: "hunterShoot"; targetSeatId?: number }
   | { type: "wolfKingShoot"; targetSeatId?: number }
   | { type: "whiteWolfKingExplode"; targetSeatId: number }

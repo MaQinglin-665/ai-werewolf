@@ -1,12 +1,36 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as submitCommand } from "./[gameId]/commands/route";
 import { GET as getGame } from "./[gameId]/route";
 import { POST as submitVoiceInput } from "./[gameId]/voice-input/route";
+import { POST as recordSiteAnalyticsEvent } from "../analytics/events/route";
 import { GET as getBoards } from "./boards/route";
 import { POST as createGame } from "./route";
+import { clearRoomAnalyticsForTests, getRoomAnalyticsHistorySnapshot } from "@/server/roomAnalytics";
+import { GET as getRoomMetrics } from "../rooms/metrics/route";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
 
 describe("game api routes", () => {
+  const originalMainGameStoreAdapter = process.env.AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER;
+  const originalRoomDatabaseUrl = process.env.AI_WEREWOLF_ROOM_DATABASE_URL;
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    if (originalMainGameStoreAdapter === undefined) {
+      delete process.env.AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER;
+    } else {
+      process.env.AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER = originalMainGameStoreAdapter;
+    }
+    if (originalRoomDatabaseUrl === undefined) {
+      delete process.env.AI_WEREWOLF_ROOM_DATABASE_URL;
+    } else {
+      process.env.AI_WEREWOLF_ROOM_DATABASE_URL = originalRoomDatabaseUrl;
+    }
+  });
+
+  beforeEach(async () => {
+    await clearRoomAnalyticsForTests();
+  });
+
   it("creates a game and returns a redacted human view", async () => {
     const response = await createGame();
     expect(response.status).toBe(200);
@@ -23,6 +47,66 @@ describe("game api routes", () => {
       params: Promise.resolve({ gameId: view.id }),
     });
     expect(getResponse.status).toBe(200);
+  });
+
+  it("records full-site main-page visits and main-game starts behind metrics token", async () => {
+    const previousMetricsToken = process.env.AI_WEREWOLF_METRICS_TOKEN;
+    process.env.AI_WEREWOLF_METRICS_TOKEN = "test-owner-token";
+
+    try {
+      const visitResponse = await recordSiteAnalyticsEvent(
+        new Request("http://localhost/api/analytics/events", {
+          method: "POST",
+          body: JSON.stringify({ eventType: "home_view", path: "/" }),
+        }),
+      );
+      expect(visitResponse.status).toBe(200);
+
+      const createResponse = await createGame(
+        new Request("http://localhost/api/games", {
+          method: "POST",
+          body: JSON.stringify({ boardId: "9p-seer-witch-hunter" }),
+        }),
+      );
+      expect(createResponse.status).toBe(200);
+
+      const metricsResponse = await getRoomMetrics(new Request("http://localhost/api/rooms/metrics?token=test-owner-token"));
+      expect(metricsResponse.status).toBe(200);
+      const metrics = (await metricsResponse.json()) as {
+        history: {
+          homeViews: number;
+          mainCompletionRate: number | null;
+          mainGamesFinished: number;
+          mainGamesStarted: number;
+          recentDays: Array<{ homeViews: number; mainGamesFinished: number; mainGamesStarted: number }>;
+          siteCompletionRate: number | null;
+          totalMainGameMinutes: number;
+          totalSiteGameMinutes: number;
+        };
+      };
+
+      expect(metrics.history).toMatchObject({
+        homeViews: 1,
+        mainCompletionRate: 0,
+        mainGamesFinished: 0,
+        mainGamesStarted: 1,
+        siteCompletionRate: 0,
+        totalMainGameMinutes: 0,
+        totalSiteGameMinutes: 0,
+      });
+      expect(metrics.history.recentDays).toHaveLength(1);
+      expect(metrics.history.recentDays[metrics.history.recentDays.length - 1]).toMatchObject({
+        homeViews: 1,
+        mainGamesFinished: 0,
+        mainGamesStarted: 1,
+      });
+    } finally {
+      if (previousMetricsToken === undefined) {
+        delete process.env.AI_WEREWOLF_METRICS_TOKEN;
+      } else {
+        process.env.AI_WEREWOLF_METRICS_TOKEN = previousMetricsToken;
+      }
+    }
   });
 
   it("lists boards and creates a 12-player board when requested", async () => {
@@ -81,6 +165,32 @@ describe("game api routes", () => {
     expect(response.status).toBe(200);
     expect(nextView.id).toBe(initialView.id);
     expect(nextView.publicEvents.length).toBeGreaterThanOrEqual(initialView.publicEvents.length);
+  });
+
+  it("surfaces a clear recovery message when the single-player server snapshot is missing", async () => {
+    const continueResponse = await submitCommand(
+      new Request("http://localhost/api/games/missing-game-continue/commands", {
+        method: "POST",
+        body: JSON.stringify({ type: "continue" }),
+      }),
+      { params: Promise.resolve({ gameId: "missing-game-continue" }) },
+    );
+    const continuePayload = (await continueResponse.json()) as { error?: string };
+
+    expect(continueResponse.status).toBe(404);
+    expect(continuePayload.error).toContain("当前服务端没有找到这局单机对局");
+
+    const speechResponse = await submitCommand(
+      new Request("http://localhost/api/games/missing-game-speech/commands", {
+        method: "POST",
+        body: JSON.stringify({ type: "sheriffSpeech", message: "我先按警上发言和站边给视角。" }),
+      }),
+      { params: Promise.resolve({ gameId: "missing-game-speech" }) },
+    );
+    const speechPayload = (await speechResponse.json()) as { error?: string };
+
+    expect(speechResponse.status).toBe(404);
+    expect(speechPayload.error).toContain("当前服务端没有找到这局单机对局");
   });
 
   it("rewrites voice transcript drafts without advancing the game", async () => {
@@ -162,6 +272,11 @@ describe("game api routes", () => {
     expect(JSON.stringify(view.reviewDebug?.aiCalls.flatMap((call) => call.publicFactBasis))).not.toMatch(
       /真实身份|狼队友|privateKnowledge|ROLE_ASSIGNED/,
     );
+
+    const analytics = await getRoomAnalyticsHistorySnapshot();
+    expect(analytics.mainGamesStarted).toBe(1);
+    expect(analytics.mainGamesFinished).toBe(1);
+    expect(analytics.mainCompletionRate).toBe(100);
   });
 });
 
@@ -222,6 +337,8 @@ function commandFromAction(action: AvailableHumanAction): Record<string, unknown
       return action.targets[0] ? { type: "sheriffHandoff", targetSeatId: action.targets[0].seatId } : { type: "sheriffHandoff" };
     case "lastWords":
       return { type: "lastWords", message: "我留下最后视角，重点看今天票型和谁在跟风。" };
+    case "hunterReveal":
+      return { type: "hunterReveal", reveal: true };
     case "hunterShoot":
       return action.targets[0]
         ? { type: "hunterShoot", targetSeatId: action.targets[0].seatId }

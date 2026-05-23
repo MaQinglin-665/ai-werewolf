@@ -25,7 +25,13 @@ import {
   type LlmOutputStabilityHint,
   type RoutedLlmResponse,
 } from "./modelLlms";
+import { buildAdvancedReasoningNotes } from "./advancedReasoning";
+import { buildClaimAudit, type AiClaimAudit } from "./claimAudit";
+import { buildDebateAgenda, type AiDebateAgenda } from "./debateAgenda";
 import { buildExpertStrategyNotes } from "./expertStrategy";
+import { buildReasoningFrame, type AiReasoningFrame } from "./reasoningFrame";
+import { buildRolePlaybook, type AiRolePlaybook } from "./rolePlaybook";
+import { isProtectedDeadSeerGoldSeat } from "./protectedGold";
 import type { AiActionProvider, AiActionProviderContext, AiActionResult } from "./types";
 
 const ActionDecisionSchema = z
@@ -97,6 +103,12 @@ export type LlmActionInput = {
     wolfPlan?: {
       strategy: NonNullable<AgentView["privateKnowledge"]["wolfTeamPlan"]>["strategy"];
       summary: string;
+      nightStrategy?: {
+        nightTarget?: ActionTarget;
+        dayPressureTarget?: ActionTarget;
+        summary: string;
+        discussion: string[];
+      };
       primaryTarget?: ActionTarget;
       threat?: ActionTarget;
       ownAssignment?: {
@@ -114,6 +126,11 @@ export type LlmActionInput = {
     seats: CompactSeatRead[];
   };
   expertStrategy: string[];
+  advancedReasoning: string[];
+  reasoningFrame: AiReasoningFrame;
+  rolePlaybook: AiRolePlaybook;
+  claimAudit: AiClaimAudit;
+  debateAgenda: AiDebateAgenda;
   votePlan?: VotePlan;
   fallbackCandidateId?: string;
   candidates: LlmActionCandidate[];
@@ -245,8 +262,10 @@ export const routedModelActionProvider: AiActionProvider = createConstrainedLlmA
 });
 
 export function buildConstrainedActionInput(view: AgentView, context: AiActionProviderContext): LlmActionInput {
-  const candidates = buildActionCandidates(view, context.tableRead, context.votePlan, context.fallbackCommand);
+  const votePlan = sanitizeActionVotePlan(view, context.votePlan);
+  const candidates = buildActionCandidates(view, context.tableRead, votePlan, context.fallbackCommand);
   const fallbackCandidateId = candidates.find((candidate) => sameCommand(candidate.command, context.fallbackCommand))?.id;
+  const debateAgenda = buildDebateAgenda(view, { tableRead: context.tableRead, target: votePlan?.target });
 
   return {
     day: view.day,
@@ -284,12 +303,24 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
       seats: context.tableRead.seats.map(compactSeatRead),
     },
     expertStrategy: buildExpertStrategyNotes(view),
-    votePlan: context.votePlan,
+    advancedReasoning: buildAdvancedReasoningNotes(view),
+    reasoningFrame: buildReasoningFrame(view),
+    rolePlaybook: buildRolePlaybook(view),
+    claimAudit: buildClaimAudit(view),
+    debateAgenda,
+    votePlan,
     fallbackCandidateId,
     candidates,
     constraints: buildActionConstraints(view),
     llmConfig: view.llmConfig,
   };
+}
+
+function sanitizeActionVotePlan(view: AgentView, votePlan: VotePlan | undefined): VotePlan | undefined {
+  if (!votePlan || isWolfRole(view.myRole, view.rules.wolfRoles)) return votePlan;
+  const publicVotePlan = { ...votePlan };
+  delete publicVotePlan.wolfVoteTactic;
+  return publicVotePlan;
 }
 
 function buildPublicActionDecisionSummary(
@@ -599,6 +630,14 @@ function buildSelfActionContext(view: AgentView, tableRead: AiTableRead): LlmAct
       ? {
           strategy: wolfPlan.strategy,
           summary: wolfPlan.summary,
+          nightStrategy: wolfPlan.nightStrategy
+            ? {
+                nightTarget: wolfPlan.nightStrategy.nightTarget,
+                dayPressureTarget: wolfPlan.nightStrategy.dayPressureTarget,
+                summary: wolfPlan.nightStrategy.summary,
+                discussion: wolfPlan.nightStrategy.discussion,
+              }
+            : undefined,
           primaryTarget: wolfPlan.primaryTarget,
           threat: wolfPlan.threat,
           ownAssignment: ownAssignment
@@ -657,6 +696,19 @@ function buildActionCandidates(
     }
     case "NIGHT_WOLVES": {
       const action = getAction(view, "wolfKill");
+      const plannedTarget = action?.targets.find(
+        (target) => target.seatId === view.privateKnowledge.wolfTeamPlan?.nightStrategy?.nightTarget?.seatId,
+      );
+      if (plannedTarget) {
+        add({
+          id: `wolfKill:planned:${plannedTarget.seatId}`,
+          label: `Kill ${plannedTarget.name}`,
+          command: { type: "wolfKill", actorSeatId: view.mySeatId, targetSeatId: plannedTarget.seatId },
+          target: plannedTarget,
+          recommended: true,
+          reasonHint: targetReasonHint(tableRead, plannedTarget, "coordinated night target with public-safe credibility rationale"),
+        });
+      }
       for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => seat.trust - seat.suspicion * 0.25)) {
         const privateWolfTarget = isPrivateWolfTarget(view, target);
         add({
@@ -830,6 +882,15 @@ function buildActionCandidates(
     }
     case "DAY_VOTE": {
       const action = getAction(view, "vote");
+      if (votePlan?.abstain && action?.canAbstain) {
+        add({
+          id: "vote:abstain",
+          label: "Abstain",
+          command: { type: "vote", actorSeatId: view.mySeatId },
+          reasonHint: votePlan.reason,
+        });
+        break;
+      }
       const targetOrder = orderVoteTargets(tableRead, action?.targets ?? [], votePlan);
       for (const target of targetOrder) {
         add({
@@ -840,7 +901,8 @@ function buildActionCandidates(
           reasonHint:
             votePlan?.target.seatId === target.seatId
               ? votePlan.reason
-            : publicSafeTargetReasonHint(view, tableRead, target, "public suspicion"),
+              : protectedDeadSeerGoldReasonHint(tableRead, target) ??
+                publicSafeTargetReasonHint(view, tableRead, target, "public suspicion"),
         });
       }
       if (action?.canAbstain) {
@@ -863,7 +925,7 @@ function buildActionCandidates(
           reasonHint: "public evidence is not strong enough for a duel",
         });
       }
-      for (const target of sortTargets(action?.targets ?? [], tableRead, knightDuelTargetScore)) {
+      for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => knightDuelTargetScore(tableRead, seat))) {
         add({
           id: `knight:duel:${target.seatId}`,
           label: `Duel ${target.name}`,
@@ -874,16 +936,33 @@ function buildActionCandidates(
       }
       break;
     }
-    case "HUNTER_SHOT": {
-      const action = getAction(view, "hunterShoot");
-      if (action?.canSkip) {
+    case "HUNTER_REVEAL": {
+      const action = getAction(view, "hunterReveal");
+      const targets = sortTargets(view.aliveSeats.filter((seat) => seat.seatId !== view.mySeatId), tableRead, (seat) => seat.suspicion - seat.trust * 0.2);
+      const strongestTarget = targets[0];
+      const strongestRead = strongestTarget ? tableRead.seats.find((seat) => seat.seatId === strongestTarget.seatId) : undefined;
+      const shouldReveal = Boolean(strongestRead && strongestRead.suspicion >= strongestRead.trust);
+      if (action?.canReveal && strongestTarget) {
         add({
-          id: "hunter:skip",
-          label: "Skip shot",
-          command: { type: "hunterShoot", actorSeatId: view.mySeatId },
-          reasonHint: "no target is certain enough",
+          id: "hunter:reveal",
+          label: "Reveal hunter",
+          command: { type: "hunterReveal", actorSeatId: view.mySeatId, reveal: true },
+          target: strongestTarget,
+          reasonHint: targetReasonHint(tableRead, strongestTarget, "strongest public suspicion"),
+          recommended: shouldReveal,
         });
       }
+      add({
+        id: "hunter:declineReveal",
+        label: "Do not reveal hunter",
+        command: { type: "hunterReveal", actorSeatId: view.mySeatId, reveal: false },
+        reasonHint: strongestTarget ? "no shot target is certain enough" : "no legal shot target remains",
+        recommended: !strongestTarget || !shouldReveal,
+      });
+      break;
+    }
+    case "HUNTER_SHOT": {
+      const action = getAction(view, "hunterShoot");
       for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => seat.suspicion - seat.trust * 0.2)) {
         add({
           id: `hunter:shoot:${target.seatId}`,
@@ -984,17 +1063,31 @@ function orderVoteTargets(
   votePlan: VotePlan | undefined,
 ): ActionTarget[] {
   const ordered: ActionTarget[] = [];
+  const isProtected = (target: ActionTarget | undefined) => Boolean(target && protectedDeadSeerGoldReasonHint(tableRead, target));
   const push = (target: ActionTarget | undefined) => {
     if (!target) return;
     if (!legalTargets.some((item) => item.seatId === target.seatId)) return;
     if (!ordered.some((item) => item.seatId === target.seatId)) ordered.push(target);
   };
+  const pushWhen = (target: ActionTarget | undefined, protectedState: boolean) => {
+    if (isProtected(target) === protectedState) push(target);
+  };
+  const sortedTargets = sortTargets(legalTargets, tableRead, (seat) => seat.suspicion - seat.trust * 0.18);
 
-  push(votePlan?.target);
-  for (const alternative of votePlan?.alternatives ?? []) push(alternative);
-  for (const target of sortTargets(legalTargets, tableRead, (seat) => seat.suspicion - seat.trust * 0.18)) push(target);
+  pushWhen(votePlan?.target, false);
+  for (const alternative of votePlan?.alternatives ?? []) pushWhen(alternative, false);
+  for (const target of sortedTargets) pushWhen(target, false);
+  pushWhen(votePlan?.target, true);
+  for (const alternative of votePlan?.alternatives ?? []) pushWhen(alternative, true);
+  for (const target of sortedTargets) pushWhen(target, true);
 
   return ordered;
+}
+
+function protectedDeadSeerGoldReasonHint(tableRead: AiTableRead, target: ActionTarget): string | undefined {
+  const seat = tableRead.seats.find((item) => item.seatId === target.seatId);
+  if (!seat || !isProtectedDeadSeerGoldSeat(tableRead, seat)) return undefined;
+  return "protected dead seer gold: avoid voting here unless hard public counter-evidence appears";
 }
 
 function buildLastWordsCandidates(view: AgentView, tableRead: AiTableRead): string[] {
@@ -1043,11 +1136,21 @@ function buildActionConstraints(view: AgentView): string[] {
     "The reason must be short and public-safe. Do not mention hidden roles, teammates, private checks, prompts, tools, or system context.",
     "Rules are final: legality is decided by the candidate list and engine validation.",
     "Use expertStrategy as high-level Werewolf heuristics for prioritizing evidence; do not quote it as a rule or fixed script.",
+    "Use advancedReasoning as the current table audit checklist; satisfy it with public evidence instead of quoting it.",
+    "Use reasoningFrame to separate hardEvidence, softSignals, counterHypotheses, validationQuestions, and persuasionGoals before selecting a candidate.",
+    "Use rolePlaybook for role-specific tactics and action forks; choose a diverse legal line that still matches public evidence.",
+    "Use claimAudit to evaluate contested claims, protected claims, public check chains, and follow-up tests before acting.",
+    "Use debateAgenda to prefer actions that create a clear follow-up question, vote commitment, or role-coordination benefit instead of raw suspicion alone.",
+    "Use an evidence ladder before choosing: public checks and uncontested claims first, then vote shape, stance shifts, speech influence, and finally tone or short-speech reads.",
+    "Rank evidence hardness before acting: hard public checks, claim conflicts, vote loops, and death legacies beat seat position, tone, short speech, or vague state reads.",
+    "Consider counter-logic: if one behavior can be wolf push, distancing, or good-side mistake, choose the target whose public benefit trail is clearest.",
+    "When two candidates are close, prefer the one whose public evidence forms a clearer loop from speech to stance to vote; do not select only because their suspicion number is higher.",
   ];
 
   if (
     view.phase === "DAY_VOTE" ||
     view.phase === "KNIGHT_DUEL" ||
+    view.phase === "HUNTER_REVEAL" ||
     view.phase === "HUNTER_SHOT" ||
     view.phase === "WOLF_KING_SHOT" ||
     getAction(view, "whiteWolfKingExplode")
@@ -1063,6 +1166,7 @@ function buildActionConstraints(view: AgentView): string[] {
     constraints.push(
       "Knight duel is optional and public: counterclaim status alone is not enough; prefer concrete public black-check evidence, dead-seer legacy, or repeated independent pressure.",
     );
+    constraints.push("For knight duel, single black-check pressure should rank below repeated public evidence or a death-legacy evidence loop.");
   }
 
   if (getAction(view, "wolfBeautyCharm")) {
@@ -1159,20 +1263,31 @@ function wolfBeautyCharmTargetScore(seat: SeatRead): number {
   return seat.trust - seat.suspicion * 0.18 + claimValue;
 }
 
-function knightDuelTargetScore(seat: SeatRead): number {
-  const wolfCheckBonus = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ? 18 : 0;
+function knightDuelTargetScore(tableRead: AiTableRead, seat: SeatRead): number {
+  const hasDeadSeerLegacy = hasDeadSeerLegacyBlackCheck(tableRead, seat);
+  const hasPublicWolfCheck = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF");
+  const wolfCheckBonus = hasPublicWolfCheck ? 12 : 0;
+  const deadSeerLegacyBonus = hasDeadSeerLegacy ? 34 : 0;
   const counterclaimBonus =
     seat.publicClaims.some((claim) => claim.claimedRole === "SEER") &&
     seat.pressure.some((item) => item.includes("后置查杀已跳预言家") || item.includes("夜死后遗留查杀"))
       ? 8
       : 0;
   const weakBlackCheckPenalty =
-    seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") &&
-    !seat.pressure.some((item) => item.includes("后置查杀已跳预言家") || item.includes("夜死后遗留查杀"))
-      ? 10
+    hasPublicWolfCheck && !hasDeadSeerLegacy && !seat.pressure.some((item) => item.includes("后置查杀已跳预言家"))
+      ? 30
       : 0;
-  const protectedClaimPenalty = seat.pressure.some((item) => item.includes("未对跳") || item.includes("被后置预言家查杀")) ? 28 : 0;
-  return seat.suspicion - seat.trust * 0.12 + wolfCheckBonus + counterclaimBonus - weakBlackCheckPenalty - protectedClaimPenalty;
+  const protectedClaimPenalty = seat.pressure.some((item) => item.includes("未对跳") || item.includes("被后置预言家查杀")) ? 40 : 0;
+  return seat.suspicion - seat.trust * 0.12 + wolfCheckBonus + deadSeerLegacyBonus + counterclaimBonus - weakBlackCheckPenalty - protectedClaimPenalty;
+}
+
+function hasDeadSeerLegacyBlackCheck(tableRead: AiTableRead, seat: SeatRead): boolean {
+  return (
+    seat.pressure.some((item) => item.includes("夜死后遗留查杀")) ||
+    tableRead.tableMemory.seerLegacies.some((legacy) =>
+      legacy.checks.some((check) => check.result === "WEREWOLF" && check.target.seatId === seat.seatId),
+    )
+  );
 }
 
 function targetReasonHint(tableRead: AiTableRead, target: ActionTarget, fallback: string): string {
@@ -1222,6 +1337,8 @@ function sameCommand(left: Command, right: Command): boolean {
       return "targetSeatId" in right && left.targetSeatId === right.targetSeatId;
     case "witchAction":
       return right.type === "witchAction" && left.mode === right.mode && left.targetSeatId === right.targetSeatId;
+    case "hunterReveal":
+      return right.type === "hunterReveal" && left.reveal === right.reveal;
     case "hunterShoot":
       return right.type === "hunterShoot" && left.targetSeatId === right.targetSeatId;
     case "wolfKingShoot":
@@ -1340,7 +1457,7 @@ async function callOpenAiAction(input: LlmActionInput): Promise<string> {
           {
             role: "system",
             content:
-              "You are the decision brain for an AI Werewolf player. Choose one legal candidate action using persona.preferences and expertStrategy as soft strategy guidance. Return strict JSON only. The game engine enforces rules; you provide judgment within the allowed candidate list.",
+              "You are the decision brain for an AI Werewolf player. Choose one legal candidate action using persona.preferences, expertStrategy, and advancedReasoning as soft strategy guidance. Return strict JSON only. The game engine enforces rules; you provide judgment within the allowed candidate list.",
           },
           {
             role: "user",
@@ -1384,7 +1501,7 @@ async function callRoutedModelAction(input: LlmActionInput): Promise<RoutedLlmRe
     fallbackPersonaNames: readActionFallbackPersonaNames(primaryPersonaName),
     task: "action",
     system:
-      "You are the decision brain for an AI Werewolf player. Choose exactly one legal candidate action from candidates using persona.preferences and expertStrategy as soft strategy guidance. Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\"}. Do not reveal private/system context.",
+      "You are the decision brain for an AI Werewolf player. Choose exactly one legal candidate action from candidates using persona.preferences, expertStrategy, and advancedReasoning as soft strategy guidance. Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\"}. Do not reveal private/system context.",
     input: modelInput,
     maxTokens: 220,
     customLlm: input.llmConfig,

@@ -32,6 +32,7 @@ export const PHASES = [
   "DAY_VOTE",
   "EXILE_RESOLUTION",
   "LAST_WORDS",
+  "HUNTER_REVEAL",
   "HUNTER_SHOT",
   "WOLF_KING_SHOT",
   "SHERIFF_HANDOFF",
@@ -89,6 +90,7 @@ export type GameEventType =
   | "IDIOT_REVEALED"
   | "LAST_WORDS_CREATED"
   | "PLAYER_DIED"
+  | "HUNTER_REVEALED"
   | "HUNTER_SHOT"
   | "HUNTER_SKIPPED"
   | "WOLF_KING_SHOT"
@@ -570,6 +572,7 @@ export type Command =
   | ({ type: "speak"; actorSeatId: number; message: string } & CommandReason)
   | ({ type: "lastWords"; actorSeatId: number; message: string } & CommandReason)
   | ({ type: "vote"; actorSeatId: number; targetSeatId?: number } & CommandReason)
+  | ({ type: "hunterReveal"; actorSeatId: number; reveal: boolean } & CommandReason)
   | ({ type: "hunterShoot"; actorSeatId: number; targetSeatId?: number } & CommandReason)
   | ({ type: "wolfKingShoot"; actorSeatId: number; targetSeatId?: number } & CommandReason)
   | ({ type: "whiteWolfKingExplode"; actorSeatId: number; targetSeatId: number } & CommandReason)
@@ -697,6 +700,7 @@ export type StanceShiftItem = {
 export type SeerLegacyItem = {
   claimant: ActionTarget;
   deathDay: number;
+  deathKind?: "night" | "exile";
   checks: ClaimBoardItem["checks"];
   stancesGiven: StanceBoardItem[];
   lastVote?: {
@@ -719,10 +723,18 @@ export type WolfTeamAssignment = {
   reason: string;
 };
 
+export type WolfNightStrategy = {
+  nightTarget?: ActionTarget;
+  dayPressureTarget?: ActionTarget;
+  summary: string;
+  discussion: string[];
+};
+
 export type WolfTeamPlan = {
   day: number;
   strategy: "COUNTERCLAIM" | "SHADOW" | "SURVIVE";
   summary: string;
+  nightStrategy?: WolfNightStrategy;
   primaryTarget?: ActionTarget;
   threat?: ActionTarget;
   counterclaimSeat?: ActionTarget;
@@ -762,7 +774,7 @@ export type SpeechInfluenceItem = {
 export type PublicReasoningCue = {
   cueId: string;
   day: number;
-  kind: "claim" | "counterclaim" | "seer_legacy" | "speech_influence" | "stance_shift" | "vote";
+  kind: "claim" | "counterclaim" | "death_shape" | "seer_legacy" | "speech_influence" | "stance_shift" | "vote";
   weight: "strong" | "medium" | "light";
   summary: string;
   actor?: ActionTarget;
@@ -873,11 +885,15 @@ export type SpeechPlan = {
   claimIntent?: SpeechClaimIntent;
 };
 
+export type WolfVoteTactic = "team_target" | "planned_distance" | "emergency_cut" | "avoid_teammate";
+
 export type VotePlan = {
   target: ActionTarget;
+  abstain?: boolean;
   reason: string;
   confidence: number;
   alternatives: ActionTarget[];
+  wolfVoteTactic?: WolfVoteTactic;
 };
 
 export type AvailableHumanAction =
@@ -896,6 +912,7 @@ export type AvailableHumanAction =
   | { type: "speak" }
   | { type: "lastWords" }
   | { type: "vote"; targets: ActionTarget[]; canAbstain: boolean }
+  | { type: "hunterReveal"; canReveal: boolean }
   | { type: "hunterShoot"; targets: ActionTarget[]; canSkip: boolean }
   | { type: "wolfKingShoot"; targets: ActionTarget[]; canSkip: boolean }
   | { type: "whiteWolfKingExplode"; targets: ActionTarget[] }
@@ -941,6 +958,7 @@ export type HumanGameView = {
   currentActorSeatId?: number;
   currentSpeakerSeatId?: number;
   wolfTeammates: ActionTarget[];
+  wolfStrategy?: WolfNightStrategy;
   seerChecks: SeerCheck[];
   guard?: GameState["guard"] & {
     guardedTarget?: ActionTarget;
