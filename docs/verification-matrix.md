@@ -23,6 +23,7 @@ depend on what changed.
 | Docs-only | Read back changed docs; inspect `git diff` | Check links or commands manually if changed | State why code tests were skipped |
 | Root harness / task templates | Read back `AGENTS.md`, task cards, and linked docs; inspect `git diff`; run `npm run harness:check` when package scripts or required harness files change | Dry-run a small task card mentally against the handoff format | Name the intended agent behavior change |
 | Frontend/UI | `npm run lint`; run relevant test if one exists; manually exercise the visible flow when feasible | `npm run build`; browser smoke of the affected path | Include the page/flow checked, or why manual verification was skipped |
+| Single-player main game | `npm run smoke:main-game` against the target base URL when a server is running; focused API/component tests for changed route or client logic | Browser smoke of home -> table -> first action -> day speech; `npm run build` for release confidence | Include base URL, board, role/action covered, and final phase |
 | Rules engine | Add or update focused rule tests; `npm run test` | `npm run simulate:ai` for behavior interactions | Name the rule scenario and the test that protects it |
 | AI speech / LLM contract | Check schema and fallback path; for small speech-quality diagnostics, start with a single persona such as `npm run llm:check -- --task=speech --persona=deepseek --retries=0` | Full `npm run llm:check -- --task=speech`; targeted LLM smoke; transcript review | Note provider mode, fallback behavior, command duration, and any skipped real-model check |
 | AI behavior / balance | Focused behavior test if available; for small read-only diagnostics, run a bounded sample such as `npm run simulate:ai -- --games=10 --seed-start=91` | `npm run simulate:ai`; `npm run simulate:diagnose`; multiseed LLM evaluation when needed | Report seeds/counts and whether the result is directional or decisive |
@@ -41,6 +42,9 @@ depend on what changed.
 ## Common Pitfalls
 
 - Passing `npm run test` does not prove a browser-visible flow works.
+- Passing route handler tests does not prove the single-player player path can
+  advance; use `npm run smoke:main-game` when stream continue or main game
+  command routes are touched.
 - Passing `npm run build` does not prove game rules are correct.
 - Passing a local smoke does not prove Tencent Cloud or Render is healthy.
 - Reading docs in the editor is not enough; read back changed files after edits.

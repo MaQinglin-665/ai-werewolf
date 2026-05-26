@@ -47,6 +47,9 @@ currently stands.
   script it until the checklist proves stable through repeated use.
 - Added `npm run harness:check` for read-only mechanical checks: git status,
   required harness files, and expected package scripts.
+- Added `npm run smoke:main-game` for a fast single-player HTTP smoke covering
+  6-player game creation, first human night action, stream continue, and entry
+  into day speech.
 
 ## Current Handoff Items
 
@@ -77,4 +80,6 @@ currently stands.
 
 1. Use `npm run harness:check` on several real tasks and keep it limited to
    mechanical checks unless repeated use proves another check is stable.
-2. Run a clean staged review/commit once the current harness files are ready.
+2. Consider a browser-rendering smoke only when UI layout or hydration changes
+   need visual confidence beyond the HTTP main-game smoke.
+3. Run a clean staged review/commit once the current harness files are ready.

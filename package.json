@@ -25,6 +25,7 @@
     "smoke:room-action": "node scripts/room-action-smoke.mjs",
     "smoke:room-action:vote": "node scripts/room-action-smoke.mjs --coverage=vote",
     "smoke:room-sse": "node scripts/room-sse-smoke.mjs",
+    "smoke:main-game": "node scripts/main-game-smoke.mjs",
     "smoke:production:postgres": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/room-postgres-production-smoke.ps1",
     "preflight:production": "node scripts/room-production-preflight.mjs",
     "check:production-env": "node scripts/room-production-env-check.mjs",

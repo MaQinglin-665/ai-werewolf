@@ -24,6 +24,7 @@ const requiredScripts = [
   "simulate:diagnose",
   "smoke:room-sse",
   "smoke:room-action:vote",
+  "smoke:main-game",
   "preflight:production",
 ];
 
