@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-26 22:05 Asia/Shanghai
-**Session ID:** gameclient board selection model
-**Active Feature:** gameclient-board-selection-model - GameClient Board Selection Model
+**Last Updated:** 2026-05-26 22:20 Asia/Shanghai
+**Session ID:** frontend structure review
+**Active Feature:** frontend-structure-review - Frontend Structure Review
 
 ## Status
 
@@ -42,17 +42,18 @@
 - [x] Landing-page board toggle and human-seat transition rules extracted to `src/components/game/boardSelectionModel.ts`.
 - [x] Focused board selection transition tests added and watched fail before implementation, then pass after extraction.
 - [x] `GameClient.tsx` dropped below 1000 lines in `npm run audit:structure`.
+- [x] Frontend structure review recorded current `GameClient.tsx` responsibilities and the next larger lifecycle request boundary.
 
 ### What's In Progress
 
-- [ ] Review and optionally commit the GameClient board selection extraction batch.
-  - Details: Board selection model is implemented; focused test, lint, type, harness checks, and structure audit passed.
+- [ ] No active implementation task after the frontend structure review batch.
+  - Details: Current responsibilities and next recommended `gameClientRequests` boundary are documented; harness checks and structure audit passed.
   - Blockers: none.
 
 ### What's Next
 
-1. Review and optionally commit this batch.
-2. Stop the current micro-extraction run and review the accumulated frontend direction before choosing a larger action-panel boundary.
+1. Create `docs/tasks/2026-05-gameclient-lifecycle-requests.md` before extracting request helpers.
+2. Plan and implement `src/components/game/gameClientRequests.ts` with focused request-helper tests.
 3. Plan room UI alignment separately before touching `RoomClient.tsx`.
 
 ## Blockers / Risks
@@ -117,6 +118,8 @@
 - `docs/superpowers/plans/2026-05-26-gameclient-board-selection-model.md` - implementation plan for board selection transition extraction.
 - `src/components/game/boardSelectionModel.ts` - extracted board selection transition model.
 - `src/components/game/boardSelectionModel.test.ts` - focused board selection transition coverage.
+- `docs/tasks/2026-05-frontend-structure-review.md` - task card for the accumulated frontend structure review.
+- `docs/superpowers/specs/2026-05-26-frontend-structure-review.md` - review document naming the next larger frontend boundary.
 
 ## Evidence of Completion
 
@@ -156,6 +159,10 @@
 - [x] Board selection task-card gate: `npm run harness:task-card -- docs/tasks/2026-05-gameclient-board-selection-model.md`
 - [x] Harness check: `npm run harness:check`
 - [x] Structure audit: `npm run audit:structure`
+- [x] Structure review task-card gate: `npm run harness:task-card -- docs/tasks/2026-05-frontend-structure-review.md`
+- [x] Harness check: `npm run harness:check`
+- [x] Feature list JSON: `node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"`
+- [x] Diff check: `git diff --check`
 
 ## Notes for Next Session
 

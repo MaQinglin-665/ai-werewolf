@@ -2,9 +2,9 @@
 
 ## Current Objective
 
-- Goal: Continue frontend slimming with a landing board-selection state model boundary under the harness.
-- Current status: Board toggle and human-seat transition rules have been extracted into `src/components/game/boardSelectionModel.ts` with focused tests. `GameClient.tsx` is now at 993 lines in the structure audit.
-- Branch / commit: `main`; latest committed baseline before this task was `3641308`.
+- Goal: Review accumulated frontend slimming work and choose the next larger boundary under the harness.
+- Current status: Frontend structure review is recorded in `docs/superpowers/specs/2026-05-26-frontend-structure-review.md`. The next recommended code-facing boundary is `gameClientRequests`, not more tiny helper extraction.
+- Branch / commit: `main`; latest committed baseline before this task was `14a535d`.
 
 ## Completed This Session
 
@@ -47,6 +47,9 @@
 - [x] Added focused board transition coverage to `src/components/game/boardSelectionModel.test.ts`.
 - [x] Updated `src/components/GameClient.tsx` to import the board selection transition helper.
 - [x] Updated `feature_list.json` and `progress.md` for the new board selection model feature.
+- [x] Created `docs/tasks/2026-05-frontend-structure-review.md`.
+- [x] Created `docs/superpowers/specs/2026-05-26-frontend-structure-review.md`.
+- [x] Updated `feature_list.json` and `progress.md` for the structure review feature.
 
 ## Verification Evidence
 
@@ -88,6 +91,10 @@
 | Board selection task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-gameclient-board-selection-model.md` | passed | Confirms the new task card satisfies harness fields. |
 | Harness check | `npm run harness:check` | passed | Confirms mechanical harness files and package scripts. |
 | Structure audit | `npm run audit:structure` | passed | Confirms structure audit still passes; `GameClient.tsx` dropped to 993 lines in the audit output. |
+| Structure review task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-frontend-structure-review.md` | passed | Confirms the review task card satisfies harness fields. |
+| Harness check | `npm run harness:check` | passed | Confirms mechanical harness files and package scripts. |
+| Feature list JSON | `node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"` | passed | Confirms feature tracker JSON remains valid. |
+| Diff check | `git diff --check` | passed | Only CRLF conversion warnings from Git were reported. |
 
 ## Files Changed
 
@@ -127,6 +134,8 @@
 - `src/components/game/tableEventFeed.test.ts`
 - `docs/tasks/2026-05-gameclient-board-selection-model.md`
 - `docs/superpowers/plans/2026-05-26-gameclient-board-selection-model.md`
+- `docs/tasks/2026-05-frontend-structure-review.md`
+- `docs/superpowers/specs/2026-05-26-frontend-structure-review.md`
 
 ## Decisions Made
 
@@ -140,6 +149,7 @@
 - Landing-page lineup preview is now treated as a UI data model, while `GameClient.tsx` keeps only memoization and state wiring for it.
 - Table event feed filtering and ordering is now treated as a UI data model, while `GameClient.tsx` keeps only memoization and prop wiring for it.
 - Board toggle and human-seat transition rules are now treated as landing UI state modeling, while `GameClient.tsx` keeps only state setter wiring for them.
+- Stop micro-extracting tiny helpers for now. The next useful code-facing boundary is a medium-risk `gameClientRequests` extraction that separates request construction/response parsing from UI orchestration.
 
 ## Blockers / Risks
 
@@ -154,6 +164,7 @@
 - Browser/manual flow was skipped for lineup preview because the rendered layout and interactions did not change; the pure calculation is covered by focused tests.
 - Browser/manual flow was skipped for event feed because the rendered layout and interactions did not change; the pure calculation is covered by focused tests.
 - Browser/manual flow was skipped for board selection because the intended behavior is unchanged and covered by focused transition tests.
+- Browser/manual flow and automated code tests were skipped for the structure review because no production code changed.
 
 ## Next Session Startup
 
@@ -166,8 +177,9 @@
 7. Read `docs/tasks/2026-05-gameclient-lineup-preview-model.md` if continuing landing-page model extraction.
 8. Read `docs/tasks/2026-05-gameclient-event-feed-model.md` if continuing table event-feed model extraction.
 9. Read `docs/tasks/2026-05-gameclient-board-selection-model.md` if continuing landing board-selection model extraction.
-10. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
+10. Read `docs/superpowers/specs/2026-05-26-frontend-structure-review.md` before starting the next larger frontend boundary.
+11. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
 
 ## Recommended Next Step
 
-- Next recommended code-facing step: review and optionally commit this extraction batch. Then pause micro-extractions and review the accumulated frontend direction before choosing a larger action-panel boundary.
+- Next recommended code-facing step: create `docs/tasks/2026-05-gameclient-lifecycle-requests.md`, then plan and implement `src/components/game/gameClientRequests.ts` with focused request-helper tests plus local `smoke:main-game`.

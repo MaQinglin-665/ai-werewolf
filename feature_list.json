@@ -150,6 +150,16 @@
       ],
       "status": "done",
       "evidence": "src/components/game/boardSelectionModel.ts; src/components/game/boardSelectionModel.test.ts; npm run test -- src/components/game/boardSelectionModel.test.ts; npm run lint; npx tsc --noEmit; npm run audit:structure"
+    },
+    {
+      "id": "frontend-structure-review",
+      "name": "Frontend Structure Review",
+      "description": "Review accumulated GameClient slimming work, record remaining responsibilities, and choose the next larger frontend boundary.",
+      "dependencies": [
+        "gameclient-board-selection-model"
+      ],
+      "status": "done",
+      "evidence": "docs/superpowers/specs/2026-05-26-frontend-structure-review.md; docs/tasks/2026-05-frontend-structure-review.md; npm run audit:structure; npm run harness:task-card -- docs/tasks/2026-05-frontend-structure-review.md; npm run harness:check"
     }
   ]
 }
