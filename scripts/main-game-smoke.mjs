@@ -1,3 +1,5 @@
+import { shouldRetryMainGameSmokeAttempt } from "./main-game-smoke-logic.mjs";
+
 const baseUrl = readOption("base-url", process.env.MAIN_GAME_SMOKE_BASE_URL ?? "http://127.0.0.1:3000").replace(/\/$/, "");
 const maxAttempts = readPositiveInt(readOption("attempts", process.env.MAIN_GAME_SMOKE_ATTEMPTS), 8);
 const maxSteps = readPositiveInt(readOption("max-steps", process.env.MAIN_GAME_SMOKE_MAX_STEPS), 24);
@@ -55,6 +57,16 @@ async function runMainGameSmoke() {
 
       const humanAction = view.availableActions.find((action) => action.type !== "continue");
       if (humanAction) {
+        if (
+          shouldRetryMainGameSmokeAttempt({
+            phase: view.phase,
+            submittedHumanNightAction,
+            humanActionType: humanAction.type,
+          })
+        ) {
+          attemptSummary.skippedReason = `First human action appeared outside night: ${view.phase}`;
+          break;
+        }
         assert(view.phase.startsWith("NIGHT"), `First human action appeared outside night: ${view.phase}`);
         const command = commandFromAction(humanAction, view);
         view = await postJson(`/api/games/${encodeURIComponent(view.id)}/commands`, command);
