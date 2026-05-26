@@ -4,21 +4,24 @@
 
 ## 试玩入口
 
-- 公开服务：https://ai-werewolf-free.onrender.com
-- 试玩说明：https://ai-werewolf-free.onrender.com/alpha-playtest
-- 反馈模板：https://ai-werewolf-free.onrender.com/alpha-report
-- 联机房间：https://ai-werewolf-free.onrender.com/rooms
-- 健康面板：https://ai-werewolf-free.onrender.com/alpha-health
+- 主公开服务：https://175.178.199.245
+- 主试玩说明：https://175.178.199.245/alpha-playtest
+- 主反馈模板：https://175.178.199.245/alpha-report
+- 主联机房间：https://175.178.199.245/rooms
+- 主健康面板：https://175.178.199.245/alpha-health
+- 备用镜像：https://ai-werewolf-free.onrender.com
 
-先打开健康面板，确认 `productionMinimumReady=true`。如果出现 Render 冷启动等待页，等服务唤醒后刷新一次。
+先打开主健康面板，确认 `productionMinimumReady=true`。Render 只作为备用镜像；如果出现免费实例冷启动等待页，等服务唤醒后刷新一次。
 
 ## 发给朋友的短说明
 
 ```text
 这是 AI 狼人杀 Alpha 小范围试玩链接：
-https://ai-werewolf-free.onrender.com/rooms
+https://175.178.199.245/rooms
 
-第一次打开可能会因为免费 Render 冷启动等待几十秒。进入后输入昵称，等我创建房间并发邀请码或邀请链接。默认是 mock AI，不需要 API Key，也不会产生模型费用。
+如果主链接打不开，可以试备用镜像：https://ai-werewolf-free.onrender.com/rooms
+
+进入后输入昵称，等我创建房间并发邀请码或邀请链接。默认是 mock AI，不需要 API Key，也不会产生模型费用。
 ```
 
 ## 房主流程
@@ -74,7 +77,7 @@ https://ai-werewolf-free.onrender.com/rooms
 ## 维护者验证命令
 
 ```powershell
-$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run preflight:production
-$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run smoke:room-sse
-$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run smoke:alpha:vote
+$env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run preflight:production
+$env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-sse
+$env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:alpha:vote
 ```

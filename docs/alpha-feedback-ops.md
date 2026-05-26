@@ -4,10 +4,11 @@
 
 ## 公开入口
 
-- 试玩说明：https://ai-werewolf-free.onrender.com/alpha-playtest
-- 反馈模板：https://ai-werewolf-free.onrender.com/alpha-report
-- 健康面板：https://ai-werewolf-free.onrender.com/alpha-health
-- 联机房间：https://ai-werewolf-free.onrender.com/rooms
+- 主试玩说明：https://175.178.199.245/alpha-playtest
+- 主反馈模板：https://175.178.199.245/alpha-report
+- 主健康面板：https://175.178.199.245/alpha-health
+- 主联机房间：https://175.178.199.245/rooms
+- 备用镜像：https://ai-werewolf-free.onrender.com
 
 `/alpha-report` 只在浏览器本地生成可复制文本，不提交数据、不保存浏览器指纹、不写入数据库。玩家把复制出来的文本发给维护者即可。
 
@@ -22,12 +23,12 @@
 ## 每次试玩前检查
 
 ```powershell
-$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run preflight:production
-$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run smoke:room-sse
-$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run smoke:alpha:vote
+$env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run preflight:production
+$env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-sse
+$env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:alpha:vote
 ```
 
-同时打开 `/alpha-health`，确认：
+同时打开主链路 `/alpha-health`，确认：
 
 - `productionMinimumReady=true`
 - `storage=postgres-room-store`
@@ -53,7 +54,7 @@ $env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run smoke:
 - `npm run lint`
 - `npx tsc --noEmit --pretty false`
 - 相关 focused test 或 smoke。
-- 公网问题必须补 `$env:ROOM_SMOKE_BASE_URL="https://ai-werewolf-free.onrender.com"; npm run smoke:alpha:vote`
+- 公网问题必须补 `$env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:alpha:vote`
 
 ## 当前仍未替代的事项
 

@@ -1,6 +1,6 @@
 # Current Release Status
 
-Last checked: 2026-05-23 10:04 Asia/Shanghai.
+Last checked: 2026-05-26 10:26 Asia/Shanghai.
 
 Use this file as the first stop before sharing the public Alpha link or starting a new deployment. Update it after every public-facing release.
 
@@ -106,11 +106,24 @@ Before telling someone to use the public Alpha link:
 
 ## Next Product Stage
 
-Current stage: public Alpha is online and smoke-tested, but it is not yet a polished open beta.
+Current stage: public Alpha is online and smoke-tested on the Tencent Cloud primary path, but it is not yet a polished open beta. The project is now in a consolidation pass: close the current local AI/room/UI changes, align public-facing product narrative, and only pay down technical debt that improves the real-player playtest loop.
 
 Next focus:
 
+- close and verify the current dirty local changes before adding new feature scope;
+- keep README, release status, playtest docs, and promotion copy aligned around "small-scope Public Alpha";
+- use technical-debt work to protect the playtest loop: join, start, act, speak, vote, refresh recovery, mobile readability, and AI table feel;
 - keep Tencent Cloud as the primary public test environment;
 - keep Render as a free mirror / deployment comparison lane;
 - run a small real-player mobile test round and record the top friction points;
 - continue phase rhythm polish only where it improves table readability.
+
+Latest spot check:
+
+```powershell
+curl.exe -k -L --max-time 20 https://175.178.199.245/api/rooms/health
+```
+
+Result at 2026-05-26 10:26 Asia/Shanghai: `ok=true`, `deployment.productionMinimumReady=true`, PostgreSQL room store/realtime/presence/rate-limit adapters enabled.
+
+Render free mirror note: a direct health request timed out after 25 seconds during this spot check, consistent with a cold or unavailable free mirror. Use Tencent Cloud as the primary share target unless Render is rechecked.
