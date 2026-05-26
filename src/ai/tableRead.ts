@@ -13,6 +13,7 @@ import type {
   WolfVoteTactic,
 } from "@/game/types";
 import { clampProbability, stableRoll, stableSignedJitter } from "@/game/decisionNoise";
+import { ROLE_LABELS } from "@/game/labels";
 import { isWolfRole } from "@/game/roleUtils";
 import {
   findDeadSeerBlackLegacyForSeat,
@@ -225,7 +226,7 @@ export function buildAiTableRead(view: AgentView): AiTableRead {
         suspicion += weighted(5, preferences.logic);
         pressure.push("发言偏短，过程不足");
       }
-      if (/不急|先听|过一轮|不站死/.test(lastSpeechMessage)) {
+      if (/不急|先听|过一轮|不站死/.test(lastSpeechMessage) && !isLowInfoDayOneSeatSpeech(view, seat.seatId, lastSpeechMessage)) {
         suspicion += weighted(3, preferences.leadership);
         pressure.push("站边偏保守，需要补判断");
       }
@@ -491,12 +492,13 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
       });
     }
     if (shouldGodLead(view, tableRead, identityPressure, "WITCH")) {
+      const savedTarget = view.privateKnowledge.witch?.savedTarget;
       return attachDynamics({
         kind: "rally",
         target: focus,
         stance: "女巫拍身份带队收票型",
         talkingPoints: [
-          "我拍女巫，今天票型不能再散",
+          savedTarget ? `我女巫，平安夜救了${savedTarget.seatId}号，${savedTarget.seatId}号是银水` : "我拍女巫，今天票型不能再散",
           memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 先正面解释` : "先按公开身份线归票"),
         ],
         risk: Math.max(0.64, personaRisk),
@@ -916,8 +918,18 @@ function withSpeechDynamics(
 ): SpeechPlan {
   const interaction = buildSpeechInteraction(view, tableRead, focus, plan);
   const personaCue = buildPersonaCue(view, plan, focus);
+  const tableTask = buildSpeechTableTask(view, tableRead, focus, plan);
   const stanceCue = buildGoodStanceCue(view, plan.target ?? toTargetFromSeatRead(focus), tableRead);
+  const target = plan.target ?? interaction?.target ?? toTargetFromSeatRead(focus);
+  const targetSpeechStatus = resolveSpeechTargetStatus(view, target);
+  const allowedInteraction = resolveAllowedSpeechInteraction(plan, target, targetSpeechStatus);
+  const speechMove = resolveSpeechMove(plan, targetSpeechStatus, allowedInteraction);
+  const playMotive = buildSpeechPlayMotive(view, plan);
+  const identityPoint = buildHardIdentityPoint(plan);
   const talkingPoints = uniqueSpeechPoints([
+    identityPoint,
+    playMotive?.line,
+    tableTask?.line,
     interaction?.line,
     personaCue?.line,
     stanceCue,
@@ -926,11 +938,266 @@ function withSpeechDynamics(
 
   return {
     ...plan,
-    target: plan.target ?? interaction?.target ?? toTargetFromSeatRead(focus),
+    target,
+    targetSpeechStatus,
+    allowedInteraction,
+    speechMove,
     interaction,
     personaCue,
+    tableTask,
+    playMotive,
     talkingPoints,
   };
+}
+
+function buildSpeechPlayMotive(view: AgentView, plan: SpeechPlan): SpeechPlan["playMotive"] {
+  if (!plan.claimIntent) {
+    if (isWolfRole(view.myRole, view.rules.wolfRoles) && plan.kind === "confuse") {
+      return {
+        kind: "wolf_misdirect",
+        line: "用公开视角制造错位和压力，不暴露狼队信息。",
+        allowIdentityClaim: false,
+      };
+    }
+    return undefined;
+  }
+
+  if (plan.claimIntent.strength === "soft") {
+    return {
+      kind: "bait_kill",
+      line:
+        view.myRole === "VILLAGER"
+          ? "可以用底牌不虚、能吃刀的口径挡刀，但不要明拍具体神职身份。"
+          : "保留底牌威慑和挡刀空间，不把软身份边界说成明确拍身份。",
+      allowIdentityClaim: false,
+    };
+  }
+
+  if (view.myRole === "VILLAGER" && GOD_ROLES.includes(plan.claimIntent.claimedRole)) {
+    return {
+      kind: "protect_power_role",
+      line: "给真神留身份坑，狼夜里可以来试，但发言还要落在公开逻辑上。",
+      allowIdentityClaim: true,
+    };
+  }
+
+  if (isWolfRole(view.myRole, view.rules.wolfRoles) && plan.claimIntent.claimedRole === "SEER") {
+    return {
+      kind: "wolf_misdirect",
+      line: "用悍跳身份制造站边压力，理由必须听起来像闭眼公开视角。",
+      allowIdentityClaim: true,
+    };
+  }
+
+  if (plan.kind === "rally") {
+    return {
+      kind: "self_defense",
+      line: "拍身份是为了挡当前票口或收住散票，不是用身份替代推理。",
+      allowIdentityClaim: true,
+    };
+  }
+
+  return {
+    kind: "tempo_grab",
+    line: "拍身份是为了抢节奏或钓反应，必须同时给公开逻辑。",
+    allowIdentityClaim: true,
+  };
+}
+
+function buildHardIdentityPoint(plan: SpeechPlan): string | undefined {
+  if (plan.claimIntent?.strength !== "hard") return undefined;
+  const roleLabel = ROLE_LABELS[plan.claimIntent.claimedRole];
+  if (plan.claimIntent.claimedRole === "SEER" && plan.claimIntent.check) {
+    const resultLabel = plan.claimIntent.check.result === "WEREWOLF" ? "查杀" : "金水";
+    return `我跳预言家，${plan.claimIntent.check.targetSeatId}号是${resultLabel}`;
+  }
+  return `我拍${roleLabel}`;
+}
+
+function resolveSpeechTargetStatus(view: AgentView, target: ActionTarget | undefined): SpeechPlan["targetSpeechStatus"] {
+  if (!target || target.seatId === view.mySeatId) return "none";
+  return hasSpokenThisDay(view, target.seatId) ? "spoken" : "unspoken";
+}
+
+function resolveAllowedSpeechInteraction(
+  plan: SpeechPlan,
+  target: ActionTarget | undefined,
+  targetSpeechStatus: SpeechPlan["targetSpeechStatus"],
+): SpeechPlan["allowedInteraction"] {
+  if (
+    target &&
+    plan.claimIntent?.claimedRole === "SEER" &&
+    plan.claimIntent.check?.targetSeatId === target.seatId &&
+    plan.claimIntent.check.result === "WEREWOLF"
+  ) {
+    return "finalize_black_check";
+  }
+  if (targetSpeechStatus === "spoken") return "review_spoken";
+  if (targetSpeechStatus === "unspoken") return "ask_future";
+  return "none";
+}
+
+function resolveSpeechMove(
+  plan: SpeechPlan,
+  targetSpeechStatus: SpeechPlan["targetSpeechStatus"],
+  allowedInteraction: SpeechPlan["allowedInteraction"],
+): SpeechPlan["speechMove"] {
+  if (allowedInteraction === "finalize_black_check") return "claim_black_check";
+  if (plan.claimIntent?.claimedRole === "SEER" && plan.claimIntent.check?.result === "GOOD") return "claim_gold_check";
+  if (plan.claimIntent?.strength === "hard") return "identity_claim";
+  if (plan.kind === "rally") return "lock_vote";
+  if (allowedInteraction === "review_spoken") return "review_spoken_target";
+  if (allowedInteraction === "ask_future") return "ask_unspoken_target";
+  if (plan.kind === "defend" || plan.kind === "explain-vote") return "explain_vote";
+  if (targetSpeechStatus !== "none") return "soft_pressure";
+  return "none";
+}
+
+function buildSpeechTableTask(
+  view: AgentView,
+  tableRead: AiTableRead,
+  focus: SeatRead | undefined,
+  plan: SpeechPlan,
+): SpeechPlan["tableTask"] {
+  const spokenThisDay = view.publicSummary.recentSpeeches.filter((speech) => speech.day === view.day && speech.speaker);
+  const pressureInfluence = tableRead.tableMemory.speechInfluence.find(
+    (item) => item.day === view.day && item.direction === "pressure" && item.followupCount >= 1,
+  );
+  const mentionedFocus = inferCurrentDayMentionFocus(view, tableRead, spokenThisDay);
+  const focusTarget =
+    focus ??
+    (plan.target ? tableRead.seats.find((seat) => seat.seatId === plan.target?.seatId) : undefined) ??
+    (pressureInfluence ? tableRead.seats.find((seat) => seat.seatId === pressureInfluence.target.seatId) : undefined) ??
+    mentionedFocus;
+  const repeatedPressure = focusTarget
+    ? tableRead.tableMemory.speechInfluence.find(
+        (item) =>
+          item.day === view.day &&
+          item.direction === "pressure" &&
+          item.target.seatId === focusTarget.seatId &&
+          item.followupCount >= 1,
+      ) ?? pressureInfluence
+    : pressureInfluence;
+
+  if (spokenThisDay.length === 0) {
+    return {
+      mode: "set-standard",
+      line: "首置位先给一个可验证观察点；平安夜只说女巫用药了即可，不主动展开药线或空刀，也不要求下一位立刻站边或交票口。",
+      directives: ["给观察点", "平安夜只作背景", "不要求站边票口"],
+    };
+  }
+
+  if (repeatedPressure && focusTarget) {
+    const alternatives = tableRead.seats.filter(
+      (seat) =>
+        !seat.isSelf &&
+        !seat.isWolfTeammate &&
+        seat.seatId !== focusTarget.seatId &&
+        !isProtectedGoodSpeechTarget(view, tableRead, seat),
+    );
+    const alternative = alternatives.sort((a, b) => b.suspicion - b.trust - (a.suspicion - a.trust) || a.seatId - b.seatId)[0];
+    const variant = (view.mySeatId + spokenThisDay.length) % 3;
+    if (variant === 0) {
+      return {
+        mode: "audit-pressure-chain",
+        target: toTargetFromSeatRead(focusTarget),
+        line: `桌面已经多人接住${focusTarget.seatId}号压力，这轮必须换角度，不要复读同一缺口；先审计谁在借这个焦点做收益。`,
+        directives: ["审计压力链", "找收益位", "不要复读"],
+      };
+    }
+    if (variant === 1) {
+      return {
+        mode: "hold-countercase",
+        target: toTargetFromSeatRead(focusTarget),
+        line: `保留${focusTarget.seatId}号好人面，说明他还有哪种正面解释，再给一个可验证标准。`,
+        directives: ["给反面解释", "保留余地", "落验证点"],
+      };
+    }
+    return {
+      mode: "pivot-alternative",
+      target: toTargetFromSeatRead(alternative ?? focusTarget),
+      line: alternative
+        ? `从${focusTarget.seatId}号压力链转看${alternative.seatId}号，检查有没有人在跟压但没有新增理由。`
+        : `不要复读${focusTarget.seatId}号同一缺口，改成检查压力链是否过度集中。`,
+      directives: ["转向替代观察位", "检查跟压", "保留主焦点"],
+    };
+  }
+
+  if (isLowInfoDayOneNoHardInfo(view, spokenThisDay)) {
+    return {
+      mode: "set-standard",
+      line: "低信息首轮只审计观察点和跟压收益，不要因为任何前置位没站边或没给票口去硬打；先记录等待身份/查验信息。",
+      directives: ["审计观察点", "不硬打站边票口", "等待身份信息"],
+    };
+  }
+
+  if (tableRead.voteSnapshot.leaders.length > 0) {
+    return {
+      mode: "summarize-vote",
+      target: tableRead.voteSnapshot.leaders[0],
+      line: `当前票型已经有焦点，先说清这票是硬证据归票还是软压力票，别把软票说成铁证。`,
+      directives: ["区分硬软证据", "说明票型风险", "落票口边界"],
+    };
+  }
+
+  return undefined;
+}
+
+function inferCurrentDayMentionFocus(
+  view: AgentView,
+  tableRead: AiTableRead,
+  spokenThisDay: AgentView["publicSummary"]["recentSpeeches"],
+): SeatRead | undefined {
+  if (spokenThisDay.length < 2) return undefined;
+  const scores = new Map<number, number>();
+  for (const speech of spokenThisDay) {
+    const message = speech.message;
+    for (const seat of tableRead.seats) {
+      if (seat.isSelf || seat.isWolfTeammate) continue;
+      const mentions = countSeatMentions(message, seat.seatId);
+      if (mentions === 0) continue;
+      const pressureBonus = /压|怀疑|焦点|票|站边|标准|解释|补|问题|狼面|抗推/.test(message) ? 1 : 0;
+      scores.set(seat.seatId, (scores.get(seat.seatId) ?? 0) + mentions + pressureBonus);
+    }
+  }
+  const [seatId, score] = [...scores.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0] ?? [];
+  if (!seatId || score < 2) return undefined;
+  return tableRead.seats.find((seat) => seat.seatId === seatId && !isProtectedGoodSpeechTarget(view, tableRead, seat));
+}
+
+function isLowInfoDayOneNoHardInfo(view: AgentView, spokenThisDay: AgentView["publicSummary"]["recentSpeeches"]): boolean {
+  if (view.day !== 1 || spokenThisDay.length === 0) return false;
+  if (view.publicSummary.claimBoard.some((claim) => claim.lastUpdatedDay === view.day)) return false;
+  if (view.publicSummary.voteSnapshot.revealed && view.publicSummary.voteSnapshot.votes.length > 0) return false;
+  return !spokenThisDay.some((speech) => hasHardDayOneOpeningInfo(speech.message));
+}
+
+function isLowInfoDayOneSeatSpeech(view: AgentView, seatId: number, message: string): boolean {
+  if (view.day !== 1) return false;
+  if (view.publicSummary.claimBoard.some((claim) => claim.lastUpdatedDay === view.day)) return false;
+  if (view.publicSummary.voteSnapshot.revealed && view.publicSummary.voteSnapshot.votes.length > 0) return false;
+  const currentDaySpeeches = view.publicSummary.recentSpeeches.filter((speech) => speech.day === view.day && speech.speaker);
+  const firstSpeaker = currentDaySpeeches[0]?.speaker?.seatId;
+  if (firstSpeaker !== seatId || currentDaySpeeches.length > 2) return false;
+  return !hasHardDayOneOpeningInfo(message);
+}
+
+function isLowInfoDayOneTarget(view: AgentView, seatId: number): boolean {
+  const speech = view.publicSummary.recentSpeeches.find((item) => item.day === view.day && item.speaker?.seatId === seatId);
+  return Boolean(speech && isLowInfoDayOneSeatSpeech(view, seatId, speech.message));
+}
+
+function hasHardDayOneOpeningInfo(message: string): boolean {
+  const withoutDeathShape = message.replace(/(?:平安夜[^。！？；]{0,20})?女巫用药(?:了|处理)?|按女巫用药处理/g, "");
+  return /查杀|金水|预言家|我是女巫|我女巫|猎人|骑士|守卫|警徽|归票|出人|投/.test(withoutDeathShape);
+}
+
+function countSeatMentions(message: string, seatId: number): number {
+  return [...message.matchAll(new RegExp(`(^|[^0-9])${seatId}\\s*(号|號|seat|座|位)?`, "gi"))].length;
+}
+
+function hasSpokenThisDay(view: AgentView, seatId: number): boolean {
+  return view.publicSummary.recentSpeeches.some((speech) => speech.day === view.day && speech.speaker?.seatId === seatId);
 }
 
 function buildGoodStanceCue(
@@ -1028,11 +1295,14 @@ function buildSpeechInteraction(
     }
 
     if (pressureDelta >= 0) {
+      const lowInfoOpening = isLowInfoDayOneSeatSpeech(view, previousRead.seatId, previousRead.lastSpeech ?? "");
       return {
         kind: "probe",
         sourceSpeaker,
         target: previousTarget,
-        line: `上一位${sourceSpeaker.name}我先留疑问，后面要看他怎么补站边理由`,
+        line: lowInfoOpening
+          ? `上一位${sourceSpeaker.name}我先轻记，只看他的开口观察点是不是过泛`
+          : `上一位${sourceSpeaker.name}我先留疑问，回看他刚才的站边理由能不能和票型对上`,
         goal: "保留追问窗口",
       };
     }
@@ -1044,7 +1314,9 @@ function buildSpeechInteraction(
     return {
       kind: "challenge",
       target: toTargetFromSeatRead(target),
-      line: `我会直接压${target.seatId}号，让他把发言和票型讲完整`,
+      line: hasSpokenThisDay(view, target.seatId)
+        ? `我会直接压${target.seatId}号，回看他刚才发言和票型哪里没讲完整`
+        : `我会直接压${target.seatId}号，轮到他时只听发言和票型能不能讲完整`,
       goal: "主动制造压力",
     };
   }
@@ -1052,7 +1324,9 @@ function buildSpeechInteraction(
   return {
     kind: "probe",
     target: toTargetFromSeatRead(target),
-    line: `我先把${target.seatId}号放进观察位，等他补清楚自己的逻辑`,
+    line: hasSpokenThisDay(view, target.seatId)
+      ? `我先把${target.seatId}号放进观察位，只回看他已经说出口的逻辑`
+      : `我先把${target.seatId}号放进观察位，等他发言时讲清自己的逻辑`,
     goal: "保持可变判断",
   };
 }
@@ -1065,12 +1339,20 @@ function buildPersonaCue(
   const personaId = view.persona?.id ?? "steady";
   const preferences = personaPreferences(view);
   const targetText = plan.target?.seatId ?? focus?.seatId;
+  const targetHasSpoken = targetText ? hasSpokenThisDay(view, targetText) : false;
+  const lowInfoOpeningTarget = targetText ? isLowInfoDayOneTarget(view, targetText) : false;
 
   if (personaId === "strong-leader" || personaId === "pressure-bluffer") {
     return {
       mode: "press",
-      line: targetText ? `我这轮会结论先行，要求${targetText}号正面回应` : "我这轮会先把结论给出来",
-      directives: ["结论先行", "主动归票", "要求目标补过程"],
+      line: targetText
+        ? lowInfoOpeningTarget
+          ? `我这轮只轻记${targetText}号的开口观察点，不急着归票`
+          : targetHasSpoken
+          ? `我这轮会结论先行，回看${targetText}号刚才发言`
+          : `我这轮会结论先行，要求${targetText}号正面回应`
+        : "我这轮会先把结论给出来",
+      directives: lowInfoOpeningTarget ? ["轻记观察点", "不急归票", "等待硬信息"] : ["结论先行", "主动归票", targetHasSpoken ? "回看目标原话" : "要求目标补过程"],
     };
   }
 
@@ -1086,7 +1368,7 @@ function buildPersonaCue(
     return {
       mode: "hedge",
       line: targetText ? `我先不把${targetText}号打死，但要把疑问留在桌面上` : "我先保留判断，只给当前疑问",
-      directives: ["保留余地", "少给死结论", "等待后置位补充"],
+      directives: ["保留余地", "少给死结论", "保留后置位视角"],
     };
   }
 
@@ -1125,16 +1407,24 @@ function buildPersonaCue(
   if (preferences.emotion >= 0.82) {
     return {
       mode: "emotion",
-      line: targetText ? `我会直接给${targetText}号压力，先听他的即时反应` : "我会先把桌面情绪和反应压出来",
-      directives: ["节奏更快", "回应语气", "制造互动压力"],
+      line: targetText
+        ? lowInfoOpeningTarget
+          ? `我会先看谁借${targetText}号这个轻焦点带节奏`
+          : `我会直接给${targetText}号压力，先听他的即时反应`
+        : "我会先把桌面情绪和反应压出来",
+      directives: lowInfoOpeningTarget ? ["审计跟压", "不硬归票", "看节奏收益"] : ["节奏更快", "回应语气", "制造互动压力"],
     };
   }
 
   if (preferences.leadership >= 0.82) {
     return {
       mode: "press",
-      line: targetText ? `我这轮会把${targetText}号放进归票讨论` : "我这轮会先收束票型",
-      directives: ["给出清晰边界", "组织票型", "要求明确站边"],
+      line: targetText
+        ? lowInfoOpeningTarget
+          ? `我这轮只把${targetText}号当轻观察点，先收谁在借题发挥`
+          : `我这轮会把${targetText}号放进归票讨论`
+        : "我这轮会先收束票型",
+      directives: lowInfoOpeningTarget ? ["轻观察", "审计借题发挥", "不要求首置位站边"] : ["给出清晰边界", "组织票型", "要求明确站边"],
     };
   }
 
@@ -1188,7 +1478,7 @@ function chooseContinuityFocus(view: AgentView, tableRead: AiTableRead): SeatRea
   const memory = view.privateKnowledge.aiMemory;
   const rememberedSeatId = memory?.suspectedSeatId ?? memory?.lastSpeechTargetSeatId ?? memory?.lastVoteTargetSeatId;
   const publicFocus = [tableRead.focus, tableRead.backupFocus].find(
-    (seat): seat is SeatRead => Boolean(seat && !isProtectedGoodSpeechTarget(view, tableRead, seat)),
+    (seat): seat is SeatRead => Boolean(seat && isSupportedSpeechFocus(view, tableRead, seat, "public")),
   );
   const rememberedFocus = rememberedSeatId
     ? tableRead.seats.find(
@@ -1196,7 +1486,7 @@ function chooseContinuityFocus(view: AgentView, tableRead: AiTableRead): SeatRea
           seat.seatId === rememberedSeatId &&
           !seat.isSelf &&
           !seat.isWolfTeammate &&
-          !isProtectedGoodSpeechTarget(view, tableRead, seat),
+          isSupportedSpeechFocus(view, tableRead, seat, "memory"),
       )
     : undefined;
 
@@ -1204,6 +1494,41 @@ function chooseContinuityFocus(view: AgentView, tableRead: AiTableRead): SeatRea
   if (!publicFocus) return rememberedFocus;
 
   return rememberedFocus.suspicion >= publicFocus.suspicion - 12 ? rememberedFocus : publicFocus;
+}
+
+function isSupportedSpeechFocus(
+  view: AgentView,
+  tableRead: AiTableRead,
+  seat: SeatRead,
+  source: "public" | "memory",
+): boolean {
+  if (seat.isSelf || seat.isWolfTeammate || isProtectedGoodSpeechTarget(view, tableRead, seat)) return false;
+  if (hasSpokenThisDay(view, seat.seatId)) return true;
+  if (hasCurrentDaySeatMention(view, seat.seatId)) return true;
+  if (view.publicSummary.voteSnapshot.leaders.some((leader) => leader.seatId === seat.seatId)) return true;
+  if (view.publicSummary.recentVotes.some((vote) => vote.day === view.day && vote.target?.seatId === seat.seatId)) return true;
+  if (seat.votesReceived > 0 || seat.publicClaims.length > 0 || seat.publicChecksAgainst.length > 0) return true;
+  if (
+    tableRead.tableMemory.speechInfluence.some(
+      (item) => item.day === view.day && item.target.seatId === seat.seatId && item.direction === "pressure",
+    )
+  ) {
+    return true;
+  }
+
+  const cue = tableRead.tableMemory.reasoningCues.find((item) => item.target?.seatId === seat.seatId);
+  if (cue && (cue.weight !== "light" || view.day >= 2)) return true;
+
+  const focusItem = tableRead.tableMemory.focus.find((item) => item.seat.seatId === seat.seatId);
+  if (view.day >= 2 && focusItem && focusItem.score >= 24) return true;
+
+  return source === "memory" && view.day >= 2;
+}
+
+function hasCurrentDaySeatMention(view: AgentView, seatId: number): boolean {
+  return view.publicSummary.recentSpeeches.some(
+    (speech) => speech.day === view.day && speech.speaker?.seatId !== seatId && countSeatMentions(speech.message, seatId) > 0,
+  );
 }
 
 function buildMemorySpeechPoint(
@@ -1223,7 +1548,7 @@ function buildMemorySpeechPoint(
     return `我上一轮已经点过${focus.seatId}号，当前仍要继续听解释`;
   }
 
-  if (memory.suspectedSeatId === focus.seatId) {
+  if (memory.suspectedSeatId === focus.seatId && view.day >= 2) {
     return `我前面持续怀疑${focus.seatId}号，理由要和今天发言对照`;
   }
 
@@ -1392,7 +1717,8 @@ export function createVotePlan(view: AgentView, tableRead = buildAiTableRead(vie
   const sorted = rankVoteCandidates(view, tableRead, candidatePool);
   const wolfVoteChoice = chooseWolfVoteChoice(view, tableRead, candidatePool, sorted);
   const claimTarget = chooseClaimAwareVoteTarget(view, tableRead, candidatePool);
-  const picked = isWolfRole(view.myRole, view.rules.wolfRoles) ? wolfVoteChoice?.target ?? sorted[0] : knownWolf ?? claimTarget ?? sorted[0];
+  const publicPicked = knownWolf ?? claimTarget ?? chooseSoftDivergentVoteTarget(view, tableRead, sorted);
+  const picked = isWolfRole(view.myRole, view.rules.wolfRoles) ? wolfVoteChoice?.target ?? sorted[0] : publicPicked;
 
   if (!picked) {
     if (!safeReferenceTarget) {
@@ -1419,10 +1745,21 @@ export function createVotePlan(view: AgentView, tableRead = buildAiTableRead(vie
     };
   }
 
+  const topPublicTarget = sorted[0];
+  const divergentSoftTarget = Boolean(
+    picked &&
+      topPublicTarget &&
+      !knownWolf &&
+      !claimTarget &&
+      isSoftSplitVote(view, tableRead, picked, sorted),
+  );
+
   return {
     target: { seatId: picked.seatId, name: picked.name },
-    reason: buildVoteReason(view, tableRead, picked),
-    confidence: picked.isKnownWolf ? 0.95 : Math.max(0.35, Math.min(0.86, picked.suspicion / 100)),
+    reason: divergentSoftTarget ? buildSoftDivergentVoteReason(view, tableRead, picked, topPublicTarget) : buildVoteReason(view, tableRead, picked),
+    confidence: picked.isKnownWolf
+      ? 0.95
+      : Math.max(0.32, Math.min(divergentSoftTarget ? 0.66 : 0.86, picked.suspicion / 100 - (divergentSoftTarget ? 0.08 : 0))),
     alternatives: sorted
       .filter((seat) => seat.seatId !== picked.seatId)
       .slice(0, 2)
@@ -1433,6 +1770,56 @@ export function createVotePlan(view: AgentView, tableRead = buildAiTableRead(vie
 
 function withoutProtectedGoodVoteTargets(view: AgentView, tableRead: AiTableRead, candidates: SeatRead[]): SeatRead[] {
   return candidates.filter((seat) => !isProtectedGoodVoteTarget(view, tableRead, seat));
+}
+
+function chooseSoftDivergentVoteTarget(view: AgentView, tableRead: AiTableRead, sorted: SeatRead[]): SeatRead | undefined {
+  const top = sorted[0];
+  const alternative = sorted[1];
+  if (!top || !alternative) return top;
+  if (hasHardPublicVoteAnchor(tableRead, top) || top.isKnownWolf) return top;
+
+  const topScore = voteScore(view, tableRead, top);
+  const alternativeScore = voteScore(view, tableRead, alternative);
+  const closeEnough = topScore - alternativeScore <= 14 || top.suspicion - alternative.suspicion <= 10;
+  if (!closeEnough) return top;
+
+  const preferences = personaPreferences(view);
+  const shouldSplit = view.mySeatId % 2 === 0 || preferences.caution >= 0.68 || preferences.memory >= 0.78;
+  if (!shouldSplit) return top;
+
+  const closeCandidates = sorted
+    .filter((seat) => top.suspicion - seat.suspicion <= 10 && Math.abs(voteScore(view, tableRead, top) - voteScore(view, tableRead, seat)) <= 18)
+    .slice(0, 3)
+    .sort((a, b) => a.seatId - b.seatId);
+  if (closeCandidates.length < 2) return alternative;
+  return closeCandidates[(view.mySeatId - 1) % closeCandidates.length] ?? alternative;
+}
+
+function isSoftSplitVote(view: AgentView, tableRead: AiTableRead, picked: SeatRead, sorted: SeatRead[]): boolean {
+  const top = sorted[0];
+  if (!top || hasHardPublicVoteAnchor(tableRead, top) || top.isKnownWolf) return false;
+  const preferences = personaPreferences(view);
+  const splitSeat = view.mySeatId % 2 === 0 || preferences.caution >= 0.68 || preferences.memory >= 0.78;
+  if (!splitSeat) return false;
+  return sorted
+    .slice(0, 3)
+    .some((seat) => seat.seatId === picked.seatId && top.suspicion - seat.suspicion <= 10 && Math.abs(voteScore(view, tableRead, top) - voteScore(view, tableRead, seat)) <= 18);
+}
+
+function buildSoftDivergentVoteReason(
+  view: AgentView,
+  tableRead: AiTableRead,
+  target: SeatRead,
+  mainTarget: SeatRead,
+): string {
+  const pressure = target.pressure.find((item) => !/私密|真实身份|WEREWOLF/i.test(item));
+  const mainText = `${mainTarget.name}是主焦点`;
+  const targetText = pressure ? `${target.name}${pressure}` : `${target.name}也有公开发言缺口`;
+  const personaLine =
+    (view.persona?.preferences?.caution ?? 0) >= 0.68
+      ? "我这票按谨慎分歧处理"
+      : "我这票按弱证据替代线处理";
+  return `${mainText}，但证据还没硬到全桌同票；${targetText}，${personaLine}。`;
 }
 
 function withoutWeakProtectedGoldTargetsForWolf(view: AgentView, tableRead: AiTableRead, candidates: SeatRead[]): SeatRead[] {

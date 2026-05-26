@@ -151,7 +151,7 @@ function buildPersuasionIntentNote(view: AgentView): string {
     return "说服意图：狼人公开发言要选择一种桌面收益，抗推、倒钩、保护队友或分裂站边都可以，但理由必须完全像公开视角生成。";
   }
 
-  return "说服意图：好人发言不只是找狼，还要让其他好人能跟票；把怀疑对象、证据硬度和改票条件讲清楚，比单纯报怀疑名单更有效。";
+  return "说服意图：好人发言不只是找狼，还要让其他好人能跟票；把怀疑对象、证据硬度和票口边界讲清楚，比单纯报怀疑名单更有效。";
 }
 
 function buildRoleTaskNote(view: AgentView): string | undefined {

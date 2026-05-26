@@ -160,6 +160,100 @@ describe("model LLM routing", () => {
     expect(result).toEqual({ text: "{\"ok\":true}", providerId: "custom-action:custom-model" });
   });
 
+  it("routes custom DeepSeek reasoner action requests to deepseek-chat for JSON stability", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "{\"candidateId\":\"vote:2\"}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await callRoutedModelJson({
+      personaName: "Claude",
+      task: "action",
+      system: "Return JSON.",
+      input: { candidates: [{ id: "vote:2" }] },
+      maxTokens: 100,
+      customLlm: {
+        provider: "openai-compatible",
+        label: "deepseek-reasoner",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-reasoner",
+        apiKey: "custom-secret",
+        mergeSystemIntoUser: true,
+      },
+    });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[string | URL | Request, RequestInit | undefined]>;
+    const request = JSON.parse(String(calls[0]![1]?.body)) as { model: string };
+    expect(request.model).toBe("deepseek-chat");
+    expect(result).toEqual({ text: "{\"candidateId\":\"vote:2\"}", providerId: "custom-action:deepseek-chat" });
+  });
+
+  it("can disable custom action model overrides for A/B checks", async () => {
+    process.env.AI_LLM_CUSTOM_ACTION_MODEL_OVERRIDES = "off";
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "{\"candidateId\":\"vote:2\"}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await callRoutedModelJson({
+      personaName: "Claude",
+      task: "action",
+      system: "Return JSON.",
+      input: { candidates: [{ id: "vote:2" }] },
+      maxTokens: 100,
+      customLlm: {
+        provider: "openai-compatible",
+        label: "deepseek-reasoner",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-reasoner",
+        apiKey: "custom-secret",
+        mergeSystemIntoUser: true,
+      },
+    });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[string | URL | Request, RequestInit | undefined]>;
+    const request = JSON.parse(String(calls[0]![1]?.body)) as { model: string };
+    expect(request.model).toBe("deepseek-reasoner");
+    expect(result).toEqual({ text: "{\"candidateId\":\"vote:2\"}", providerId: "custom-action:deepseek-reasoner" });
+  });
+
+  it("keeps custom DeepSeek reasoner speech requests on deepseek-reasoner", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "{\"speech\":\"我继续盘公开信息。\"}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await callRoutedModelJson({
+      personaName: "Claude",
+      task: "speech",
+      system: "Return JSON.",
+      input: { seat: 2 },
+      maxTokens: 100,
+      customLlm: {
+        provider: "openai-compatible",
+        label: "deepseek-reasoner",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-reasoner",
+        apiKey: "custom-secret",
+        mergeSystemIntoUser: true,
+      },
+    });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[string | URL | Request, RequestInit | undefined]>;
+    const request = JSON.parse(String(calls[0]![1]?.body)) as { model: string };
+    expect(request.model).toBe("deepseek-reasoner");
+    expect(result).toEqual({ text: "{\"speech\":\"我继续盘公开信息。\"}", providerId: "custom-speech:deepseek-reasoner" });
+  });
+
   it("can route action requests to another persona when the primary provider fails", async () => {
     process.env.AI_LLM_API_KEY = "test-key";
     process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";

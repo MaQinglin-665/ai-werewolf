@@ -195,7 +195,27 @@ describe("table memory death-shape public cues", () => {
       ]),
     );
     expect(memory.publicSignals.join("\n")).toMatch(/首夜单死.*女巫没救.*合理简称/);
-    expect(memory.publicSignals.join("\n")).not.toMatch(/狼人空刀|空刀/);
+    expect(memory.publicSignals.join("\n")).not.toContain("狼人不能空刀");
+  });
+
+  it("treats a day-one peace night as potion-line context while keeping wolf no-kill low probability", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 91 });
+    state.events.push({
+      seq: state.events.length + 1,
+      type: "DAY_STARTED",
+      visibility: "public",
+      day: 1,
+      phase: "DAY_ANNOUNCEMENT",
+      message: "第1天清晨，昨夜平安夜。",
+      payload: { deadSeatIds: [] },
+    });
+
+    const memory = buildTableMemory(state);
+
+    expect(memory.publicSignals.join("\n")).toMatch(/平安夜.*女巫用药了/);
+    expect(memory.publicSignals.join("\n")).toMatch(/不需要让后置位重复解释平安夜本身/);
+    expect(memory.publicSignals.join("\n")).toMatch(/空刀.*不作为发言主线/);
+    expect(memory.publicSignals.join("\n")).not.toContain("狼人不能空刀");
   });
 
   it("does not add no-guard potion-line cues on guard boards", () => {

@@ -14,13 +14,19 @@ const maxLlmCalls = readPositiveInt(args["max-llm-calls"], 8);
 const autoHuman = readAutoHuman(args["auto-human"]);
 const realPhases = readRealPhases(args["real-phases"]);
 const boardId = args.board ?? args["board-id"];
+const lineupModels = readCsv(args.models ?? args["lineup-models"]);
+const lineupBaseUrl = String(args["base-url"] ?? args.baseUrl ?? process.env.AI_LLM_BASE_URL ?? "https://api.deepseek.com");
+const lineupCount = readPositiveInt(args["lineup-count"], 12);
+const jsonMode = readJsonMode(args["json-mode"]);
 const jsonOutput = Boolean(args.json);
 const outPath = args.out ? path.resolve(root, String(args.out)) : undefined;
 const allowMock = Boolean(args["allow-mock"]);
 const failOnError = Boolean(args["fail-on-error"]);
 
 if (args.provider) process.env.AI_LLM_PROVIDER = String(args.provider);
+if (lineupModels.length > 0 && !args.provider) process.env.AI_LLM_PROVIDER = "models";
 if (args.retries !== undefined) process.env.AI_LLM_MAX_RETRIES = String(args.retries);
+if (jsonMode) process.env.AI_LLM_JSON_MODE = jsonMode;
 
 const server = await createServer({
   root,
@@ -45,6 +51,15 @@ try {
     { createConfiguredAiOptions, createMockCommand, mockActionProvider },
     { mockSpeechProvider },
     { refreshAiSeatMemory, rememberAiDecision, storeAiSeatMemory },
+    {
+      analyzeLlmCallQuality,
+      buildLlmOptimizationRecommendations,
+      buildLlmEvaluationFriends,
+      classifyLlmRetryIssueCodes,
+      summarizeLlmAttemptDiagnostics,
+      summarizeLlmQuality,
+      summarizeLlmRetryIssues,
+    },
   ] = await Promise.all([
     server.ssrLoadModule("/src/game/engine.ts"),
     server.ssrLoadModule("/src/game/projection.ts"),
@@ -52,10 +67,19 @@ try {
     server.ssrLoadModule("/src/ai/mockAgent.ts"),
     server.ssrLoadModule("/src/ai/speechProviders.ts"),
     server.ssrLoadModule("/src/ai/seatMemory.ts"),
+    server.ssrLoadModule("/src/ai/llmEvaluation.ts"),
   ]);
 
   const realProviders = createConfiguredAiOptions();
   assertRealProviders(realProviders, allowMock);
+  const aiFriends =
+    lineupModels.length > 0
+      ? buildLlmEvaluationFriends({
+          models: lineupModels,
+          baseUrl: lineupBaseUrl,
+          count: lineupCount,
+        })
+      : undefined;
   const modules = {
     applyCommand,
     applySystemStep,
@@ -77,7 +101,7 @@ try {
   const games = [];
   for (let index = 0; index < gameCount; index += 1) {
     const seed = seedStart + index;
-    const initialState = createGame({ seed, humanSeatId, ...(boardId ? { boardId } : {}) });
+    const initialState = createGame({ seed, humanSeatId, ...(boardId ? { boardId } : {}), ...(aiFriends ? { aiFriends } : {}) });
     games.push(
       await evaluateGame(initialState, modules, {
         autoHuman,
@@ -87,6 +111,10 @@ try {
         realPhases,
         realProviders,
         seed,
+        aiFriends,
+        analyzeLlmCallQuality,
+        classifyLlmRetryIssueCodes,
+        summarizeLlmAttemptDiagnostics,
       }),
     );
   }
@@ -98,12 +126,14 @@ try {
       boardId: boardId ?? "default",
       gameCount,
       humanSeatId,
+      jsonMode: jsonMode ?? process.env.AI_LLM_JSON_MODE ?? "default",
+      lineupModels,
       maxLlmCalls,
       maxSteps,
       realPhases: realPhases ? [...realPhases] : ["ALL_AI_PHASES"],
       seedStart,
     },
-    summary: summarizeGames(games),
+    summary: summarizeGames(games, summarizeLlmQuality, summarizeLlmRetryIssues, buildLlmOptimizationRecommendations),
     games,
   };
 
@@ -159,7 +189,15 @@ async function evaluateGame(initialState, modules, options) {
     state = decision.state;
 
     if (useRealProvider) {
-      calls.push(summarizeCall(decision.aiLog, durationMs));
+      calls.push(
+        summarizeCall(
+          decision.aiLog,
+          durationMs,
+          options.analyzeLlmCallQuality,
+          options.summarizeLlmAttemptDiagnostics,
+          options.classifyLlmRetryIssueCodes,
+        ),
+      );
     } else {
       mockHumanTurns += 1;
     }
@@ -221,7 +259,7 @@ async function evaluateDecision(initialState, requirement, modules, providers) {
   };
 }
 
-function summarizeCall(log, durationMs) {
+function summarizeCall(log, durationMs, analyzeLlmCallQuality, summarizeLlmAttemptDiagnostics, classifyLlmRetryIssueCodes) {
   const reasoningCues = log.prompt.publicSummary.tableMemory.reasoningCues ?? [];
   const speechInfluence = log.prompt.publicSummary.tableMemory.speechInfluence ?? [];
   const outputText = commandText(log.output);
@@ -229,6 +267,25 @@ function summarizeCall(log, durationMs) {
   const attempts = Array.isArray(log.rawOutput) ? log.rawOutput : [];
   const validationErrors = log.validationErrors ?? [];
   const failureType = classifyFailure(log, attempts, validationErrors);
+  const attemptDiagnostics = summarizeLlmAttemptDiagnostics ? summarizeLlmAttemptDiagnostics(attempts) : [];
+  const retryIssueCodes = classifyLlmRetryIssueCodes ? classifyLlmRetryIssueCodes(attemptDiagnostics) : [];
+  const qualityIssues = analyzeLlmCallQuality
+    ? analyzeLlmCallQuality({
+        outputText,
+        phase: log.phase,
+        task: log.output.type === "speak" ? "speech" : "action",
+        reasoningCueCount: reasoningCues.length,
+        referencedReasoningCueCount: referencedCues.length,
+        voteTargetSeatId: "targetSeatId" in log.output ? log.output.targetSeatId : undefined,
+        lastSpeechTargetSeatId: log.prompt.privateKnowledge.aiMemory?.lastSpeechTargetSeatId,
+        myRole: log.prompt.myRole,
+        witchKnownTargets: {
+          currentVictimSeatId: log.prompt.privateKnowledge.witch?.currentVictim?.seatId,
+          savedTargetSeatId: log.prompt.privateKnowledge.witch?.savedTarget?.seatId,
+          poisonedTargetSeatId: log.prompt.privateKnowledge.witch?.poisonedTarget?.seatId,
+        },
+      })
+    : [];
 
   return {
     id: `${log.gameId}:${log.phase}:${log.seatNumber}:${durationMs}`,
@@ -243,6 +300,11 @@ function summarizeCall(log, durationMs) {
     isFallback: log.isFallback,
     failureType,
     validationErrors,
+    qualityIssues,
+    qualityIssueCodes: qualityIssues.map((issue) => issue.code),
+    attemptDiagnostics,
+    retryIssueCodes,
+    primaryRetryIssue: retryIssueCodes[0],
     error: log.error,
     attempts: Math.max(1, attempts.length),
     publicFactBasisCount: log.publicFactBasis?.length ?? 0,
@@ -283,13 +345,20 @@ function buildPublicFactBasis(view) {
   ];
 }
 
-function summarizeGames(games) {
+function summarizeGames(games, summarizeLlmQuality, summarizeLlmRetryIssues, buildLlmOptimizationRecommendations) {
   const calls = games.flatMap((game) => game.calls);
   const totalDurationMs = calls.reduce((sum, call) => sum + call.durationMs, 0);
   const byProvider = countBy(calls, (call) => call.provider);
   const byPersona = countBy(calls, (call) => call.persona);
   const byFailureType = countBy(calls, (call) => call.failureType);
-  return {
+  const quality = summarizeLlmQuality(calls);
+  const retryIssues = summarizeLlmRetryIssues
+    ? summarizeLlmRetryIssues(calls)
+    : {
+        retryIssueCallCount: calls.filter((call) => call.retryIssueCodes?.length > 0).length,
+        byRetryIssue: countBy(calls.flatMap((call) => call.retryIssueCodes ?? []), (code) => code),
+      };
+  const summary = {
     gameCount: games.length,
     completedGames: games.filter((game) => game.result).length,
     totalCalls: calls.length,
@@ -303,6 +372,12 @@ function summarizeGames(games) {
     byProvider,
     byPersona,
     byFailureType,
+    ...retryIssues,
+    ...quality,
+  };
+  return {
+    ...summary,
+    optimizationRecommendations: buildLlmOptimizationRecommendations ? buildLlmOptimizationRecommendations(summary) : [],
   };
 }
 
@@ -318,6 +393,8 @@ function formatMarkdown(report) {
     `- games: ${report.options.gameCount}`,
     `- board: ${report.options.boardId}`,
     `- humanSeatId: ${report.options.humanSeatId}`,
+    `- jsonMode: ${report.options.jsonMode}`,
+    `- lineupModels: ${report.options.lineupModels.length > 0 ? report.options.lineupModels.join(", ") : "default routing"}`,
     `- autoHuman: ${report.options.autoHuman}`,
     `- realPhases: ${report.options.realPhases.join(", ")}`,
     `- maxLlmCalls: ${report.options.maxLlmCalls}`,
@@ -329,15 +406,21 @@ function formatMarkdown(report) {
     `- speech/action: ${report.summary.speechCalls}/${report.summary.actionCalls}`,
     `- fallback: ${report.summary.fallbackCount}`,
     `- validation failures: ${report.summary.validationFailureCount}`,
+    `- retry issues: ${report.summary.retryIssueCallCount} calls (${formatCountMap(report.summary.byRetryIssue)})`,
+    `- quality issues: ${report.summary.totalQualityIssues} (${formatCountMap(report.summary.byQualityIssue)})`,
     `- referenced reasoning cues: ${report.summary.referencedReasoningCueCalls}`,
     `- average duration: ${report.summary.averageDurationMs}ms`,
     `- providers: ${formatCountMap(report.summary.byProvider)}`,
     `- failure types: ${formatCountMap(report.summary.byFailureType)}`,
     "",
+    "## 下一步建议",
+    "",
+    ...formatRecommendations(report.summary.optimizationRecommendations),
+    "",
     "## 调用明细",
     "",
-    "| Game | Day | Phase | Seat | Persona | Task | Provider | Time | Cues | Status | Output |",
-    "| --- | ---: | --- | ---: | --- | --- | --- | ---: | ---: | --- | --- |",
+    "| Game | Day | Phase | Seat | Persona | Task | Provider | Time | Cues | Status | Retry | Quality | Output |",
+    "| --- | ---: | --- | ---: | --- | --- | --- | ---: | ---: | --- | --- | --- | --- |",
   ];
 
   for (const game of report.games) {
@@ -346,8 +429,10 @@ function formatMarkdown(report) {
         `| ${game.seed} | ${call.day} | ${call.phase} | ${call.seatNumber} | ${escapeMd(call.persona)} | ${call.task} | ${escapeMd(
           call.provider,
         )} | ${call.durationMs} | ${call.referencedReasoningCueCount}/${call.reasoningCueCount} | ${call.failureType} | ${escapeMd(
-          call.output,
-        )} |`,
+          call.retryIssueCodes.join(", ") || "ok",
+        )} | ${escapeMd(
+          call.qualityIssueCodes.join(", ") || "ok",
+        )} | ${escapeMd(call.output)} |`,
       );
     }
   }
@@ -365,6 +450,45 @@ function formatMarkdown(report) {
       }
       lines.push(`- 输出：${call.outputText}`, "");
     }
+  }
+
+  lines.push("", "## 自动质量标记", "");
+  const issueCalls = report.games.flatMap((game) => game.calls.map((call) => ({ game, call }))).filter(({ call }) => call.qualityIssues.length > 0);
+  if (issueCalls.length === 0) {
+    lines.push("- 暂无自动质量标记。", "");
+  } else {
+    for (const { game, call } of issueCalls.slice(0, 12)) {
+      lines.push(`- Seed ${game.seed} · ${call.persona} · ${call.phase}: ${call.qualityIssues.map((issue) => issue.code).join(", ")}`);
+      for (const issue of call.qualityIssues) {
+        lines.push(`  - ${issue.severity}: ${issue.detail}`);
+      }
+      lines.push(`  - 输出：${call.outputText}`);
+    }
+    lines.push("");
+  }
+
+  lines.push("", "## 失败尝试摘要", "");
+  const diagnosticCalls = report.games
+    .flatMap((game) => game.calls.map((call) => ({ game, call })))
+    .filter(({ call }) => call.attemptDiagnostics.length > 0);
+  if (diagnosticCalls.length === 0) {
+    lines.push("- 暂无失败尝试摘要。", "");
+  } else {
+    for (const { game, call } of diagnosticCalls.slice(0, 12)) {
+      lines.push(
+        `- Seed ${game.seed} · ${call.persona} · ${call.phase} · ${call.provider}${
+          call.retryIssueCodes.length > 0 ? ` · retry: ${call.retryIssueCodes.join(", ")}` : ""
+        }`,
+      );
+      for (const attempt of call.attemptDiagnostics) {
+        lines.push(
+          `  - attempt ${attempt.attempt}: ${escapeMd(attempt.issue)}${
+            attempt.rawOutputSnippet ? ` | raw: ${escapeMd(attempt.rawOutputSnippet)}` : ""
+          }`,
+        );
+      }
+    }
+    lines.push("");
   }
 
   lines.push(
@@ -494,6 +618,14 @@ function formatCountMap(value) {
   return entries.length > 0 ? entries.map(([key, count]) => `${key} ${count}`).join(", ") : "none";
 }
 
+function formatRecommendations(recommendations) {
+  if (!recommendations || recommendations.length === 0) return ["- 暂无自动建议。"];
+  return recommendations.slice(0, 6).map((recommendation) => {
+    const evidence = recommendation.evidence?.length ? recommendation.evidence.join(", ") : "none";
+    return `- [${recommendation.priority}] ${recommendation.title} (${recommendation.area})：${recommendation.nextStep} 证据：${evidence}`;
+  });
+}
+
 function seatText(seat) {
   return `${seat.seatId}号${seat.name ? ` ${seat.name}` : ""}`;
 }
@@ -542,6 +674,21 @@ function readRealPhases(value) {
     .map((phase) => phase.trim().toUpperCase())
     .filter(Boolean);
   return phases.length > 0 ? new Set(phases) : undefined;
+}
+
+function readCsv(value) {
+  return String(value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function readJsonMode(value) {
+  const clean = String(value ?? "").trim().toLowerCase();
+  if (!clean) return undefined;
+  if (clean === "on" || clean === "true" || clean === "1") return "on";
+  if (clean === "off" || clean === "false" || clean === "0") return "off";
+  return undefined;
 }
 
 function shouldUseRealProvider(requirement, options) {

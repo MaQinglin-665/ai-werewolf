@@ -52,7 +52,7 @@ function buildSeerPlaybook(view: AgentView): AiRolePlaybook {
       "藏金水留生存：首日只有金水且压力不大时，可以先藏查验，用发言质量保护自己。",
       hasSeerCounterclaim
         ? `对跳校验：先比双方验人心路、起跳时机、${routeLabel}和外置位站边，不只报身份。`
-        : "单边组织：单边时也要给验人理由、后续验人方向和改票条件。",
+        : "单边组织：单边时也要给验人理由、后续验人方向和票口边界。",
     ],
     reasoningPriorities: [
       "验人结构优先于听感，查杀和金水都要落到票型收益上。",
@@ -82,7 +82,7 @@ function buildWitchPlaybook(view: AgentView): AiRolePlaybook {
     tableIdentity: "轮次资源位。解药和毒药要服务轮次，不是有药就用。",
     tacticalVariants: [
       "保信息：首夜或关键身份疑似中刀时优先考虑救人，但守卫局要考虑同守同救风险。",
-      "藏药线：信息不硬时不公开药瓶细节，用公开发言和票型继续施压。",
+      "藏药线：信息不硬时不说具体救毒目标，用公开发言和票型继续施压。",
       "毒药收坑：有可信查杀、夜死预言家遗留或多重公开压力时，毒药可以加速排坑。",
     ],
     reasoningPriorities: [
@@ -210,7 +210,7 @@ function buildKnightPlaybook(view: AgentView): AiRolePlaybook {
     ],
     speechAngles: [
       "说清“决斗不会替代推理，证据够硬再动手”。",
-      "要求目标补身份线、站边和票口。",
+      "只追目标一个硬矛盾，别一次要求身份线、站边和票口全交。",
     ],
     avoid: [
       "不要把对跳本身当唯一决斗理由。",
@@ -238,7 +238,7 @@ function buildVillagerPlaybook(view: AgentView): AiRolePlaybook {
     ],
     speechAngles: [
       "用“我闭眼视角”开头，明确证据来源都是公开信息。",
-      "给后置位任务：补站边、补票口、解释身份线。",
+      "只点一个具体位置或一条发言链，留下可验证问题。",
     ],
     avoid: [
       "不要假装有夜间信息。",

@@ -447,7 +447,11 @@ function containsDeathCauseOverclaim(text, state, day) {
   const publicDeath = state.events.find((event) => event.type === "DAY_STARTED" && event.day === day);
   if (!publicDeath) return false;
   if (!/(平安夜|死亡|倒牌)/.test(publicDeath.message)) return false;
-  return /(女巫没开药|狼队空刀|狼刀|毒|自刀|守刀|刀口)/.test(text) && /(是|就是|一定|肯定|说明|因为|导致)/.test(text);
+  return (
+    /(?:刀口|毒口|自刀|守刀).{0,10}(?:是|就是|一定|肯定|说明|因为|导致)/.test(text) ||
+    /(?:是|就是|一定|肯定|说明|因为|导致).{0,10}(?:刀口|毒口|自刀|守刀)/.test(text) ||
+    /女巫.{0,12}(?:救了|毒了)\d+\s*号?/.test(text)
+  );
 }
 
 function containsUnspokenPlayerJudgment(text, spokenSeats, state) {

@@ -1526,13 +1526,13 @@ describe("game engine", () => {
     const provider = createConstrainedLlmSpeechProvider({
       providerId: "broken-json-speech",
       strictness: "guided",
-      render: async () => "{\"speech\":\"我是6号。场上信息给得很快，2号跳女巫点9号",
+      render: async () => "{\"speech\":\"我是6号。第一轮信息还少，我先只看公开发言顺序。票口等发言链更完整再落",
     });
 
     const result = await provider.generateSpeech(buildAgentView(state, speaker.seatId));
 
     expect(result.isFallback).toBe(false);
-    expect(result.speech).toBe("我是6号。场上信息给得很快，2号跳女巫点9号");
+    expect(result.speech).toBe("我是6号。第一轮信息还少，我先只看公开发言顺序。票口等发言链更完整再落");
   });
 
   it("builds a table briefing that separates facts, unknowns, and speech order", () => {
@@ -1715,7 +1715,7 @@ describe("game engine", () => {
     expect(planFor("Kimi").personaCue?.mode).toBe("identity");
   });
 
-  it("keeps speech plans out of guided LLM input but preserves them for strict mode", () => {
+  it("passes sanitized speech plans into guided and strict LLM input", () => {
     let state = createGame({ seed: 67, humanSeatId: 9 });
     const speaker = state.seats.find((seat) => seat.isAi && seat.role !== "WEREWOLF")!;
     const previous = state.seats.find((seat) => seat.isAi && seat.seatId !== speaker.seatId)!;
@@ -1734,7 +1734,9 @@ describe("game engine", () => {
     const strictInput = buildConstrainedSpeechInput(view, plan, "strict");
     const serialized = JSON.stringify(input);
 
-    expect(input.speechPlan).toBeUndefined();
+    expect(input.speechPlan?.targetSpeechStatus).toBe(plan.targetSpeechStatus);
+    expect(input.speechPlan?.allowedInteraction).toBe(plan.allowedInteraction);
+    expect(input.speechPlan?.interaction?.line).toBe(plan.interaction?.line);
     expect(strictInput.speechPlan?.interaction?.line).toBe(plan.interaction?.line);
     expect(strictInput.speechPlan?.personaCue?.directives.length).toBeGreaterThan(0);
     expect(serialized).not.toMatch(/privateKnowledge|wolfTeamPlan|ROLE_ASSIGNED/);
@@ -1793,7 +1795,7 @@ describe("game engine", () => {
     expect(input.privateContext.witch?.currentVictim).toBeUndefined();
     expect(input.privateContext.witch?.savedTarget?.seatId).toBe(victim.seatId);
     expect(input.privateContext.witch?.antidoteUsedTonight).toBe(true);
-    expect(input.speechPlan).toBeUndefined();
+    expect(input.speechPlan?.allowedInteraction).toBe("none");
   });
 
   it("lets witch claim and lead when identity pressure needs a god anchor", () => {
@@ -2060,7 +2062,8 @@ describe("game engine", () => {
       strictness: "guided",
       async render(input) {
         expect(input.speechStrictness).toBe("guided");
-        expect(input.constraints).toBeUndefined();
+        expect(input.constraints?.join("\n")).toContain("狼人杀允许低信息推测");
+        expect(input.constraints?.join("\n")).toContain("死亡/平安夜直接按公开死亡形态处理");
         return `我临时改一下视角，${target.seatId}号像查杀，先听这里解释。`;
       },
     });
@@ -2071,7 +2074,7 @@ describe("game engine", () => {
     expect(result.speech).toContain(`${target.seatId}号像查杀`);
   });
 
-  it("allows guided seer speech to bluff around a real check", async () => {
+  it("rejects guided seer speech that flips a real black check into gold water", async () => {
     const state = createGame({ seed: 23 });
     const seer = state.seats.find((seat) => seat.isAi && seat.role === "SEER")!;
     const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
@@ -2094,8 +2097,11 @@ describe("game engine", () => {
 
     const result = await provider.generateSpeech(view, plan);
 
-    expect(result.isFallback).toBe(false);
-    expect(result.speech).toContain(`${wolf.seatId}号是金水`);
+    expect(result.isFallback).toBe(true);
+    expect(result.speech).toMatch(new RegExp(`${wolf.seatId}号.*是查杀`));
+    expect(result.speech).toMatch(/票口|硬身份反证/);
+    expect(result.speech).not.toMatch(new RegExp(`听${wolf.seatId}号.*怎么回应`));
+    expect(result.speech).not.toContain(`${wolf.seatId}号是金水`);
   });
 
   it("allows guided wolf speeches to cut or black a wolf teammate as a strategy", async () => {
@@ -2126,16 +2132,20 @@ describe("game engine", () => {
     const input = buildConstrainedSpeechInput(view, createSpeechPlan(view));
     const serialized = JSON.stringify(input);
 
-    expect(serialized).not.toContain("constraints");
-    expect(serialized).not.toContain("speechPlan");
+    expect(input.constraints?.join("\n")).toContain("狼人杀允许低信息推测");
+    expect(input.constraints?.join("\n")).toContain("不要把女巫是谁");
+    expect(input.speechPlan?.targetSpeechStatus).toBeDefined();
+    expect(input.speechPlan?.allowedInteraction).toBeDefined();
     expect(serialized).not.toMatch(/privateKnowledge|wolfTeamPlan|assignments|wolfTeammates|ROLE_ASSIGNED/);
-    expect(validateRenderedSpeech(view, createSpeechPlan(view), "系统告诉我真实身份，队友别暴露。")).toEqual([]);
-    expect(validateRenderedSpeech(view, createSpeechPlan(view), "作为AI语言模型，我会根据规则分析。")).toEqual([]);
+    expect(validateRenderedSpeech(view, createSpeechPlan(view), "系统告诉我真实身份，队友别暴露。", "loose")).toEqual([]);
+    expect(validateRenderedSpeech(view, createSpeechPlan(view), "作为AI语言模型，我会根据规则分析。", "loose")).toEqual([]);
     expect(validateRenderedSpeech(view, createSpeechPlan(view), "作为AI语言模型，我会根据规则分析。", "strict")).toEqual(
       expect.arrayContaining(["发言包含离局或模型说明"]),
     );
     const unspoken = view.aliveSeats.find((seat) => seat.seatId !== view.mySeatId)!;
-    expect(validateRenderedSpeech(view, createSpeechPlan(view), `${unspoken.seatId}号到现在给的信息量太少，没有明确站边。`)).toEqual([]);
+    expect(validateRenderedSpeech(view, createSpeechPlan(view), `${unspoken.seatId}号到现在给的信息量太少，没有明确站边。`)).toEqual(
+      expect.arrayContaining([`把本轮未发言的${unspoken.seatId}号当成已发言评价`]),
+    );
     expect(validateRenderedSpeech(view, createSpeechPlan(view), `${unspoken.seatId}号到现在给的信息量太少，没有明确站边。`, "strict")).toEqual(
       expect.arrayContaining([`把本轮未发言的${unspoken.seatId}号当成已发言评价`]),
     );
@@ -2215,7 +2225,7 @@ describe("game engine", () => {
     expect(result.isFallback).toBe(false);
     expect(result.provider).toBe("test-action-llm");
     expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
-    expect(result.command.reason).toBe("public pressure and vote shape point there");
+    expect(result.command.reason).toBe("备选票线：公开发言和票型压力可解释，作为合法分歧票口。");
   });
 
   it("adds a compact public decision summary to LLM action input", () => {
@@ -2301,7 +2311,8 @@ describe("game engine", () => {
 
     expect(result.isFallback).toBe(false);
     expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
-    expect(result.command.reason).toBe(expectedReason);
+    expect(expectedReason).toContain("备选票线");
+    expect(result.command.reason).toBe("备选票线：公开发言和票型压力可解释，作为合法分歧票口。");
   });
 
   it("falls back when LLM action chooses a missing candidate", async () => {

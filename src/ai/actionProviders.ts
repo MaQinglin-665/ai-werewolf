@@ -32,6 +32,7 @@ import { buildExpertStrategyNotes } from "./expertStrategy";
 import { buildReasoningFrame, type AiReasoningFrame } from "./reasoningFrame";
 import { buildRolePlaybook, type AiRolePlaybook } from "./rolePlaybook";
 import { isProtectedDeadSeerGoldSeat } from "./protectedGold";
+import { buildPublicInferenceLayers, type PublicInferenceLayers } from "./inferenceLayers";
 import type { AiActionProvider, AiActionProviderContext, AiActionResult } from "./types";
 
 const ActionDecisionSchema = z
@@ -75,6 +76,7 @@ export type LlmActionInput = {
       votePressure: string[];
       speechChain: string[];
       claimPressure: string[];
+      speechVoteContinuity: string[];
     };
     tableMemory: Pick<
       TableMemory,
@@ -127,6 +129,7 @@ export type LlmActionInput = {
   };
   expertStrategy: string[];
   advancedReasoning: string[];
+  inferenceLayers: PublicInferenceLayers;
   reasoningFrame: AiReasoningFrame;
   rolePlaybook: AiRolePlaybook;
   claimAudit: AiClaimAudit;
@@ -158,7 +161,7 @@ export function createConfiguredActionProvider(defaultProvider: AiActionProvider
   }
 
   if (isModelLlmRoutingAvailable()) {
-    return routedModelActionProvider;
+    return createCustomAwareActionProvider(routedModelActionProvider);
   }
 
   if ((process.env.AI_ACTION_PROVIDER === "openai" || process.env.AI_DECISION_PROVIDER === "openai") && process.env.OPENAI_API_KEY) {
@@ -210,7 +213,16 @@ export function createConstrainedLlmActionProvider(options: {
             continue;
           }
 
-          const validationErrors = validateActionDecision(view, input, parsed.decision);
+          const selected = input.candidates.find((candidate) => candidate.id === parsed.decision.candidateId);
+          if (!selected) {
+            lastIssue = "LLM selected a missing candidate.";
+            lastValidationErrors = ["candidateId is not in the allowed candidate list"];
+            attempts.push({ attempt, provider: providerId, rawOutput, issue: lastIssue, validationErrors: lastValidationErrors });
+            continue;
+          }
+
+          const decision = withCandidateReasonHint(parsed.decision, selected);
+          const validationErrors = validateActionDecision(view, input, decision);
           if (validationErrors.length > 0) {
             lastIssue = `LLM action did not pass constraints: ${validationErrors.join("; ")}`;
             lastValidationErrors = validationErrors;
@@ -218,17 +230,9 @@ export function createConstrainedLlmActionProvider(options: {
             continue;
           }
 
-          const selected = input.candidates.find((candidate) => candidate.id === parsed.decision.candidateId);
-          if (!selected) {
-            lastIssue = "LLM selected a missing candidate.";
-            lastValidationErrors = ["missing candidate"];
-            attempts.push({ attempt, provider: providerId, rawOutput, issue: lastIssue, validationErrors: lastValidationErrors });
-            continue;
-          }
-
           attempts.push({ attempt, provider: providerId, rawOutput });
           return {
-            command: commandFromDecision(selected.command, parsed.decision, selected.reasonHint),
+            command: commandFromDecision(selected.command, decision, selected.reasonHint),
             provider: providerId,
             rawOutput: packLlmOutputAttempts(attempts),
             isFallback: false,
@@ -304,6 +308,7 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
     },
     expertStrategy: buildExpertStrategyNotes(view),
     advancedReasoning: buildAdvancedReasoningNotes(view),
+    inferenceLayers: buildPublicInferenceLayers(view),
     reasoningFrame: buildReasoningFrame(view),
     rolePlaybook: buildRolePlaybook(view),
     claimAudit: buildClaimAudit(view),
@@ -311,7 +316,7 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
     votePlan,
     fallbackCandidateId,
     candidates,
-    constraints: buildActionConstraints(view),
+    constraints: buildActionConstraints(view, votePlan),
     llmConfig: view.llmConfig,
   };
 }
@@ -356,7 +361,58 @@ function buildPublicActionDecisionSummary(
       .map(compactPublicLine)
       .filter(Boolean)
       .slice(0, 6),
+    speechVoteContinuity: buildSpeechVoteContinuityLines(view, candidateTargets).slice(0, 4),
   };
+}
+
+function buildSpeechVoteContinuityLines(view: AgentView, candidateTargets: ActionTarget[]): string[] {
+  const memory = view.privateKnowledge.aiMemory;
+  if (!memory) return [];
+  const lines: string[] = [];
+  const speechTarget = memory.lastSpeechTargetSeatId
+    ? candidateTargets.find((target) => target.seatId === memory.lastSpeechTargetSeatId) ??
+      view.aliveSeats.find((target) => target.seatId === memory.lastSpeechTargetSeatId)
+    : undefined;
+  if (speechTarget) {
+    lines.push(
+      `speechVoteContinuity: 上一轮发言点过${seatLabel(speechTarget)}${
+        memory.lastSpeechStance ? `（${compactPublicLine(memory.lastSpeechStance)}）` : ""
+      }；投票若延续要说明疑点未解除，若转票要说明公开证据为什么更硬。`,
+    );
+  }
+
+  const voteTarget = memory.lastVoteTargetSeatId
+    ? candidateTargets.find((target) => target.seatId === memory.lastVoteTargetSeatId) ??
+      view.aliveSeats.find((target) => target.seatId === memory.lastVoteTargetSeatId)
+    : undefined;
+  if (voteTarget) {
+    lines.push(
+      `speechVoteContinuity: 上一次投票压过${seatLabel(voteTarget)}${
+        memory.lastVoteReason ? `（${compactPublicLine(memory.lastVoteReason)}）` : ""
+      }；继续投要说明同一证据链，改投要说明新增公开信息。`,
+    );
+  }
+
+  return lines;
+}
+
+function withSpeechVoteReasonHint(
+  view: AgentView,
+  target: ActionTarget,
+  reasonHint: string | undefined,
+): string | undefined {
+  if (view.phase !== "DAY_VOTE") return reasonHint;
+  const lastSpeechTargetSeatId = view.privateKnowledge.aiMemory?.lastSpeechTargetSeatId;
+  if (!lastSpeechTargetSeatId || /speech-vote continuity/i.test(reasonHint ?? "")) return reasonHint;
+
+  const baseReason = reasonHint ?? "公开票型压力";
+  if (target.seatId === lastSpeechTargetSeatId) {
+    return `${baseReason}; speech-vote continuity: 延续上一轮发言压力，说明疑点未解除。`;
+  }
+
+  const previousTarget = view.aliveSeats.find((seat) => seat.seatId === lastSpeechTargetSeatId);
+  if (!previousTarget) return reasonHint;
+  return `${baseReason}; speech-vote continuity: 从上一轮发言点过的${seatLabel(previousTarget)}转票到${seatLabel(target)}，说明新增公开证据更硬。`;
 }
 
 function publicEvidenceForTarget(view: AgentView, target: ActionTarget): string[] {
@@ -601,9 +657,14 @@ export function validateActionDecision(view: AgentView, input: LlmActionInput, d
     errors.push("action provider cannot select speech commands");
   }
 
-  const reasonIssue = validateActionReasonQuality(decision.reason);
+  const effectiveReason = decision.reason || candidate.reasonHint;
+  const reasonIssue = validateActionReasonQuality(effectiveReason);
   if (reasonIssue) {
     errors.push(reasonIssue);
+  }
+  const continuityIssue = validateSpeechVoteContinuityReason(view, candidate, effectiveReason);
+  if (continuityIssue) {
+    errors.push(continuityIssue);
   }
 
   if (candidate.command.type === "lastWords" && message && containsActionPrivateLeak(message)) {
@@ -675,7 +736,7 @@ function buildActionCandidates(
           actorSeatId: view.mySeatId,
           message: "我先继续发言，把当前公开信息和票型压力说清楚。",
         },
-        reasonHint: "keep the white wolf king ability hidden and continue normal public speech",
+        reasonHint: "先正常公开发言，暂不暴露白狼王能力。",
       });
       const action = getAction(view, "whiteWolfKingExplode");
       const targets = action?.targets ?? [];
@@ -689,7 +750,7 @@ function buildActionCandidates(
           label: `Explode and take ${target.name}`,
           command: { type: "whiteWolfKingExplode", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint: targetReasonHint(tableRead, target, "best public-value target for white wolf king self-explosion"),
+          reasonHint: targetReasonHint(tableRead, target, "公开身份或票型价值最高，适合白狼王带走。"),
         });
       }
       break;
@@ -706,7 +767,7 @@ function buildActionCandidates(
           command: { type: "wolfKill", actorSeatId: view.mySeatId, targetSeatId: plannedTarget.seatId },
           target: plannedTarget,
           recommended: true,
-          reasonHint: targetReasonHint(tableRead, plannedTarget, "coordinated night target with public-safe credibility rationale"),
+          reasonHint: targetReasonHint(tableRead, plannedTarget, "夜刀目标能用公开票型和发言压力解释。"),
         });
       }
       for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => seat.trust - seat.suspicion * 0.25)) {
@@ -716,7 +777,7 @@ function buildActionCandidates(
           label: `Kill ${target.name}`,
           command: { type: "wolfKill", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint: privateWolfTarget ? "potion-bait night line" : targetReasonHint(tableRead, target, "high public trust or role pressure"),
+          reasonHint: privateWolfTarget ? "夜间魅惑线可以制造药线压力" : targetReasonHint(tableRead, target, "公开信任或身份压力较高。"),
         });
       }
       break;
@@ -732,7 +793,7 @@ function buildActionCandidates(
           label: `Charm ${target.name}`,
           command: { type: "wolfBeautyCharm", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint: targetReasonHint(tableRead, target, "high-value charm target"),
+          reasonHint: targetReasonHint(tableRead, target, "魅惑收益较高，公开上也能解释。"),
         });
       }
       if (action?.canSkip) {
@@ -740,7 +801,7 @@ function buildActionCandidates(
           id: "wolfBeauty:skip",
           label: "Skip charm",
           command: { type: "wolfBeautyCharm", actorSeatId: view.mySeatId },
-          reasonHint: "hold charm value because no target is decisive",
+        reasonHint: "暂留魅惑收益，当前目标不够决定性。",
         });
       }
       break;
@@ -753,7 +814,7 @@ function buildActionCandidates(
           label: `Guard ${target.name}`,
           command: { type: "guardAction", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint: targetReasonHint(tableRead, target, "most valuable public protection target"),
+          reasonHint: targetReasonHint(tableRead, target, "公开上最值得守护的位置。"),
         });
       }
       if (action?.canSkip) {
@@ -761,7 +822,7 @@ function buildActionCandidates(
           id: "guard:skip",
           label: "Skip guard",
           command: { type: "guardAction", actorSeatId: view.mySeatId },
-          reasonHint: "skip to avoid a weak or repeated protection",
+          reasonHint: "避免弱守或重复守护，先空守观察。",
         });
       }
       break;
@@ -779,7 +840,7 @@ function buildActionCandidates(
           label: `Check ${target.name}`,
           command: { type: "seerCheck", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint: targetReasonHint(tableRead, target, "highest information value"),
+          reasonHint: targetReasonHint(tableRead, target, "验人信息量最高。"),
         });
       }
       break;
@@ -792,7 +853,7 @@ function buildActionCandidates(
           label: `Save ${action.saveTarget.name}`,
           command: { type: "witchAction", actorSeatId: view.mySeatId, mode: "save" },
           target: action.saveTarget,
-          reasonHint: "save keeps the night victim alive",
+          reasonHint: "开解药保住夜里刀口。",
         });
       }
       if (action?.canPoison) {
@@ -802,7 +863,7 @@ function buildActionCandidates(
             label: `Poison ${target.name}`,
             command: { type: "witchAction", actorSeatId: view.mySeatId, mode: "poison", targetSeatId: target.seatId },
             target,
-            reasonHint: targetReasonHint(tableRead, target, "poison target has the strongest public suspicion"),
+            reasonHint: targetReasonHint(tableRead, target, "公开嫌疑最高，适合考虑毒杀。"),
           });
         }
       }
@@ -810,7 +871,7 @@ function buildActionCandidates(
         id: "witch:skip",
         label: "Skip potion use",
         command: { type: "witchAction", actorSeatId: view.mySeatId, mode: "skip" },
-        reasonHint: "hold potion because the current information is not decisive",
+        reasonHint: "当前信息不够决定性，先留药观察。",
       });
       break;
     }
@@ -819,13 +880,13 @@ function buildActionCandidates(
         id: "sheriff:run",
         label: "Run for sheriff",
         command: { type: "sheriffNominate", actorSeatId: view.mySeatId, run: true },
-        reasonHint: "take initiative in the sheriff race",
+        reasonHint: "主动上警争取警徽组织桌面。",
       });
       add({
         id: "sheriff:stay-down",
         label: "Stay police-down",
         command: { type: "sheriffNominate", actorSeatId: view.mySeatId, run: false },
-        reasonHint: "stay off the sheriff stand and evaluate candidates",
+        reasonHint: "不上警，先观察警上发言和站边。",
       });
       break;
     }
@@ -839,7 +900,7 @@ function buildActionCandidates(
           actorSeatId: view.mySeatId,
           message: "我竞选警长会按公开发言、身份声明和票型来归票，先把警徽给能组织桌面的人。",
         },
-        reasonHint: "give a public-safe sheriff campaign speech",
+        reasonHint: "发表公开安全的警上竞选发言。",
       });
       break;
     }
@@ -848,13 +909,13 @@ function buildActionCandidates(
         id: "sheriff:hold",
         label: "Stay in sheriff race",
         command: { type: "sheriffWithdraw", actorSeatId: view.mySeatId, withdraw: false },
-        reasonHint: "remain available for sheriff vote",
+        reasonHint: "继续留在警上接受投票检验。",
       });
       add({
         id: "sheriff:withdraw",
         label: "Withdraw",
         command: { type: "sheriffWithdraw", actorSeatId: view.mySeatId, withdraw: true },
-        reasonHint: "step down because the campaign is no longer useful",
+        reasonHint: "退水，避免警徽竞争继续消耗桌面。",
       });
       break;
     }
@@ -867,7 +928,7 @@ function buildActionCandidates(
           label: `Vote sheriff ${target.name}`,
           command: { type: "sheriffVote", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint: targetReasonHint(tableRead, target, "best sheriff candidate from public speech"),
+          reasonHint: targetReasonHint(tableRead, target, "警上公开发言最适合拿警徽。"),
         });
       }
       if (action?.canAbstain) {
@@ -875,7 +936,7 @@ function buildActionCandidates(
           id: "sheriffVote:abstain",
           label: "Abstain sheriff vote",
           command: { type: "sheriffVote", actorSeatId: view.mySeatId },
-          reasonHint: "no candidate is credible enough",
+          reasonHint: "暂无足够可信的警长候选。",
         });
       }
       break;
@@ -891,18 +952,24 @@ function buildActionCandidates(
         });
         break;
       }
-      const targetOrder = orderVoteTargets(tableRead, action?.targets ?? [], votePlan);
+      const targetOrder = orderVoteTargets(view, tableRead, action?.targets ?? [], votePlan);
+      const leadAlternative = chooseLeadVoteAlternative(view, votePlan, action?.targets ?? []);
       for (const target of targetOrder) {
         add({
           id: `vote:${target.seatId}`,
           label: `Vote ${target.name}`,
           command: { type: "vote", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint:
+          recommended: leadAlternative?.seatId === target.seatId ? true : undefined,
+          reasonHint: withSpeechVoteReasonHint(
+            view,
+            target,
             votePlan?.target.seatId === target.seatId
               ? votePlan.reason
               : protectedDeadSeerGoldReasonHint(tableRead, target) ??
-                publicSafeTargetReasonHint(view, tableRead, target, "public suspicion"),
+                  votePlanAlternativeReasonHint(votePlan, target) ??
+                  publicSafeTargetReasonHint(view, tableRead, target, "公开疑点较多。"),
+          ),
         });
       }
       if (action?.canAbstain) {
@@ -910,7 +977,7 @@ function buildActionCandidates(
           id: "vote:abstain",
           label: "Abstain",
           command: { type: "vote", actorSeatId: view.mySeatId },
-          reasonHint: "no exile target is public-safe enough yet",
+          reasonHint: "暂时没有足够公开安全的放逐目标。",
         });
       }
       break;
@@ -922,7 +989,7 @@ function buildActionCandidates(
           id: "knight:skip",
           label: "Skip knight duel",
           command: { type: "knightDuel", actorSeatId: view.mySeatId },
-          reasonHint: "public evidence is not strong enough for a duel",
+          reasonHint: "公开证据还不够硬，暂不发动决斗。",
         });
       }
       for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => knightDuelTargetScore(tableRead, seat))) {
@@ -931,7 +998,7 @@ function buildActionCandidates(
           label: `Duel ${target.name}`,
           command: { type: "knightDuel", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint: targetReasonHint(tableRead, target, "strongest public wolf evidence"),
+          reasonHint: targetReasonHint(tableRead, target, "公开狼面证据最强。"),
         });
       }
       break;
@@ -948,7 +1015,7 @@ function buildActionCandidates(
           label: "Reveal hunter",
           command: { type: "hunterReveal", actorSeatId: view.mySeatId, reveal: true },
           target: strongestTarget,
-          reasonHint: targetReasonHint(tableRead, strongestTarget, "strongest public suspicion"),
+          reasonHint: targetReasonHint(tableRead, strongestTarget, "公开嫌疑最强。"),
           recommended: shouldReveal,
         });
       }
@@ -956,7 +1023,7 @@ function buildActionCandidates(
         id: "hunter:declineReveal",
         label: "Do not reveal hunter",
         command: { type: "hunterReveal", actorSeatId: view.mySeatId, reveal: false },
-        reasonHint: strongestTarget ? "no shot target is certain enough" : "no legal shot target remains",
+        reasonHint: strongestTarget ? "枪口还不够确定，先不拍身份。" : "没有合法枪口目标。",
         recommended: !strongestTarget || !shouldReveal,
       });
       break;
@@ -969,7 +1036,7 @@ function buildActionCandidates(
           label: `Shoot ${target.name}`,
           command: { type: "hunterShoot", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint: targetReasonHint(tableRead, target, "strongest public suspicion"),
+          reasonHint: targetReasonHint(tableRead, target, "公开嫌疑最强。"),
         });
       }
       break;
@@ -981,7 +1048,7 @@ function buildActionCandidates(
           id: "wolfKing:skip",
           label: "Skip wolf king shot",
           command: { type: "wolfKingShoot", actorSeatId: view.mySeatId },
-          reasonHint: "no target is certain enough",
+          reasonHint: "目标还不够确定，先不带人。",
         });
       }
       for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => seat.suspicion - seat.trust * 0.2)) {
@@ -990,7 +1057,7 @@ function buildActionCandidates(
           label: `Wolf king shoots ${target.name}`,
           command: { type: "wolfKingShoot", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint: targetReasonHint(tableRead, target, "best public shot value"),
+          reasonHint: targetReasonHint(tableRead, target, "公开收益最高的枪口。"),
         });
       }
       break;
@@ -1003,7 +1070,7 @@ function buildActionCandidates(
           label: `Pass badge to ${target.name}`,
           command: { type: "sheriffHandoff", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint: targetReasonHint(tableRead, target, "best public trust to receive sheriff badge"),
+          reasonHint: targetReasonHint(tableRead, target, "公开信任最高，适合接警徽。"),
         });
       }
       if (action?.canTear) {
@@ -1011,7 +1078,7 @@ function buildActionCandidates(
           id: "sheriffHandoff:tear",
           label: "Tear badge",
           command: { type: "sheriffHandoff", actorSeatId: view.mySeatId },
-          reasonHint: "avoid passing badge to an unreliable seat",
+          reasonHint: "避免把警徽交给不稳定位置。",
         });
       }
       break;
@@ -1050,14 +1117,23 @@ function buildActionCandidates(
     });
   }
 
-  return candidates.map((candidate) =>
-    sameCommand(candidate.command, fallbackCommand)
-      ? { ...candidate, recommended: true, reasonHint: fallbackCommand.reason ?? candidate.reasonHint }
-      : candidate,
-  );
+  const shouldMarkFallbackRecommended =
+    !(view.phase === "DAY_VOTE" && Boolean(votePlan?.alternatives.length));
+
+  return candidates.map((candidate) => {
+    if (!sameCommand(candidate.command, fallbackCommand)) return candidate;
+    const target = candidate.target ?? commandTarget(view, fallbackCommand);
+    const reasonHint = fallbackCommand.reason ?? candidate.reasonHint;
+    return {
+      ...candidate,
+      recommended: shouldMarkFallbackRecommended ? true : candidate.recommended,
+      reasonHint: target ? withSpeechVoteReasonHint(view, target, reasonHint) : reasonHint,
+    };
+  });
 }
 
 function orderVoteTargets(
+  view: AgentView,
   tableRead: AiTableRead,
   legalTargets: ActionTarget[],
   votePlan: VotePlan | undefined,
@@ -1073,7 +1149,9 @@ function orderVoteTargets(
     if (isProtected(target) === protectedState) push(target);
   };
   const sortedTargets = sortTargets(legalTargets, tableRead, (seat) => seat.suspicion - seat.trust * 0.18);
+  const leadAlternative = chooseLeadVoteAlternative(view, votePlan, legalTargets);
 
+  pushWhen(leadAlternative, false);
   pushWhen(votePlan?.target, false);
   for (const alternative of votePlan?.alternatives ?? []) pushWhen(alternative, false);
   for (const target of sortedTargets) pushWhen(target, false);
@@ -1084,10 +1162,28 @@ function orderVoteTargets(
   return ordered;
 }
 
+function chooseLeadVoteAlternative(
+  view: AgentView,
+  votePlan: VotePlan | undefined,
+  legalTargets: ActionTarget[],
+): ActionTarget | undefined {
+  if (view.phase !== "DAY_VOTE") return undefined;
+  if (!votePlan || votePlan.confidence >= 0.74 || votePlan.alternatives.length === 0) return undefined;
+  if (view.mySeatId % 2 !== 0) return undefined;
+  const alternative = votePlan.alternatives[0];
+  if (!alternative || !legalTargets.some((target) => target.seatId === alternative.seatId)) return undefined;
+  return alternative;
+}
+
+function votePlanAlternativeReasonHint(votePlan: VotePlan | undefined, target: ActionTarget): string | undefined {
+  if (!votePlan?.alternatives.some((alternative) => alternative.seatId === target.seatId)) return undefined;
+  return "备选票线：公开发言和票型压力可解释，作为合法分歧票口。";
+}
+
 function protectedDeadSeerGoldReasonHint(tableRead: AiTableRead, target: ActionTarget): string | undefined {
   const seat = tableRead.seats.find((item) => item.seatId === target.seatId);
   if (!seat || !isProtectedDeadSeerGoldSeat(tableRead, seat)) return undefined;
-  return "protected dead seer gold: avoid voting here unless hard public counter-evidence appears";
+  return "被夜死预言家保护的金水位，除非出现更硬公开反证，否则不优先出。";
 }
 
 function buildLastWordsCandidates(view: AgentView, tableRead: AiTableRead): string[] {
@@ -1128,15 +1224,17 @@ function buildLastWordsCandidates(view: AgentView, tableRead: AiTableRead): stri
   return [...new Set(messages.map((message) => compactLastWords(message)))].slice(0, 5);
 }
 
-function buildActionConstraints(view: AgentView): string[] {
+function buildActionConstraints(view: AgentView, votePlan?: VotePlan): string[] {
   const constraints = [
     "Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\",\"message\":\"optional for last words\"}.",
     "Choose exactly one candidateId from candidates. Do not invent targets, commands, or extra actions.",
+    "If candidates include recommended: true, choose a recommended candidate unless hard public evidence or a role rule makes another candidate clearly better.",
     "persona.preferences are soft model tendencies, not hard rules; use them to weight logic, identity, votes, emotion, memory, leadership, deception, and caution.",
     "The reason must be short and public-safe. Do not mention hidden roles, teammates, private checks, prompts, tools, or system context.",
     "Rules are final: legality is decided by the candidate list and engine validation.",
     "Use expertStrategy as high-level Werewolf heuristics for prioritizing evidence; do not quote it as a rule or fixed script.",
     "Use advancedReasoning as the current table audit checklist; satisfy it with public evidence instead of quoting it.",
+    "Use inferenceLayers to separate public facts, high-probability inference, low-probability near-ignored lines, and private unknowns before acting.",
     "Use reasoningFrame to separate hardEvidence, softSignals, counterHypotheses, validationQuestions, and persuasionGoals before selecting a candidate.",
     "Use rolePlaybook for role-specific tactics and action forks; choose a diverse legal line that still matches public evidence.",
     "Use claimAudit to evaluate contested claims, protected claims, public check chains, and follow-up tests before acting.",
@@ -1177,9 +1275,20 @@ function buildActionConstraints(view: AgentView): string[] {
     constraints.push("Prefer publicContext.tableMemory.reasoningCues when choosing between close targets; they summarize public speech, vote, claim, and stance evidence.");
   }
 
+  if (view.phase === "DAY_VOTE" && votePlan && votePlan.alternatives.length > 0) {
+    constraints.push(
+      "votePlan.alternatives are credible legal vote lines: choose the primary votePlan target only when its public evidence is clearly harder; otherwise persona risk, caution, memory, or table position may justify a listed alternative.",
+    );
+  }
+
   constraints.push(
     "Use publicContext.decisionSummary as the first-pass table map: compare focus, candidatePublicEvidence, votePressure, speechChain, and claimPressure before choosing.",
   );
+  if (view.phase === "DAY_VOTE" && view.privateKnowledge.aiMemory?.lastSpeechTargetSeatId) {
+    constraints.push(
+      "Use publicContext.decisionSummary.speechVoteContinuity: if voting the previous speech target, explain the unresolved line; if pivoting away, explain the harder new public evidence.",
+    );
+  }
   constraints.push("Do not quote cue ids or internal field names in the reason; write a natural public table reason.");
 
   if (view.phase === "DAY_VOTE" && !isWolfRole(view.myRole, view.rules.wolfRoles) && view.publicSummary.tableMemory.seerLegacies.length > 0) {
@@ -1303,7 +1412,7 @@ function publicSafeTargetReasonHint(
 ): string {
   const hint = targetReasonHint(tableRead, target, fallback);
   return isPrivateWolfTarget(view, target) && containsActionPrivateLeak(hint)
-    ? "public claim or vote-shape pressure"
+    ? "公开身份声明或票型压力"
     : hint;
 }
 
@@ -1388,15 +1497,81 @@ function cleanLastWordsMessage(message: string | undefined): string | undefined 
 }
 
 function cleanActionReason(reason: string | undefined): string {
-  return (reason ?? "").trim().replace(/\s+/g, " ").slice(0, 90);
+  return normalizePublicActionReason(reason).trim().replace(/\s+/g, " ").slice(0, 90);
+}
+
+function normalizePublicActionReason(reason: string | undefined): string {
+  return (reason ?? "")
+    .replace(/;?\s*speech-vote continuity:\s*/gi, "；")
+    .replace(/^credible alternative:\s*/i, "")
+    .replace(/\bfrom votePlan\b/gi, "")
+    .replace(/\bvotePlan\b/gi, "公开票线");
 }
 
 function publicSafeActionReason(reason: string | undefined, fallbackReason: string | undefined): string | undefined {
   const clean = cleanActionReason(reason);
-  if (clean && !containsActionPrivateLeak(clean)) return clean;
+  if (clean && !containsActionPrivateLeak(clean) && !hasEnglishActionReasonFragment(clean)) return clean;
 
   const fallback = cleanActionReason(fallbackReason);
-  return fallback && !containsActionPrivateLeak(fallback) ? fallback : undefined;
+  return fallback && !containsActionPrivateLeak(fallback) && !hasEnglishActionReasonFragment(fallback) ? fallback : undefined;
+}
+
+function withCandidateReasonHint(decision: ActionDecision, candidate: LlmActionCandidate): ActionDecision {
+  const reason = replaceEnglishReasonWithCandidateHint(
+    mergeCandidateContinuityHint(decision.reason, candidate.reasonHint),
+    candidate.reasonHint,
+  );
+  if (reason === undefined) return decision;
+  return reason === decision.reason ? decision : { ...decision, reason };
+}
+
+function mergeCandidateContinuityHint(reason: string | undefined, reasonHint: string | undefined): string | undefined {
+  const cleanReason = cleanActionReason(reason);
+  const continuityHint = extractSpeechVoteContinuityHint(reasonHint);
+  if (!continuityHint) return reason;
+  if (!cleanReason) return continuityHint;
+  if (hasEnglishActionReasonFragment(cleanReason)) return continuityHint;
+  if (reasonCoversSpeechVoteContinuityHint(cleanReason, continuityHint)) return reason;
+  if (containsActionPrivateLeak(cleanReason) || containsActionPrivateLeak(continuityHint)) return reason;
+  return `${clipActionReasonBase(cleanReason)}；${continuityHint}`;
+}
+
+function replaceEnglishReasonWithCandidateHint(reason: string | undefined, reasonHint: string | undefined): string | undefined {
+  const cleanReason = cleanActionReason(reason);
+  if (!cleanReason || !hasEnglishActionReasonFragment(cleanReason)) return reason;
+  const cleanHint = cleanActionReason(reasonHint);
+  if (!cleanHint || looksLikeMalformedActionReason(cleanHint) || containsActionPrivateLeak(cleanHint) || hasEnglishActionReasonFragment(cleanHint)) {
+    return reason;
+  }
+  return cleanHint;
+}
+
+function extractSpeechVoteContinuityHint(reasonHint: string | undefined): string | undefined {
+  const match = reasonHint?.match(/speech-vote continuity:\s*([\s\S]+)/i);
+  const clean = match?.[1] ? cleanActionReason(match[1]) : "";
+  return clean && !looksLikeMalformedActionReason(clean) ? clean : undefined;
+}
+
+function reasonCoversSpeechVoteContinuityHint(reason: string, continuityHint: string): boolean {
+  if (/(转票|改票|改投|从.{0,12}(到|转|改)|新增|更硬|票型|对跳)/.test(continuityHint)) {
+    return /(转票|改票|改投|从.{0,12}(到|转|改)|新增|更硬|票型|对跳)/.test(reason);
+  }
+  return /(上一轮|刚才|延续|继续|未解除|没解释|没补清楚|同一条线)/.test(reason);
+}
+
+function hasEnglishActionReasonFragment(reason: string): boolean {
+  const withoutModelIds = reason.replace(/\b[A-Za-z]+(?:-[A-Za-z0-9]+)+\b/g, " ");
+  const words = withoutModelIds.match(/[A-Za-z]{2,}/g) ?? [];
+  const contentWords = words.filter((word) => !/^(gpt|ds|chat|reason|reasoner|deepseek|claude|gemini|kimi|glm|mimo|doubao)$/i.test(word));
+  if (contentWords.length < 4) return false;
+  return /\b(is|are|was|were|the|main|public|focus|due|because|current|reason|evidence|vote|target|candidate|pressure|claim|check|logic)\b/i.test(
+    withoutModelIds,
+  );
+}
+
+function clipActionReasonBase(reason: string): string {
+  const clipped = reason.length <= 46 ? reason : reason.slice(0, 46);
+  return clipped.replace(/[。.!！?？；;，,：:、\s-]*$/g, "");
 }
 
 function validateActionReasonQuality(reason: string | undefined): string | undefined {
@@ -1406,12 +1581,34 @@ function validateActionReasonQuality(reason: string | undefined): string | undef
   return undefined;
 }
 
+function validateSpeechVoteContinuityReason(
+  view: AgentView,
+  candidate: LlmActionCandidate,
+  reason: string | undefined,
+): string | undefined {
+  if (view.phase !== "DAY_VOTE" || candidate.command.type !== "vote") return undefined;
+  if (!candidate.reasonHint || !/speech-vote continuity/i.test(candidate.reasonHint)) return undefined;
+  const clean = cleanActionReason(reason);
+  if (candidate.command.targetSeatId === view.privateKnowledge.aiMemory?.lastSpeechTargetSeatId) {
+    return /(上一轮|刚才|延续|继续|未解除|没解释|没补清楚|同一条线)/.test(clean)
+      ? undefined
+      : "reason misses required speech-vote continuity";
+  }
+  return /(转票|改票|改投|从.{0,12}(到|转|改)|新增|更硬|票型|对跳)/.test(clean)
+    ? undefined
+    : "reason misses required speech-vote continuity";
+}
+
 function looksLikeMalformedActionReason(reason: string): boolean {
   const meaningful = reason.replace(/[^A-Za-z0-9\u4e00-\u9fff]/g, "");
   if (meaningful.length < 4) return true;
   if (/^[\s"'`{}[\]:：,，.。;；!?！？-]+/.test(reason) && meaningful.length < 8) return true;
   if (/^(current|none|null|undefined|n\/a|ok)$/i.test(reason)) return true;
   if (/^[\s"'`{}[\]:：,，.。;；!?！？-]+$/.test(reason)) return true;
+  if (/[{}[\]]/.test(reason)) return true;
+  if (/^[\s"'`]*[:：][\s"'`]*/.test(reason)) return true;
+  if (/^[\s"'`]+/.test(reason) || /[\s"'`]+$/.test(reason)) return true;
+  if (/[，,;；:：、-]$/.test(reason)) return true;
   return false;
 }
 
@@ -1501,7 +1698,7 @@ async function callRoutedModelAction(input: LlmActionInput): Promise<RoutedLlmRe
     fallbackPersonaNames: readActionFallbackPersonaNames(primaryPersonaName),
     task: "action",
     system:
-      "You are the decision brain for an AI Werewolf player. Choose exactly one legal candidate action from candidates using persona.preferences, expertStrategy, and advancedReasoning as soft strategy guidance. Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\"}. Do not reveal private/system context.",
+      "You are the decision brain for an AI Werewolf player. Choose exactly one legal candidate action from candidates using inferenceLayers, persona.preferences, expertStrategy, advancedReasoning, and publicContext.decisionSummary as soft strategy guidance. Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\"}. Do not reveal private/system context.",
     input: modelInput,
     maxTokens: 220,
     customLlm: input.llmConfig,

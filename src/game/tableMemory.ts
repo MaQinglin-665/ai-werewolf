@@ -489,7 +489,7 @@ function buildDeathShapeCues(state: GameState): TableMemory["reasoningCues"] {
         day: event.day,
         kind: "death_shape",
         weight: "medium",
-        summary: "首夜平安夜：当前规则里狼人夜晚没有跳过击杀动作；无守卫女巫局可以作为解药处理狼刀的药线假设，但不能确认女巫身份或更多药瓶细节。",
+        summary: "首夜平安夜：无守卫女巫局发言里可简称女巫用药了；空刀不作为发言主线，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。",
         evidence: [event.message, "本局无守卫且有女巫，死亡形态本身是公开信息。"],
       });
       continue;

@@ -860,6 +860,12 @@ export type SpeechClaimIntent = {
   isCounterclaim?: boolean;
 };
 
+export type SpeechPlayMotive = {
+  kind: "bait_kill" | "self_defense" | "tempo_grab" | "wolf_misdirect" | "protect_power_role" | "public_logic";
+  line: string;
+  allowIdentityClaim: boolean;
+};
+
 export type SpeechInteractionIntent = {
   kind: "challenge" | "support" | "pivot" | "rally" | "probe";
   sourceSpeaker?: ActionTarget;
@@ -874,14 +880,39 @@ export type SpeechPersonaCue = {
   directives: string[];
 };
 
+export type SpeechTableTask = {
+  mode: "set-standard" | "audit-pressure-chain" | "hold-countercase" | "pivot-alternative" | "summarize-vote";
+  line: string;
+  directives: string[];
+  target?: ActionTarget;
+};
+
+export type SpeechTargetStatus = "none" | "spoken" | "unspoken";
+export type SpeechAllowedInteraction = "none" | "review_spoken" | "ask_future" | "finalize_black_check";
+export type SpeechMove =
+  | "none"
+  | "review_spoken_target"
+  | "ask_unspoken_target"
+  | "claim_black_check"
+  | "claim_gold_check"
+  | "identity_claim"
+  | "lock_vote"
+  | "soft_pressure"
+  | "explain_vote";
+
 export type SpeechPlan = {
   kind: "claim-check" | "counterclaim" | "pressure" | "defend" | "explain-vote" | "rally" | "confuse";
   target?: ActionTarget;
+  targetSpeechStatus?: SpeechTargetStatus;
+  allowedInteraction?: SpeechAllowedInteraction;
+  speechMove?: SpeechMove;
   stance: string;
   talkingPoints: string[];
   risk: number;
   interaction?: SpeechInteractionIntent;
   personaCue?: SpeechPersonaCue;
+  tableTask?: SpeechTableTask;
+  playMotive?: SpeechPlayMotive;
   claimIntent?: SpeechClaimIntent;
 };
 
@@ -1002,6 +1033,10 @@ export type AgentView = {
   persona?: AiPersona;
   llmConfig?: AiFriendRuntimeLlmConfig;
   aliveSeats: ActionTarget[];
+  daySpeechOrder?: {
+    queue: ActionTarget[];
+    currentIndex: number;
+  };
   publicEvents: HumanGameView["publicEvents"];
   publicSummary: {
     recentSpeeches: PublicSpeechItem[];

@@ -34,18 +34,33 @@ import { buildReasoningFrame, type AiReasoningFrame } from "./reasoningFrame";
 import { buildRolePlaybook, type AiRolePlaybook } from "./rolePlaybook";
 import { deadSeerGoldSeatIds } from "./protectedGold";
 import { createSpeechPlan } from "./tableRead";
+import { buildPublicInferenceLayers, type PublicInferenceLayers } from "./inferenceLayers";
 import type { AiSpeechProvider, AiSpeechProviderContext, AiSpeechResult } from "./types";
 
 const SpeechSchema = z.object({
   speech: z.string().min(1),
 });
 
-const AI_SPEECH_MAX_CHARS = 800;
+const AI_SPEECH_MAX_CHARS = 360;
 const AI_MOCK_SPEECH_MAX_CHARS = 380;
+const AI_SPEECH_MAX_SENTENCES = 3;
 const SPEECH_SYSTEM_PROMPT =
-  "你是狼人杀玩家本人。根据牌桌局势、你的身份信息和你的性格，自由发表这一轮公开发言。优先阅读 input.tableBriefing.text 和 input.publicContext.rules，它们是事实边界和当前板子规则，不是台词模板；再参考 input.expertStrategy、input.advancedReasoning、input.reasoningFrame、input.rolePlaybook、input.claimAudit、input.debateAgenda 和 input.playerSpeechGuide，expertStrategy 是高质量对局打法原则，advancedReasoning 是本局当前应该核验的逻辑清单，reasoningFrame 把硬证据、软信号、反面解释和验证问题拆开，rolePlaybook 是你当前角色的玩法分支和行动边界，claimAudit 专门审计身份坑、查验链和未对跳神职，debateAgenda 是本轮可以追问、收票和验证的动态议程，都不是固定话术。发言要像高阶玩家临场盘逻辑：观点先落地，随后给公开依据，补一句证据硬度或反面可能，再留下可验证的追问、改票条件或票口；优先串联验人、站边、票型、发言顺序和死亡播报，而不是只给情绪听感，也不要把座位、语气、短发言这类软信息当铁证。模型特点只是软性的打法倾向：例如 DeepSeek 偏逻辑链，Claude 偏边界审查，豆包偏强压，Kimi 偏长线记忆；不要自称模型，也不要为了表现风格牺牲局势判断。不要把内部分析标签说出口，例如“拆因果”“第一点”“盘问议程”“票口条件”“可改票条件”；要把这些材料改写成自然的牌桌发言。只输出玩家实际说出口的台词，不写括号内动作、神态、语气或旁白描写。发言可以有个人风格和策略，但不能违背事实简报：只能评价本日已经发过言的人；对尚未发言的后置位只能要求稍后表态，不能说他们已经信息少或没回应；当前规则里狼人夜晚没有跳过击杀动作；天亮死讯只公开谁死亡，不公开狼刀、毒、自刀等具体死因，除非公开记录写明，不要把死因说死；无守卫女巫局可以把首夜单死或平安夜当公开死亡形态提出药线假设，首夜单死后“女巫没救/没用解药”属于合理简称，不应只因“女巫没救/没用解药”这种说法质疑发言者。";
+  "你是狼人杀玩家本人。根据牌桌局势、你的身份信息和你的性格，自由发表这一轮公开发言。优先阅读 input.tableBriefing.text 和 input.publicContext.rules，它们是事实边界和当前板子规则，不是台词模板；input.speechContract 是最高优先级的短约束，必须优先遵守其中的 move、mustSay、mayAsk、mustNotAsk 和 voteBoundary；再参考 input.inferenceLayers、input.expertStrategy、input.advancedReasoning、input.reasoningFrame、input.rolePlaybook、input.claimAudit、input.debateAgenda 和 input.playerSpeechGuide，inferenceLayers 把公开事实、高概率推断、低概率边界和私密未知分开，expertStrategy 是高质量对局打法原则，advancedReasoning 是本局当前应该核验的逻辑清单，reasoningFrame 把硬证据、软信号、反面解释和验证问题拆开，rolePlaybook 是你当前角色的玩法分支和行动边界，claimAudit 专门审计身份坑、查验链和未对跳神职，debateAgenda 是本轮可以追问、收票和验证的动态议程，都不是固定话术。发言要像高阶玩家临场盘逻辑：2-3句短句，观点先落地，给1个公开依据，再留下一个追问或票口；优先串联验人、站边、票型、发言顺序和死亡播报，而不是只给情绪听感，也不要把座位、语气、短发言这类软信息当铁证。模型特点只是软性的打法倾向：例如 DeepSeek 偏逻辑链，Claude 偏边界审查，豆包偏强压，Kimi 偏长线记忆；可以按座位名报自己是谁，但不要说自己是 AI、语言模型或系统角色，也不要为了表现风格牺牲局势判断。不要把内部分析标签说出口，例如“拆因果”“第一点”“盘问议程”“票口条件”“可改票条件”；不要列第一、第二、第三；要把这些材料改写成自然的牌桌发言。只输出玩家实际说出口的台词，不写括号内动作、神态、语气或旁白描写。发言可以有个人风格和策略，但不能违背事实简报：只能评价本日已经发过言的人；已经发过言的人只能回看其已发表内容，不能说等他后面再补、轮到他再回应；对尚未发言的后置位如果必须追问，只点一个和当前发言链相关的位置，留一个具体问题，不能把问题铺成一圈通用作业，也不能说他们已经信息少或没回应；真预言家报查杀后，今天票口先压查杀位，只有外置硬身份反证可以改变结构，不给查杀位靠自证把票口推走的空间；天亮死讯只公开谁死亡，不公开狼刀、毒、自刀等具体死因，除非公开记录写明，不要把私密细节说死。狼人杀大多数时间没有足够硬信息，允许按公开规则和发言状态进行推测、猜测和施压；要把猜测说成“我倾向、我猜、按规则推”，并留下验证条件。无守卫女巫局里，平安夜作为公开死亡形态处理，发言里短句说“女巫用药了”即可；空刀只作为边界，不主动展开。若平安夜已被前置位讲过，就当作已结算背景，不主动复读药线或空刀；非女巫不能说自己知道女巫是谁、具体救了几号、刀口或毒口在哪；真女巫可以公开自己的真实救毒信息，但不能编错目标，也不要只说“我救过人”这种半公开私密状态。药瓶是否使用、是否还在可以按公开死亡形态推理，但不要伪装成私密直知。首夜单死后“女巫没救/没用解药”属于合理简称，不应只因“女巫没救/没用解药”这种说法质疑发言者。";
 
 export type SpeechStrictness = "strict" | "guided" | "loose";
+
+type LlmSpeechContract = {
+  move: Exclude<SpeechPlan["speechMove"], undefined>;
+  target?: ActionTarget;
+  targetSpeechStatus: Exclude<SpeechPlan["targetSpeechStatus"], undefined>;
+  allowedInteraction: Exclude<SpeechPlan["allowedInteraction"], undefined>;
+  mustSay: string[];
+  mayAsk: string[];
+  mustNotAsk: string[];
+  voteBoundary?: string;
+  maxSentences: number;
+  maxChars: number;
+};
 
 export type LlmSpeechInput = {
   day: number;
@@ -84,6 +99,8 @@ export type LlmSpeechInput = {
     claimBoard: AgentView["publicSummary"]["claimBoard"];
     speechOrder: {
       currentSpeaker: ActionTarget;
+      todaySpeechOrder: ActionTarget[];
+      currentSpeakerOrderIndex: number;
       speakersAlreadyFinished: ActionTarget[];
       currentDaySpokenSeats: ActionTarget[];
       currentDayUnspokenSeats: ActionTarget[];
@@ -131,6 +148,7 @@ export type LlmSpeechInput = {
   };
   expertStrategy: string[];
   advancedReasoning: string[];
+  inferenceLayers: PublicInferenceLayers;
   reasoningFrame: AiReasoningFrame;
   rolePlaybook: AiRolePlaybook;
   claimAudit: AiClaimAudit;
@@ -142,9 +160,11 @@ export type LlmSpeechInput = {
       softTendency: string;
       tendencies: string[];
     };
+    tableTask?: NonNullable<SpeechPlan["tableTask"]>;
     softInteraction: string[];
     avoid: string[];
   };
+  speechContract: LlmSpeechContract;
   speechPlan?: SpeechPlan;
   speechStrictness: SpeechStrictness;
   constraints?: string[];
@@ -174,7 +194,7 @@ export function createConfiguredSpeechProvider(): AiSpeechProvider {
   }
 
   if (isModelLlmRoutingAvailable()) {
-    return routedModelSpeechProvider;
+    return createCustomAwareSpeechProvider(routedModelSpeechProvider);
   }
 
   if (process.env.AI_SPEECH_PROVIDER === "openai" && process.env.OPENAI_API_KEY) {
@@ -235,7 +255,7 @@ export function createConstrainedLlmSpeechProvider(options: {
             continue;
           }
 
-          const speech = normalizeSpeech(parsed.speech);
+          const speech = normalizeSpeech(repairClaimAttributionSpeech(view, normalizeSpeech(parsed.speech)));
           const validationErrors = validateRenderedSpeech(view, plan, speech, strictness);
           if (validationErrors.length > 0) {
             lastIssue = `LLM 发言未通过约束：${validationErrors.join("；")}`;
@@ -285,9 +305,11 @@ export function buildConstrainedSpeechInput(
   plan = createSpeechPlan(view),
   strictness = readSpeechStrictness(),
 ): LlmSpeechInput {
-  const strictSpeechPlan = strictness === "strict" ? sanitizeSpeechPlanForLlm(view, plan) : undefined;
-  const constraints = buildSpeechConstraints(view, plan, strictness);
+  const speechPlan = sanitizeSpeechPlanForLlm(view, plan);
   const speechOrder = buildSpeechOrderContext(view);
+  const speechContract = buildSpeechContract(speechPlan, speechOrder, view);
+  speechContract.mustNotAsk.push(...buildClaimAttributionContractLines(view));
+  const constraints = buildSpeechConstraints(view, plan, strictness, speechContract);
   const advancedReasoning = buildAdvancedReasoningNotes(view);
   const reasoningFrame = buildReasoningFrame(view);
   const rolePlaybook = buildRolePlaybook(view);
@@ -325,28 +347,185 @@ export function buildConstrainedSpeechInput(
     privateContext: buildPrivateSpeechContext(view),
     expertStrategy: buildExpertStrategyNotes(view),
     advancedReasoning,
+    inferenceLayers: buildPublicInferenceLayers(view),
     reasoningFrame,
     rolePlaybook,
     claimAudit,
     debateAgenda,
     playerSpeechGuide: buildPlayerSpeechGuide(view, plan, speechOrder),
+    speechContract,
+    speechPlan,
     speechStrictness: strictness,
     llmConfig: view.llmConfig,
-    ...(strictSpeechPlan ? { speechPlan: strictSpeechPlan } : {}),
     ...(constraints.length > 0 ? { constraints } : {}),
   };
 }
 
+function buildSpeechContract(
+  plan: SpeechPlan,
+  speechOrder?: LlmSpeechInput["publicContext"]["speechOrder"],
+  view?: AgentView,
+): LlmSpeechContract {
+  const move = resolveContractMove(plan);
+  const targetSpeechStatus = plan.targetSpeechStatus ?? "none";
+  const allowedInteraction = plan.allowedInteraction ?? "none";
+  const targetLabel = plan.target ? seatText(plan.target) : "目标位";
+  const talkingPoints = contractTalkingPoints(plan);
+  const mustSay: string[] = [];
+  const mayAsk: string[] = [];
+  const mustNotAsk: string[] = [
+    "不能列第一、第二、第三，也不要说“盘问议程”“票口条件”“可改票条件”。",
+  ];
+  let voteBoundary: string | undefined;
+
+  if (targetSpeechStatus === "spoken" && plan.target) {
+    mustNotAsk.push(`不能要求${targetLabel}后续补充、轮到时回应、后面解释、当场回答、再跳身份或再报查验。`);
+  }
+  if (targetSpeechStatus === "unspoken" && plan.target) {
+    mustNotAsk.push(`不能评价${targetLabel}已经回应差、信息少、没站边或只给结论。`);
+  }
+  if (speechOrder?.speakersAlreadyFinished.length) {
+    mustNotAsk.push(
+      `已经发言的前置位包括${formatSeatNumberList(
+        speechOrder.speakersAlreadyFinished,
+      )}，这些位置本轮不会再轮到；只能回看原话，不能要求他们后续补充、轮到时回应、后面解释、当场回答、再跳身份或再报查验。`,
+    );
+  }
+  if (speechOrder?.currentDayUnspokenSeats.length) {
+    const nextUnspoken = speechOrder.currentDayUnspokenSeats[0];
+    mustNotAsk.push(
+      `未发言后置位按今日顺序是${formatSeatNumberList(
+        speechOrder.currentDayUnspokenSeats,
+      )}；如果只是留观察，默认说“后置位整体”或“下一位${seatText(
+        nextUnspoken,
+      )}”；连续点多个后置位时按今日顺序连续，不要无理由跳过中间座位；不要把已发言位置写成“等他轮到”或“后面再补”。`,
+    );
+  }
+  if (view && isLowInfoDayOneOpening(view)) {
+    const openingSpeaker = currentDaySpeechItems(view)[0]?.speaker;
+    if (openingSpeaker) {
+      mustNotAsk.push(`不要把${seatText(openingSpeaker)}没站边、没给票口或没给怀疑对象当攻击点；只能评价观察点是否过泛，或审计后续谁借这个点做收益。`);
+    } else {
+      mustNotAsk.push("你是低信息首置位：只给观察点即可，不要求自己或下一位立刻站边、给票口、报怀疑对象。");
+    }
+  }
+  if (view && isLowInfoDayOneNoHardInfo(view) && currentDaySpeechItems(view).length > 0) {
+    mustNotAsk.push("首日无硬信息阶段不要把任何已发言位“没站边、没给票口、没给怀疑对象”当攻击点；只能审计观察点是否有收益、谁在跟压或谁过早定身份。");
+  }
+  if (plan.claimIntent?.strength === "soft" && !plan.playMotive?.allowIdentityClaim) {
+    const roleLabel = ROLE_LABELS[plan.claimIntent.claimedRole];
+    mustNotAsk.push(`不要把软身份边界说成明确${roleLabel}身份。`);
+    mayAsk.push(plan.playMotive?.line ?? "可以保留底牌威慑，但不要明拍身份。");
+  }
+
+  switch (move) {
+    case "review_spoken_target":
+      mustSay.push(...(talkingPoints.length > 0 ? talkingPoints : [`回看${targetLabel}已经发表的公开内容。`]));
+      mayAsk.push(`只能回看${targetLabel}已发表的内容是否闭合。`);
+      break;
+    case "ask_unspoken_target":
+      mustSay.push(...talkingPoints.slice(0, 1));
+      mayAsk.push(`可以要求${targetLabel}轮到时只回应一个具体公开点。`);
+      break;
+    case "claim_black_check":
+      mustSay.push(`${targetLabel}是查杀。`, `今天票口先压${targetLabel}。`);
+      mayAsk.push("外置位只给硬身份反证。");
+      mustNotAsk.push(`不能说${targetLabel}解释闭环就改票。`, `不能把${targetLabel}自证当改票条件。`);
+      voteBoundary = `票口先压${targetLabel}；只有外置硬身份反证能改变结构。`;
+      break;
+    case "claim_gold_check":
+      mustSay.push(`${targetLabel}是金水。`);
+      mayAsk.push(`看谁反打或硬踩${targetLabel}。`);
+      mustNotAsk.push(`不能把${targetLabel}作为今天出人焦点、怀疑焦点或压票对象。`);
+      break;
+    case "identity_claim":
+      mustSay.push(plan.claimIntent ? `身份声明要与${ROLE_LABELS[plan.claimIntent.claimedRole]}一致。` : "身份声明必须和当前计划一致。");
+      if (plan.claimIntent?.claimedRole === "WITCH" && plan.claimIntent.strength === "hard") {
+        const savedTarget = view?.myRole === "WITCH" ? view.privateKnowledge.witch?.savedTarget : undefined;
+        if (savedTarget) mustSay.push(`平安夜我救了${savedTarget.seatId}号，${savedTarget.seatId}号是银水。`);
+      }
+      if (plan.playMotive?.line) mustSay.push(plan.playMotive.line);
+      mayAsk.push(...(plan.target ? [`围绕${targetLabel}留下一个公开验证点。`] : ["围绕公开身份线留下一个验证点。"]));
+      break;
+    case "lock_vote":
+      mustSay.push(...(talkingPoints.length > 0 ? talkingPoints : [`今天票口先围绕${targetLabel}。`]));
+      voteBoundary = plan.target ? `票口优先压${targetLabel}，理由必须来自公开信息。` : undefined;
+      break;
+    case "explain_vote":
+      mustSay.push(...(talkingPoints.length > 0 ? talkingPoints : ["解释自己的站边或票口变化。"]));
+      mayAsk.push("只留一个后续验证点。");
+      break;
+    case "soft_pressure":
+      mustSay.push(...(talkingPoints.length > 0 ? talkingPoints.slice(0, 2) : [`把${targetLabel}作为观察位。`]));
+      mayAsk.push(plan.target ? `围绕${targetLabel}留一个公开验证点。` : "围绕公开发言留一个验证点。");
+      break;
+    default:
+      mustSay.push(...(talkingPoints.length > 0 ? talkingPoints.slice(0, 2) : ["只按公开信息给一条判断。"]));
+      mayAsk.push("不强行制造目标，只留下公开验证点。");
+      break;
+  }
+
+  return {
+    move,
+    target: plan.target,
+    targetSpeechStatus,
+    allowedInteraction,
+    mustSay: uniqueContractLines(mustSay).slice(0, 3),
+    mayAsk: uniqueContractLines(mayAsk).slice(0, 2),
+    mustNotAsk: uniqueContractLines(mustNotAsk).slice(0, 6),
+    voteBoundary,
+    maxSentences: AI_SPEECH_MAX_SENTENCES,
+    maxChars: AI_SPEECH_MAX_CHARS,
+  };
+}
+
+function resolveContractMove(plan: SpeechPlan): LlmSpeechContract["move"] {
+  if (plan.speechMove) return plan.speechMove;
+  if (plan.allowedInteraction === "finalize_black_check") return "claim_black_check";
+  if (plan.claimIntent?.claimedRole === "SEER" && plan.claimIntent.check?.result === "GOOD") return "claim_gold_check";
+  if (plan.claimIntent && (plan.claimIntent.strength === "hard" || plan.playMotive?.allowIdentityClaim)) return "identity_claim";
+  if (plan.kind === "rally") return "lock_vote";
+  if (plan.allowedInteraction === "review_spoken") return "review_spoken_target";
+  if (plan.allowedInteraction === "ask_future") return "ask_unspoken_target";
+  if (plan.kind === "defend" || plan.kind === "explain-vote") return "explain_vote";
+  if (plan.target) return "soft_pressure";
+  return "none";
+}
+
+function contractTalkingPoints(plan: SpeechPlan): string[] {
+  return plan.talkingPoints
+    .filter((point) => point !== plan.interaction?.line && point !== plan.personaCue?.line)
+    .map((point) => point.trim())
+    .filter(Boolean)
+    .slice(0, 2);
+}
+
+function uniqueContractLines(lines: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const line of lines) {
+    const clean = line.trim();
+    if (!clean || seen.has(clean)) continue;
+    seen.add(clean);
+    result.push(clean);
+  }
+  return result;
+}
+
 function buildSpeechRulesContext(view: AgentView): LlmSpeechInput["publicContext"]["rules"] {
   const unavailableTerms = view.privateKnowledge.sheriff ? [] : ["警上", "警下", "警徽", "警长"];
+  const deathShapeAlreadyDiscussed = hasCurrentDayDeathShapeMention(view);
   return {
     sheriffEnabled: Boolean(view.privateKnowledge.sheriff),
     note: view.privateKnowledge.sheriff
       ? "本局启用警长竞选、警徽和警下投票；警长白天放逐投票计 1.5 票。"
       : "本局没有警长竞选、警徽、警上、警下流程。",
     deathInfoNote:
-      "当前规则里狼人夜晚没有跳过击杀动作。天亮死讯只公开死亡名单，不公开狼刀、毒、自刀等具体死因；可以讨论公开死亡形态带来的合理假设。无守卫首夜单死后，说“女巫没救/没用解药”属于合理简称，不应只因“女巫没救/没用解药”这种说法质疑发言者。",
-    speechTimelineNote: "本日发言有先后顺序。只能评价已经发过言的玩家；尚未发言的后置位只能要求稍后补视角，不能说他们已经信息少、没站边或没回应。",
+      deathShapeAlreadyDiscussed
+        ? "平安夜已作为公开死亡形态处理，后续发言不要主动复读药线或空刀；只在和票型、身份线直接相关时一句带过。禁止把推测说成私密确定细节：非女巫不能确定女巫是谁、具体救了几号、刀口或毒口在哪；真女巫可以公开自己的真实救毒信息，但不能编错目标，也不要只说“我救过人”这种半公开私密状态。药瓶状态可以按公开死亡形态推理，但不要伪装成私密直知。无守卫首夜单死后，说“女巫没救/没用解药”属于合理简称，不应只因“女巫没救/没用解药”这种说法质疑发言者。"
+        : "天亮死讯只公开死亡名单，不公开具体刀口、毒口、自刀位置或女巫身份；无守卫平安夜直接按公开死亡形态处理，发言里短句说“女巫用药了”即可，不主动展开空刀，也不要把平安夜本身交给后置位重复解释。禁止把推测说成私密确定细节：非女巫不能确定女巫是谁、具体救了几号、刀口或毒口在哪；真女巫可以公开自己的真实救毒信息，但不能编错目标，也不要只说“我救过人”这种半公开私密状态。药瓶状态可以按公开死亡形态推理，但不要伪装成私密直知。无守卫首夜单死后，说“女巫没救/没用解药”属于合理简称，不应只因“女巫没救/没用解药”这种说法质疑发言者。",
+    speechTimelineNote:
+      "本日发言有先后顺序。只能评价已经发过言的玩家；已经发过言的人不能被要求后续补充、轮到时回应或后面解释；尚未发言的后置位只能被点一个具体问题，不能说他们已经信息少、没站边或没回应，也不要把追问铺成一圈通用作业。",
     unavailableTerms,
   };
 }
@@ -365,25 +544,147 @@ function withSpeechStabilityHint(
       previousIssue,
       previousOutput: trimLlmOutputForRetry(previousOutput),
       expectedFormat: "{\"speech\":\"你的公开发言\"}",
+      repairInstructions: buildSpeechRepairInstructions(input),
+      speechContract: {
+        move: input.speechContract.move,
+        target: input.speechContract.target,
+        mustSay: input.speechContract.mustSay,
+        mayAsk: input.speechContract.mayAsk,
+        mustNotAsk: input.speechContract.mustNotAsk,
+        voteBoundary: input.speechContract.voteBoundary,
+      },
     },
   };
 }
 
+function buildSpeechRepairInstructions(input: LlmSpeechInput): string[] {
+  const contract = input.speechContract;
+  const targetText = contract.target ? seatText(contract.target) : "无目标";
+  const lines = [
+    `必须执行 speechContract.move=${contract.move}，不要改成其他发言动作。`,
+    `目标=${targetText}；targetSpeechStatus=${contract.targetSpeechStatus}；allowedInteraction=${contract.allowedInteraction}。`,
+  ];
+  if (contract.mustSay.length > 0) {
+    lines.push(`必须说到：${contract.mustSay.join("；")}`);
+  }
+  if (contract.mayAsk.length > 0) {
+    lines.push(`只能这样追问：${contract.mayAsk.join("；")}`);
+  }
+  if (contract.mustNotAsk.length > 0) {
+    lines.push(`禁止：${contract.mustNotAsk.join("；")}`);
+  }
+  for (const attributionLine of buildClaimAttributionBoundaryLinesFromClaimBoard(input.publicContext.claimBoard)) {
+    lines.push(`身份归属：${attributionLine}`);
+  }
+  lines.push("如果要打已经发过言的人，改写成“我按这个缺口压票/挂观察/不直接归死”，不要写“你再解释、你补、你复述、轮到你回应”。");
+  if (contract.voteBoundary) {
+    lines.push(`票口边界：${contract.voteBoundary}`);
+  }
+  lines.push(`输出仍然最多${contract.maxSentences}句、${contract.maxChars}字，只返回 {"speech":"..."}`);
+  return lines;
+}
+
 function buildSpeechOrderContext(view: AgentView): LlmSpeechInput["publicContext"]["speechOrder"] {
-  const speakersAlreadyFinished = view.publicSummary.recentSpeeches
-    .filter((speech) => speech.day === view.day && speech.speaker)
-    .map((speech) => speech.speaker!);
+  const speakersAlreadyFinished = uniqueSeatOrder(
+    currentDaySpeechItems(view)
+      .filter((speech) => speech.speaker)
+      .map((speech) => speech.speaker!),
+  );
+  const currentSpeaker = toTargetFromSeatId(view, view.mySeatId);
+  const todaySpeechOrder = buildTodaySpeechOrder(view, speakersAlreadyFinished, currentSpeaker);
+  const currentSpeakerOrderIndex = todaySpeechOrder.findIndex((seat) => seat.seatId === currentSpeaker.seatId);
   const currentDaySpokenSeatIds = new Set(
     speakersAlreadyFinished.map((seat) => seat.seatId),
   );
   return {
-    currentSpeaker: toTargetFromSeatId(view, view.mySeatId),
+    currentSpeaker,
+    todaySpeechOrder,
+    currentSpeakerOrderIndex,
     speakersAlreadyFinished,
-    currentDaySpokenSeats: view.aliveSeats.filter((seat) => currentDaySpokenSeatIds.has(seat.seatId)),
-    currentDayUnspokenSeats: view.aliveSeats.filter(
+    currentDaySpokenSeats: todaySpeechOrder.filter((seat) => currentDaySpokenSeatIds.has(seat.seatId)),
+    currentDayUnspokenSeats: todaySpeechOrder.filter(
       (seat) => seat.seatId !== view.mySeatId && !currentDaySpokenSeatIds.has(seat.seatId),
     ),
   };
+}
+
+function buildTodaySpeechOrder(view: AgentView, speakersAlreadyFinished: ActionTarget[], currentSpeaker: ActionTarget): ActionTarget[] {
+  const projectedQueue = view.daySpeechOrder?.queue ?? [];
+  const queueHasCurrentSpeaker = projectedQueue.some((seat) => seat.seatId === currentSpeaker.seatId);
+  const baseOrder = queueHasCurrentSpeaker ? projectedQueue : view.aliveSeats;
+  const missingFinishedSpeakers = speakersAlreadyFinished.filter(
+    (speaker) => !baseOrder.some((seat) => seat.seatId === speaker.seatId),
+  );
+  const remainingAliveSeats = view.aliveSeats.filter(
+    (seat) =>
+      !missingFinishedSpeakers.some((speaker) => speaker.seatId === seat.seatId) &&
+      !baseOrder.some((orderedSeat) => orderedSeat.seatId === seat.seatId),
+  );
+  return uniqueSeatOrder([...missingFinishedSpeakers, ...baseOrder, ...remainingAliveSeats]);
+}
+
+function currentDaySpeechItems(view: AgentView): AgentView["publicSummary"]["recentSpeeches"] {
+  const bySeq = new Map<number, AgentView["publicSummary"]["recentSpeeches"][number]>();
+  for (const speech of view.publicSummary.recentSpeeches) {
+    if (speech.day !== view.day || !speech.speaker) continue;
+    bySeq.set(speech.seq, speech);
+  }
+  for (const event of view.publicEvents) {
+    if (event.day !== view.day || event.type !== "SPEECH_CREATED" || event.payload.sheriffSpeech === true) continue;
+    const seatId = readNumberValue(event.payload.seatId) ?? event.actorSeatId;
+    if (!seatId) continue;
+    bySeq.set(event.seq, {
+      seq: event.seq,
+      day: event.day,
+      speaker: toTargetFromSeatId(view, seatId),
+      message: readStringValue(event.payload.message) ?? event.message,
+    });
+  }
+  return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+}
+
+function uniqueSeatOrder(seats: ActionTarget[]): ActionTarget[] {
+  const seen = new Set<number>();
+  const result: ActionTarget[] = [];
+  for (const seat of seats) {
+    if (seen.has(seat.seatId)) continue;
+    seen.add(seat.seatId);
+    result.push(seat);
+  }
+  return result;
+}
+
+function readNumberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readStringValue(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function hasCurrentDayDeathShapeMention(view: AgentView): boolean {
+  return currentDaySpeechItems(view).some((speech) => /平安夜|女巫用药|药线|空刀/.test(speech.message));
+}
+
+function isLowInfoDayOneOpening(view: AgentView): boolean {
+  if (view.day !== 1) return false;
+  const currentDaySpeeches = currentDaySpeechItems(view);
+  if (currentDaySpeeches.length > 1) return false;
+  if (view.publicSummary.claimBoard.some((claim) => claim.lastUpdatedDay === view.day)) return false;
+  if (view.publicSummary.voteSnapshot.revealed && view.publicSummary.voteSnapshot.votes.length > 0) return false;
+  return !currentDaySpeeches.some((speech) => hasHardDayOneOpeningInfo(speech.message));
+}
+
+function isLowInfoDayOneNoHardInfo(view: AgentView): boolean {
+  if (view.day !== 1) return false;
+  if (view.publicSummary.claimBoard.some((claim) => claim.lastUpdatedDay === view.day)) return false;
+  if (view.publicSummary.voteSnapshot.revealed && view.publicSummary.voteSnapshot.votes.length > 0) return false;
+  return !currentDaySpeechItems(view).some((speech) => hasHardDayOneOpeningInfo(speech.message));
+}
+
+function hasHardDayOneOpeningInfo(message: string): boolean {
+  const withoutDeathShape = message.replace(/(?:平安夜[^。！？；]{0,20})?女巫用药(?:了|处理)?|按女巫用药处理/g, "");
+  return /查杀|金水|预言家|我是女巫|我女巫|猎人|骑士|守卫|警徽|归票|出人|投/.test(withoutDeathShape);
 }
 
 function buildPlayerSpeechGuide(
@@ -400,18 +701,28 @@ function buildPlayerSpeechGuide(
   const stageLine =
     speechOrder.speakersAlreadyFinished.length > 0
       ? `你是已有人发言后的轮次，桌面材料来自${formatSeatList(speechOrder.speakersAlreadyFinished)}。`
-      : "你是靠前发言位，先铺视角、观察点和后置位任务，不要假装已经听完全场。";
+      : "你是靠前发言位，先铺一个观察点，不要假装已经听完全场，也不要铺一圈通用作业。";
+  const lowInfoOpeningLine = isLowInfoDayOneNoHardInfo(view)
+    ? "低信息首轮不用强行站边或落票口：只给观察点、保留态度或审计跟压收益，不把前置位没站边当缺口。"
+    : undefined;
 
   return {
     tablePlayerStyle: [
-      "像坐在桌边发言：2-4句短句，只抓一条主线；先给当前站边或保留态度，再给1个公开理由，最后留下追问、票口或后置位任务。",
-      "尽量形成一条因果链：为什么这样站、这个理由有多硬、下一轮看什么验证；不要把所有审计点都塞进同一段。",
+      lowInfoOpeningLine,
+      lowInfoOpeningLine
+        ? "像坐在桌边发言：2-3句短句，只抓一条主线；先给保留态度或观察点，再给1个公开理由，最后留下验证方向。"
+        : "像坐在桌边发言：2-3句短句，只抓一条主线；先给当前站边或保留态度，再给1个公开理由，最后留下追问或票口。",
+      "尽量形成一条因果链：为什么这样站、这个理由有多硬、下一轮看什么验证；不要把所有审计点都塞进同一段，不要列第一、第二、第三。",
       "允许牌桌口吻，例如“我先不站死”“这个点先记”“这轮票口先放这里”，但不要连续多句都用“我先”开头。",
       targetLine,
       stageLine,
-    ],
+    ].filter((line): line is string => Boolean(line)),
     modelStyle: buildModelSpeechStyleGuide(view),
+    tableTask: plan.tableTask,
     softInteraction: [
+      plan.tableTask
+        ? `本座位的桌面任务：${plan.tableTask.line}。优先完成这个任务，避免和前面玩家重复同一句压力。`
+        : "没有额外桌面任务，按当前局势自然推进。",
       previousSpeech
         ? `上一位是${seatText(previousSpeech.speaker!)}：${clipBriefingText(
             previousSpeech.message,
@@ -427,11 +738,13 @@ function buildPlayerSpeechGuide(
     ],
     avoid: [
       "不要为了接话强行回应上一位；只有相关时自然承接。",
-      "不要把模型特点说成自我介绍、模型名口号或固定模板。",
+      "可以按座位名报自己是谁，但不要把模型特点说成自我介绍、AI 身份、系统自述、模型口号或固定模板。",
       "不要机械复述事实简报、公开边界或规则说明。",
       "少用报告腔词组，例如“理由是”“依据是”“这个结论来自”；把它们改成牌桌口吻，如“卡我的是”“我打他的点是”。",
       "不要把内部标签说成台词，例如“拆因果”“第一点”“盘问议程”“可改票条件”。",
+      "不要列第一、第二、第三，也不要让别人一次回答两三个问题。",
       "不要面面俱到；身份坑、票型、发言顺序、死亡播报里选一个最能推进本轮的问题。",
+      "已经发过言的位置只能回看其已发表内容，不要让他后面再补、轮到他再回应。",
       "不要把边角位、语气、短发言、划水这类软状态直接当铁狼证据。",
       "不要泄露私有身份信息；狼队视角、真实查验和女巫药瓶只能按角色策略决定是否公开。",
     ],
@@ -473,7 +786,7 @@ function buildModelSpeechStyleGuide(view: AgentView): LlmSpeechInput["playerSpee
     return {
       modelName,
       softTendency: "偏强压节奏：结论更早、追问更直接，但不能乱踩未发言位。",
-      tendencies: [style, goal, "适合要求目标正面补过程、补站边或解释票口。"],
+      tendencies: [style, goal, "适合追一个具体目标的过程缺口，别一次索要站边、票口和身份线。"],
     };
   }
 
@@ -489,7 +802,7 @@ function buildModelSpeechStyleGuide(view: AgentView): LlmSpeechInput["playerSpee
     return {
       modelName,
       softTendency: "偏多线观察：同时保留两条可能性，再给下一轮验证点。",
-      tendencies: [style, goal, "适合说清楚哪些点暂放、哪些点需要后置位回答。"],
+      tendencies: [style, goal, "适合说清楚哪些点暂放、哪个具体点需要后续验证。"],
     };
   }
 
@@ -540,11 +853,17 @@ function buildTableBriefing(
     spokenCount: speechOrder.speakersAlreadyFinished.length,
     aliveCount: view.aliveSeats.length,
   };
+  const deathShapeAlreadyDiscussed = hasCurrentDayDeathShapeMention(view);
   const publicBoundary = [
     "公开信息只包括：已经公开的发言、死亡播报、身份声明、公开查验声明和已公开票型。",
-    "本轮已发言玩家可以被评价；本轮未发言玩家只能被要求稍后表态。",
-    "当前规则里狼人夜晚没有跳过击杀动作；天亮死讯只公开倒牌结果，不公开狼刀、毒、自刀等具体死因。",
-    "无守卫首夜单死后，“女巫没救/没用解药”是公开死亡形态下的合理简称，不应只因“女巫没救/没用解药”这种说法质疑发言者。",
+    "本轮已发言玩家可以被评价，但只能回看其已发表内容，不能说等他后面再补；本轮未发言玩家只能被要求稍后表态。",
+    "真预言家报查杀后，查杀位的个人解释不能把票口推走；只有外置硬身份反证或公开结构反证才会改变票口。",
+    "死亡形态中的“女巫用药了”只是公开规则推理，不等于发言者自称女巫；只有明确说“我是女巫”、公开救毒目标或拍女巫身份，才算女巫声明。",
+    ...buildClaimAttributionBoundaryLines(view),
+    "空刀不作为平安夜发言主线；天亮死讯只公开倒牌结果，不公开狼刀、毒、自刀等具体死因。",
+    deathShapeAlreadyDiscussed
+      ? "平安夜已作为公开死亡形态处理，不要主动复读药线或空刀；非女巫不要把女巫是谁、具体救了几号、狼刀或毒口落点说成确定事实；真女巫可以公开真实救毒信息，不能只说“我救过人”这种半公开私密状态；药瓶状态可以按公开死亡形态推理。"
+      : "平安夜直接按公开死亡形态处理，平安夜只需短句带过：可以说“女巫用药了”；不要把平安夜本身交给后置位重复解释；正常发言不要展开空刀；非女巫不要把女巫是谁、具体救了几号、狼刀或毒口落点说成确定事实；真女巫可以公开真实救毒信息，不能只说“我救过人”这种半公开私密状态；药瓶状态可以按公开死亡形态推理。",
   ];
   const privateBoundary = buildPrivateBoundaryLines(view);
   const recentCurrentDaySpeeches = view.publicSummary.recentSpeeches
@@ -555,36 +874,54 @@ function buildTableBriefing(
     `发言进度：已发言 ${speechProgress.spokenCount}/${speechProgress.aliveCount}，未发言 ${speechProgress.unspokenSeatIds.length}。`,
     `你发言前已经发言的人：${formatSeatList(speechOrder.speakersAlreadyFinished)}。`,
     `你之后还没发言的人：${formatSeatList(speechOrder.currentDayUnspokenSeats)}。`,
-    buildDeathBriefingLine(view),
+    buildDeathBriefingLine(view, deathShapeAlreadyDiscussed),
     buildSheriffBriefingLine(view),
     buildSheriffVoteBriefingLine(view),
     buildClaimBriefingLine(view),
+    buildTodaySpeechOrderBriefingLine(speechOrder),
+    buildFirstSpeakerBriefingLine(speechOrder),
+    buildCurrentSpeechOrderPositionLine(speechOrder),
+    buildFutureSeatMentionOrderLine(speechOrder),
+    ...buildBlackCheckTimingFactLines(view),
+    ...buildPostSpeechChallengeFactLines(view),
     buildSeerLegacyBriefingLine(view),
     ...recentCurrentDaySpeeches.map(
       (speech) => `${seatText(speech.speaker!)}刚才说：${clipBriefingText(speech.message, 90)}`,
     ),
-  ].filter((line) => line && !line.endsWith("：无。"));
+  ].filter((line): line is string => typeof line === "string" && Boolean(line) && !line.endsWith("：无。"));
 
   const privateFacts = buildPrivateBriefingLines(view);
   const unknowns = [
     "你不能知道其他玩家真实身份，除非这是你自己的身份、狼队视角或真实预言家查验。",
-    "公开死讯不能擅自说成确定的狼刀、毒药归属或自刀；若板子无守卫，可以以公开死亡形态讨论药线，但不要把女巫身份或药瓶细节说死。",
-    "尚未发言的后置位还没有给本轮态度，不能评价他们已经信息少、没回应或没站边。",
+    "不要把“平安夜女巫用药了”理解成某个发言者公开跳女巫；这只是死亡形态推理。",
+    "公开死讯可以产生推测和压力，但非女巫不能擅自说成确定的具体刀口、毒口、自刀位置或女巫身份；真女巫可以公开真实救毒信息，但不能只说“我救过人”这种半公开私密状态；药瓶状态可以按公开死亡形态推理。",
+    "尚未发言的后置位还没有给本轮态度，不能评价他们已经信息少、没回应或没站边；若要点人，只留一个具体问题。",
+    "已经发过言的前置位本轮不会再次发言，不能要求他们稍后补充、后面回应或轮到时再解释。",
     ...(view.privateKnowledge.sheriff ? [] : ["没有警上、警下、警徽、警长流程，不要使用这些概念。"]),
+    ...buildClaimAttributionBoundaryLines(view),
   ];
   const legalSpeechFocus = [
     speechOrder.speakersAlreadyFinished.length > 0
-      ? `可以评价已发言的${formatSeatList(speechOrder.speakersAlreadyFinished)}。`
+      ? `可以评价已发言的${formatSeatList(speechOrder.speakersAlreadyFinished)}，但只能回看已经说出口的内容。`
       : "你是本日靠前发言位，只能先铺自己的视角和观察点。",
     speechOrder.currentDayUnspokenSeats.length > 0
-      ? `可以要求后置位${formatSeatList(speechOrder.currentDayUnspokenSeats)}稍后补视角。`
+      ? `${buildFutureSeatMentionOrderLine(
+          speechOrder,
+        )} 如果必须点一个后置位，只选和当前发言链最相关的位置，只留一个具体问题；不要把站边、票口、身份线做成一圈通用作业。`
       : "本日已经没有后置位，可以开始收束今天的站边和票型。",
+    deathShapeAlreadyDiscussed
+      ? "平安夜已作为公开死亡形态处理，不要主动复读；把发言重心转到前置发言、身份线或票口。"
+      : "平安夜只需短句带过：可以说“女巫用药了”，不要解释空刀概率或展开规则背景。",
+    isLowInfoDayOneNoHardInfo(view)
+      ? "低信息首轮不要因为任何前置位没站边或没给票口去硬打；可以评价观察点是否过泛、谁在跟压，或先记录等待身份/查验信息。"
+      : undefined,
     plan.target
       ? `本轮可以围绕${seatText(plan.target)}展开判断，但不要把这个目标当成系统要求的固定模板。`
       : "本轮可以自由选择公开身份线、死讯、前置发言或票型作为切入点。",
-  ];
+  ].filter((line): line is string => Boolean(line));
 
   const publicReasoningCues = view.publicSummary.tableMemory.reasoningCues
+    .filter((cue) => !(deathShapeAlreadyDiscussed && cue.kind === "death_shape"))
     .slice(0, 6)
     .map((cue) => `${cue.summary}${cue.evidence.length > 0 ? `；依据：${cue.evidence.slice(0, 2).join("、")}` : ""}`);
 
@@ -634,7 +971,7 @@ function buildTableBriefing(
   };
 }
 
-function buildDeathBriefingLine(view: AgentView): string {
+function buildDeathBriefingLine(view: AgentView, deathShapeAlreadyDiscussed = hasCurrentDayDeathShapeMention(view)): string {
   const deaths = [
     ...new Set([
       ...view.publicSummary.recentDeaths,
@@ -642,7 +979,9 @@ function buildDeathBriefingLine(view: AgentView): string {
     ]),
   ].slice(-3);
   return deaths.length > 0
-    ? `公开死讯：${deaths.join("；")}。当前规则里狼人夜晚没有跳过击杀动作；死因仍未公开，不能直接确认狼刀、毒药归属或自刀；可按板子讨论公开死亡形态假设。`
+    ? deathShapeAlreadyDiscussed
+      ? `公开死讯：${deaths.join("；")}。平安夜已作为公开死亡形态处理，本轮不要主动复读药线或空刀；死因仍未公开，不能直接确认狼刀、毒药归属或自刀。`
+      : `公开死讯：${deaths.join("；")}。死因仍未公开，不能直接确认狼刀、毒药归属或自刀；平安夜直接按公开死亡形态处理，发言里短句说“女巫用药了”即可，不要把平安夜本身交给后置位重复解释。`
     : "公开死讯：目前没有需要引用的死亡播报。";
 }
 
@@ -763,7 +1102,10 @@ function buildPrivateBoundaryLines(view: AgentView): string[] {
     case "WITCH":
       return [
         ...common,
-        "药瓶、刀口和用药信息只有你知道；未跳身份前不要说成全桌都知道的事实。",
+        "具体刀口、救毒目标和真实用药只有你知道；未跳身份前不要说成全桌都知道的事实。",
+        ...(view.privateKnowledge.witch?.savedTarget
+          ? ["如果你选择公开女巫救人，发言要同时报出救的几号/银水，不只说“我用药了”。"]
+          : []),
       ];
     case "WEREWOLF":
     case "WOLF_KING":
@@ -782,12 +1124,83 @@ function buildPrivateBoundaryLines(view: AgentView): string[] {
     case "GUARD":
       return [...common, "守卫身份可以选择拍出或隐藏，但不能把守护目标说成全桌公开事实。"];
     case "VILLAGER":
-      return [...common, "闭眼平民没有夜间信息，不能伪造查验、药瓶、刀口或狼队视角。"];
+      return [...common, "闭眼平民没有夜间信息，不能伪造查验、具体刀口、救毒目标或狼队视角。"];
   }
 }
 
 function formatSeatList(seats: ActionTarget[]): string {
   return seats.length > 0 ? seats.map((seat) => seatText(seat)).join("、") : "无";
+}
+
+function buildClaimAttributionBoundaryLines(view: AgentView): string[] {
+  return buildClaimAttributionBoundaryLinesFromClaimBoard(view.publicSummary.claimBoard);
+}
+
+function buildClaimAttributionContractLines(view: AgentView): string[] {
+  return buildClaimAttributionBoundaryLines(view).map((line) => `身份归属硬约束：${line}`);
+}
+
+function buildBlackCheckTimingFactLines(view: AgentView): string[] {
+  return getPriorSpeechBlackCheckTimelines(view).map(
+    ({ claimant, target }) =>
+      `查杀时序：${seatText(target)}的本日发言发生在${seatText(claimant)}报查杀之前；评价这段时正确表述是“${target.seatId}号查杀前的发言/原话”，${target.seatId}号原话不是对${claimant.seatId}号查杀/验人理由的回应或质疑；若要讨论查杀后的表现，只能引用公开记录中查杀之后的新发言。`,
+  );
+}
+
+function buildTodaySpeechOrderBriefingLine(speechOrder: LlmSpeechInput["publicContext"]["speechOrder"]): string {
+  return `今日完整发言顺序：${formatSeatList(speechOrder.todaySpeechOrder)}。`;
+}
+
+function buildCurrentSpeechOrderPositionLine(speechOrder: LlmSpeechInput["publicContext"]["speechOrder"]): string {
+  const position = speechOrder.currentSpeakerOrderIndex >= 0 ? speechOrder.currentSpeakerOrderIndex + 1 : undefined;
+  const previous = position ? speechOrder.todaySpeechOrder[position - 2] : undefined;
+  const next = position ? speechOrder.todaySpeechOrder[position] : undefined;
+  const previousText = previous ? `上一位是${seatText(previous)}` : "前面没有同日发言位";
+  const nextText = next ? `下一位是${seatText(next)}` : "后面没有同日发言位";
+  return position
+    ? `当前是今日第${position}位发言，${previousText}，${nextText}。`
+    : `当前发言席不在今日发言队列中；只按公开已发言记录和后续未发言名单判断。`;
+}
+
+function buildFirstSpeakerBriefingLine(speechOrder: LlmSpeechInput["publicContext"]["speechOrder"]): string | undefined {
+  const first = speechOrder.todaySpeechOrder[0];
+  if (!first) return undefined;
+  return `今日首置位：${seatText(first)}；只有这个座位可称首置位，其他已发言座位请称前置位、上一位或具体座位。`;
+}
+
+function buildFutureSeatMentionOrderLine(speechOrder: LlmSpeechInput["publicContext"]["speechOrder"]): string | undefined {
+  const nextUnspoken = speechOrder.currentDayUnspokenSeats[0];
+  if (!nextUnspoken) return undefined;
+  return `后置位点名顺序：如果只是保留观察，默认说“后置位整体”或“下一位${seatText(
+    nextUnspoken,
+  )}”；若连续点多个后置位，按今日顺序连续点名，不要无理由跳过中间后置位。`;
+}
+
+function buildPostSpeechChallengeFactLines(view: AgentView): string[] {
+  return getPostSpeechChallengeTimelines(view).map(({ target, challengers, theme }) => {
+    const challengeLead = challengers.length >= 2 ? "后续多人" : `后续${formatSeatList(challengers)}`;
+    return `追问时序：${challengeLead}追问${seatText(target)}的${theme}，但这些追问发生在${target.seatId}号本轮发言之后；${target.seatId}号本轮尚无再次发言机会。正确表述是“后置位持续追问/形成压力”，不是“${target.seatId}号没回/没回应”。`;
+  });
+}
+
+function buildClaimAttributionBoundaryLinesFromClaimBoard(claimBoard: AgentView["publicSummary"]["claimBoard"]): string[] {
+  const seerClaimantIds = new Set(
+    claimBoard.filter((claim) => claim.claimedRole === "SEER").map((claim) => claim.claimant.seatId),
+  );
+  return claimBoard
+    .filter((claim) => claim.claimedRole === "SEER")
+    .flatMap((claim) =>
+      claim.checks
+        .filter((check) => check.result === "WEREWOLF" && !seerClaimantIds.has(check.target.seatId))
+        .map(
+          (check) =>
+            `${seatText(claim.claimant)}才是预言家声明者；${seatText(check.target)}只是被报查杀对象，除非${check.target.seatId}号也公开跳预言家，否则不能说认${check.target.seatId}号预言家；如果你不信${claim.claimant.seatId}号，只能说“不认${claim.claimant.seatId}号预言家”或“保${check.target.seatId}号查杀位”。`,
+        ),
+    );
+}
+
+function formatSeatNumberList(seats: ActionTarget[]): string {
+  return seats.length > 0 ? seats.map((seat) => `${seat.seatId}号`).join("、") : "无";
 }
 
 function clipBriefingText(text: string, limit: number): string {
@@ -885,8 +1298,6 @@ export function validateRenderedSpeech(
   speech: string,
   strictness = readSpeechStrictness(),
 ): string[] {
-  if (strictness !== "strict") return [];
-
   const errors: string[] = [];
   const normalized = normalizeDigits(speech);
   const validSeatIds = new Set(view.aliveSeats.map((seat) => seat.seatId));
@@ -896,6 +1307,32 @@ export function validateRenderedSpeech(
     message: normalized,
     validSeatIds,
   });
+  errors.push(...validateDeathCauseBoundaries(view, normalized));
+  errors.push(...validateWitchClaimAttribution(view, normalized));
+  errors.push(...validateSpeechTimeline(view, normalized));
+  errors.push(...validateAlreadySpokenFutureAsk(view, normalized));
+  errors.push(...validateFutureSeatMentionOrder(view, normalized));
+  errors.push(...validateSeerBlackCheckFinality(view, plan, publicClaim, normalized));
+  errors.push(...validateBlackCheckReactionTimeline(view, normalized));
+  errors.push(...validatePreClaimTargetInteractionTimeline(view, normalized));
+  errors.push(...validatePostSpeechChallengeTimeline(view, normalized));
+  errors.push(...validateClaimAttribution(view, normalized));
+  errors.push(...validateCompleteQuestionFragments(normalized));
+  if (
+    publicClaim &&
+    plan.claimIntent?.strength === "soft" &&
+    !plan.playMotive?.allowIdentityClaim &&
+    publicClaim.claimedRole === plan.claimIntent.claimedRole &&
+    publicClaim.strength === "hard" &&
+    !isAllowedTrueWitchTargetReveal(view, normalized)
+  ) {
+    errors.push("软身份边界不应硬拍身份");
+  }
+  if (strictness !== "loose") {
+    errors.push(...validateSpeechContract(plan, normalized));
+  }
+  errors.push(...validateConciseTableSpeech(normalized));
+  if (strictness !== "strict") return errors;
 
   errors.push(...validatePublicSpeechRelevance(view, plan, normalized, strictness));
 
@@ -963,6 +1400,93 @@ export function validateRenderedSpeech(
   return errors;
 }
 
+function validateSpeechContract(plan: SpeechPlan, speech: string): string[] {
+  const target = plan.target;
+  const move = resolveContractMove(plan);
+  if (!target) return [];
+
+  switch (move) {
+    case "review_spoken_target":
+      return asksTargetForFutureResponse(speech, target.seatId)
+        ? [`speechContract要求只回看${target.seatId}号已发表内容`]
+        : [];
+    case "ask_unspoken_target":
+      return treatsTargetAsAlreadyAnswered(speech, target.seatId)
+        ? [`speechContract要求只能等待${target.seatId}号后续发言`]
+        : [];
+    case "claim_black_check":
+      return speechMentionsBlackCheck(speech, target.seatId)
+        ? []
+        : [`speechContract要求报出${target.seatId}号查杀`];
+    case "claim_gold_check":
+      return mentionsGoldCheck(speech, target.seatId)
+        ? []
+        : [`speechContract要求报出${target.seatId}号金水`];
+    default:
+      return [];
+  }
+}
+
+function asksTargetForFutureResponse(speech: string, targetSeatId: number): boolean {
+  const targetText = `${targetSeatId}\\s*号`;
+  const futureCue = "(?:后置(?:位)?|后面|后续|稍后|等下|一会儿|接下来|轮到|等.{0,8}(?:发言|说|回应|补|报|跳|给))";
+  const responseCue =
+    "(?:补(?:结论|方向|过程|逻辑|站边|票口)?|回应|回(?:我|一个点|一下|应)|回答(?:我|一下|这个问题)?|答(?:我|一下)?|解释|说清|讲清|表态|接(?:话|后置位(?:的话|发言)?|这个点|逻辑|发言链)|给(?:出)?(?:站边|票口|查验|验人|判断标准|信息)|发言|开口|报(?:完)?(?:查验链|验|查验|信息)|跳(?:身份|预言家))";
+  return speech.split(/[。！？；]/).some((sentence) => {
+    if (isMissingInfoReview(sentence, targetSeatId) && !hasExplicitFutureDemand(sentence, targetSeatId)) return false;
+    if (isReviewingSpokenSeatFutureReference(sentence, targetSeatId)) return false;
+    return (
+      new RegExp(`${targetText}.{0,24}${futureCue}.{0,20}${responseCue}`).test(sentence) ||
+      new RegExp(`${futureCue}.{0,24}${targetText}.{0,24}${responseCue}`).test(sentence)
+    );
+  });
+}
+
+function isMissingInfoReview(sentence: string, seatId: number): boolean {
+  const seatPattern = `${seatId}\\s*号`;
+  return (
+    new RegExp(
+      `${seatPattern}.{0,72}(?:没给具体哪一?点不闭环|没点明具体哪一条不闭环|没有独立判断依据|没给落脚点|没有落脚点)`,
+    ).test(sentence) ||
+    new RegExp(
+      `${seatPattern}.{0,48}(?:没|没有|未|不).{0,8}(?:给(?:出)?|落|提|报|说|交代|点明).{0,16}(?:票口|站边|身份线|出人|方向|态度|信息|理由|落脚点|锚点|判断依据|独立判断|具体(?:哪一?点|哪一条).{0,4}闭环)`,
+    ).test(sentence) ||
+    new RegExp(`${seatPattern}.{0,24}(?:原话|刚才|这段|发言).{0,18}(?:没有|没|不).{0,8}(?:闭环|闭合|对上)`).test(sentence)
+  );
+}
+
+function hasExplicitFutureDemand(sentence: string, seatId: number): boolean {
+  const seatPattern = `${seatId}\\s*号`;
+  const futureCue = "(?:后置(?:位)?|后面|后续|稍后|等下|一会儿|接下来|轮到|等.{0,8}(?:发言|说|回应|补|报|跳|给))";
+  const demandCue =
+    "(?:补(?:结论|方向|过程|逻辑|站边|票口)?|回(?:我|一个点|一下|应)|回应|回答(?:我|一下|这个问题)?|答(?:我|一下)?|解释|说清|讲清|表态|接(?:话|后置位(?:的话|发言)?|这个点|逻辑|发言链)|开口|闭环|报(?:完)?(?:查验链|验|查验|信息)|跳(?:身份|预言家)|(?:再|要|得|必须|需要|该|先).{0,4}给(?:出)?(?:站边|票口|查验|验人|判断标准|信息))";
+  return (
+    new RegExp(`${seatPattern}.{0,30}${futureCue}.{0,30}${demandCue}`).test(sentence) ||
+    new RegExp(`${futureCue}.{0,30}${seatPattern}.{0,30}${demandCue}`).test(sentence)
+  );
+}
+
+function treatsTargetAsAlreadyAnswered(speech: string, targetSeatId: number): boolean {
+  const targetText = `${targetSeatId}号`;
+  return speech.split(/[。！？；]/).some((sentence) => {
+    if (!sentence.includes(targetText)) return false;
+    return (
+      /(到现在|目前|现在|已经|一直|前面|刚刚).{0,16}(信息量|发言|站边|态度|死讯|回应|解释|判断)/.test(sentence) ||
+      /(信息量|发言).{0,10}(太少|少|偏少|不足|太空|空|低)/.test(sentence) ||
+      /(没有|没|未).{0,10}(明确站边|站边|态度|回应|解释|判断|对死讯|对昨夜|给信息)/.test(sentence) ||
+      /只给结论|发言偏短|过程不够|回避站边/.test(sentence)
+    );
+  });
+}
+
+function mentionsGoldCheck(speech: string, targetSeatId: number): boolean {
+  const targetText = `${targetSeatId}号`;
+  return (
+    new RegExp(`${targetText}.{0,10}(?:金水|好人)`).test(speech) ||
+    new RegExp(`(?:查验|验了|验|摸了)\\s*${targetText}.{0,10}(?:金水|好人)`).test(speech)
+  );
+}
+
 function pressuresReportedGoldWater(speech: string, targetSeatId: number): boolean {
   const targetText = `${targetSeatId}号`;
   return speech.split(/[。！？；]/).some((sentence) => {
@@ -994,6 +1518,219 @@ function validatePublicClaimHardRules(
   }
 
   return errors;
+}
+
+function validateDeathCauseBoundaries(view: AgentView, speech: string): string[] {
+  const errors: string[] = [];
+
+  const impossibleNoKillClaim =
+    /(?:狼人|狼队).{0,8}(?:不能|不允许|无法|没法).{0,8}(?:空刀|跳过击杀)|(?:规则|机制|系统).{0,8}(?:不能|不允许|无法|没法).{0,8}(?:空刀|跳过击杀)|(?:空刀|跳过击杀).{0,12}(?:规则不允许|机制不允许|系统不允许|绝对不可能)/.test(
+      speech,
+    );
+  if (impossibleNoKillClaim) {
+    errors.push("发言把狼人空刀说成规则不可能");
+  }
+
+  const overCertainNoKillClaim =
+    /(?:确定|肯定|必然|一定|铁定|就是).{0,12}(?:狼人|狼队)?.{0,8}(?:空刀|跳过击杀)|(?:狼人|狼队).{0,8}(?:确定|肯定|必然|一定|铁定|就是).{0,8}(?:空刀|跳过击杀)/.test(
+      speech,
+    );
+  if (overCertainNoKillClaim) {
+    errors.push("发言把极低概率空刀说成确定事实");
+  }
+
+  if (hasForbiddenPotionTargetDetail(view, speech)) {
+    errors.push("发言泄露或编造女巫用药细节");
+  }
+
+  if (hasForbiddenWitchStatusLeak(view, speech)) {
+    errors.push("发言暗示私密女巫用药状态");
+  }
+
+  if (asksToRelitigatePeaceNight(speech)) {
+    errors.push("平安夜不应被当成后置追问任务");
+  }
+
+  const overCertainDeathDetail = /(?:确定|肯定|必然|一定|铁定|就是).{0,12}(刀口|毒口|自刀|女巫身份|被救的是|救的是)/.test(
+    speech,
+  );
+  if (overCertainDeathDetail) {
+    errors.push("发言把私密死因细节说成确定事实");
+  }
+
+  return errors;
+}
+
+function hasForbiddenWitchStatusLeak(view: AgentView, speech: string): boolean {
+  const selfPotionLeak =
+    /(?:我|本人|这张牌|我这里).{0,12}(?:救过人|救了人|有救人信息|有药线信息|用过解药|开过解药|用了解药|解药已经用|解药没了|手里没解药|毒过人|用过毒|开过毒)/.test(
+      speech,
+    ) ||
+    /(?:救过人的信息|我救人的信息|我的救人信息|我的药线信息)/.test(speech);
+  if (!selfPotionLeak) return false;
+
+  const hasExplicitTarget = /(?:救的是|救了|毒的是|毒了)\s*([0-9]+|[一二三四五六七八九十两]+)\s*号?/.test(speech);
+  return !(view.myRole === "WITCH" && hasExplicitTarget);
+}
+
+function isAllowedTrueWitchTargetReveal(view: AgentView, speech: string): boolean {
+  if (view.myRole !== "WITCH") return false;
+  const hasExplicitTarget = /(?:救的是|救了|毒的是|毒了)\s*([0-9]+|[一二三四五六七八九十两]+)\s*号?/.test(
+    speech,
+  );
+  return hasExplicitTarget && !hasForbiddenPotionTargetDetail(view, speech);
+}
+
+function asksToRelitigatePeaceNight(speech: string): boolean {
+  if (!/(平安夜|空刀|药线)/.test(speech)) return false;
+  if (/(?:别|不要|不用|不必|无需).{0,20}(?:后置|大家|别人|重复|再).{0,20}(?:聊|谈|解释|讨论|回应|盘)/.test(speech)) {
+    return false;
+  }
+  return (
+    /(?:后置|等.{0,8}(?:发言|说|补|回应)|轮到|你们|大家).{0,30}(?:平安夜|空刀|药线).{0,20}(?:怎么看|怎么理解|谈|聊|说|补|回应|解释)/.test(
+      speech,
+    ) ||
+    /(?:平安夜|空刀|药线).{0,20}(?:怎么看|怎么理解|谈谈|聊聊|说说|补一下|回应一下)/.test(speech) ||
+    /(?:女巫用药|空刀).{0,6}(?:还是|或者|或).{0,6}(?:女巫用药|空刀)/.test(speech)
+  );
+}
+
+function hasForbiddenPotionTargetDetail(view: AgentView, speech: string): boolean {
+  const publiclyClaimed = collectPubliclyClaimedPotionTargets(view);
+  const saveTargets = [
+    ...collectPotionTargetIds(speech, /女巫.{0,18}(?:救的是|救了|救中的是)\s*([0-9]+|[一二三四五六七八九十两]+)\s*号?/g),
+    ...collectPotionTargetIds(speech, /(?:我|昨晚|昨夜|夜里).{0,10}(?:救的是|救了)\s*([0-9]+|[一二三四五六七八九十两]+)\s*号?/g),
+    ...collectPotionTargetIds(speech, /([0-9]+|[一二三四五六七八九十两]+)\s*号.{0,8}(?:被女巫救|吃了解药|被救了)/g),
+  ];
+  const poisonTargets = [
+    ...collectPotionTargetIds(speech, /女巫.{0,18}(?:毒的是|毒了)\s*([0-9]+|[一二三四五六七八九十两]+)\s*号?/g),
+    ...collectPotionTargetIds(speech, /(?:我|昨晚|昨夜|夜里).{0,10}(?:毒的是|毒了)\s*([0-9]+|[一二三四五六七八九十两]+)\s*号?/g),
+    ...collectPotionTargetIds(speech, /([0-9]+|[一二三四五六七八九十两]+)\s*号.{0,8}(?:被女巫毒|吃毒|被毒了)/g),
+  ];
+  const knifeTargets = collectPotionTargetIds(speech, /(?:刀口).{0,8}(?:在|是).{0,8}([0-9]+|[一二三四五六七八九十两]+)\s*号?/g);
+  const poisonMouthTargets = collectPotionTargetIds(speech, /(?:毒口).{0,8}(?:在|是).{0,8}([0-9]+|[一二三四五六七八九十两]+)\s*号?/g);
+
+  return (
+    hasForbiddenKnownTarget(view, saveTargets, [view.privateKnowledge.witch?.savedTarget?.seatId, ...publiclyClaimed.saved]) ||
+    hasForbiddenKnownTarget(view, poisonTargets, [view.privateKnowledge.witch?.poisonedTarget?.seatId, ...publiclyClaimed.poisoned]) ||
+    hasForbiddenKnownTarget(view, knifeTargets, [
+      view.privateKnowledge.witch?.currentVictim?.seatId,
+      view.privateKnowledge.witch?.savedTarget?.seatId,
+    ]) ||
+    hasForbiddenKnownTarget(view, poisonMouthTargets, [view.privateKnowledge.witch?.poisonedTarget?.seatId])
+  );
+}
+
+function hasForbiddenKnownTarget(view: AgentView, targetIds: number[], allowedTargetIds: Array<number | undefined>): boolean {
+  const ids = [...new Set(targetIds.filter((seatId) => Number.isFinite(seatId)))];
+  if (ids.length === 0) return false;
+  const allowed = new Set(allowedTargetIds.filter((seatId): seatId is number => typeof seatId === "number"));
+  if (ids.every((seatId) => allowed.has(seatId))) return false;
+  if (view.myRole !== "WITCH") return true;
+  return ids.some((seatId) => !allowed.has(seatId));
+}
+
+function validateWitchClaimAttribution(view: AgentView, speech: string): string[] {
+  const claimedWitchSeatIds = new Set(
+    view.publicSummary.claimBoard.filter((claim) => claim.claimedRole === "WITCH").map((claim) => claim.claimant.seatId),
+  );
+  const aliveSeatIds = new Set(view.aliveSeats.map((seat) => seat.seatId));
+  const selfClaimIndex = speech.indexOf("自称女巫");
+  if (selfClaimIndex >= 0) {
+    const priorSeatMentions = [...speech.slice(0, selfClaimIndex).matchAll(/(\d{1,2})\s*号/g)];
+    const seatId = Number(priorSeatMentions.at(-1)?.[1]);
+    if (Number.isFinite(seatId) && aliveSeatIds.has(seatId) && !claimedWitchSeatIds.has(seatId)) {
+      return [`把${seatId}号的女巫用药表述错当女巫声明`];
+    }
+  }
+  for (const sentence of speech.split(/[。！？；]/)) {
+    if (deniesWitchClaimAttribution(sentence)) continue;
+    for (const seatId of collectWitchClaimAttributedSeatIds(sentence)) {
+      if (!aliveSeatIds.has(seatId) || claimedWitchSeatIds.has(seatId)) continue;
+      return [`把${seatId}号的女巫用药表述错当女巫声明`];
+    }
+  }
+  return [];
+}
+
+function deniesWitchClaimAttribution(sentence: string): boolean {
+  return /(?:不等于|不是|并非|不能说).{0,24}(?:自称女巫|跳女巫|拍女巫|女巫声明|女巫身份|女巫牌)|(?:没有|没).{0,6}(?:自称女巫|跳女巫|拍女巫|女巫声明|女巫身份|女巫牌)|(?:自称女巫|跳女巫|拍女巫|女巫声明|女巫身份|女巫牌).{0,16}(?:不成立|没有这回事|没这回事|是假的)/.test(
+    sentence,
+  );
+}
+
+function collectWitchClaimAttributedSeatIds(sentence: string): number[] {
+  const ids = new Set<number>();
+  for (const match of sentence.matchAll(/(\d{1,2})\s*号/g)) {
+    const seatId = Number(match[1]);
+    const window = sentence.slice(match.index ?? 0, (match.index ?? 0) + 56);
+    if (
+      window.includes("自称女巫") ||
+      window.includes("自拍女巫") ||
+      window.includes("跳女巫") ||
+      window.includes("拍女巫") ||
+      window.includes("女巫声明") ||
+      window.includes("女巫身份") ||
+      window.includes("女巫牌") ||
+      window.includes("女巫自拍")
+    ) {
+      ids.add(seatId);
+    }
+  }
+  return [...ids];
+}
+
+function collectPubliclyClaimedPotionTargets(view: AgentView): { saved: number[]; poisoned: number[] } {
+  const messages = view.publicEvents
+    .filter((event) => event.type === "SPEECH_CREATED" || event.type === "LAST_WORDS_CREATED")
+    .map((event) => String(event.payload?.message ?? event.message ?? ""));
+  return {
+    saved: [
+      ...new Set(
+        messages.flatMap((message) => [
+          ...collectPotionTargetIds(message, /(?:女巫|我|昨晚|昨夜|夜里).{0,24}(?:救的是|救了|救过|救中的是)\s*([0-9]+|[一二三四五六七八九十两]+)\s*号?/g),
+          ...collectPotionTargetIds(message, /([0-9]+|[一二三四五六七八九十两]+)\s*号.{0,12}(?:被女巫救|吃了解药|被救了)/g),
+        ]),
+      ),
+    ],
+    poisoned: [
+      ...new Set(
+        messages.flatMap((message) => [
+          ...collectPotionTargetIds(message, /(?:女巫|我|昨晚|昨夜|夜里).{0,24}(?:毒的是|毒了|毒过)\s*([0-9]+|[一二三四五六七八九十两]+)\s*号?/g),
+          ...collectPotionTargetIds(message, /([0-9]+|[一二三四五六七八九十两]+)\s*号.{0,12}(?:被女巫毒|吃毒|被毒了)/g),
+        ]),
+      ),
+    ],
+  };
+}
+
+function collectPotionTargetIds(speech: string, pattern: RegExp): number[] {
+  return [...speech.matchAll(pattern)]
+    .map((match) => parseSeatNumber(match[1] ?? ""))
+    .filter((seatId): seatId is number => typeof seatId === "number");
+}
+
+function parseSeatNumber(value: string): number | undefined {
+  if (/^\d+$/.test(value)) return Number(value);
+  const digits: Record<string, number> = {
+    一: 1,
+    二: 2,
+    两: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+  };
+  if (value === "十") return 10;
+  if (/^十[一二两三四五六七八九]$/.test(value)) return 10 + (digits[value[1]!] ?? 0);
+  if (/^[一二两三四五六七八九]十$/.test(value)) return (digits[value[0]!] ?? 0) * 10;
+  if (/^[一二两三四五六七八九]十[一二两三四五六七八九]$/.test(value)) {
+    return (digits[value[0]!] ?? 0) * 10 + (digits[value[2]!] ?? 0);
+  }
+  return digits[value];
 }
 
 function buildPrivateSpeechContext(view: AgentView): LlmSpeechInput["privateContext"] {
@@ -1068,13 +1805,35 @@ function sanitizeAiMemoryForSpeech(memory: AgentView["privateKnowledge"]["aiMemo
   };
 }
 
-function buildSpeechConstraints(view: AgentView, plan: SpeechPlan, strictness: SpeechStrictness): string[] {
+function buildSpeechConstraints(
+  view: AgentView,
+  plan: SpeechPlan,
+  strictness: SpeechStrictness,
+  speechContract: LlmSpeechContract,
+): string[] {
+  const deathShapeAlreadyDiscussed = hasCurrentDayDeathShapeMention(view);
+  const deathShapeConstraints = deathShapeAlreadyDiscussed
+    ? [
+        "狼人杀允许低信息推测：可以说“我猜/我倾向/大概率/按规则推”，并用这种推测推动追问、站边和票口。",
+        "平安夜已作为公开死亡形态处理；本轮不要主动复读“按女巫用药”或空刀，只在直接相关时一句带过。",
+        "非女巫不要把女巫是谁、具体救了几号、狼刀刀口在哪、毒口在哪说成确定事实；真女巫可以公开真实救毒信息，但不能只说“我救过人”这种半公开私密状态；药瓶状态可以按公开死亡形态推理，但不要伪装成私密直知。",
+      ]
+    : [
+        "狼人杀允许低信息推测：可以说“我猜/我倾向/大概率/按规则推”，并用这种推测推动追问、站边和票口。",
+        "死亡/平安夜直接按公开死亡形态处理：无守卫平安夜发言里短句说“女巫用药了”即可；不要展开空刀，也不要把平安夜本身交给后置位重复解释。",
+        "非女巫不要把女巫是谁、具体救了几号、狼刀刀口在哪、毒口在哪说成确定事实；真女巫可以公开真实救毒信息，但不能只说“我救过人”这种半公开私密状态；药瓶状态可以按公开死亡形态推理，但不要伪装成私密直知。",
+        "正常发言不要展开空刀；不要把空刀说成规则绝对不可能，也不要把空刀当成平安夜主线解释。",
+      ];
+  const interactionConstraints = buildSpeechInteractionConstraints(plan, speechContract);
+  const sharedConstraints = [...deathShapeConstraints, ...interactionConstraints];
   if (strictness === "strict") {
     const strictConstraints = [
+      ...sharedConstraints,
       "只输出白天公开发言，不输出投票、夜晚动作或解释 JSON 之外的内容。",
       "必须遵守 speechPlan 的 kind、target、talkingPoints、interaction、personaCue 和 claimIntent，不新增身份声明或查验。",
       "每段发言必须锚定至少一个局内对象或公开事件：座位、上一段发言、死讯、票型、身份声明或查验；不要输出寒暄、规则解释或模型自述。",
-      "可以要求 currentDayUnspokenSeats 里的后置位稍后补视角，但不得说他们已经发言少、信息量少、没站边、没回应死讯或只给结论。",
+      "currentDayUnspokenSeats 里的后置位只能被点一个具体问题，不得说他们已经发言少、信息量少、没站边、没回应死讯或只给结论；speakersAlreadyFinished 只能回看，不能要求后续补充。",
+      "如果要打已经发过言的位置，直接落成“我按这个缺口压票/挂观察/不直接归死”；不要写“你再解释、你补、你复述、轮到你回应”。",
       "发言只像桌上玩家一样引用公开发言、死讯、票型和身份声明；不要解释信息来自哪里。",
       "可以质疑或站边公开声明，但必须写成公开判断，不写成确定真相。",
       "不要套固定模板；每句话都要服务于当前局面里的一个判断、保留、追问或身份动作。",
@@ -1089,6 +1848,8 @@ function buildSpeechConstraints(view: AgentView, plan: SpeechPlan, strictness: S
       );
       if (plan.claimIntent.check.result === "GOOD") {
         strictConstraints.push("报金水后不得同段把该金水当出人焦点、怀疑焦点或压票对象；重点应转向谁反打或硬踩金水。");
+      } else {
+        strictConstraints.push("真预言家报查杀后不能让查杀位靠自证把票口推走；票口先压查杀，只有外置硬身份反证能改变结构。");
       }
     }
 
@@ -1108,7 +1869,24 @@ function buildSpeechConstraints(view: AgentView, plan: SpeechPlan, strictness: S
     return strictConstraints;
   }
 
-  return [];
+  return sharedConstraints;
+}
+
+function buildSpeechInteractionConstraints(plan: SpeechPlan, speechContract: LlmSpeechContract): string[] {
+  const target = plan.target ? `${plan.target.seatId}号` : "无目标";
+  const contract = `SpeechPlan interaction contract: speechContract.move=${speechContract.move}; target=${target}; targetSpeechStatus=${
+    plan.targetSpeechStatus ?? "none"
+  }; allowedInteraction=${plan.allowedInteraction ?? "none"}。`;
+  switch (plan.allowedInteraction) {
+    case "review_spoken":
+      return [contract, "allowedInteraction=review_spoken：只能回看目标已发表内容，不能要求目标后续补充、轮到时回应或后面解释。"];
+    case "ask_future":
+      return [contract, "allowedInteraction=ask_future：目标尚未发言，只能留一个与当前发言链相关的具体问题；不能提前评价他已经回应差、信息少或只给结论。"];
+    case "finalize_black_check":
+      return [contract, "allowedInteraction=finalize_black_check：真预言家查杀先落票口，不给查杀位靠自证推走票口；只有外置硬身份反证能改变结构。"];
+    default:
+      return [contract];
+  }
 }
 
 function describeWolfAssignmentForSpeech(taskLabel: string): string {
@@ -1181,8 +1959,6 @@ function validatePublicSpeechRelevance(
     return errors;
   }
 
-  errors.push(...validateSpeechTimeline(view, speech));
-
   const mentionsAnySeat = view.aliveSeats.some((seat) => containsPublicSeatReference(speech, seat));
   const mentionsPlannedTarget = plan.target ? containsPublicSeatReference(speech, plan.target) : false;
   const hasPublicAnchor =
@@ -1215,14 +1991,21 @@ function validateSpeechTimeline(view: AgentView, speech: string): string[] {
     (seat) => seat.alive && seat.seatId !== view.mySeatId && seat.lastSpeechDay !== view.day,
   );
   for (const seat of unspokenSeats) {
-    const targetMentioned = speech.includes(`${seat.seatId}号`) || (seat.name !== "你" && speech.includes(seat.name));
-    if (!targetMentioned) continue;
+    const targetSentences = speech.split(/[。！？；]/).filter((sentence) => mentionsSeatReference(sentence, seat));
+    if (targetSentences.length === 0) continue;
 
-    const saysAlreadyLowInfo =
-      /(到现在|目前|现在|已经|一直|前面|刚刚).{0,16}(信息量|发言|站边|态度|死讯|回应|解释|判断)/.test(speech) ||
-      /(信息量|发言).{0,10}(太少|少|偏少|不足|太空|空|低)/.test(speech) ||
-      /(没有|没|未).{0,10}(明确站边|站边|态度|回应|解释|判断|对死讯|对昨夜|给信息)/.test(speech) ||
-      /只给结论|发言偏短|过程不够|回避站边/.test(speech);
+    const saysAlreadyLowInfo = targetSentences.some((sentence) => {
+      if (isFutureListeningTask(sentence, seat.seatId)) return false;
+      if (isExplicitHistoricalSpeechReview(sentence)) return false;
+      return (
+        /(到现在|目前|现在|本轮|今天|已经|一直|刚刚).{0,16}(信息量|发言|站边|态度|死讯|回应|解释|判断)/.test(sentence) ||
+        /(信息量|发言).{0,10}(太少|少|偏少|不足|太空|空|低)/.test(sentence) ||
+        /(没有|没|未).{0,10}(明确站边|站边|态度|回应|解释|判断|对死讯|对昨夜|给信息)/.test(sentence) ||
+        /(?:查杀|反打|攻击|踩|打|压|归票|带票).{0,18}(?:之后|以后|完|了)/.test(sentence) ||
+        /拿.{0,10}(?:短发言|发言短|发言).{0,14}(?:做文章|攻击|打|踩)/.test(sentence) ||
+        /只给结论|发言偏短|过程不够|回避站边/.test(sentence)
+      );
+    });
 
     const framesAsFuture = /(后置|后面|等.{0,6}发言|轮到|如果.{0,18}(发言|后面|后置)|稍后|一会儿)/.test(speech);
     if (saysAlreadyLowInfo && !framesAsFuture) {
@@ -1231,6 +2014,544 @@ function validateSpeechTimeline(view: AgentView, speech: string): string[] {
   }
 
   return [];
+}
+
+function isFutureListeningTask(sentence: string, seatId: number): boolean {
+  if (!sentence.includes(`${seatId}号`)) return false;
+  const seatText = `${seatId}\\s*号`;
+  if (new RegExp(`(?:重点听|主要听|先听|想听|要听).{0,8}${seatText}.{0,24}(?:位置|态度|站边|票口|看法|视角)`).test(sentence)) {
+    return true;
+  }
+  if (new RegExp(`${seatText}.{0,24}(?:第一个|主要|重点).{0,16}(?:确认|听).{0,8}(?:态度|站边|票口|看法|视角)`).test(sentence)) {
+    return true;
+  }
+  if (/(重点听|主要听|先听|想听|要听).{0,36}(位置|态度|站边|票口|看法|视角)/.test(sentence)) return true;
+  return /(?:第一个|主要|重点).{0,16}(?:确认|听).{0,8}(?:态度|站边|票口|看法|视角)/.test(sentence);
+}
+
+function mentionsSeatReference(sentence: string, seat: { seatId: number; name: string }): boolean {
+  if (sentence.includes(`${seat.seatId}号`)) return true;
+  if (!seat.name || seat.name === "你" || !sentence.includes(seat.name)) return false;
+
+  let index = sentence.indexOf(seat.name);
+  while (index >= 0) {
+    const prefix = sentence.slice(Math.max(0, index - 8), index);
+    if (!/(?:\d+|[一二三四五六七八九十]+)\s*号\s*$/.test(prefix)) return true;
+    index = sentence.indexOf(seat.name, index + seat.name.length);
+  }
+  return false;
+}
+
+function isExplicitHistoricalSpeechReview(sentence: string): boolean {
+  return /(?:上一轮|上轮|上一天|前一天|昨天|昨轮|当时|D[0-9]+|第[一二三四五六七八九十0-9]+天|警上|上警|遗言|前面发言|之前发言|上一段发言|上一轮发言|历史发言)/i.test(
+    sentence,
+  );
+}
+
+function validateAlreadySpokenFutureAsk(view: AgentView, speech: string): string[] {
+  const spokenSeats = currentDaySpokenSeats(view);
+  for (const seat of spokenSeats) {
+    if (seat.seatId === view.mySeatId) continue;
+    const seatPattern = `${seat.seatId}\\s*号`;
+    const futureCue = "(?:后置(?:位)?|后面|后续|稍后|等下|一会儿|接下来|轮到|等.{0,8}(?:发言|说|回应|补|报|跳|给))";
+    const responseCue =
+      "(?:补(?:结论|方向|过程|逻辑|站边|票口)?|回(?:我|一个点|一下|应)|回应|回答(?:我|一下|这个问题)?|答(?:我|一下)?|解释|说清|讲清|表态|接(?:话|后置位(?:的话|发言)?|这个点|逻辑|发言链)|给(?:出)?(?:站边|票口|查验|验人|判断标准|信息)|发言|开口|闭环|报(?:完)?(?:查验链|验|查验|信息)|跳(?:身份|预言家))";
+    const directCue =
+      "(?:(?:要么|必须|需要|得|要|该|先|再|你)\\s*(?:补(?:结论|方向|过程|逻辑|站边|票口)|说清|讲清|解释|回应|回答(?:我|一下|这个问题)?|答(?:我|一下)?|回(?:我|一个点|一下|应)|接(?:话|后置位(?:的话|发言)?|这个点|逻辑|发言链)|给(?:出)?(?:站边|票口|查验|验人|判断标准|信息)|闭环)|(?:补(?:结论|方向|过程|逻辑|站边|票口)|说清|讲清|解释(?:一下|清楚)|回应一下|回答(?:我|一下|这个问题)|答(?:我|一下)|回(?:我|一个点|一下|应)|接(?:话|后置位(?:的话|发言)?|这个点|逻辑|发言链)))";
+    const targetSentences = speech.split(/[。！？；]/).filter((sentence) => new RegExp(seatPattern).test(sentence));
+    const asksAgain = targetSentences.some((sentence) => {
+      if (isWaitingOnOtherSpeakers(sentence)) return false;
+      return asksSpokenSeatForMore(sentence, seat.seatId, seatPattern, futureCue, responseCue, directCue);
+    });
+    if (asksAgain) {
+      return [`要求已发言的${seat.seatId}号后续补充发言`];
+    }
+  }
+  return [];
+}
+
+function validateFutureSeatMentionOrder(view: AgentView, speech: string): string[] {
+  const speechOrder = buildSpeechOrderContext(view);
+  const unspokenSeats = speechOrder.currentDayUnspokenSeats.filter((seat) => seat.seatId !== view.mySeatId);
+  if (unspokenSeats.length < 3) return [];
+
+  const indexBySeatId = new Map(unspokenSeats.map((seat, index) => [seat.seatId, index]));
+  for (const sentence of speech.split(/[。！？；]/)) {
+    if (!isFutureSeatGroupSentence(sentence)) continue;
+    const mentioned = unspokenSeats
+      .map((seat) => ({
+        seat,
+        orderIndex: indexBySeatId.get(seat.seatId) ?? -1,
+        mentionIndex: firstSeatReferenceIndex(sentence, seat),
+      }))
+      .filter((item) => item.mentionIndex >= 0)
+      .sort((a, b) => a.mentionIndex - b.mentionIndex);
+    const uniqueOrder = [...new Map(mentioned.map((item) => [item.seat.seatId, item.orderIndex])).values()];
+    if (uniqueOrder.length < 2) continue;
+
+    const sortedOrder = [...uniqueOrder].sort((a, b) => a - b);
+    const skipsMiddleSeat = sortedOrder.some((orderIndex, index) => index > 0 && orderIndex !== sortedOrder[index - 1]! + 1);
+    const reversesSpeechOrder = uniqueOrder.some((orderIndex, index) => index > 0 && orderIndex < uniqueOrder[index - 1]!);
+    if (skipsMiddleSeat || reversesSpeechOrder) {
+      return ["无理由跨过中间后置位点名"];
+    }
+  }
+
+  return [];
+}
+
+function isFutureSeatGroupSentence(sentence: string): boolean {
+  return /(?:后置|后面|后续|接下来|轮到|稍后|一会儿|等|过完|过去|这一圈|一圈|这一段)/.test(sentence);
+}
+
+function firstSeatReferenceIndex(sentence: string, seat: ActionTarget): number {
+  const numberMatch = new RegExp(`${seat.seatId}\\s*号`).exec(sentence);
+  if (numberMatch) return numberMatch.index;
+  if (!seat.name || seat.name === "你") return -1;
+
+  let index = sentence.indexOf(seat.name);
+  while (index >= 0) {
+    const prefix = sentence.slice(Math.max(0, index - 8), index);
+    if (!/(?:\d+|[一二三四五六七八九十]+)\s*号\s*$/.test(prefix)) return index;
+    index = sentence.indexOf(seat.name, index + seat.name.length);
+  }
+  return -1;
+}
+
+function asksSpokenSeatForMore(
+  sentence: string,
+  seatId: number,
+  seatPattern: string,
+  futureCue: string,
+  responseCue: string,
+  directCue: string,
+): boolean {
+  if (isMissingInfoReview(sentence, seatId) && !hasExplicitFutureDemand(sentence, seatId)) return false;
+  if (isReviewingSpokenSeatFutureReference(sentence, seatId)) return false;
+  if (new RegExp(`${futureCue}.{0,36}${seatPattern}.{0,36}${responseCue}`).test(sentence)) return true;
+  const targetMatch = new RegExp(seatPattern).exec(sentence);
+  if (!targetMatch) return false;
+  const afterTarget = sentence.slice(targetMatch.index + targetMatch[0].length);
+  const secondPersonDemand = /你(?:自己)?[^。！？；]{0,18}(?:至少|现在|这轮|今天|也)?[^。！？；]{0,6}(?:得|要|需要|该|必须)[^。！？；]{0,10}(?:说清|讲清|交代|给(?:出)?|回答|回我|解释|表态)/.exec(afterTarget);
+  if (secondPersonDemand && !mentionsOtherSeat(afterTarget.slice(0, secondPersonDemand.index), seatId)) return true;
+  const directQuestion = /(?:我直接问|直接问|问你|我想问)[^。！？；]{0,24}你(?:自己)?[^。！？；]{0,48}(?:打算|准备|怎么|为什么|凭什么|拿什么|是否|是不是|有没有)/.exec(afterTarget);
+  if (directQuestion && !mentionsOtherSeat(afterTarget.slice(0, directQuestion.index), seatId)) return true;
+  const futureMatch = new RegExp(`${futureCue}.{0,30}${responseCue}`).exec(afterTarget);
+  if (futureMatch && !mentionsOtherSeat(afterTarget.slice(0, futureMatch.index), seatId)) return true;
+  const directMatch = new RegExp(directCue).exec(afterTarget);
+  return Boolean(directMatch && !mentionsOtherSeat(afterTarget.slice(0, directMatch.index), seatId));
+}
+
+function isReviewingSpokenSeatFutureReference(sentence: string, seatId: number): boolean {
+  const seatPattern = `${seatId}\\s*号`;
+  const reviewCue = "(?:刚才|原话|这段|说|提到|复述|引用|观点)";
+  const futureReference = "(?:后置(?:位)?|后面|谁跳|谁给|跳预言家|报查验|给查验)";
+  const asksSameSeatLater = `(?:等|要|让|需要|该|必须).{0,6}(?:他|${seatPattern}).{0,24}(?:后面|后续|稍后|报(?:完)?(?:查验链|验|查验|信息)|跳(?:身份|预言家)|给(?:出)?(?:查验|验人|判断标准|信息))`;
+  return new RegExp(`${seatPattern}.{0,28}${reviewCue}.{0,60}${futureReference}`).test(sentence) && !new RegExp(asksSameSeatLater).test(sentence);
+}
+
+function mentionsOtherSeat(text: string, seatId: number): boolean {
+  for (const match of text.matchAll(/([0-9]+)\s*号/g)) {
+    if (Number(match[1]) !== seatId) return true;
+  }
+  return false;
+}
+
+function isWaitingOnOtherSpeakers(sentence: string): boolean {
+  return /(?:等|看|听).{0,8}后置(?:位)?.{0,12}(?:更多人|别人|其他人|外置位|发言|发言顺序|站边|反水)/.test(sentence);
+}
+
+function validateSeerBlackCheckFinality(
+  view: AgentView,
+  plan: SpeechPlan,
+  publicClaim: ReturnType<typeof extractRoleClaimFromSpeech>,
+  speech: string,
+): string[] {
+  if (view.myRole !== "SEER") return [];
+  const blackCheckTargetIds = new Set<number>();
+  if (plan.claimIntent?.claimedRole === "SEER" && plan.claimIntent.check?.result === "WEREWOLF") {
+    blackCheckTargetIds.add(plan.claimIntent.check.targetSeatId);
+  }
+  for (const check of view.privateKnowledge.seerChecks ?? []) {
+    if (check.result === "WEREWOLF" && speechMentionsBlackCheck(speech, check.targetSeatId)) {
+      blackCheckTargetIds.add(check.targetSeatId);
+    }
+  }
+  if (publicClaim?.claimedRole === "SEER") {
+    for (const check of publicClaim.checks) {
+      if (check.result === "WEREWOLF") blackCheckTargetIds.add(check.targetSeatId);
+    }
+  }
+
+  for (const targetSeatId of blackCheckTargetIds) {
+    if (offersBlackCheckReversalToTarget(speech, targetSeatId)) {
+      return ["真预言家查杀不能让查杀位靠自证改票"];
+    }
+  }
+  return [];
+}
+
+function validateClaimAttribution(view: AgentView, speech: string): string[] {
+  const seerClaimantIds = new Set(
+    view.publicSummary.claimBoard.filter((claim) => claim.claimedRole === "SEER").map((claim) => claim.claimant.seatId),
+  );
+  for (const claim of view.publicSummary.claimBoard) {
+    if (claim.claimedRole !== "SEER") continue;
+    for (const check of claim.checks) {
+      if (check.result !== "WEREWOLF") continue;
+      if (seerClaimantIds.has(check.target.seatId)) continue;
+      if (misidentifiesSeatAsSeer(speech, check.target.seatId)) {
+        return [`把被查杀的${check.target.seatId}号错认成预言家`];
+      }
+    }
+  }
+  return [];
+}
+
+function validateBlackCheckReactionTimeline(view: AgentView, speech: string): string[] {
+  for (const timeline of getPriorSpeechBlackCheckTimelines(view)) {
+    const targetSentences = speech.split(/[。！？；]/).filter((sentence) => mentionsSeatReference(sentence, timeline.target));
+    if (targetSentences.some((sentence) => framesPriorSpeechAsPostBlackCheckReaction(sentence, timeline))) {
+      return [`把${timeline.target.seatId}号查杀公布前的发言说成查杀后反应`];
+    }
+  }
+  return [];
+}
+
+function validatePreClaimTargetInteractionTimeline(view: AgentView, speech: string): string[] {
+  for (const timeline of getPriorSpeechBlackCheckTimelines(view)) {
+    if (framesPreClaimTargetAsChallengingClaim(speech, timeline)) {
+      return [`把${timeline.target.seatId}号查杀公布前的发言说成已经质疑${timeline.claimant.seatId}号查杀线`];
+    }
+  }
+  return [];
+}
+
+function validatePostSpeechChallengeTimeline(view: AgentView, speech: string): string[] {
+  for (const timeline of getPostSpeechChallengeTimelines(view)) {
+    if (framesLaterChallengeAsMissingResponse(speech, timeline)) {
+      return [`把${timeline.target.seatId}号发言后的追问说成${timeline.target.seatId}号未回应`];
+    }
+  }
+  return [];
+}
+
+function getPostSpeechChallengeTimelines(view: AgentView): Array<{
+  target: ActionTarget;
+  challengers: ActionTarget[];
+  sourceSpeechSeq: number;
+  targetLastSpeechSeq: number;
+  theme: string;
+}> {
+  const timelines: Array<{
+    target: ActionTarget;
+    challengers: ActionTarget[];
+    sourceSpeechSeq: number;
+    targetLastSpeechSeq: number;
+    theme: string;
+  }> = [];
+  const seen = new Set<string>();
+  const pushTimeline = (params: {
+    target: ActionTarget;
+    challengers: ActionTarget[];
+    sourceSpeechSeq: number;
+    targetLastSpeechSeq: number;
+    theme: string;
+  }) => {
+    const challengers = uniqueSeatOrder(params.challengers).filter((challenger) => challenger.seatId !== params.target.seatId);
+    if (challengers.length === 0) return;
+    const key = `${params.target.seatId}:${params.theme}:${challengers.map((challenger) => challenger.seatId).join("-")}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    timelines.push({ ...params, challengers });
+  };
+
+  for (const item of view.publicSummary.tableMemory.speechInfluence) {
+    if (item.day !== view.day || item.direction !== "pressure") continue;
+    const targetMemory = view.publicSummary.tableMemory.seats.find((seat) => seat.seatId === item.target.seatId);
+    if (targetMemory?.lastSpeechDay !== view.day || targetMemory.lastSpeechSeq === undefined) continue;
+    if (targetMemory.lastSpeechSeq >= item.sourceSpeechSeq) continue;
+
+    pushTimeline({
+      target: item.target,
+      challengers: [item.speaker, ...item.followupActors],
+      sourceSpeechSeq: item.sourceSpeechSeq,
+      targetLastSpeechSeq: targetMemory.lastSpeechSeq,
+      theme: describePostSpeechChallengeTheme(view, item.target),
+    });
+  }
+
+  const currentSpeeches = currentDaySpeechItems(view);
+  for (const targetMemory of view.publicSummary.tableMemory.seats) {
+    if (targetMemory.lastSpeechDay !== view.day || targetMemory.lastSpeechSeq === undefined) continue;
+    if (targetMemory.seatId === view.mySeatId) continue;
+    const target = toTargetFromSeatId(view, targetMemory.seatId);
+    const theme = describePostSpeechChallengeTheme(view, target);
+    const laterChallengeSpeeches = currentSpeeches.filter(
+      (speech) =>
+        speech.seq > targetMemory.lastSpeechSeq! &&
+        speech.speaker &&
+        speech.speaker.seatId !== target.seatId &&
+        isPostSpeechChallengeMessage(view, target, speech.message, theme),
+    );
+    if (laterChallengeSpeeches.length < 2) continue;
+    pushTimeline({
+      target,
+      challengers: laterChallengeSpeeches.map((speech) => speech.speaker!),
+      sourceSpeechSeq: laterChallengeSpeeches[0]!.seq,
+      targetLastSpeechSeq: targetMemory.lastSpeechSeq,
+      theme,
+    });
+  }
+
+  return timelines;
+}
+
+function describePostSpeechChallengeTheme(view: AgentView, target: ActionTarget): string {
+  const seerClaim = view.publicSummary.claimBoard.find(
+    (claim) => claim.claimant.seatId === target.seatId && claim.claimedRole === "SEER" && claim.sourceSpeechSeq !== undefined,
+  );
+  if (seerClaim) return "验人理由";
+  return "发言缺口";
+}
+
+function isPostSpeechChallengeMessage(view: AgentView, target: ActionTarget, message: string, theme: string): boolean {
+  if (!mentionsSeatReference(message, target)) return false;
+  const targetHasClaim = view.publicSummary.claimBoard.some((claim) => claim.claimant.seatId === target.seatId);
+  const checkedByOtherClaim = view.publicSummary.claimBoard.find(
+    (claim) =>
+      claim.claimant.seatId !== target.seatId &&
+      claim.checks.some((check) => check.target.seatId === target.seatId) &&
+      mentionsSeatReference(message, claim.claimant),
+  );
+  if (!targetHasClaim && checkedByOtherClaim && new RegExp(`(?:验|查验|查杀).{0,8}${target.seatId}\\s*号`).test(message)) {
+    return false;
+  }
+  if (theme === "验人理由") {
+    return /(?:验人|查验|首夜验|为什么验|依据|思路|理由|只给结论|没有解释|缺口)/.test(message);
+  }
+  if (targetHasClaim && /(?:身份|声明|对跳|查验|技能|票口|心路|边界)/.test(message)) return true;
+  return /(?:追问|质疑|施压|压|卡|缺口|解释|理由|依据|闭环|回避)/.test(message);
+}
+
+function framesLaterChallengeAsMissingResponse(
+  speech: string,
+  timeline: { target: ActionTarget; challengers: ActionTarget[]; theme: string },
+): boolean {
+  if (!mentionsSeatReference(speech, timeline.target)) return false;
+  const normalized = speech.replace(/[“”"']/g, "");
+  if (/(?:不是|不能说|不要说|别说|不该说).{0,18}(?:没回|未回|没回应|未回应|一个字没回|没解释|没给回复)/.test(normalized)) {
+    return false;
+  }
+
+  const challengerMentionCount = timeline.challengers.filter((challenger) =>
+    new RegExp(`${challenger.seatId}\\s*号`).test(normalized),
+  ).length;
+  const hasChallengeActorCue =
+    challengerMentionCount > 0 ||
+    /(?:后续|后置|多人|全|都|也).{0,32}(?:问|追问|施压|压|点过|指出|卡|质疑)/.test(normalized);
+  if (!hasChallengeActorCue) return false;
+
+  const hasChallengeContent = /(?:问|追问|施压|压|点过|指出|卡|质疑).{0,48}(?:验人|依据|思路|理由|缺口|解释)|(?:验人|依据|思路|理由|缺口|解释).{0,48}(?:问|追问|施压|压|点过|指出|卡|质疑)/.test(
+    normalized,
+  );
+  if (!hasChallengeContent) return false;
+
+  const targetText = `${timeline.target.seatId}\\s*号`;
+  return new RegExp(
+    `(?:你|他|该位置|这张牌|${targetText}).{0,24}(?:一个字没回|没(?:有)?回(?:应)?|未回(?:应)?|没接|没解释|没给(?:出)?(?:回复|回应|解释|验人理由|思路))`,
+  ).test(normalized);
+}
+
+function getPriorSpeechBlackCheckTimelines(view: AgentView): Array<{
+  claimant: ActionTarget;
+  target: ActionTarget;
+  claimSeq: number;
+  targetLastSpeechSeq: number;
+}> {
+  const timelines: Array<{
+    claimant: ActionTarget;
+    target: ActionTarget;
+    claimSeq: number;
+    targetLastSpeechSeq: number;
+  }> = [];
+  for (const claim of view.publicSummary.claimBoard) {
+    if (claim.claimedRole !== "SEER" || claim.sourceSpeechSeq === undefined) continue;
+    for (const check of claim.checks) {
+      if (check.result !== "WEREWOLF") continue;
+      const targetMemory = view.publicSummary.tableMemory.seats.find((seat) => seat.seatId === check.target.seatId);
+      if (targetMemory?.lastSpeechDay !== view.day || targetMemory.lastSpeechSeq === undefined) continue;
+      if (targetMemory.lastSpeechSeq >= claim.sourceSpeechSeq) continue;
+      timelines.push({
+        claimant: claim.claimant,
+        target: check.target,
+        claimSeq: claim.sourceSpeechSeq,
+        targetLastSpeechSeq: targetMemory.lastSpeechSeq,
+      });
+    }
+  }
+  return timelines;
+}
+
+function framesPriorSpeechAsPostBlackCheckReaction(
+  sentence: string,
+  timeline: { claimant: ActionTarget; target: ActionTarget },
+): boolean {
+  const targetText = `${timeline.target.seatId}\\s*号`;
+  const claimantText = `${timeline.claimant.seatId}\\s*号`;
+  return (
+    new RegExp(`${targetText}.{0,48}(?:被(?:${claimantText})?(?:直接)?(?:报)?查杀后|被查杀后|被查杀后的?(?:第一反应|反应|回应)|查杀后(?:的)?(?:第一反应|反应|回应))`).test(
+      sentence,
+    ) ||
+    new RegExp(`${targetText}.{0,48}被${claimantText}.{0,10}(?:直接)?(?:报)?查杀.{0,24}(?:第一段话|第一反应|反应|回应)`).test(
+      sentence,
+    ) ||
+    new RegExp(`${claimantText}.{0,16}查杀${targetText}后.{0,40}${targetText}.{0,18}(?:第一段话|第一反应|反应|回应)`).test(
+      sentence,
+    )
+  );
+}
+
+function framesPreClaimTargetAsChallengingClaim(
+  speech: string,
+  timeline: { claimant: ActionTarget; target: ActionTarget },
+): boolean {
+  if (!mentionsSeatReference(speech, timeline.target) || !mentionsSeatReference(speech, timeline.claimant)) return false;
+  const normalized = speech.replace(/[“”"']/g, "");
+  if (/(?:不是|不能说|不要说|别说|不该说).{0,24}(?:点过|问过|抓过|质疑|卡过|提过|没接|没有接)/.test(normalized)) {
+    return false;
+  }
+  const targetText = `${timeline.target.seatId}\\s*号`;
+  const claimantText = `${timeline.claimant.seatId}\\s*号`;
+  const claimTopic = `(?:查杀|查验|验人|首验|验${targetText}|验人理由|验人思路|依据|心路|查杀线|缺口)`;
+  const saysTargetAlreadyChallenged =
+    new RegExp(
+      `${targetText}.{0,24}(?:发言|原话|前面|之前|刚才|这段).{0,48}(?:点过|问过|抓过|质疑|卡过|提过).{0,48}(?:${claimantText}|${claimTopic})`,
+    ).test(normalized) ||
+    new RegExp(
+      `(?:缺口|理由|思路|依据).{0,24}在${targetText}.{0,12}(?:发言|原话|前面|之前|刚才|这段).{0,24}(?:已经)?(?:被他|被${targetText})?(?:点过|问过|抓过|质疑|卡过|提过)`,
+    ).test(normalized);
+  if (!saysTargetAlreadyChallenged) return false;
+  return new RegExp(`${claimantText}.{0,24}(?:没(?:有)?接|未接|没有正面接|没(?:有)?回应|未回应|没解释)`).test(normalized);
+}
+
+function repairClaimAttributionSpeech(view: AgentView, speech: string): string {
+  let repaired = speech;
+  const seerClaimantIds = new Set(
+    view.publicSummary.claimBoard.filter((claim) => claim.claimedRole === "SEER").map((claim) => claim.claimant.seatId),
+  );
+  for (const claim of view.publicSummary.claimBoard) {
+    if (claim.claimedRole !== "SEER") continue;
+    for (const check of claim.checks) {
+      if (check.result !== "WEREWOLF") continue;
+      if (seerClaimantIds.has(check.target.seatId)) continue;
+      const targetPattern = `${check.target.seatId}\\s*号(?:[A-Za-z0-9_\\-\\u4e00-\\u9fa5]{0,24}?)?`;
+      const replacement = `我不认${claim.claimant.seatId}号预言家，先保${check.target.seatId}号查杀位`;
+      repaired = repaired
+        .replace(
+          new RegExp(`我?(?:暂时|先|更|比较|倾向)?(?:认|站|信|保|支持|认可)\\s*${targetPattern}\\s*(?:是|为)?\\s*(?:预言家|预言家牌)`, "g"),
+          replacement,
+        )
+        .replace(
+          new RegExp(`${targetPattern}\\s*(?:这张|这个|这位)?(?:预言家|预言家牌).{0,12}(?:可信|成立|像真|更真|我认|我站|先认|更信)`, "g"),
+          replacement,
+        );
+    }
+  }
+  return repaired;
+}
+
+function misidentifiesSeatAsSeer(speech: string, seatId: number): boolean {
+  const seatPattern = `${seatId}\\s*号`;
+  return speech.split(/[。！？；]/).some((sentence) => {
+    if (isNegativeSeerAttribution(sentence, seatPattern)) return false;
+    return (
+      new RegExp(`(?:暂时|先|更|比较|倾向)?(?:认|站|信|保|支持|认可).{0,12}${seatPattern}.{0,12}(?:是|为)?\\s*(?:预言家|预言家牌)`).test(
+        sentence,
+      ) ||
+      new RegExp(`${seatPattern}.{0,12}(?:这张|这个|这位)?(?:预言家|预言家牌).{0,18}(?:可信|成立|像真|更真|我认|我站|先认|更信)`).test(
+        sentence,
+      ) ||
+      new RegExp(`(?:我认为|我觉得|我判断|我暂时认|我先认).{0,12}${seatPattern}.{0,8}(?:是|为)\\s*(?:预言家|预言家牌)`).test(
+        sentence,
+      )
+    );
+  });
+}
+
+function isNegativeSeerAttribution(sentence: string, seatPattern: string): boolean {
+  return (
+    new RegExp(`(?:不认|不站|不信|别认|别站|别信|不是|不像|不可能是).{0,12}${seatPattern}.{0,12}(?:预言家|预言家牌)`).test(sentence) ||
+    new RegExp(`${seatPattern}.{0,12}(?:不是|不像|不可能是|不配认).{0,12}(?:预言家|预言家牌)`).test(sentence)
+  );
+}
+
+function validateCompleteQuestionFragments(speech: string): string[] {
+  const unfinishedQuestion = /(?:^|[。！？；])[^。！？；]{0,24}(?:为什么|凭什么|怎么)(?:验|查|出|打|认|站|压|跳|说|定|锁|拍)[^。！？；]{0,16}。/;
+  return unfinishedQuestion.test(speech) ? ["发言存在未完成的问题句"] : [];
+}
+
+function speechMentionsBlackCheck(speech: string, targetSeatId: number): boolean {
+  const targetText = `${targetSeatId}号`;
+  return (
+    new RegExp(`${targetText}.{0,10}(?:查杀|狼人)`).test(speech) ||
+    new RegExp(`(?:查验|验了|验|摸了)\\s*${targetText}.{0,10}(?:查杀|狼人)`).test(speech)
+  );
+}
+
+function offersBlackCheckReversalToTarget(speech: string, targetSeatId: number): boolean {
+  const targetText = `${targetSeatId}\\s*号`;
+  const targetOrPronoun = `(?:${targetText}|他|这张牌|查杀位)`;
+  const explanationCue = "(?:解释|讲清|说清|闭环|补|回应|自证|讲顺)";
+  const reversalCue = "(?:改票|重新考虑|撤压力|放一轮|后移焦点|先不出|不压|票口后移)";
+  return (
+    new RegExp(`(?:如果|只要)${targetOrPronoun}.{0,28}${explanationCue}.{0,36}${reversalCue}`).test(speech) ||
+    new RegExp(`${targetText}.{0,36}(?:如果|只要|能).{0,28}${explanationCue}.{0,36}${reversalCue}`).test(speech) ||
+    /查杀位.{0,24}(?:自证|解释).{0,24}(?:改票|重新考虑|后移焦点|放一轮)/.test(speech) ||
+    /(?:可改票条件|改票条件|解释能闭环则后移焦点)/.test(speech)
+  );
+}
+
+function currentDaySpokenSeats(view: AgentView): ActionTarget[] {
+  return uniqueSeatOrder(currentDaySpeechItems(view).map((speech) => speech.speaker).filter((seat): seat is ActionTarget => Boolean(seat)));
+}
+
+function hasCurrentDaySpeech(view: AgentView, seatId: number): boolean {
+  return currentDaySpeechItems(view).some((speech) => speech.speaker?.seatId === seatId);
+}
+
+function getPlanTargetSpeechStatus(
+  view: AgentView,
+  plan: SpeechPlan,
+  target: ActionTarget | undefined,
+): SpeechPlan["targetSpeechStatus"] {
+  if (!target) return "none";
+  if (plan.target?.seatId === target.seatId && plan.targetSpeechStatus) return plan.targetSpeechStatus;
+  return hasCurrentDaySpeech(view, target.seatId) ? "spoken" : "unspoken";
+}
+
+function isFinalBlackCheckInteraction(plan: SpeechPlan, target: ActionTarget | undefined): boolean {
+  if (!target) return false;
+  if (plan.target?.seatId === target.seatId && plan.allowedInteraction === "finalize_black_check") return true;
+  return (
+    plan.claimIntent?.claimedRole === "SEER" &&
+    plan.claimIntent.check?.targetSeatId === target.seatId &&
+    plan.claimIntent.check.result === "WEREWOLF"
+  );
+}
+
+function validateConciseTableSpeech(speech: string): string[] {
+  const reportStyle =
+    /(?:第一[，、]|第二[，、]|第三[，、]|第[一二三四]点|首先|其次|最后[，、：:]|最后(?:一点|一个|我想说)|三件事|两个问题|几点问题|盘问议程|推理框架|验证问题|可改票条件|逻辑链条|收益对象|需要你们?现在把.{0,24}说清楚)/.test(
+      speech,
+    );
+  const tooManySentences = countSentenceLikeUnits(speech) > AI_SPEECH_MAX_SENTENCES;
+  const tooLong = speech.length > AI_SPEECH_MAX_CHARS;
+  return reportStyle || tooManySentences || tooLong ? ["发言过于冗长或报告化"] : [];
+}
+
+function countSentenceLikeUnits(speech: string): number {
+  return speech.split(/[。！？；]/).filter((part) => part.trim().length > 0).length;
 }
 
 function containsOutOfGameSpeech(speech: string): boolean {
@@ -1484,7 +2805,7 @@ function composeReasonedMockSpeech(args: {
     buildDebateAgenda(args.view, { plan: args.plan, target: args.target }),
     mockSpeechSeed(args.view, args.target, 6),
   );
-  const tableSentence = `${buildMockTablePlayerLine(args.view, args.target)}。`;
+  const tableSentence = `${buildMockTablePlayerLine(args.view, args.plan, args.target)}。`;
   const shape = getMockSpeechShape(args.view, args.plan);
   const opening = buildMockOpening(args.opener, args.lead);
   const contextLine = pickMockContextLine(args.view, args.target, auditSentence, previousSentence, tableSentence);
@@ -1656,7 +2977,7 @@ function cleanAgendaLine(line: string | undefined): string | undefined {
   let clean = line?.replace(/[。！？；，、,.!\?\s]+$/g, "").trim();
   clean = clean
     ?.replace(/(\d+)号你/g, "$1号")
-    .replace(/本轮围绕(.+?)给可改票条件[：:]\s*解释能闭环则后移焦点，继续只给结论则进票池/, "$1讲得通我放一轮，讲不通就收票")
+    .replace(/本轮围绕(.+?)给可改票条件[：:]\s*解释能闭环则后移焦点，继续只给结论则进票池/, "回看$1的站边和票口是否闭合")
     .replace(/^要求(.+?)补查验心路、(.+?)和今天明确票口$/, "$1先补验人顺序和今天票口")
     .replace(/^要求(.+?)补/, "$1补")
     .replace(/^追问\s*/, "")
@@ -1702,20 +3023,29 @@ function buildMockReasoningAudit(view: AgentView): string | undefined {
   return undefined;
 }
 
-function buildMockTablePlayerLine(view: AgentView, target: ActionTarget | undefined): string {
-  const currentDaySpeeches = view.publicSummary.recentSpeeches.filter(
+function buildMockTablePlayerLine(view: AgentView, plan: SpeechPlan, target: ActionTarget | undefined): string {
+  const currentDaySpeeches = currentDaySpeechItems(view).filter(
     (speech) => speech.day === view.day && speech.speaker && speech.speaker.seatId !== view.mySeatId,
   );
   const previousSpeech = currentDaySpeeches.at(-1);
   const previousSpeaker = previousSpeech?.speaker;
   const targetText = target ? seatText(target) : "主焦点";
+  const targetHasSpoken = getPlanTargetSpeechStatus(view, plan, target) === "spoken";
   const seed = mockSpeechSeed(view, target, 7);
+
+  if (target && targetHasSpoken && currentDaySpeeches.length === 0) {
+    return pickBySeat(seed, [
+      `回看${targetText}已经说过的站边和票口`,
+      `${targetText}按已发言内容先核，本轮不要求他补`,
+      `我只回看${targetText}原话里的逻辑和票型`,
+    ]);
+  }
 
   if (currentDaySpeeches.length === 0) {
     return pickBySeat(seed, [
       target ? `前置位先把${targetText}放进观察位` : "前置位先把观察点摆出来",
-      target ? `前面样本少，后面重点听${targetText}怎么补站边和票` : "前面样本少，给后置位留任务",
-      target ? `${targetText}不定死，只说后面要看他的站边和票` : "先铺视角，不假装已经听完全场",
+      target ? `前面样本少，先留一个关于${targetText}的具体观察点` : "前面样本少，先给一个可验证观察点",
+      target ? `${targetText}不定死，只说后面看这一条能不能闭合` : "先铺视角，不假装已经听完全场",
     ]);
   }
 
@@ -1724,11 +3054,18 @@ function buildMockTablePlayerLine(view: AgentView, target: ActionTarget | undefi
     return pickBySeat(seed, [
       `${targetText}刚发过言，我先抓他这段里${speechGap}的部分`,
       `我接着${targetText}刚才的话说，他的结论还要和后面票型对上`,
-      `${targetText}这段我不急着定性，先看他能不能把理由补硬`,
+      `${targetText}这段我不急着定性，但刚才的理由还不够硬`,
     ]);
   }
 
   if (previousSpeaker && target && previousSpeaker.seatId !== target.seatId) {
+    if (targetHasSpoken) {
+      return pickBySeat(seed, [
+        `刚才${seatText(previousSpeaker)}我先当成对照线，回看${targetText}已发言的站边和票型`,
+        `上一位${previousSpeaker.name}的线我记下，但${targetText}本轮已经说过，只能先核他的原话`,
+        `前置${previousSpeaker.name}提供了一个方向，我这里把${targetText}已经给过的站边和票型放一起核`,
+      ]);
+    }
     return pickBySeat(seed, [
       `刚才${seatText(previousSpeaker)}我先当成一条对照线，等${targetText}回应后再决定票口`,
       `上一位${previousSpeaker.name}的线我记下，但我不会顺着他直接改票，轮到${targetText}时再听他的过程`,
@@ -1737,9 +3074,9 @@ function buildMockTablePlayerLine(view: AgentView, target: ActionTarget | undefi
   }
 
   return pickBySeat(seed, [
-    target ? `后置位可以反驳我，但要拿公开信息补${target.seatId}号的过程` : "后置位有更硬信息我再改",
+    target ? `后面如果有人反驳，就拿公开信息补${target.seatId}号这一条过程` : "后面有更硬信息我再改",
     target ? `${targetText}这条线我先不封死，等下一轮用票型回验` : "我先给可改判断，后面看票型回验",
-    target ? `这不是一锤定音，后面谁能把${target.seatId}号的逻辑补上我会听` : "现在先不抢终局结论，等更多公开材料",
+    target ? `这不是一锤定音，先用后面票型回验${target.seatId}号这条线` : "现在先不抢终局结论，等更多公开材料",
   ]);
 }
 
@@ -1862,6 +3199,9 @@ function buildPreviousSpeechReason(view: AgentView, target: ActionTarget | undef
 
 function buildVoteCondition(view: AgentView, plan: SpeechPlan, target: ActionTarget | undefined): string {
   if (!target) return "所以这轮我先不散票，等后置位把过程补出来。";
+  if (isFinalBlackCheckInteraction(plan, target)) {
+    return buildSeerCheckCondition("WEREWOLF", target);
+  }
   const plannedCheck = plan.claimIntent?.claimedRole === "SEER" ? plan.claimIntent.check : undefined;
   if (plannedCheck && plannedCheck.targetSeatId === target.seatId) {
     return buildSeerCheckCondition(plannedCheck.result, target);
@@ -1869,9 +3209,7 @@ function buildVoteCondition(view: AgentView, plan: SpeechPlan, target: ActionTar
 
   const targetText = seatText(target);
   const seed = mockSpeechSeed(view, target, 11);
-  const targetHasSpoken = view.publicSummary.recentSpeeches.some(
-    (speech) => speech.day === view.day && speech.speaker?.seatId === target.seatId,
-  );
+  const targetHasSpoken = getPlanTargetSpeechStatus(view, plan, target) === "spoken";
 
   if (plan.kind === "rally") {
     return pickBySeat(seed, [
@@ -1883,16 +3221,22 @@ function buildVoteCondition(view: AgentView, plan: SpeechPlan, target: ActionTar
 
   if (plan.kind === "defend") {
     return pickBySeat(seed, [
-      `如果${targetText}能补出清楚逻辑，我会把他从第一焦点往后放。`,
-      `${targetText}只要把动机和票型讲顺，我这边可以先撤压力。`,
-      `我保留可改空间，关键看${targetText}后面能不能把公开过程接上。`,
+      targetHasSpoken
+        ? `${targetText}已经讲过，我只回看他原话里能不能和票型对上。`
+        : `如果${targetText}轮到时能补出清楚逻辑，我会把他从第一焦点往后放。`,
+      targetHasSpoken
+        ? `${targetText}刚才的动机和票型要回看，今天先不靠想象补过程。`
+        : `${targetText}只要把动机和票型讲顺，我这边可以先撤压力。`,
+      targetHasSpoken
+        ? `我保留观察空间，但只按${targetText}已经说出口的内容评估。`
+        : `我保留可改空间，关键看${targetText}后面能不能把公开过程接上。`,
     ]);
   }
 
   if (targetHasSpoken) {
     return pickBySeat(seed, [
       `${targetText}这段我先挂疑问，等投票前再看有没有人能补出反证。`,
-      `我不会只凭一个点出${targetText}，但他刚才的过程需要在票型前补硬。`,
+      `我不会只凭一个点出${targetText}，但他刚才的过程在票型前还不够硬。`,
       `这票可以先压在${targetText}附近，除非后面有人给出更完整的反面解释。`,
     ]);
   }
@@ -1911,7 +3255,7 @@ function mockSpeechSeed(view: AgentView, target: ActionTarget | undefined, salt 
 function buildSeerCheckCondition(result: "WEREWOLF" | "GOOD", target: ActionTarget): string {
   const targetText = seatText(target);
   if (result === "WEREWOLF") {
-    return `今天先让${targetText}正面解释，外置位不要分票。`;
+    return `今天票口先压${targetText}，外置位只给硬身份反证，不要分票。`;
   }
   return `${targetText}先放一轮，不作为今天出人焦点；后面谁无理由硬踩金水位，我再重点看。`;
 }
@@ -1979,7 +3323,8 @@ function createMockSpeech(view: AgentView, plan = createSpeechPlan(view)): strin
   if (structuredSpeech) return structuredSpeech;
   const persona = `${view.persona?.name ?? ""} ${view.persona?.label ?? "稳健型"}`.trim();
   const lastDeath = view.publicSummary.recentDeaths.at(-1);
-  const targetName = plan.target?.name ?? view.aliveSeats.find((seat) => seat.seatId !== view.mySeatId)?.name ?? "场上玩家";
+  const target = plan.target;
+  const targetName = target?.name ?? view.aliveSeats.find((seat) => seat.seatId !== view.mySeatId)?.name ?? "场上玩家";
   const previousSpeech = view.publicSummary.recentSpeeches.at(-1);
   const previousSpeaker = previousSpeech?.speaker?.seatId === view.mySeatId ? undefined : previousSpeech?.speaker;
   const tallyText = publicTallyText(view);
@@ -2000,8 +3345,12 @@ function createMockSpeech(view: AgentView, plan = createSpeechPlan(view)): strin
       }
       const resultText = latestCheck.result === "WEREWOLF" ? "查杀" : "金水";
       const checkedTarget = toTargetFromSeatId(view, latestCheck.targetSeatId);
+      const checkFollowup =
+        latestCheck.result === "GOOD"
+          ? "我会看谁反打这张金水。"
+          : "这条验人线我先压票口，外置位只给硬身份反证。";
       return compactSpeech(
-        `${opener}，我跳预言家，${seatText(checkedTarget)}是${resultText}。${buildSeerCheckCondition(latestCheck.result, checkedTarget)}${dynamicText ? `${dynamicText}。` : ""}${latestCheck.result === "GOOD" ? "我会看谁反打这张金水。" : secondReason}。`,
+        `${opener}，我跳预言家，${seatText(checkedTarget)}是${resultText}。${buildSeerCheckCondition(latestCheck.result, checkedTarget)}${dynamicText ? `${dynamicText}。` : ""}${checkFollowup}`,
       );
     }
     return compactSpeech(`${opener}，我先不急着给死结论。${dynamicText ? `${dynamicText}。` : ""}${previousSpeaker ? `上一位 ${previousSpeaker.name} 的发言我会对照后面站边。` : ""}重点看谁回避昨夜信息和今天的焦点。`);
@@ -2028,7 +3377,9 @@ function createMockSpeech(view: AgentView, plan = createSpeechPlan(view)): strin
       [
         `${targetName} 的发言缺少从信息到结论的过程，先压这里听反应。`,
         `我不认单点带队，但 ${targetName} 这个位置需要把视角讲完整。`,
-        `${focusReason}，所以我今天更想听 ${targetName} 怎么补逻辑。`,
+        target && getPlanTargetSpeechStatus(view, plan, target) === "spoken"
+          ? `${focusReason}，所以我今天先回看 ${targetName} 已经说过的逻辑。`
+          : `${focusReason}，所以我今天更想听 ${targetName} 怎么补逻辑。`,
       ],
     );
     return compactSpeech(`${opener}，我先按公开信息盘。${dynamicText ? `${dynamicText}。` : ""}${previousSpeaker ? `上一位 ${previousSpeaker.name} 没有把怀疑链讲透。` : ""}${misdirect}${tallyText}`);
@@ -2092,7 +3443,7 @@ function personaOpener(persona: string, seed: number): string {
     return pickBySeat(seed, ["我开两个观察位", "我不急着锁死", "多条线先放桌面"]);
   }
   if (persona.includes("GLM")) {
-    return pickBySeat(seed, ["我从结构上看", "这里的态度不太自然", "先拆站边结构"]);
+    return pickBySeat(seed, ["我从结构上看", "这里我先轻记", "我先接一下前面的发言"]);
   }
   if (persona.includes("Kimi")) {
     return pickBySeat(seed, ["我按身份线往回盘", "身份关系先捋一下", "我从长线记忆看"]);
@@ -2161,8 +3512,8 @@ function polishMockSpeech(speech: string): string {
     .replace(/我打他的点是：/g, "我打他的点是")
     .replace(/这个结论来自我的夜间查验，不是听感/g, "这是我昨晚验出来的，不是听感牌")
     .replace(/闭眼视角给个可改判断/g, "我这轮按闭眼好人打")
-    .replace(/什么公开反证会让你改票/g, "有没有反证能让我改票")
-    .replace(/给可改票条件/g, "给能落地的改票条件")
+    .replace(/什么公开反证会让你改票/g, "今天票口怎么落")
+    .replace(/给可改票条件/g, "把票口边界落清楚")
     .replace(/我先把能听到的点摆一下，不急着拍身份，先看发言链条/g, "我把能听到的点摆一下，枪牌不用抢着拍")
     .replace(/我会把发言顺序、票型和前后逻辑一起校验/g, "发言顺序和票型我会一起看")
     .replace(/前置位先把(\d+号[^。]+?)放进观察位/g, "$1先挂观察")
@@ -2223,17 +3574,22 @@ function createLooseFallbackSpeech(view: AgentView, plan: SpeechPlan): string {
     plan.target ??
     view.publicSummary.tableMemory.focus.find((item) => item.seat.seatId !== view.mySeatId)?.seat ??
     view.aliveSeats.find((seat) => seat.seatId !== view.mySeatId);
-  const latestSpeech = [...view.publicSummary.recentSpeeches]
+  const latestSpeech = [...currentDaySpeechItems(view)]
     .reverse()
     .find((speech) => speech.speaker && speech.speaker.seatId !== view.mySeatId);
   const latestSpeaker = latestSpeech?.speaker;
   const latestDeath = view.publicSummary.recentDeaths.at(-1);
-  const currentDaySpeakers = view.publicSummary.recentSpeeches
-    .filter((speech) => speech.day === view.day && speech.speaker)
-    .map((speech) => speech.speaker!);
-  const unspokenSeats = view.aliveSeats.filter(
-    (seat) => seat.seatId !== view.mySeatId && !currentDaySpeakers.some((speaker) => speaker.seatId === seat.seatId),
-  );
+  const currentDaySpeakers = currentDaySpokenSeats(view);
+  const orderedFutureSeats =
+    view.daySpeechOrder && view.daySpeechOrder.currentIndex >= 0
+      ? view.daySpeechOrder.queue.slice(view.daySpeechOrder.currentIndex + 1)
+      : undefined;
+  const unspokenSeats =
+    orderedFutureSeats && orderedFutureSeats.length > 0
+      ? orderedFutureSeats
+      : view.aliveSeats.filter(
+          (seat) => seat.seatId !== view.mySeatId && !currentDaySpeakers.some((speaker) => speaker.seatId === seat.seatId),
+        );
   const publicSeerClaims = view.publicSummary.claimBoard.filter((claim) => claim.claimedRole === "SEER");
   const blackCheckOnMe = publicSeerClaims.find((claim) =>
     claim.checks.some((check) => check.target.seatId === view.mySeatId && check.result === "WEREWOLF"),
@@ -2241,18 +3597,19 @@ function createLooseFallbackSpeech(view: AgentView, plan: SpeechPlan): string {
   const latestPublicCheck = publicSeerClaims
     .flatMap((claim) => claim.checks.map((check) => ({ claim, check })))
     .at(-1);
+  const deathShapeAlreadyDiscussed = hasCurrentDayDeathShapeMention(view);
 
   if (view.myRole === "SEER") {
     const latestCheck = view.privateKnowledge.seerChecks?.at(-1);
     if (latestCheck) {
       if (plan.kind !== "claim-check" || plan.claimIntent?.claimedRole !== "SEER" || !plan.claimIntent.check) {
-        return compactSpeech(`${opener}，我先不急着给死结论。${focus ? `我更想听${seatText(focus)}把站边和票型说完整。` : "这轮先让外置位补完整视角。"}`);
+        return compactSpeech(`${opener}，我先不急着给死结论。${focus ? `我把${seatText(focus)}放观察位，看前后理由能不能接上。` : "这轮先找一条能验证的发言链。"}`);
       }
       const target = toTargetFromSeatId(view, latestCheck.targetSeatId);
       const resultText = latestCheck.result === "WEREWOLF" ? "查杀" : "金水";
       const followup =
         latestCheck.result === "WEREWOLF"
-          ? `今天我想先听${seatText(target)}怎么回应。`
+          ? "今天票口先压这条查杀线，外置位只给硬身份反证。"
           : `${seatText(target)}先别进今天的出人焦点。`;
       return compactSpeech(`我这里先把验人说清楚：${seatText(target)}是${resultText}。${followup}`);
     }
@@ -2266,14 +3623,16 @@ function createLooseFallbackSpeech(view: AgentView, plan: SpeechPlan): string {
         : "我不认这个查杀，我的票会先看他这张预言家牌能不能讲出完整验人链。";
     const nextLine =
       unspokenSeats.length > 0
-        ? `后置位先别只跟结论，等你们发言时把对${seatText(claimant)}的可信度说清楚。`
+        ? `后面只需要接一个点：${seatText(claimant)}这张预言家牌可信度从哪里来。`
         : "现在先对照已经发过言的位置，看谁是在补逻辑、谁是在顺手跟票。";
     return compactSpeech(`${opener}，${seatText(claimant)}给我查杀，${responseLine}${nextLine}`);
   }
 
   if (view.myRole === "WITCH" && view.privateKnowledge.witch?.savedTarget) {
     return compactSpeech(
-      `昨晚平安夜这件事我先收住，不把药线讲死。${focus ? `我更想听${seatText(focus)}把站边和票型说完整。` : "这轮先看谁急着带方向。"}`,
+      deathShapeAlreadyDiscussed
+        ? `${opener}，平安夜我不复读了。${focus ? `我把${seatText(focus)}放观察位，看前后理由能不能接上。` : "这轮先看谁急着带方向。"}`
+        : `昨晚平安夜这件事我先收住，不把药线讲死。${focus ? `我把${seatText(focus)}放观察位，看前后理由能不能接上。` : "这轮先看谁急着带方向。"}`,
     );
   }
 
@@ -2283,19 +3642,29 @@ function createLooseFallbackSpeech(view: AgentView, plan: SpeechPlan): string {
       }，这条线我先看回应和站边，不急着只听一个结论。`
     : "";
   const tableLine = latestSpeaker
-    ? `刚才${seatText(latestSpeaker)}的发言我先按时间顺序记下来，只评价他已经说出口的部分。`
+    ? `刚才${seatText(latestSpeaker)}这段我只抓一个点：${describeSpeechGap(latestSpeech?.message ?? "")}。`
     : latestDeath
-      ? `昨夜死讯我先只当成死亡名单：${latestDeath}，不直接反推狼刀、毒或自刀。`
+      ? deathShapeAlreadyDiscussed
+        ? `昨夜死讯和平安夜已经当背景处理，我不再复读药线。`
+        : `昨夜死讯我先只当成死亡名单：${latestDeath}，不直接反推狼刀、毒或自刀。`
       : "第一轮信息还没铺开，我先看谁的发言能真正落到位置。";
+  const focusHasSpoken = focus ? hasCurrentDaySpeech(view, focus.seatId) : false;
   const focusLine = focus
-    ? `目前我想多听${seatText(focus)}的视角，票先跟着公开发言质量走。`
+    ? focusHasSpoken
+      ? pickBySeat(seed + 3, [
+          `${seatText(focus)}先放观察位，我不直接归死。`,
+          `我把${seatText(focus)}和刚才那段发言放一起核。`,
+          `${seatText(focus)}这条线先留着，票口看后面有没有硬证据。`,
+        ])
+      : `${seatText(focus)}还没发言，我不提前评价，只等他轮到时接一个具体点。`
     : "我这票先不散，等发言链条更完整再落。";
   const timelineLine =
     unspokenSeats.length > 0
-      ? `后置位${unspokenSeats
-          .slice(0, 3)
-          .map((seat) => `${seat.seatId}号`)
-          .join("、")}还没发言，我只要求他们后面给态度，不提前给他们扣信息少。`
+      ? pickBySeat(seed + 5, [
+          "",
+          `后面我只等${seatText(unspokenSeats[0]!)}接刚才这个点。`,
+          `轮到${seatText(unspokenSeats[0]!)}时，接一下这条发言链就够。`,
+        ])
       : "";
 
   return compactSpeech(`${opener}。${checkLine}${tableLine}${focusLine}${timelineLine}`);
@@ -2321,15 +3690,21 @@ function fallbackSpeech(
 
 function normalizeSpeech(speech: string): string {
   const clean = stripSpeechStageDirections(speech).trim().replace(/\s+/g, " ");
-  return compactSpeechToLimit(clean, AI_SPEECH_MAX_CHARS);
+  return compactSpeechToLimit(limitSpeechSentences(dedupeSpeechSentences(clean), AI_SPEECH_MAX_SENTENCES), AI_SPEECH_MAX_CHARS);
 }
 
 function compactSpeechToLimit(speech: string, limit: number): string {
-  if (speech.length <= limit) return speech;
+  if (speech.length <= limit) return repairDanglingSpeechEnding(speech);
   const head = speech.slice(0, limit);
   const sentenceEnd = Math.max(head.lastIndexOf("。"), head.lastIndexOf("！"), head.lastIndexOf("？"), head.lastIndexOf("；"));
-  if (sentenceEnd >= Math.floor(limit * 0.55)) return head.slice(0, sentenceEnd + 1);
+  if (sentenceEnd >= Math.floor(limit * 0.55)) return repairDanglingSpeechEnding(head.slice(0, sentenceEnd + 1));
   const commaEnd = Math.max(head.lastIndexOf("，"), head.lastIndexOf("、"));
-  if (commaEnd >= Math.floor(limit * 0.7)) return `${head.slice(0, commaEnd)}。`;
-  return `${head.slice(0, Math.max(0, limit - 1))}。`;
+  if (commaEnd >= Math.floor(limit * 0.7)) return repairDanglingSpeechEnding(`${head.slice(0, commaEnd)}。`);
+  return repairDanglingSpeechEnding(`${head.slice(0, Math.max(0, limit - 1))}。`);
+}
+
+function repairDanglingSpeechEnding(speech: string): string {
+  const clean = speech.trim();
+  const repaired = clean.replace(/[，,;；:：、-]+$/g, "").trim();
+  return repaired && repaired !== clean ? `${repaired}。` : clean;
 }

@@ -152,6 +152,7 @@ export function buildAgentView(
     persona: seat.persona,
     llmConfig: resolveSeatRuntimeLlmConfig(seat, runtimeAiLlmConfigs),
     aliveSeats: getAliveSeats(state).map(toTarget),
+    daySpeechOrder: buildDaySpeechOrderView(state),
     publicEvents: state.events.filter((event) => isVisiblePublicEvent(state, event)).map(toEventView),
     publicSummary: buildPublicSummary(state),
     privateKnowledge: {
@@ -191,6 +192,14 @@ export function buildAgentView(
       aiMemory: state.aiMemories?.[String(seatId)],
     },
     allowedActions: getAvailableActionsForSeat(state, seatId),
+  };
+}
+
+function buildDaySpeechOrderView(state: GameState): AgentView["daySpeechOrder"] {
+  if (state.speechQueue.length === 0) return undefined;
+  return {
+    queue: state.speechQueue.map((seatId) => toTarget(getSeat(state, seatId))),
+    currentIndex: state.speechIndex,
   };
 }
 

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createConfiguredAiOptions, createMockCommand, mockActionProvider } from "./mockAgent";
 import { mockSpeechProvider } from "./speechProviders";
-import { buildConstrainedActionInput, routedModelActionProvider } from "./actionProviders";
+import { buildConstrainedActionInput, routedModelActionProvider, validateActionDecision } from "./actionProviders";
 import { buildAiTableRead, createVotePlan } from "./tableRead";
 import { buildAgentView } from "@/game/projection";
 import { createGame } from "@/game/engine";
@@ -117,6 +117,203 @@ describe("routed action provider", () => {
     expect(JSON.stringify(input)).not.toContain("wolfVoteTactic");
   });
 
+  it("tells day-vote models that vote-plan alternatives are credible divergence choices", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_VOTE";
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const view = buildAgentView(state, voter.seatId);
+    const tableRead = buildAiTableRead(view);
+    const votePlan = createVotePlan(view, tableRead);
+
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      votePlan,
+      fallbackCommand: createMockCommand(view, tableRead, votePlan),
+    });
+
+    expect(votePlan.alternatives.length).toBeGreaterThan(0);
+    expect(input.constraints.join("\n")).toContain("votePlan.alternatives are credible legal vote lines");
+    expect(input.constraints.join("\n")).toContain("If candidates include recommended: true");
+    expect(input.candidates.find((candidate) => candidate.id === `vote:${votePlan.target.seatId}`)?.recommended).toBeUndefined();
+    for (const alternative of votePlan.alternatives) {
+      expect(input.candidates.find((candidate) => candidate.id === `vote:${alternative.seatId}`)?.reasonHint).toMatch(
+        /备选票线|合法分歧/,
+      );
+    }
+  });
+
+  it("can lead with a credible vote alternative for even-position players when evidence is not hard", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_VOTE";
+    const voter = state.seats.find((seat) => seat.isAi && seat.seatId === 2)!;
+    const view = buildAgentView(state, voter.seatId);
+    const tableRead = buildAiTableRead(view);
+    const votePlan = createVotePlan(view, tableRead);
+
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      votePlan,
+      fallbackCommand: createMockCommand(view, tableRead, votePlan),
+    });
+    const firstVoteCandidate = input.candidates.find((candidate) => candidate.command.type === "vote");
+
+    expect(votePlan.confidence).toBeLessThan(0.74);
+    expect(firstVoteCandidate?.id).toBe(`vote:${votePlan.alternatives[0]?.seatId}`);
+    expect(firstVoteCandidate?.recommended).toBe(true);
+  });
+
+  it("carries inference layers and speech-vote continuity into day-vote action input", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_VOTE";
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const baseView = buildAgentView(state, voter.seatId);
+    const voteAction = baseView.allowedActions.find((action) => action.type === "vote");
+    const target = voteAction?.type === "vote" ? voteAction.targets[0] : undefined;
+    if (!target) throw new Error("expected at least one vote target");
+    const view = {
+      ...baseView,
+      privateKnowledge: {
+        ...baseView.privateKnowledge,
+        aiMemory: {
+          seatId: voter.seatId,
+          day: state.day,
+          lastSpeechTargetSeatId: target.seatId,
+          lastSpeechStance: `${target.seatId}号上一轮发言缺过程，我先压这里`,
+          beliefs: [],
+        },
+      },
+    };
+    const tableRead = buildAiTableRead(view);
+    const votePlan = {
+      ...createVotePlan(view, tableRead),
+      target: { seatId: target.seatId, name: target.name },
+      reason: "公开证据更清晰，先按这里收束。",
+      alternatives: [],
+    };
+
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      votePlan,
+      fallbackCommand: createMockCommand(view, tableRead, votePlan),
+    });
+
+    expect(input.inferenceLayers.highProbability.join("\n")).toContain("高概率推断");
+    expect(input.inferenceLayers.lowProbability.join("\n")).toContain("低概率边界");
+    expect(input.inferenceLayers.privateUnknowns.join("\n")).toContain("具体刀口");
+    expect(input.publicContext.decisionSummary.speechVoteContinuity.join("\n")).toContain(`${target.seatId}号`);
+    expect(input.constraints.join("\n")).toContain("speechVoteContinuity");
+    expect(input.candidates.find((candidate) => candidate.id === `vote:${target.seatId}`)?.reasonHint).toMatch(/上一轮发言|speech-vote/i);
+  });
+
+  it("adds a speech-vote continuity hint when pivoting away from the previous speech target", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_VOTE";
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const baseView = buildAgentView(state, voter.seatId);
+    const voteAction = baseView.allowedActions.find((action) => action.type === "vote");
+    const legalTargets = voteAction?.type === "vote" ? voteAction.targets : [];
+    const oldTarget = legalTargets[0];
+    const newTarget = legalTargets.find((target) => target.seatId !== oldTarget?.seatId);
+    if (!oldTarget || !newTarget) throw new Error("expected at least two vote targets");
+    const view = {
+      ...baseView,
+      privateKnowledge: {
+        ...baseView.privateKnowledge,
+        aiMemory: {
+          seatId: voter.seatId,
+          day: state.day,
+          lastSpeechTargetSeatId: oldTarget.seatId,
+          lastSpeechStance: `${oldTarget.seatId}号发言没有解释清楚夜里信息`,
+          beliefs: [],
+        },
+      },
+    };
+    const tableRead = buildAiTableRead(view);
+    const votePlan = {
+      ...createVotePlan(view, tableRead),
+      target: { seatId: newTarget.seatId, name: newTarget.name },
+      reason: "公开证据更清晰，先按这里收束。",
+      alternatives: [],
+    };
+
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      votePlan,
+      fallbackCommand: createMockCommand(view, tableRead, votePlan),
+    });
+
+    expect(input.candidates.find((candidate) => candidate.id === `vote:${newTarget.seatId}`)?.reasonHint).toMatch(
+      /转票|更硬|speech-vote/i,
+    );
+  });
+
+  it("rejects truncated action reasons that end with dangling punctuation", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_VOTE";
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const view = buildAgentView(state, voter.seatId);
+    const tableRead = buildAiTableRead(view);
+    const votePlan = createVotePlan(view, tableRead);
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      votePlan,
+      fallbackCommand: createMockCommand(view, tableRead, votePlan),
+    });
+
+    const errors = validateActionDecision(view, input, {
+      candidateId: `vote:${votePlan.target.seatId}`,
+      reason: "延续上一轮发言压力，",
+      message: "",
+    });
+
+    expect(errors).toContain("reason is malformed");
+  });
+
+  it("rejects day-vote reasons that ignore required speech-vote continuity", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_VOTE";
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const baseView = buildAgentView(state, voter.seatId);
+    const voteAction = baseView.allowedActions.find((action) => action.type === "vote");
+    const legalTargets = voteAction?.type === "vote" ? voteAction.targets : [];
+    const oldTarget = legalTargets[0];
+    const newTarget = legalTargets.find((target) => target.seatId !== oldTarget?.seatId);
+    if (!oldTarget || !newTarget) throw new Error("expected at least two vote targets");
+    const view = {
+      ...baseView,
+      privateKnowledge: {
+        ...baseView.privateKnowledge,
+        aiMemory: {
+          seatId: voter.seatId,
+          day: state.day,
+          lastSpeechTargetSeatId: oldTarget.seatId,
+          lastSpeechStance: `${oldTarget.seatId}号发言没有解释清楚夜里信息`,
+          beliefs: [],
+        },
+      },
+    };
+    const tableRead = buildAiTableRead(view);
+    const votePlan = {
+      ...createVotePlan(view, tableRead),
+      target: { seatId: newTarget.seatId, name: newTarget.name },
+      reason: "公开疑点较多，先投这里。",
+      alternatives: [],
+    };
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      votePlan,
+      fallbackCommand: createMockCommand(view, tableRead, votePlan),
+    });
+
+    const errors = validateActionDecision(view, input, {
+      candidateId: `vote:${newTarget.seatId}`,
+      reason: "公开疑点较多，先投这里。",
+      message: "",
+    });
+
+    expect(errors).toContain("reason misses required speech-vote continuity");
+  });
+
   it("offers knight duel as an optional day action candidate", () => {
     const state = createGame({ boardId: "12p-sheriff-wolf-beauty-knight", seed: 96, humanSeatId: null });
     const knight = state.seats.find((seat) => seat.role === "KNIGHT")!;
@@ -227,7 +424,7 @@ describe("routed action provider", () => {
       alternative.seatId,
       gold.seatId,
     ]);
-    expect(voteCandidates.find((candidate) => candidate.target?.seatId === gold.seatId)?.reasonHint).toMatch(/dead seer gold/i);
+    expect(voteCandidates.find((candidate) => candidate.target?.seatId === gold.seatId)?.reasonHint).toMatch(/夜死预言家保护的金水位/);
   });
 
   it("tries an action fallback persona after invalid primary JSON", async () => {
@@ -282,6 +479,63 @@ describe("routed action provider", () => {
     expect(requestedModels).toEqual(["deepseek-v4-flash", "gpt-5.4"]);
     expect(result.isFallback).toBe(false);
     expect(result.provider).toBe("gpt-action:gpt-5.4");
+    expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
+  });
+
+  it("lets AI-pool custom LLM config override global model routing for actions", async () => {
+    process.env.AI_LLM_PROVIDER = "models";
+    process.env.AI_LLM_API_KEY = "global-key";
+    process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";
+    process.env.AI_LLM_MAX_RETRIES = "0";
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const requestBody = JSON.parse(String(init?.body)) as {
+        model: string;
+        messages: Array<{ content: string }>;
+      };
+      const content = requestBody.messages.at(-1)?.content ?? "{}";
+      const inputJson = content.includes("输入：") ? content.slice(content.indexOf("输入：") + "输入：".length) : content;
+      const input = JSON.parse(inputJson) as {
+        fallbackCandidateId?: string;
+        candidates: Array<{ id: string; command: { type: string } }>;
+      };
+      const candidate = input.candidates.find((item) => item.command.type === "vote") ?? input.candidates[0];
+      const candidateId = candidate?.id ?? input.fallbackCandidateId;
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ candidateId, reason: "公开证据更清晰，先按这个候选执行。" }) } }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const state = createGame({ seed: 91 });
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    state.phase = "DAY_VOTE";
+    const view = {
+      ...buildAgentView(state, voter.seatId),
+      llmConfig: {
+        provider: "openai-compatible" as const,
+        baseUrl: "https://custom.example.com",
+        model: "deepseek-chat",
+        apiKey: "custom-key",
+        mergeSystemIntoUser: true,
+      },
+    };
+    const tableRead = buildAiTableRead(view);
+    const votePlan = createVotePlan(view, tableRead);
+    const fallbackCommand = createMockCommand(view, tableRead, votePlan);
+
+    const actionProvider = createConfiguredAiOptions().actionProvider;
+    if (!actionProvider) throw new Error("expected configured action provider");
+    const result = await actionProvider.generateCommand(view, { tableRead, votePlan, fallbackCommand });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { model: string };
+    expect(body.model).toBe("deepseek-chat");
+    expect(result.error).toBeUndefined();
+    expect(result.isFallback).toBe(false);
+    expect(result.provider).toBe("custom-action:deepseek-chat");
     expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
   });
 
@@ -391,8 +645,388 @@ describe("routed action provider", () => {
     expect(result.command).toMatchObject({
       type: "vote",
       actorSeatId: voter.seatId,
-      reason: "public pressure and vote focus both point here",
+      reason: "备选票线：公开发言和票型压力可解释，作为合法分歧票口。",
     });
+  });
+
+  it("uses the candidate public reason hint when the action model omits a reason", async () => {
+    process.env.AI_LLM_API_KEY = "test-key";
+    process.env.AI_LLM_MAX_RETRIES = "0";
+    process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const requestBody = JSON.parse(String(init?.body)) as {
+        messages: Array<{ content: string }>;
+      };
+      const content = requestBody.messages.at(-1)?.content ?? "{}";
+      const inputJson = content.includes("输入：") ? content.slice(content.indexOf("输入：") + "输入：".length) : content;
+      const input = JSON.parse(inputJson) as {
+        candidates: Array<{ id: string; command: { type: string } }>;
+      };
+      const candidate = input.candidates.find((item) => item.command.type === "vote") ?? input.candidates[0];
+
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ candidateId: candidate?.id }) } }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const state = createGame({ seed: 91 });
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    state.phase = "DAY_VOTE";
+    const view = buildAgentView(state, voter.seatId);
+    const tableRead = buildAiTableRead(view);
+    const votePlan = createVotePlan(view, tableRead);
+    const fallbackCommand = createMockCommand(view, tableRead, votePlan);
+
+    const result = await routedModelActionProvider.generateCommand(view, { tableRead, votePlan, fallbackCommand });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.isFallback).toBe(false);
+    expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
+    expect("reason" in result.command ? result.command.reason : "").toBeTruthy();
+  });
+
+  it("retries action output when the reason contains a JSON fragment around natural text", async () => {
+    process.env.AI_LLM_API_KEY = "test-key";
+    process.env.AI_LLM_MAX_RETRIES = "1";
+    process.env.AI_LLM_ACTION_FALLBACK_PERSONAS = "GPT";
+    process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";
+    process.env.AI_MODEL_GPT = "gpt-5.5";
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const requestBody = JSON.parse(String(init?.body)) as {
+        model: string;
+        messages: Array<{ content: string }>;
+      };
+      const input = JSON.parse(requestBody.messages.at(-1)?.content ?? "{}") as {
+        candidates: Array<{ id: string; command: { type: string } }>;
+      };
+      const candidate = input.candidates.find((item) => item.command.type === "vote") ?? input.candidates[0];
+      const reason =
+        requestBody.model === "deepseek-v4-flash"
+          ? '\":\"延续上一轮发言压力，'
+          : "public pressure and vote focus both point here";
+
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ candidateId: candidate?.id, reason }) } }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const state = createGame({ seed: 91 });
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    state.phase = "DAY_VOTE";
+    const view = buildAgentView(state, voter.seatId);
+    const tableRead = buildAiTableRead(view);
+    const votePlan = createVotePlan(view, tableRead);
+    const fallbackCommand = createMockCommand(view, tableRead, votePlan);
+
+    const result = await routedModelActionProvider.generateCommand(view, { tableRead, votePlan, fallbackCommand });
+
+    const requestedModels = fetchMock.mock.calls.map((call) => {
+      const body = JSON.parse(String(call[1]?.body)) as { model: string };
+      return body.model;
+    });
+    expect(requestedModels).toEqual(["deepseek-v4-flash", "gpt-5.5"]);
+    expect(result.isFallback).toBe(false);
+    expect(result.command).toMatchObject({
+      type: "vote",
+      actorSeatId: voter.seatId,
+      reason: "备选票线：公开发言和票型压力可解释，作为合法分歧票口。",
+    });
+  });
+
+  it("retries day-vote output when a continuity candidate reason does not explain the pivot", async () => {
+    process.env.AI_LLM_API_KEY = "test-key";
+    process.env.AI_LLM_MAX_RETRIES = "1";
+    process.env.AI_LLM_ACTION_FALLBACK_PERSONAS = "GPT";
+    process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";
+    process.env.AI_MODEL_GPT = "gpt-5.5";
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const requestBody = JSON.parse(String(init?.body)) as {
+        model: string;
+        messages: Array<{ content: string }>;
+      };
+      const input = JSON.parse(requestBody.messages.at(-1)?.content ?? "{}") as {
+        candidates: Array<{ id: string; command: { type: string } }>;
+      };
+      const candidate = input.candidates.find((item) => item.command.type === "vote") ?? input.candidates[0];
+      const reason =
+        requestBody.model === "deepseek-v4-flash"
+          ? "公开疑点较多，先投这里。"
+          : "从上一轮发言点过的旧目标转票到这里，因为新增票型证据更硬。";
+
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ candidateId: candidate?.id, reason }) } }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const state = createGame({ seed: 91 });
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    state.phase = "DAY_VOTE";
+    const baseView = buildAgentView(state, voter.seatId);
+    const voteAction = baseView.allowedActions.find((action) => action.type === "vote");
+    const legalTargets = voteAction?.type === "vote" ? voteAction.targets : [];
+    const oldTarget = legalTargets[0];
+    const newTarget = legalTargets.find((target) => target.seatId !== oldTarget?.seatId);
+    if (!oldTarget || !newTarget) throw new Error("expected at least two vote targets");
+    const view = {
+      ...baseView,
+      privateKnowledge: {
+        ...baseView.privateKnowledge,
+        aiMemory: {
+          seatId: voter.seatId,
+          day: state.day,
+          lastSpeechTargetSeatId: oldTarget.seatId,
+          lastSpeechStance: `${oldTarget.seatId}号发言没有解释清楚夜里信息`,
+          beliefs: [],
+        },
+      },
+    };
+    const tableRead = buildAiTableRead(view);
+    const votePlan = {
+      ...createVotePlan(view, tableRead),
+      target: { seatId: newTarget.seatId, name: newTarget.name },
+      reason: "公开疑点较多，先投这里。",
+      alternatives: [],
+    };
+    const fallbackCommand = createMockCommand(view, tableRead, votePlan);
+
+    const result = await routedModelActionProvider.generateCommand(view, { tableRead, votePlan, fallbackCommand });
+
+    const requestedModels = fetchMock.mock.calls.map((call) => {
+      const body = JSON.parse(String(call[1]?.body)) as { model: string };
+      return body.model;
+    });
+    expect(requestedModels).toEqual(["deepseek-v4-flash", "gpt-5.5"]);
+    expect(result.isFallback).toBe(false);
+    expect(result.command).toMatchObject({
+      type: "vote",
+      actorSeatId: voter.seatId,
+      targetSeatId: newTarget.seatId,
+      reason: "从上一轮发言点过的旧目标转票到这里，因为新增票型证据更硬。",
+    });
+  });
+
+  it("merges a candidate continuity hint instead of retrying an otherwise public vote reason", async () => {
+    process.env.AI_LLM_API_KEY = "test-key";
+    process.env.AI_LLM_MAX_RETRIES = "0";
+    process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const requestBody = JSON.parse(String(init?.body)) as {
+        messages: Array<{ content: string }>;
+      };
+      const content = requestBody.messages.at(-1)?.content ?? "{}";
+      const inputJson = content.includes("输入：") ? content.slice(content.indexOf("输入：") + "输入：".length) : content;
+      const input = JSON.parse(inputJson) as {
+        candidates: Array<{ id: string; reasonHint?: string; command: { type: string; targetSeatId?: number } }>;
+      };
+      const voteCandidate =
+        input.candidates.find((item) => item.command.type === "vote" && /speech-vote continuity/i.test(item.reasonHint ?? "")) ??
+        input.candidates.find((item) => item.command.type === "vote" && item.command.targetSeatId);
+
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  candidateId: voteCandidate?.id,
+                  reason: "公开记忆显示这个位置回避站边，且多人发言提及，疑点未解除，投票先按公开疑点走。",
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const state = createGame({ seed: 91 });
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    state.phase = "DAY_VOTE";
+    const baseView = buildAgentView(state, voter.seatId);
+    const voteAction = baseView.allowedActions.find((action) => action.type === "vote");
+    const legalTargets = voteAction?.type === "vote" ? voteAction.targets : [];
+    const oldTarget = legalTargets[0];
+    const newTarget = legalTargets.find((target) => target.seatId !== oldTarget?.seatId);
+    if (!oldTarget || !newTarget) throw new Error("expected at least two vote targets");
+    const view = {
+      ...baseView,
+      privateKnowledge: {
+        ...baseView.privateKnowledge,
+        aiMemory: {
+          seatId: voter.seatId,
+          day: state.day,
+          lastSpeechTargetSeatId: oldTarget.seatId,
+          lastSpeechStance: `${oldTarget.seatId}号发言没有解释清楚夜里信息`,
+          beliefs: [],
+        },
+      },
+    };
+    const tableRead = buildAiTableRead(view);
+    const votePlan = {
+      ...createVotePlan(view, tableRead),
+      target: { seatId: newTarget.seatId, name: newTarget.name },
+      reason: "公开疑点较多，先投这里。",
+      alternatives: [],
+    };
+    const fallbackCommand = createMockCommand(view, tableRead, votePlan);
+
+    const result = await routedModelActionProvider.generateCommand(view, { tableRead, votePlan, fallbackCommand });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.isFallback).toBe(false);
+    expect(result.command).toMatchObject({
+      type: "vote",
+      actorSeatId: voter.seatId,
+      targetSeatId: newTarget.seatId,
+    });
+    expect("reason" in result.command ? result.command.reason : "").toMatch(/转票|新增|更硬/);
+    expect("reason" in result.command ? result.command.reason : "").not.toContain("。；");
+  });
+
+  it("drops English action-reason fragments when a Chinese continuity hint is available", async () => {
+    process.env.AI_LLM_API_KEY = "test-key";
+    process.env.AI_LLM_MAX_RETRIES = "0";
+    process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const requestBody = JSON.parse(String(init?.body)) as {
+        messages: Array<{ content: string }>;
+      };
+      const content = requestBody.messages.at(-1)?.content ?? "{}";
+      const inputJson = content.includes("输入：") ? content.slice(content.indexOf("输入：") + "输入：".length) : content;
+      const input = JSON.parse(inputJson) as {
+        candidates: Array<{ id: string; reasonHint?: string; command: { type: string; targetSeatId?: number } }>;
+      };
+      const voteCandidate =
+        input.candidates.find((item) => item.command.type === "vote" && /speech-vote continuity/i.test(item.reasonHint ?? "")) ??
+        input.candidates.find((item) => item.command.type === "vote" && item.command.targetSeatId);
+
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  candidateId: voteCandidate?.id,
+                  reason: "GPT-DS-chat-3 is the main public focus due to",
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const state = createGame({ seed: 91 });
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    state.phase = "DAY_VOTE";
+    const baseView = buildAgentView(state, voter.seatId);
+    const voteAction = baseView.allowedActions.find((action) => action.type === "vote");
+    const legalTargets = voteAction?.type === "vote" ? voteAction.targets : [];
+    const oldTarget = legalTargets[0];
+    const newTarget = legalTargets.find((target) => target.seatId !== oldTarget?.seatId);
+    if (!oldTarget || !newTarget) throw new Error("expected at least two vote targets");
+    const view = {
+      ...baseView,
+      privateKnowledge: {
+        ...baseView.privateKnowledge,
+        aiMemory: {
+          seatId: voter.seatId,
+          day: state.day,
+          lastSpeechTargetSeatId: oldTarget.seatId,
+          lastSpeechStance: `${oldTarget.seatId}号发言没有解释清楚夜里信息`,
+          beliefs: [],
+        },
+      },
+    };
+    const tableRead = buildAiTableRead(view);
+    const votePlan = {
+      ...createVotePlan(view, tableRead),
+      target: { seatId: newTarget.seatId, name: newTarget.name },
+      reason: "公开疑点较多，先投这里。",
+      alternatives: [],
+    };
+    const fallbackCommand = createMockCommand(view, tableRead, votePlan);
+
+    const result = await routedModelActionProvider.generateCommand(view, { tableRead, votePlan, fallbackCommand });
+    const reason = "reason" in result.command ? result.command.reason ?? "" : "";
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.isFallback).toBe(false);
+    expect(reason).toMatch(/转票|新增|更硬/);
+    expect(reason).not.toMatch(/\bis the main public focus due to\b/i);
+  });
+
+  it("uses a public candidate reason hint when the model returns an English reason fragment", async () => {
+    process.env.AI_LLM_API_KEY = "test-key";
+    process.env.AI_LLM_MAX_RETRIES = "0";
+    process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const requestBody = JSON.parse(String(init?.body)) as {
+        messages: Array<{ content: string }>;
+      };
+      const content = requestBody.messages.at(-1)?.content ?? "{}";
+      const inputJson = content.includes("输入：") ? content.slice(content.indexOf("输入：") + "输入：".length) : content;
+      const input = JSON.parse(inputJson) as {
+        candidates: Array<{ id: string; reasonHint?: string; command: { type: string; targetSeatId?: number } }>;
+      };
+      const voteCandidate =
+        input.candidates.find((item) => item.command.type === "vote" && item.reasonHint && !/[A-Za-z]{2,}/.test(item.reasonHint)) ??
+        input.candidates.find((item) => item.command.type === "vote" && item.command.targetSeatId);
+
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  candidateId: voteCandidate?.id,
+                  reason: "Mimo-DS-chat-5 has a public speech gap and should be pressured",
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const state = createGame({ seed: 91 });
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    state.phase = "DAY_VOTE";
+    const view = buildAgentView(state, voter.seatId);
+    const tableRead = buildAiTableRead(view);
+    const votePlan = createVotePlan(view, tableRead);
+    const fallbackCommand = createMockCommand(view, tableRead, votePlan);
+
+    const result = await routedModelActionProvider.generateCommand(view, { tableRead, votePlan, fallbackCommand });
+    const reason = "reason" in result.command ? result.command.reason ?? "" : "";
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.isFallback).toBe(false);
+    expect(reason).toBeTruthy();
+    expect(reason).not.toMatch(/\bhas a public speech gap\b/i);
   });
 });
 

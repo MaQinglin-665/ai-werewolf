@@ -54,7 +54,7 @@ export function buildReasoningFrame(view: AgentView): AiReasoningFrame {
 
   const validationQuestions = uniqueLines([
     topFocus
-      ? `追问${seatText(topFocus.seat)}：你的站边、票口和前面发言能否闭环，是否有可复述的公开理由。`
+      ? `追问${seatText(topFocus.seat)}：只挑一个最关键公开点，看他能不能和前面发言闭环。`
       : undefined,
     memory.counterclaims[0]
       ? `让${memory.counterclaims[0].claimants.map(seatText).join("、")}分别补查验心路、${
@@ -67,7 +67,7 @@ export function buildReasoningFrame(view: AgentView): AiReasoningFrame {
     latestShift ? `要求${seatText(latestShift.actor)}解释站边变化触发点，不能只说“听感变了”。` : undefined,
     view.publicSummary.claimBoard.length > 0
       ? "校验公开身份声明：未对跳神职先保护，对跳身份优先比较验人、心路、票型收益。"
-      : "当前身份声明少，先让每个焦点位给出明确站边和可验证票口。",
+      : "当前身份声明少，先选一个焦点位或一条发言链做可验证追问。",
   ]).slice(0, 5);
 
   const persuasionGoals = isWolfRole(view.myRole, view.rules.wolfRoles)
