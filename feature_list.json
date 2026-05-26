@@ -90,6 +90,36 @@
       ],
       "status": "done",
       "evidence": "src/components/game/recentGamesStore.ts; src/components/game/recentGamesStore.test.ts; npm run test -- src/components/game/recentGamesStore.test.ts"
+    },
+    {
+      "id": "gameclient-auto-advance-helper",
+      "name": "GameClient Auto-Advance Helper",
+      "description": "Extract auto-advance delay and AI speech selection helpers from GameClient into src/components/game/autoAdvance.ts with focused tests.",
+      "dependencies": [
+        "gameclient-recent-games-store"
+      ],
+      "status": "done",
+      "evidence": "src/components/game/autoAdvance.ts; src/components/game/autoAdvance.test.ts; npm run test -- src/components/game/autoAdvance.test.ts; npx tsc --noEmit; npm run smoke:main-game -- --base-url=http://127.0.0.1:3000"
+    },
+    {
+      "id": "gameclient-host-audio-cues",
+      "name": "GameClient Host Audio Cues",
+      "description": "Extract host audio clip and cue-building helpers from GameClient into src/components/game/hostAudioCues.ts with focused tests.",
+      "dependencies": [
+        "gameclient-auto-advance-helper"
+      ],
+      "status": "done",
+      "evidence": "src/components/game/hostAudioCues.ts; src/components/game/hostAudioCues.test.ts; npm run test -- src/components/game/hostAudioCues.test.ts; npm run lint"
+    },
+    {
+      "id": "gameclient-ai-speech-audio-helpers",
+      "name": "GameClient AI Speech Audio Helpers",
+      "description": "Extract AI speech audio cue, streaming TTS queue, chunking, unavailable-error, and audio preparation helpers from GameClient into src/components/game/aiSpeechAudio.ts with focused tests.",
+      "dependencies": [
+        "gameclient-host-audio-cues"
+      ],
+      "status": "done",
+      "evidence": "src/components/game/aiSpeechAudio.ts; src/components/game/aiSpeechAudio.test.ts; npm run test -- src/components/game/aiSpeechAudio.test.ts; npx tsc --noEmit; npm run smoke:main-game -- --base-url=http://127.0.0.1:3000"
     }
   ]
 }

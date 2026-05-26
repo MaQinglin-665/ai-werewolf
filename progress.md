@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-26 21:05 Asia/Shanghai
-**Session ID:** frontend css governance and gameclient slimming
-**Active Feature:** gameclient-recent-games-store - GameClient Recent Games Store
+**Last Updated:** 2026-05-26 21:45 Asia/Shanghai
+**Session ID:** gameclient helper extractions
+**Active Feature:** gameclient-ai-speech-audio-helpers - GameClient AI Speech Audio Helpers
 
 ## Status
 
@@ -30,17 +30,22 @@
 - [x] Non-behavioral section comments added to `src/app/globals.css` without moving selectors or declarations.
 - [x] Recent-game localStorage and subscription helpers extracted from `GameClient.tsx` to `src/components/game/recentGamesStore.ts`.
 - [x] Focused recent-game store tests added and watched fail before implementation, then pass after extraction.
+- [x] Auto-advance delay and AI speech selection helpers extracted to `src/components/game/autoAdvance.ts`.
+- [x] Host audio cue and clip helpers extracted to `src/components/game/hostAudioCues.ts`.
+- [x] AI speech audio cue, TTS chunking, streaming queue, unavailable-error, and audio preparation helpers extracted to `src/components/game/aiSpeechAudio.ts`.
+- [x] Focused helper tests added and watched fail before implementation, then pass after each extraction.
+- [x] Local main-game smoke passed after the helper extractions.
 
 ### What's In Progress
 
-- [ ] Review and optionally commit the frontend structure/CSS/GameClient slimming changes.
-  - Details: C, A, and B are implemented; final lint, type, harness, and focused test verification passed.
+- [ ] Review and optionally commit the GameClient helper extraction batch.
+  - Details: Auto-advance, host audio cue, and AI speech audio helper modules are implemented; focused tests, lint, type, harness checks, structure audit, and local main-game smoke passed.
   - Blockers: none.
 
 ### What's Next
 
 1. Review and optionally commit this batch.
-2. If continuing frontend slimming, pick another small `GameClient` helper only after adding a focused test.
+2. If continuing frontend slimming, pick a UI presentation or action-panel boundary next; keep audio/auto-advance changes small and tested.
 3. Plan room UI alignment separately before touching `RoomClient.tsx`.
 
 ## Blockers / Risks
@@ -50,7 +55,8 @@
 - [x] The task-card checker verifies structure, not judgment quality; agents still need to choose checks from `docs/verification-matrix.md`.
 - [x] Frontend planning does not reduce line count yet; it creates the route for a later low-risk refactor.
 - [ ] The CSS map is line-based and will drift as styles move.
-- [ ] Browser/manual recent-game behavior was not exercised because rendered UI did not change.
+- [x] Local `smoke:main-game` passed after touching auto-advance and audio gating helpers.
+- [ ] Browser-render visual flow was not exercised because this batch moved helper logic without changing layout or visible UI.
 
 ## Decisions Made
 
@@ -84,6 +90,14 @@
 - `src/components/game/recentGamesStore.ts` - extracted recent-game localStorage and subscription helper.
 - `src/components/game/recentGamesStore.test.ts` - focused helper coverage.
 - `docs/tasks/2026-05-gameclient-recent-games-store.md` - task card and execution record for the GameClient slimming step.
+- `docs/tasks/2026-05-gameclient-helper-extractions.md` - task card for the three helper extractions.
+- `docs/superpowers/plans/2026-05-26-gameclient-helper-extractions.md` - implementation plan for the three helper extractions.
+- `src/components/game/autoAdvance.ts` - extracted auto-advance and AI speech selection helpers.
+- `src/components/game/autoAdvance.test.ts` - focused auto-advance helper coverage.
+- `src/components/game/hostAudioCues.ts` - extracted host audio cue and clip helpers.
+- `src/components/game/hostAudioCues.test.ts` - focused host audio cue coverage.
+- `src/components/game/aiSpeechAudio.ts` - extracted AI speech audio cue, TTS queue, chunking, and audio preparation helpers.
+- `src/components/game/aiSpeechAudio.test.ts` - focused AI speech audio helper coverage.
 
 ## Evidence of Completion
 
@@ -97,6 +111,14 @@
 - [x] Frontend task-card gate: `npm run harness:task-card -- docs/tasks/2026-05-frontend-css-boundary-map.md docs/tasks/2026-05-gameclient-recent-games-store.md`
 - [x] Recent-game focused test: `npm run test -- src/components/game/recentGamesStore.test.ts`
 - [x] TypeScript: `npx tsc --noEmit`
+- [x] Helper focused tests: `npm run test -- src/components/game/autoAdvance.test.ts src/components/game/hostAudioCues.test.ts src/components/game/aiSpeechAudio.test.ts`
+- [x] Lint: `npm run lint`
+- [x] TypeScript: `npx tsc --noEmit`
+- [x] Build: `npm run build` passed with the existing Turbopack NFT warning for `next.config.ts` -> `src/server/roomService.ts`.
+- [x] Helper task-card gate: `npm run harness:task-card -- docs/tasks/2026-05-gameclient-helper-extractions.md`
+- [x] Harness check: `npm run harness:check`
+- [x] Structure audit: `npm run audit:structure`
+- [x] Local main-game smoke: `npm run smoke:main-game -- --base-url=http://127.0.0.1:3000`
 
 ## Notes for Next Session
 
