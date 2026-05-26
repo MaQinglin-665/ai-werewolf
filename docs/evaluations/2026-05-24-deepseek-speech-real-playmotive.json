@@ -1,0 +1,793 @@
+{
+  "generatedAt": "2026-05-24T10:07:54.047Z",
+  "options": {
+    "autoHuman": "mock",
+    "boardId": "default",
+    "gameCount": 1,
+    "humanSeatId": 9,
+    "jsonMode": "on",
+    "lineupModels": [
+      "deepseek-chat"
+    ],
+    "maxLlmCalls": 12,
+    "maxSteps": 180,
+    "realPhases": [
+      "DAY_SPEECH"
+    ],
+    "seedStart": 91
+  },
+  "summary": {
+    "gameCount": 1,
+    "completedGames": 0,
+    "totalCalls": 12,
+    "speechCalls": 12,
+    "actionCalls": 0,
+    "fallbackCount": 1,
+    "errorCount": 1,
+    "validationFailureCount": 1,
+    "referencedReasoningCueCalls": 12,
+    "averageDurationMs": 4450,
+    "byProvider": {
+      "custom-speech:deepseek-chat": 12
+    },
+    "byPersona": {
+      "DeepSeek": 2,
+      "Claude": 2,
+      "GPT": 1,
+      "豆包": 2,
+      "Mimo": 1,
+      "Gemini": 2,
+      "GLM": 1,
+      "Kimi": 1
+    },
+    "byFailureType": {
+      "retry_ok": 1,
+      "ok": 10,
+      "provider_error": 1
+    },
+    "retryIssueCallCount": 2,
+    "byRetryIssue": {
+      "other_validation": 2
+    },
+    "totalQualityIssues": 0,
+    "byQualityIssue": {},
+    "optimizationRecommendations": [
+      {
+        "priority": "high",
+        "area": "provider_stability",
+        "title": "先排查模型接口稳定性和备用路由",
+        "detail": "请求失败、超时或 fallback 会污染发言/决策质量判断，需要先把链路稳定下来。",
+        "nextStep": "检查 baseUrl、超时、重试次数、fallback personas、JSON mode 兼容性和 provider 错误摘要。",
+        "evidence": [
+          "fallback 1",
+          "error 1"
+        ]
+      }
+    ]
+  },
+  "games": [
+    {
+      "seed": 91,
+      "gameId": "bcae28db-dcba-4ef9-be85-fef57adf46ce",
+      "stopReason": "max_llm_calls",
+      "day": 2,
+      "phase": "DAY_SPEECH",
+      "calls": [
+        {
+          "id": "bcae28db-dcba-4ef9-be85-fef57adf46ce:DAY_SPEECH:1:5633",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 1,
+          "persona": "DeepSeek",
+          "role": "HUNTER",
+          "provider": "custom-speech:deepseek-chat",
+          "durationMs": 5633,
+          "isFallback": false,
+          "failureType": "retry_ok",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "custom-speech:deepseek-chat",
+              "issue": "LLM 发言未通过约束：软身份边界不应硬拍身份",
+              "validationErrors": [
+                "软身份边界不应硬拍身份"
+              ],
+              "rawOutputSnippet": "1号发言。平安夜先过，首夜没什么可展开的，女巫用药我当已结算背景。我是猎人，底牌硬但没必要现在拍死，先留个威慑。后面的人发言我会重点看谁不敢讨论站边、谁在把平安夜当信息量不足的理由划过去，今天票口等全部发言完再定，但我先表态——不怕被推，好"
+            }
+          ],
+          "retryIssueCodes": [
+            "other_validation"
+          ],
+          "primaryRetryIssue": "other_validation",
+          "attempts": 2,
+          "publicFactBasisCount": 4,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "death-shape:1:peaceful"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 1号发言。平安夜先过，女巫用药我当已结算背景，不展开。我是有底牌的，但没必要现在拍，先留着威慑。",
+          "outputText": "1号发言。平安夜先过，女巫用药我当已结算背景，不展开。我是有底牌的，但没必要现在拍，先留着威慑。"
+        },
+        {
+          "id": "bcae28db-dcba-4ef9-be85-fef57adf46ce:DAY_SPEECH:2:3564",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 2,
+          "persona": "Claude",
+          "role": "WITCH",
+          "provider": "custom-speech:deepseek-chat",
+          "durationMs": 3564,
+          "isFallback": false,
+          "failureType": "ok",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [],
+          "retryIssueCodes": [],
+          "attempts": 1,
+          "publicFactBasisCount": 5,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "death-shape:1:peaceful"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "1号 DeepSeek-DS-chat",
+                "message": "1号发言。平安夜先过，女巫用药我当已结算背景，不展开。我是有底牌的，但没必要现在拍，先留着威慑。"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 1号说了自己有底牌但不拍，这个我理解，首日留威慑没问题。但平安夜已经过了，女巫用药是事实，不用再绕。 我是女巫，昨晚救过4号。",
+          "outputText": "1号说了自己有底牌但不拍，这个我理解，首日留威慑没问题。但平安夜已经过了，女巫用药是事实，不用再绕。 我是女巫，昨晚救过4号。"
+        },
+        {
+          "id": "bcae28db-dcba-4ef9-be85-fef57adf46ce:DAY_SPEECH:3:2802",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 3,
+          "persona": "GPT",
+          "role": "VILLAGER",
+          "provider": "custom-speech:deepseek-chat",
+          "durationMs": 2802,
+          "isFallback": false,
+          "failureType": "ok",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [],
+          "retryIssueCodes": [],
+          "attempts": 1,
+          "publicFactBasisCount": 6,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "death-shape:1:peaceful"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "1号 DeepSeek-DS-chat",
+                "message": "1号发言。平安夜先过，女巫用药我当已结算背景，不展开。我是有底牌的，但没必要现在拍，先留着威慑。"
+              },
+              {
+                "day": 1,
+                "speaker": "2号 Claude-DS-chat-2",
+                "message": "1号说了自己有底牌但不拍，这个我理解，首日留威慑没问题。但平安夜已经过了，女巫用药是事实，不用再绕。 我是女巫，昨晚救过4号。"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 3号发言。2号跳女巫救过4号，这个身份声明我记住了，但首夜单死救4号没有收益冲突，我暂时不觉得他铁假。1号说有底牌但不拍，首日留威慑我能理解，但也不急着信。",
+          "outputText": "3号发言。2号跳女巫救过4号，这个身份声明我记住了，但首夜单死救4号没有收益冲突，我暂时不觉得他铁假。1号说有底牌但不拍，首日留威慑我能理解，但也不急着信。"
+        },
+        {
+          "id": "bcae28db-dcba-4ef9-be85-fef57adf46ce:DAY_SPEECH:4:3067",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 4,
+          "persona": "豆包",
+          "role": "VILLAGER",
+          "provider": "custom-speech:deepseek-chat",
+          "durationMs": 3067,
+          "isFallback": false,
+          "failureType": "ok",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [],
+          "retryIssueCodes": [],
+          "attempts": 1,
+          "publicFactBasisCount": 7,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "death-shape:1:peaceful"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "1号 DeepSeek-DS-chat",
+                "message": "1号发言。平安夜先过，女巫用药我当已结算背景，不展开。我是有底牌的，但没必要现在拍，先留着威慑。"
+              },
+              {
+                "day": 1,
+                "speaker": "2号 Claude-DS-chat-2",
+                "message": "1号说了自己有底牌但不拍，这个我理解，首日留威慑没问题。但平安夜已经过了，女巫用药是事实，不用再绕。 我是女巫，昨晚救过4号。"
+              },
+              {
+                "day": 1,
+                "speaker": "3号 GPT-DS-chat-3",
+                "message": "3号发言。2号跳女巫救过4号，这个身份声明我记住了，但首夜单死救4号没有收益冲突，我暂时不觉得他铁假。1号说有底牌但不拍，首日留威慑我能理解，但也不急着信。"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 2号跳女巫救过我，这个身份声明我先接着，但今天焦点不在他——3号，你接1和2的发言，只说了“记住了”“不急着信”，没给任何一个方向。首日平安夜，女巫用药是公开形态，你既不站2号也…",
+          "outputText": "2号跳女巫救过我，这个身份声明我先接着，但今天焦点不在他——3号，你接1和2的发言，只说了“记住了”“不急着信”，没给任何一个方向。首日平安夜，女巫用药是公开形态，你既不站2号也不质疑1号藏着底牌，那你今天想盘谁？我只能记你一个回避站边，后置位听你补结论。"
+        },
+        {
+          "id": "bcae28db-dcba-4ef9-be85-fef57adf46ce:DAY_SPEECH:5:3521",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 5,
+          "persona": "Mimo",
+          "role": "WEREWOLF",
+          "provider": "custom-speech:deepseek-chat",
+          "durationMs": 3521,
+          "isFallback": false,
+          "failureType": "ok",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [],
+          "retryIssueCodes": [],
+          "attempts": 1,
+          "publicFactBasisCount": 8,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "death-shape:1:peaceful"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "2号 Claude-DS-chat-2",
+                "message": "1号说了自己有底牌但不拍，这个我理解，首日留威慑没问题。但平安夜已经过了，女巫用药是事实，不用再绕。 我是女巫，昨晚救过4号。"
+              },
+              {
+                "day": 1,
+                "speaker": "3号 GPT-DS-chat-3",
+                "message": "3号发言。2号跳女巫救过4号，这个身份声明我记住了，但首夜单死救4号没有收益冲突，我暂时不觉得他铁假。1号说有底牌但不拍，首日留威慑我能理解，但也不急着信。"
+              },
+              {
+                "day": 1,
+                "speaker": "4号 豆包-DS-chat-4",
+                "message": "2号跳女巫救过我，这个身份声明我先接着，但今天焦点不在他——3号，你接1和2的发言，只说了“记住了”“不急着信”，没给任何一个方向。首日平安夜，女巫用药是公开形态，你既不站2号也不质疑1号藏…"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 5号发言。3号，你接完1和2的发言，结论是“记住了”“不急着信”，但你既没解释为什么记住了2的跳女巫却不觉得他铁假，也没说1藏底牌这个动作在你眼里是好人留威慑还是狼留空间。你给了…",
+          "outputText": "5号发言。3号，你接完1和2的发言，结论是“记住了”“不急着信”，但你既没解释为什么记住了2的跳女巫却不觉得他铁假，也没说1藏底牌这个动作在你眼里是好人留威慑还是狼留空间。你给了两个不置可否的态度，但没有任何一个公开依据能支撑你今天想盘谁。"
+        },
+        {
+          "id": "bcae28db-dcba-4ef9-be85-fef57adf46ce:DAY_SPEECH:6:3113",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 6,
+          "persona": "Gemini",
+          "role": "WEREWOLF",
+          "provider": "custom-speech:deepseek-chat",
+          "durationMs": 3113,
+          "isFallback": false,
+          "failureType": "ok",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [],
+          "retryIssueCodes": [],
+          "attempts": 1,
+          "publicFactBasisCount": 8,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "death-shape:1:peaceful"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "3号 GPT-DS-chat-3",
+                "message": "3号发言。2号跳女巫救过4号，这个身份声明我记住了，但首夜单死救4号没有收益冲突，我暂时不觉得他铁假。1号说有底牌但不拍，首日留威慑我能理解，但也不急着信。"
+              },
+              {
+                "day": 1,
+                "speaker": "4号 豆包-DS-chat-4",
+                "message": "2号跳女巫救过我，这个身份声明我先接着，但今天焦点不在他——3号，你接1和2的发言，只说了“记住了”“不急着信”，没给任何一个方向。首日平安夜，女巫用药是公开形态，你既不站2号也不质疑1号藏…"
+              },
+              {
+                "day": 1,
+                "speaker": "5号 Mimo-DS-chat-5",
+                "message": "5号发言。3号，你接完1和2的发言，结论是“记住了”“不急着信”，但你既没解释为什么记住了2的跳女巫却不觉得他铁假，也没说1藏底牌这个动作在你眼里是好人留威慑还是狼留空间。你给了两个不置可否…"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 6号发言。3号，你接1和2的发言，说“记住了”但“不急着信”，可你没说清楚——2跳女巫救4，你是觉得这个声明可信还是留一手？1藏底牌在你眼里是好人的威慑还是狼的退路。",
+          "outputText": "6号发言。3号，你接1和2的发言，说“记住了”但“不急着信”，可你没说清楚——2跳女巫救4，你是觉得这个声明可信还是留一手？1藏底牌在你眼里是好人的威慑还是狼的退路。"
+        },
+        {
+          "id": "bcae28db-dcba-4ef9-be85-fef57adf46ce:DAY_SPEECH:7:3291",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 7,
+          "persona": "GLM",
+          "role": "SEER",
+          "provider": "custom-speech:deepseek-chat",
+          "durationMs": 3291,
+          "isFallback": false,
+          "failureType": "ok",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [],
+          "retryIssueCodes": [],
+          "attempts": 1,
+          "publicFactBasisCount": 8,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "death-shape:1:peaceful"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "4号 豆包-DS-chat-4",
+                "message": "2号跳女巫救过我，这个身份声明我先接着，但今天焦点不在他——3号，你接1和2的发言，只说了“记住了”“不急着信”，没给任何一个方向。首日平安夜，女巫用药是公开形态，你既不站2号也不质疑1号藏…"
+              },
+              {
+                "day": 1,
+                "speaker": "5号 Mimo-DS-chat-5",
+                "message": "5号发言。3号，你接完1和2的发言，结论是“记住了”“不急着信”，但你既没解释为什么记住了2的跳女巫却不觉得他铁假，也没说1藏底牌这个动作在你眼里是好人留威慑还是狼留空间。你给了两个不置可否…"
+              },
+              {
+                "day": 1,
+                "speaker": "6号 Gemini-DS-chat-6",
+                "message": "6号发言。3号，你接1和2的发言，说“记住了”但“不急着信”，可你没说清楚——2跳女巫救4，你是觉得这个声明可信还是留一手？1藏底牌在你眼里是好人的威慑还是狼的退路。"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 7号发言。上一位6号先记下，但我这轮要转回4号的发言缺口——4号，你质疑3号回避站边，可你自己接2号跳女巫救你，只说了“我先接着”，同样没给2号这个声明可信还是留一手。你打3号的…",
+          "outputText": "7号发言。上一位6号先记下，但我这轮要转回4号的发言缺口——4号，你质疑3号回避站边，可你自己接2号跳女巫救你，只说了“我先接着”，同样没给2号这个声明可信还是留一手。你打3号的点，自己身上有没有。"
+        },
+        {
+          "id": "bcae28db-dcba-4ef9-be85-fef57adf46ce:DAY_SPEECH:8:3231",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 8,
+          "persona": "Kimi",
+          "role": "WEREWOLF",
+          "provider": "custom-speech:deepseek-chat",
+          "durationMs": 3231,
+          "isFallback": false,
+          "failureType": "ok",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [],
+          "retryIssueCodes": [],
+          "attempts": 1,
+          "publicFactBasisCount": 8,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "death-shape:1:peaceful"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "5号 Mimo-DS-chat-5",
+                "message": "5号发言。3号，你接完1和2的发言，结论是“记住了”“不急着信”，但你既没解释为什么记住了2的跳女巫却不觉得他铁假，也没说1藏底牌这个动作在你眼里是好人留威慑还是狼留空间。你给了两个不置可否…"
+              },
+              {
+                "day": 1,
+                "speaker": "6号 Gemini-DS-chat-6",
+                "message": "6号发言。3号，你接1和2的发言，说“记住了”但“不急着信”，可你没说清楚——2跳女巫救4，你是觉得这个声明可信还是留一手？1藏底牌在你眼里是好人的威慑还是狼的退路。"
+              },
+              {
+                "day": 1,
+                "speaker": "7号 GLM-DS-chat-7",
+                "message": "7号发言。上一位6号先记下，但我这轮要转回4号的发言缺口——4号，你质疑3号回避站边，可你自己接2号跳女巫救你，只说了“我先接着”，同样没给2号这个声明可信还是留一手。你打3号的点，自己身上…"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 8号发言。3号，全场都在问你对2号跳女巫和1号藏底牌的态度，你给了两个“不急着信”就过了，但你今天想盘谁、为什么盘他，一个字没提。你回答不了这个，我只能记你一个回避站边，今天票口…",
+          "outputText": "8号发言。3号，全场都在问你对2号跳女巫和1号藏底牌的态度，你给了两个“不急着信”就过了，但你今天想盘谁、为什么盘他，一个字没提。你回答不了这个，我只能记你一个回避站边，今天票口先压你。"
+        },
+        {
+          "id": "bcae28db-dcba-4ef9-be85-fef57adf46ce:DAY_SPEECH:1:2708",
+          "day": 2,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 1,
+          "persona": "DeepSeek",
+          "role": "HUNTER",
+          "provider": "custom-speech:deepseek-chat",
+          "durationMs": 2708,
+          "isFallback": false,
+          "failureType": "ok",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [],
+          "retryIssueCodes": [],
+          "attempts": 1,
+          "publicFactBasisCount": 10,
+          "reasoningCueCount": 2,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "vote:1"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "8号 Kimi-DS-chat-8",
+                "message": "8号发言。3号，全场都在问你对2号跳女巫和1号藏底牌的态度，你给了两个“不急着信”就过了，但你今天想盘谁、为什么盘他，一个字没提。你回答不了这个，我只能记你一个回避站边，今天票口先压你。"
+              },
+              {
+                "day": 1,
+                "speaker": "9号 你",
+                "message": "我按公开信息说，我这轮按闭眼好人打，结论先留活口。前后两条线对一下：上一位8号Kimi-DS-chat-8给过一条线，我会拿后置回应去校验。再看3号GPT-DS-chat-3被放到焦点里，卡…"
+              },
+              {
+                "day": 1,
+                "speaker": "3号 GPT-DS-chat-3",
+                "message": "我出局前留一条线：4号豆包-DS-chat-4刚才的发言要和后面投票对照，谁顺着单点带节奏，明天优先回看。"
+              }
+            ],
+            "voteLeaders": [
+              "3号 GPT-DS-chat-3"
+            ],
+            "reasoningCues": [
+              {
+                "id": "vote:1",
+                "kind": "vote",
+                "weight": "strong",
+                "summary": "D1GPT-DS-chat-3被放逐"
+              },
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 1号发言。上一轮票型很集中，8票全上3号，只有4号投了3号一票。我今天先看的不是3号出局冤不冤，而是4号这个单票——全场都跟票的时候，他为什么还是投了3号。",
+          "outputText": "1号发言。上一轮票型很集中，8票全上3号，只有4号投了3号一票。我今天先看的不是3号出局冤不冤，而是4号这个单票——全场都跟票的时候，他为什么还是投了3号。"
+        },
+        {
+          "id": "bcae28db-dcba-4ef9-be85-fef57adf46ce:DAY_SPEECH:2:16298",
+          "day": 2,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 2,
+          "persona": "Claude",
+          "role": "WITCH",
+          "provider": "custom-speech:deepseek-chat",
+          "durationMs": 16298,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [
+            "把本轮未发言的4号当成已发言评价"
+          ],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "custom-speech:deepseek-chat",
+              "issue": "LLM 发言未通过约束：把本轮未发言的4号当成已发言评价",
+              "validationErrors": [
+                "把本轮未发言的4号当成已发言评价"
+              ],
+              "rawOutputSnippet": "2号发言。1号刚才把焦点转到4号单票上，这个角度我认。上一轮8票压3号，4号是唯一一个没有跟大流的，他投3号的理由和他前面发言能不能闭环——4号，你上一轮打3号回避站边，你自己接2号跳女巫也只说了“先接着”，没给2号那个声明可信还是留一手。"
+            },
+            {
+              "attempt": 2,
+              "provider": "custom-speech:deepseek-chat",
+              "issue": "LLM 发言未通过约束：把本轮未发言的4号当成已发言评价",
+              "validationErrors": [
+                "把本轮未发言的4号当成已发言评价"
+              ],
+              "rawOutputSnippet": "2号发言。1号把焦点拉到4号那个单票上，我觉得方向对——全场8票跟3号，只有4号投了3号一票，这个动作本身就得让他解释清楚。4号，你上一轮打3号回避站边，但你自己接2号跳女巫也只说了“先接着”，没有给那个声明可信还是怀疑的态度。轮到你时，把"
+            }
+          ],
+          "retryIssueCodes": [
+            "other_validation"
+          ],
+          "primaryRetryIssue": "other_validation",
+          "error": "LLM 发言未通过约束：把本轮未发言的4号当成已发言评价",
+          "attempts": 2,
+          "publicFactBasisCount": 10,
+          "reasoningCueCount": 2,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "vote:1"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "9号 你",
+                "message": "我按公开信息说，我这轮按闭眼好人打，结论先留活口。前后两条线对一下：上一位8号Kimi-DS-chat-8给过一条线，我会拿后置回应去校验。再看3号GPT-DS-chat-3被放到焦点里，卡…"
+              },
+              {
+                "day": 1,
+                "speaker": "3号 GPT-DS-chat-3",
+                "message": "我出局前留一条线：4号豆包-DS-chat-4刚才的发言要和后面投票对照，谁顺着单点带节奏，明天优先回看。"
+              },
+              {
+                "day": 2,
+                "speaker": "1号 DeepSeek-DS-chat",
+                "message": "1号发言。上一轮票型很集中，8票全上3号，只有4号投了3号一票。我今天先看的不是3号出局冤不冤，而是4号这个单票——全场都跟票的时候，他为什么还是投了3号。"
+              }
+            ],
+            "voteLeaders": [
+              "3号 GPT-DS-chat-3"
+            ],
+            "reasoningCues": [
+              {
+                "id": "vote:1",
+                "kind": "vote",
+                "weight": "strong",
+                "summary": "D1GPT-DS-chat-3被放逐"
+              },
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 这轮我来收一下票型。刚才1号DeepSeek-DS-chat这段我只抓一个点：结论和依据还需要再对照。我把4号豆包-DS-chat-4和刚才那段发言放一起核。",
+          "outputText": "这轮我来收一下票型。刚才1号DeepSeek-DS-chat这段我只抓一个点：结论和依据还需要再对照。我把4号豆包-DS-chat-4和刚才那段发言放一起核。"
+        },
+        {
+          "id": "bcae28db-dcba-4ef9-be85-fef57adf46ce:DAY_SPEECH:4:3267",
+          "day": 2,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 4,
+          "persona": "豆包",
+          "role": "VILLAGER",
+          "provider": "custom-speech:deepseek-chat",
+          "durationMs": 3267,
+          "isFallback": false,
+          "failureType": "ok",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [],
+          "retryIssueCodes": [],
+          "attempts": 1,
+          "publicFactBasisCount": 10,
+          "reasoningCueCount": 2,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "vote:1"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "3号 GPT-DS-chat-3",
+                "message": "我出局前留一条线：4号豆包-DS-chat-4刚才的发言要和后面投票对照，谁顺着单点带节奏，明天优先回看。"
+              },
+              {
+                "day": 2,
+                "speaker": "1号 DeepSeek-DS-chat",
+                "message": "1号发言。上一轮票型很集中，8票全上3号，只有4号投了3号一票。我今天先看的不是3号出局冤不冤，而是4号这个单票——全场都跟票的时候，他为什么还是投了3号。"
+              },
+              {
+                "day": 2,
+                "speaker": "2号 Claude-DS-chat-2",
+                "message": "这轮我来收一下票型。刚才1号DeepSeek-DS-chat这段我只抓一个点：结论和依据还需要再对照。我把4号豆包-DS-chat-4和刚才那段发言放一起核。"
+              }
+            ],
+            "voteLeaders": [
+              "3号 GPT-DS-chat-3"
+            ],
+            "reasoningCues": [
+              {
+                "id": "vote:1",
+                "kind": "vote",
+                "weight": "strong",
+                "summary": "D1GPT-DS-chat-3被放逐"
+              },
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 1号，你上一轮跟着大部队投了3号，今天起来却把我的单票当核心矛盾点。我投3号的理由发言里写得清楚，你直接跳过内容只抓票数差异，这结论的硬度不够。你先把3号出局的因果链说完整——他…",
+          "outputText": "1号，你上一轮跟着大部队投了3号，今天起来却把我的单票当核心矛盾点。我投3号的理由发言里写得清楚，你直接跳过内容只抓票数差异，这结论的硬度不够。你先把3号出局的因果链说完整——他是被归票、被冲票还是自己发言崩盘，谁起票你认可，谁补票你存疑。"
+        },
+        {
+          "id": "bcae28db-dcba-4ef9-be85-fef57adf46ce:DAY_SPEECH:6:2900",
+          "day": 2,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 6,
+          "persona": "Gemini",
+          "role": "WEREWOLF",
+          "provider": "custom-speech:deepseek-chat",
+          "durationMs": 2900,
+          "isFallback": false,
+          "failureType": "ok",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [],
+          "retryIssueCodes": [],
+          "attempts": 1,
+          "publicFactBasisCount": 10,
+          "reasoningCueCount": 2,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "vote:1"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 2,
+                "speaker": "1号 DeepSeek-DS-chat",
+                "message": "1号发言。上一轮票型很集中，8票全上3号，只有4号投了3号一票。我今天先看的不是3号出局冤不冤，而是4号这个单票——全场都跟票的时候，他为什么还是投了3号。"
+              },
+              {
+                "day": 2,
+                "speaker": "2号 Claude-DS-chat-2",
+                "message": "这轮我来收一下票型。刚才1号DeepSeek-DS-chat这段我只抓一个点：结论和依据还需要再对照。我把4号豆包-DS-chat-4和刚才那段发言放一起核。"
+              },
+              {
+                "day": 2,
+                "speaker": "4号 豆包-DS-chat-4",
+                "message": "1号，你上一轮跟着大部队投了3号，今天起来却把我的单票当核心矛盾点。我投3号的理由发言里写得清楚，你直接跳过内容只抓票数差异，这结论的硬度不够。你先把3号出局的因果链说完整——他是被归票、被…"
+              }
+            ],
+            "voteLeaders": [
+              "3号 GPT-DS-chat-3"
+            ],
+            "reasoningCues": [
+              {
+                "id": "vote:1",
+                "kind": "vote",
+                "weight": "strong",
+                "summary": "D1GPT-DS-chat-3被放逐"
+              },
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 6号发言。我接上4号刚才那段，他反击1号跳过内容只抓票数差异，这话本身没错，但他也没解释自己那1票落在3号身上的完整因果链——是被归票、被冲票还是自己认的。票型硬证据就是8对1，…",
+          "outputText": "6号发言。我接上4号刚才那段，他反击1号跳过内容只抓票数差异，这话本身没错，但他也没解释自己那1票落在3号身上的完整因果链——是被归票、被冲票还是自己认的。票型硬证据就是8对1，这点先记清楚，不是软压力票。"
+        }
+      ],
+      "callCount": 12,
+      "systemSteps": 4,
+      "mockHumanTurns": 17
+    }
+  ]
+}

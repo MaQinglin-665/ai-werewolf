@@ -1,0 +1,942 @@
+{
+  "generatedAt": "2026-05-24T09:13:17.801Z",
+  "options": {
+    "autoHuman": "mock",
+    "boardId": "default",
+    "gameCount": 1,
+    "humanSeatId": 9,
+    "jsonMode": "on",
+    "lineupModels": [
+      "deepseek-chat"
+    ],
+    "maxLlmCalls": 12,
+    "maxSteps": 180,
+    "realPhases": [
+      "DAY_SPEECH"
+    ],
+    "seedStart": 91
+  },
+  "summary": {
+    "gameCount": 1,
+    "completedGames": 0,
+    "totalCalls": 12,
+    "speechCalls": 12,
+    "actionCalls": 0,
+    "fallbackCount": 12,
+    "errorCount": 12,
+    "validationFailureCount": 0,
+    "referencedReasoningCueCalls": 4,
+    "averageDurationMs": 2024,
+    "byProvider": {
+      "model-routed-speech": 12
+    },
+    "byPersona": {
+      "DeepSeek": 2,
+      "Claude": 2,
+      "GPT": 2,
+      "豆包": 2,
+      "Mimo": 1,
+      "Gemini": 1,
+      "GLM": 1,
+      "Kimi": 1
+    },
+    "byFailureType": {
+      "provider_error": 12
+    },
+    "retryIssueCallCount": 12,
+    "byRetryIssue": {
+      "provider_request": 12
+    },
+    "totalQualityIssues": 0,
+    "byQualityIssue": {},
+    "optimizationRecommendations": [
+      {
+        "priority": "high",
+        "area": "provider_stability",
+        "title": "先排查模型接口稳定性和备用路由",
+        "detail": "请求失败、超时或 fallback 会污染发言/决策质量判断，需要先把链路稳定下来。",
+        "nextStep": "检查 baseUrl、超时、重试次数、fallback personas、JSON mode 兼容性和 provider 错误摘要。",
+        "evidence": [
+          "provider_request 12",
+          "fallback 12",
+          "error 12"
+        ]
+      }
+    ]
+  },
+  "games": [
+    {
+      "seed": 91,
+      "gameId": "a432a514-dd12-4980-a6e5-c81cde46e761",
+      "stopReason": "max_llm_calls",
+      "day": 2,
+      "phase": "DAY_SPEECH",
+      "calls": [
+        {
+          "id": "a432a514-dd12-4980-a6e5-c81cde46e761:DAY_SPEECH:1:6411",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 1,
+          "persona": "DeepSeek",
+          "role": "HUNTER",
+          "provider": "model-routed-speech",
+          "durationMs": 6411,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            },
+            {
+              "attempt": 2,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            }
+          ],
+          "retryIssueCodes": [
+            "provider_request"
+          ],
+          "primaryRetryIssue": "provider_request",
+          "error": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+          "attempts": 2,
+          "publicFactBasisCount": 4,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "death-shape:1:peaceful"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 我把能听到的点摆一下。昨夜死讯我先只当成死亡名单：第1天清晨，昨夜平安夜。，不直接反推狼刀、毒或自刀。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置…",
+          "outputText": "我把能听到的点摆一下。昨夜死讯我先只当成死亡名单：第1天清晨，昨夜平安夜。，不直接反推狼刀、毒或自刀。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点2号Claude-DS-chat-2，轮到时接这条线，不给全场作业。"
+        },
+        {
+          "id": "a432a514-dd12-4980-a6e5-c81cde46e761:DAY_SPEECH:2:1493",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 2,
+          "persona": "Claude",
+          "role": "WITCH",
+          "provider": "model-routed-speech",
+          "durationMs": 1493,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            },
+            {
+              "attempt": 2,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            }
+          ],
+          "retryIssueCodes": [
+            "provider_request"
+          ],
+          "primaryRetryIssue": "provider_request",
+          "error": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+          "attempts": 2,
+          "publicFactBasisCount": 5,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "death-shape:1:peaceful"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "1号 DeepSeek-DS-chat",
+                "message": "我把能听到的点摆一下。昨夜死讯我先只当成死亡名单：第1天清晨，昨夜平安夜。，不直接反推狼刀、毒或自刀。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点2号…"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 我给一个边界，平安夜我不复读了。我只看9号这条发言链能不能闭合。",
+          "outputText": "我给一个边界，平安夜我不复读了。我只看9号这条发言链能不能闭合。"
+        },
+        {
+          "id": "a432a514-dd12-4980-a6e5-c81cde46e761:DAY_SPEECH:3:1666",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 3,
+          "persona": "GPT",
+          "role": "VILLAGER",
+          "provider": "model-routed-speech",
+          "durationMs": 1666,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            },
+            {
+              "attempt": 2,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            }
+          ],
+          "retryIssueCodes": [
+            "provider_request"
+          ],
+          "primaryRetryIssue": "provider_request",
+          "error": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+          "attempts": 2,
+          "publicFactBasisCount": 6,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 0,
+          "referencedReasoningCueIds": [],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "1号 DeepSeek-DS-chat",
+                "message": "我把能听到的点摆一下。昨夜死讯我先只当成死亡名单：第1天清晨，昨夜平安夜。，不直接反推狼刀、毒或自刀。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点2号…"
+              },
+              {
+                "day": 1,
+                "speaker": "2号 Claude-DS-chat-2",
+                "message": "我给一个边界，平安夜我不复读了。我只看9号这条发言链能不能闭合。"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 几个点合起来看。刚才2号Claude-DS-chat-2这段我只抓一个点：信息量偏少。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点4号豆包…",
+          "outputText": "几个点合起来看。刚才2号Claude-DS-chat-2这段我只抓一个点：信息量偏少。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点4号豆包-DS-chat-4，轮到时接这条线，不给全场作业。"
+        },
+        {
+          "id": "a432a514-dd12-4980-a6e5-c81cde46e761:DAY_SPEECH:4:1436",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 4,
+          "persona": "豆包",
+          "role": "VILLAGER",
+          "provider": "model-routed-speech",
+          "durationMs": 1436,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            },
+            {
+              "attempt": 2,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            }
+          ],
+          "retryIssueCodes": [
+            "provider_request"
+          ],
+          "primaryRetryIssue": "provider_request",
+          "error": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+          "attempts": 2,
+          "publicFactBasisCount": 7,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 0,
+          "referencedReasoningCueIds": [],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "1号 DeepSeek-DS-chat",
+                "message": "我把能听到的点摆一下。昨夜死讯我先只当成死亡名单：第1天清晨，昨夜平安夜。，不直接反推狼刀、毒或自刀。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点2号…"
+              },
+              {
+                "day": 1,
+                "speaker": "2号 Claude-DS-chat-2",
+                "message": "我给一个边界，平安夜我不复读了。我只看9号这条发言链能不能闭合。"
+              },
+              {
+                "day": 1,
+                "speaker": "3号 GPT-DS-chat-3",
+                "message": "几个点合起来看。刚才2号Claude-DS-chat-2这段我只抓一个点：信息量偏少。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点4号豆包-DS-ch…"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 我不想慢慢磨。刚才3号GPT-DS-chat-3这段我只抓一个点：结论和依据还需要再对照。我这轮只看6号Gemini-DS-chat-6这一条能不能接上公开逻辑。后置里我只点5号…",
+          "outputText": "我不想慢慢磨。刚才3号GPT-DS-chat-3这段我只抓一个点：结论和依据还需要再对照。我这轮只看6号Gemini-DS-chat-6这一条能不能接上公开逻辑。后置里我只点5号Mimo-DS-chat-5，轮到时接这条线，不给全场作业。"
+        },
+        {
+          "id": "a432a514-dd12-4980-a6e5-c81cde46e761:DAY_SPEECH:5:1658",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 5,
+          "persona": "Mimo",
+          "role": "WEREWOLF",
+          "provider": "model-routed-speech",
+          "durationMs": 1658,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            },
+            {
+              "attempt": 2,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            }
+          ],
+          "retryIssueCodes": [
+            "provider_request"
+          ],
+          "primaryRetryIssue": "provider_request",
+          "error": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+          "attempts": 2,
+          "publicFactBasisCount": 8,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 0,
+          "referencedReasoningCueIds": [],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "2号 Claude-DS-chat-2",
+                "message": "我给一个边界，平安夜我不复读了。我只看9号这条发言链能不能闭合。"
+              },
+              {
+                "day": 1,
+                "speaker": "3号 GPT-DS-chat-3",
+                "message": "几个点合起来看。刚才2号Claude-DS-chat-2这段我只抓一个点：信息量偏少。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点4号豆包-DS-ch…"
+              },
+              {
+                "day": 1,
+                "speaker": "4号 豆包-DS-chat-4",
+                "message": "我不想慢慢磨。刚才3号GPT-DS-chat-3这段我只抓一个点：结论和依据还需要再对照。我这轮只看6号Gemini-DS-chat-6这一条能不能接上公开逻辑。后置里我只点5号Mimo-D…"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 我抓一个细节。刚才4号豆包-DS-chat-4这段我只抓一个点：结论和依据还需要再对照。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点6号G…",
+          "outputText": "我抓一个细节。刚才4号豆包-DS-chat-4这段我只抓一个点：结论和依据还需要再对照。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点6号Gemini-DS-chat-6，轮到时接这条线，不给全场作业。"
+        },
+        {
+          "id": "a432a514-dd12-4980-a6e5-c81cde46e761:DAY_SPEECH:6:1721",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 6,
+          "persona": "Gemini",
+          "role": "WEREWOLF",
+          "provider": "model-routed-speech",
+          "durationMs": 1721,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            },
+            {
+              "attempt": 2,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            }
+          ],
+          "retryIssueCodes": [
+            "provider_request"
+          ],
+          "primaryRetryIssue": "provider_request",
+          "error": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+          "attempts": 2,
+          "publicFactBasisCount": 8,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 0,
+          "referencedReasoningCueIds": [],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "3号 GPT-DS-chat-3",
+                "message": "几个点合起来看。刚才2号Claude-DS-chat-2这段我只抓一个点：信息量偏少。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点4号豆包-DS-ch…"
+              },
+              {
+                "day": 1,
+                "speaker": "4号 豆包-DS-chat-4",
+                "message": "我不想慢慢磨。刚才3号GPT-DS-chat-3这段我只抓一个点：结论和依据还需要再对照。我这轮只看6号Gemini-DS-chat-6这一条能不能接上公开逻辑。后置里我只点5号Mimo-D…"
+              },
+              {
+                "day": 1,
+                "speaker": "5号 Mimo-DS-chat-5",
+                "message": "我抓一个细节。刚才4号豆包-DS-chat-4这段我只抓一个点：结论和依据还需要再对照。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点6号Gemini-…"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 我不急着锁死。刚才5号Mimo-DS-chat-5这段我只抓一个点：结论和依据还需要再对照。我这轮只看9号这一条能不能接上公开逻辑。后置里我只点7号GLM-DS-chat-7，轮…",
+          "outputText": "我不急着锁死。刚才5号Mimo-DS-chat-5这段我只抓一个点：结论和依据还需要再对照。我这轮只看9号这一条能不能接上公开逻辑。后置里我只点7号GLM-DS-chat-7，轮到时接这条线，不给全场作业。"
+        },
+        {
+          "id": "a432a514-dd12-4980-a6e5-c81cde46e761:DAY_SPEECH:7:1507",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 7,
+          "persona": "GLM",
+          "role": "SEER",
+          "provider": "model-routed-speech",
+          "durationMs": 1507,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            },
+            {
+              "attempt": 2,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            }
+          ],
+          "retryIssueCodes": [
+            "provider_request"
+          ],
+          "primaryRetryIssue": "provider_request",
+          "error": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+          "attempts": 2,
+          "publicFactBasisCount": 8,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 0,
+          "referencedReasoningCueIds": [],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "4号 豆包-DS-chat-4",
+                "message": "我不想慢慢磨。刚才3号GPT-DS-chat-3这段我只抓一个点：结论和依据还需要再对照。我这轮只看6号Gemini-DS-chat-6这一条能不能接上公开逻辑。后置里我只点5号Mimo-D…"
+              },
+              {
+                "day": 1,
+                "speaker": "5号 Mimo-DS-chat-5",
+                "message": "我抓一个细节。刚才4号豆包-DS-chat-4这段我只抓一个点：结论和依据还需要再对照。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点6号Gemini-…"
+              },
+              {
+                "day": 1,
+                "speaker": "6号 Gemini-DS-chat-6",
+                "message": "我不急着锁死。刚才5号Mimo-DS-chat-5这段我只抓一个点：结论和依据还需要再对照。我这轮只看9号这一条能不能接上公开逻辑。后置里我只点7号GLM-DS-chat-7，轮到时接这条线…"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 先拆站边结构，我先不急着给死结论。我只点9号这一条过程能不能闭合。",
+          "outputText": "先拆站边结构，我先不急着给死结论。我只点9号这一条过程能不能闭合。"
+        },
+        {
+          "id": "a432a514-dd12-4980-a6e5-c81cde46e761:DAY_SPEECH:8:1614",
+          "day": 1,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 8,
+          "persona": "Kimi",
+          "role": "WEREWOLF",
+          "provider": "model-routed-speech",
+          "durationMs": 1614,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            },
+            {
+              "attempt": 2,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            }
+          ],
+          "retryIssueCodes": [
+            "provider_request"
+          ],
+          "primaryRetryIssue": "provider_request",
+          "error": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+          "attempts": 2,
+          "publicFactBasisCount": 8,
+          "reasoningCueCount": 1,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 0,
+          "referencedReasoningCueIds": [],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "5号 Mimo-DS-chat-5",
+                "message": "我抓一个细节。刚才4号豆包-DS-chat-4这段我只抓一个点：结论和依据还需要再对照。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点6号Gemini-…"
+              },
+              {
+                "day": 1,
+                "speaker": "6号 Gemini-DS-chat-6",
+                "message": "我不急着锁死。刚才5号Mimo-DS-chat-5这段我只抓一个点：结论和依据还需要再对照。我这轮只看9号这一条能不能接上公开逻辑。后置里我只点7号GLM-DS-chat-7，轮到时接这条线…"
+              },
+              {
+                "day": 1,
+                "speaker": "7号 GLM-DS-chat-7",
+                "message": "先拆站边结构，我先不急着给死结论。我只点9号这一条过程能不能闭合。"
+              }
+            ],
+            "voteLeaders": [],
+            "reasoningCues": [
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 我按身份线往回盘。刚才7号GLM-DS-chat-7这段我只抓一个点：信息量偏少。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点1号Deep…",
+          "outputText": "我按身份线往回盘。刚才7号GLM-DS-chat-7这段我只抓一个点：信息量偏少。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点1号DeepSeek-DS-chat，轮到时接这条线，不给全场作业。"
+        },
+        {
+          "id": "a432a514-dd12-4980-a6e5-c81cde46e761:DAY_SPEECH:1:1754",
+          "day": 2,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 1,
+          "persona": "DeepSeek",
+          "role": "HUNTER",
+          "provider": "model-routed-speech",
+          "durationMs": 1754,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            },
+            {
+              "attempt": 2,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            }
+          ],
+          "retryIssueCodes": [
+            "provider_request"
+          ],
+          "primaryRetryIssue": "provider_request",
+          "error": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+          "attempts": 2,
+          "publicFactBasisCount": 10,
+          "reasoningCueCount": 2,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "vote:1"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "8号 Kimi-DS-chat-8",
+                "message": "我按身份线往回盘。刚才7号GLM-DS-chat-7这段我只抓一个点：信息量偏少。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点1号DeepSeek-D…"
+              },
+              {
+                "day": 1,
+                "speaker": "9号 你",
+                "message": "我按公开信息说，我这轮按闭眼好人打，结论先留活口。前后两条线对一下：上一位8号Kimi-DS-chat-8给过一条线，我会拿后置回应去校验。再看7号GLM-DS-chat-7被放到焦点里，卡…"
+              },
+              {
+                "day": 1,
+                "speaker": "7号 GLM-DS-chat-7",
+                "message": "我最后把预言家视角留清：9号金水。我走以后先按这条验人线回看站边和票型，别让对跳位轻松带走节奏。"
+              }
+            ],
+            "voteLeaders": [
+              "7号 GLM-DS-chat-7"
+            ],
+            "reasoningCues": [
+              {
+                "id": "vote:1",
+                "kind": "vote",
+                "weight": "strong",
+                "summary": "D1GLM-DS-chat-7被放逐"
+              },
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 按现在桌面看。刚才7号GLM-DS-chat-7这段我只抓一个点：给过身份信息，需要核对前后是否一致。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置…",
+          "outputText": "按现在桌面看。刚才7号GLM-DS-chat-7这段我只抓一个点：给过身份信息，需要核对前后是否一致。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点2号Claude-DS-chat-2，轮到时接这条线，不给全场作业。"
+        },
+        {
+          "id": "a432a514-dd12-4980-a6e5-c81cde46e761:DAY_SPEECH:2:1754",
+          "day": 2,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 2,
+          "persona": "Claude",
+          "role": "WITCH",
+          "provider": "model-routed-speech",
+          "durationMs": 1754,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            },
+            {
+              "attempt": 2,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            }
+          ],
+          "retryIssueCodes": [
+            "provider_request"
+          ],
+          "primaryRetryIssue": "provider_request",
+          "error": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+          "attempts": 2,
+          "publicFactBasisCount": 10,
+          "reasoningCueCount": 2,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 1,
+          "referencedReasoningCueIds": [
+            "vote:1"
+          ],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "9号 你",
+                "message": "我按公开信息说，我这轮按闭眼好人打，结论先留活口。前后两条线对一下：上一位8号Kimi-DS-chat-8给过一条线，我会拿后置回应去校验。再看7号GLM-DS-chat-7被放到焦点里，卡…"
+              },
+              {
+                "day": 1,
+                "speaker": "7号 GLM-DS-chat-7",
+                "message": "我最后把预言家视角留清：9号金水。我走以后先按这条验人线回看站边和票型，别让对跳位轻松带走节奏。"
+              },
+              {
+                "day": 2,
+                "speaker": "1号 DeepSeek-DS-chat",
+                "message": "按现在桌面看。刚才7号GLM-DS-chat-7这段我只抓一个点：给过身份信息，需要核对前后是否一致。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点2号…"
+              }
+            ],
+            "voteLeaders": [
+              "7号 GLM-DS-chat-7"
+            ],
+            "reasoningCues": [
+              {
+                "id": "vote:1",
+                "kind": "vote",
+                "weight": "strong",
+                "summary": "D1GLM-DS-chat-7被放逐"
+              },
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 这轮我来收一下票型。刚才1号DeepSeek-DS-chat这段我只抓一个点：结论和依据还需要再对照。我这轮只看6号Gemini-DS-chat-6这一条能不能接上公开逻辑。后置…",
+          "outputText": "这轮我来收一下票型。刚才1号DeepSeek-DS-chat这段我只抓一个点：结论和依据还需要再对照。我这轮只看6号Gemini-DS-chat-6这一条能不能接上公开逻辑。后置里我只点3号GPT-DS-chat-3，轮到时接这条线，不给全场作业。"
+        },
+        {
+          "id": "a432a514-dd12-4980-a6e5-c81cde46e761:DAY_SPEECH:3:1676",
+          "day": 2,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 3,
+          "persona": "GPT",
+          "role": "VILLAGER",
+          "provider": "model-routed-speech",
+          "durationMs": 1676,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            },
+            {
+              "attempt": 2,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            }
+          ],
+          "retryIssueCodes": [
+            "provider_request"
+          ],
+          "primaryRetryIssue": "provider_request",
+          "error": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+          "attempts": 2,
+          "publicFactBasisCount": 10,
+          "reasoningCueCount": 2,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 0,
+          "referencedReasoningCueIds": [],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 1,
+                "speaker": "7号 GLM-DS-chat-7",
+                "message": "我最后把预言家视角留清：9号金水。我走以后先按这条验人线回看站边和票型，别让对跳位轻松带走节奏。"
+              },
+              {
+                "day": 2,
+                "speaker": "1号 DeepSeek-DS-chat",
+                "message": "按现在桌面看。刚才7号GLM-DS-chat-7这段我只抓一个点：给过身份信息，需要核对前后是否一致。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点2号…"
+              },
+              {
+                "day": 2,
+                "speaker": "2号 Claude-DS-chat-2",
+                "message": "这轮我来收一下票型。刚才1号DeepSeek-DS-chat这段我只抓一个点：结论和依据还需要再对照。我这轮只看6号Gemini-DS-chat-6这一条能不能接上公开逻辑。后置里我只点3号…"
+              }
+            ],
+            "voteLeaders": [
+              "7号 GLM-DS-chat-7"
+            ],
+            "reasoningCues": [
+              {
+                "id": "vote:1",
+                "kind": "vote",
+                "weight": "strong",
+                "summary": "D1GLM-DS-chat-7被放逐"
+              },
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 我给一个折中判断。刚才2号Claude-DS-chat-2这段我只抓一个点：结论和依据还需要再对照。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里…",
+          "outputText": "我给一个折中判断。刚才2号Claude-DS-chat-2这段我只抓一个点：结论和依据还需要再对照。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点4号豆包-DS-chat-4，轮到时接这条线，不给全场作业。"
+        },
+        {
+          "id": "a432a514-dd12-4980-a6e5-c81cde46e761:DAY_SPEECH:4:1603",
+          "day": 2,
+          "phase": "DAY_SPEECH",
+          "task": "speech",
+          "seatNumber": 4,
+          "persona": "豆包",
+          "role": "VILLAGER",
+          "provider": "model-routed-speech",
+          "durationMs": 1603,
+          "isFallback": true,
+          "failureType": "provider_error",
+          "validationErrors": [],
+          "qualityIssues": [],
+          "qualityIssueCodes": [],
+          "attemptDiagnostics": [
+            {
+              "attempt": 1,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            },
+            {
+              "attempt": 2,
+              "provider": "model-routed-speech",
+              "issue": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+              "validationErrors": []
+            }
+          ],
+          "retryIssueCodes": [
+            "provider_request"
+          ],
+          "primaryRetryIssue": "provider_request",
+          "error": "LLM deepseek-chat deepseek-chat request failed: 401 {\"error\":{\"message\":\"Authentication Fails, Your api key: ****o53n is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+          "attempts": 2,
+          "publicFactBasisCount": 10,
+          "reasoningCueCount": 2,
+          "speechInfluenceCount": 0,
+          "referencedReasoningCueCount": 0,
+          "referencedReasoningCueIds": [],
+          "inputSummary": {
+            "recentSpeeches": [
+              {
+                "day": 2,
+                "speaker": "1号 DeepSeek-DS-chat",
+                "message": "按现在桌面看。刚才7号GLM-DS-chat-7这段我只抓一个点：给过身份信息，需要核对前后是否一致。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点2号…"
+              },
+              {
+                "day": 2,
+                "speaker": "2号 Claude-DS-chat-2",
+                "message": "这轮我来收一下票型。刚才1号DeepSeek-DS-chat这段我只抓一个点：结论和依据还需要再对照。我这轮只看6号Gemini-DS-chat-6这一条能不能接上公开逻辑。后置里我只点3号…"
+              },
+              {
+                "day": 2,
+                "speaker": "3号 GPT-DS-chat-3",
+                "message": "我给一个折中判断。刚才2号Claude-DS-chat-2这段我只抓一个点：结论和依据还需要再对照。我这轮只看2号Claude-DS-chat-2这一条能不能接上公开逻辑。后置里我只点4号豆…"
+              }
+            ],
+            "voteLeaders": [
+              "7号 GLM-DS-chat-7"
+            ],
+            "reasoningCues": [
+              {
+                "id": "vote:1",
+                "kind": "vote",
+                "weight": "strong",
+                "summary": "D1GLM-DS-chat-7被放逐"
+              },
+              {
+                "id": "death-shape:1:peaceful",
+                "kind": "death_shape",
+                "weight": "medium",
+                "summary": "首夜平安夜：无守卫女巫局按女巫用药处理；狼队空刀概率极其小，小到实战上可以近似忽略，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。"
+              }
+            ]
+          },
+          "output": "speak: 我直接压节奏。刚才3号GPT-DS-chat-3这段我只抓一个点：结论和依据还需要再对照。我这轮只看6号Gemini-DS-chat-6这一条能不能接上公开逻辑。后置里我只点6号…",
+          "outputText": "我直接压节奏。刚才3号GPT-DS-chat-3这段我只抓一个点：结论和依据还需要再对照。我这轮只看6号Gemini-DS-chat-6这一条能不能接上公开逻辑。后置里我只点6号Gemini-DS-chat-6，轮到时接这条线，不给全场作业。"
+        }
+      ],
+      "callCount": 12,
+      "systemSteps": 5,
+      "mockHumanTurns": 16
+    }
+  ]
+}
