@@ -1,6 +1,6 @@
 # Current Release Status
 
-Last checked: 2026-05-26 10:26 Asia/Shanghai.
+Last checked: 2026-05-26 22:54 Asia/Shanghai.
 
 Use this file as the first stop before sharing the public Alpha link or starting a new deployment. Update it after every public-facing release.
 
@@ -13,9 +13,9 @@ Use this file as the first stop before sharing the public Alpha link or starting
 
 ## Current Source State
 
-- Working branch: `codex/render-main-game-env-fix`
-- Current public runtime baseline: `c4f5b0a feat: polish mobile interaction signals`
-- Local worktree at runtime check: pushed to `origin/codex/render-main-game-env-fix`
+- Working branch: `main`
+- Current public runtime baseline: `31a2896 refactor: extract gameclient lifecycle requests`
+- Local worktree at runtime check: pushed to `origin/main`
 - Render deployment branch at last check: `1cb8eb2 deploy: sync mobile interaction signals`
 
 Render is intentionally tracked through `codex/room-render-production-minimum`. Tencent Cloud is deployed from the current source archive path. When a release should be visible in both public environments, update both lanes and record the two heads here.
@@ -28,9 +28,9 @@ This file may be updated by documentation-only commits after the runtime baselin
 - Compose root: `/opt/ai-werewolf`
 - Live app source: `/opt/ai-werewolf/app`
 - Main service: `ai-werewolf-app`
-- Latest deployed source: `c4f5b0a feat: polish mobile interaction signals`
-- Rollback source tree: `/opt/ai-werewolf/app-backup-20260523-100154`
-- Last container status: `ai-werewolf-app` healthy, image `sha256:9e3c2a327cd3d271f1a0267e87fda3ae02611cf7e531bb683487e3f97825b624`, nginx and Postgres running
+- Latest deployed source: `31a2896 refactor: extract gameclient lifecycle requests`
+- Rollback source tree: `/opt/ai-werewolf/app-backup-20260526-224922`
+- Last container status: `ai-werewolf-app` healthy, image `sha256:e3682ace06bc1ce2bfacfcd4617e246e7ebc8e263e2c571c574fd6ddbfb3579d`, nginx and Postgres running
 
 Latest verification:
 
@@ -38,7 +38,7 @@ Latest verification:
 npm run preflight:production -- --base-url=https://175.178.199.245
 ```
 
-Result at 2026-05-23 10:04 Asia/Shanghai: `ok=true`, all production minimum checks passed.
+Result at 2026-05-26 22:53 Asia/Shanghai: `ok=true`, all production minimum checks passed.
 
 Latest room smoke:
 
@@ -46,7 +46,15 @@ Latest room smoke:
 $env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-sse
 ```
 
-Result at 2026-05-23 10:04 Asia/Shanghai: `ok=true`, room `ZJNUZS`, host seat `1`, guest seat `2`.
+Result at 2026-05-26 22:54 Asia/Shanghai: `ok=true`, room `IRTYL4`, host seat `1`, guest seat `2`.
+
+Latest main game smoke:
+
+```powershell
+npm run smoke:main-game -- --base-url=https://175.178.199.245
+```
+
+Result at 2026-05-26 22:54 Asia/Shanghai: `ok=true`, board `6p-beginner-seer`, human seat `1`, submitted `wolfKill`, final phase `DAY_SPEECH`.
 
 Latest mobile UI asset probe:
 
