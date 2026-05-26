@@ -60,7 +60,7 @@ import {
   resolveSelectedAiFriends,
   type AiFriendLlmSecretMap,
 } from "./game/aiFriendStorage";
-import { getDefaultBoardOptions, getInitialBoardSelection } from "./game/boardSelectionModel";
+import { getDefaultBoardOptions, getInitialBoardSelection, resolveBoardSelectionToggle } from "./game/boardSelectionModel";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
 import { buildLandingLineupPreview } from "./game/landingLineupPreview";
 import { MobileGameTable } from "./game/MobileGameTable";
@@ -194,26 +194,17 @@ export function GameClient() {
 
   const selectBoard = useCallback(
     (boardId: string) => {
-      if (selectedBoardId === boardId) {
-        setSelectedBoardId(null);
-        setHumanSeatMode("random");
-        setSelectedHumanSeatId(null);
-        return;
-      }
-      const board = boards.find((item) => item.id === boardId);
-      setSelectedBoardId(boardId);
-      if (!board) return;
-      if (humanSeatMode === "none") {
-        setSelectedHumanSeatId(null);
-        return;
-      }
-      setSelectedHumanSeatId((current) => {
-        if (humanSeatMode === "fixed" && current && current >= 1 && current <= board.seatCount) return current;
-        return randomSeatId(board.seatCount);
+      const nextSelection = resolveBoardSelectionToggle({
+        boards,
+        boardId,
+        selectedBoardId,
+        humanSeatMode,
+        selectedHumanSeatId,
+        pickRandomSeat: randomSeatId,
       });
-      if (humanSeatMode === "fixed" && selectedHumanSeatId && selectedHumanSeatId > board.seatCount) {
-        setHumanSeatMode("random");
-      }
+      setSelectedBoardId(nextSelection.selectedBoardId);
+      setHumanSeatMode(nextSelection.humanSeatMode);
+      setSelectedHumanSeatId(nextSelection.selectedHumanSeatId);
     },
     [boards, humanSeatMode, selectedBoardId, selectedHumanSeatId],
   );

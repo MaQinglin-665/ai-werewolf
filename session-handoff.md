@@ -2,9 +2,9 @@
 
 ## Current Objective
 
-- Goal: Continue frontend slimming with a small table event-feed data-model boundary under the harness.
-- Current status: Table event feed filtering, limiting, and ordering has been extracted into `src/components/game/tableEventFeed.ts` with focused tests. `GameClient.tsx` is now at 1002 lines in the structure audit.
-- Branch / commit: `main`; latest committed baseline before this task was `ab4e6e7`.
+- Goal: Continue frontend slimming with a landing board-selection state model boundary under the harness.
+- Current status: Board toggle and human-seat transition rules have been extracted into `src/components/game/boardSelectionModel.ts` with focused tests. `GameClient.tsx` is now at 993 lines in the structure audit.
+- Branch / commit: `main`; latest committed baseline before this task was `3641308`.
 
 ## Completed This Session
 
@@ -41,6 +41,12 @@
 - [x] Added `src/components/game/tableEventFeed.ts` and `src/components/game/tableEventFeed.test.ts`.
 - [x] Updated `src/components/GameClient.tsx` to import the table event feed helper.
 - [x] Updated `feature_list.json` and `progress.md` for the new event feed model feature.
+- [x] Created `docs/tasks/2026-05-gameclient-board-selection-model.md`.
+- [x] Created `docs/superpowers/plans/2026-05-26-gameclient-board-selection-model.md`.
+- [x] Added `resolveBoardSelectionToggle` to `src/components/game/boardSelectionModel.ts`.
+- [x] Added focused board transition coverage to `src/components/game/boardSelectionModel.test.ts`.
+- [x] Updated `src/components/GameClient.tsx` to import the board selection transition helper.
+- [x] Updated `feature_list.json` and `progress.md` for the new board selection model feature.
 
 ## Verification Evidence
 
@@ -76,6 +82,12 @@
 | Event feed task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-gameclient-event-feed-model.md` | passed | Confirms the new task card satisfies harness fields. |
 | Harness check | `npm run harness:check` | passed | Confirms mechanical harness files and package scripts. |
 | Structure audit | `npm run audit:structure` | passed | Confirms structure audit still passes; `GameClient.tsx` dropped to 1002 lines in the audit output. |
+| Board selection focused test | `npm run test -- src/components/game/boardSelectionModel.test.ts` | passed | Confirms board toggle, spectator mode, fixed-seat preservation, and invalid fixed-seat fallback behavior. |
+| Lint | `npm run lint` | passed | Confirms the extraction has no ESLint errors or warnings. |
+| TypeScript | `npx tsc --noEmit` | passed | Confirms the helper import and narrowed board input type. |
+| Board selection task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-gameclient-board-selection-model.md` | passed | Confirms the new task card satisfies harness fields. |
+| Harness check | `npm run harness:check` | passed | Confirms mechanical harness files and package scripts. |
+| Structure audit | `npm run audit:structure` | passed | Confirms structure audit still passes; `GameClient.tsx` dropped to 993 lines in the audit output. |
 
 ## Files Changed
 
@@ -113,6 +125,8 @@
 - `docs/superpowers/plans/2026-05-26-gameclient-event-feed-model.md`
 - `src/components/game/tableEventFeed.ts`
 - `src/components/game/tableEventFeed.test.ts`
+- `docs/tasks/2026-05-gameclient-board-selection-model.md`
+- `docs/superpowers/plans/2026-05-26-gameclient-board-selection-model.md`
 
 ## Decisions Made
 
@@ -125,6 +139,7 @@
 - AI speech audio queue and preparation helpers moved out, while network fetch and playback status updates remain in `GameClient.tsx`.
 - Landing-page lineup preview is now treated as a UI data model, while `GameClient.tsx` keeps only memoization and state wiring for it.
 - Table event feed filtering and ordering is now treated as a UI data model, while `GameClient.tsx` keeps only memoization and prop wiring for it.
+- Board toggle and human-seat transition rules are now treated as landing UI state modeling, while `GameClient.tsx` keeps only state setter wiring for them.
 
 ## Blockers / Risks
 
@@ -138,6 +153,7 @@
 - Browser-render visual flow was skipped because layout and visible UI were not changed; local `smoke:main-game` was used for the auto-advance/audio gating surface.
 - Browser/manual flow was skipped for lineup preview because the rendered layout and interactions did not change; the pure calculation is covered by focused tests.
 - Browser/manual flow was skipped for event feed because the rendered layout and interactions did not change; the pure calculation is covered by focused tests.
+- Browser/manual flow was skipped for board selection because the intended behavior is unchanged and covered by focused transition tests.
 
 ## Next Session Startup
 
@@ -149,8 +165,9 @@
 6. Read `docs/tasks/2026-05-gameclient-helper-extractions.md` if continuing frontend slimming.
 7. Read `docs/tasks/2026-05-gameclient-lineup-preview-model.md` if continuing landing-page model extraction.
 8. Read `docs/tasks/2026-05-gameclient-event-feed-model.md` if continuing table event-feed model extraction.
-9. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
+9. Read `docs/tasks/2026-05-gameclient-board-selection-model.md` if continuing landing board-selection model extraction.
+10. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
 
 ## Recommended Next Step
 
-- Next recommended code-facing step: review and optionally commit this extraction batch. If continuing frontend slimming, pick one action-panel boundary with focused tests, or pause micro-extractions and review the accumulated frontend direction.
+- Next recommended code-facing step: review and optionally commit this extraction batch. Then pause micro-extractions and review the accumulated frontend direction before choosing a larger action-panel boundary.

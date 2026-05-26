@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-26 22:00 Asia/Shanghai
-**Session ID:** gameclient event feed model
-**Active Feature:** gameclient-event-feed-model - GameClient Event Feed Model
+**Last Updated:** 2026-05-26 22:05 Asia/Shanghai
+**Session ID:** gameclient board selection model
+**Active Feature:** gameclient-board-selection-model - GameClient Board Selection Model
 
 ## Status
 
@@ -39,17 +39,20 @@
 - [x] Focused lineup preview tests added and watched fail before implementation, then pass after extraction.
 - [x] Table event feed filtering, limit, and ordering extracted to `src/components/game/tableEventFeed.ts`.
 - [x] Focused event feed tests added and watched fail before implementation, then pass after extraction.
+- [x] Landing-page board toggle and human-seat transition rules extracted to `src/components/game/boardSelectionModel.ts`.
+- [x] Focused board selection transition tests added and watched fail before implementation, then pass after extraction.
+- [x] `GameClient.tsx` dropped below 1000 lines in `npm run audit:structure`.
 
 ### What's In Progress
 
-- [ ] Review and optionally commit the GameClient event feed extraction batch.
-  - Details: Event feed model is implemented; focused test, lint, type, harness checks, and structure audit passed.
+- [ ] Review and optionally commit the GameClient board selection extraction batch.
+  - Details: Board selection model is implemented; focused test, lint, type, harness checks, and structure audit passed.
   - Blockers: none.
 
 ### What's Next
 
 1. Review and optionally commit this batch.
-2. If continuing frontend slimming, pick one action-panel boundary with a focused test, or stop the current micro-extraction run and review the accumulated frontend direction.
+2. Stop the current micro-extraction run and review the accumulated frontend direction before choosing a larger action-panel boundary.
 3. Plan room UI alignment separately before touching `RoomClient.tsx`.
 
 ## Blockers / Risks
@@ -110,6 +113,10 @@
 - `docs/superpowers/plans/2026-05-26-gameclient-event-feed-model.md` - implementation plan for the event feed extraction.
 - `src/components/game/tableEventFeed.ts` - extracted table event feed data model.
 - `src/components/game/tableEventFeed.test.ts` - focused table event feed coverage.
+- `docs/tasks/2026-05-gameclient-board-selection-model.md` - task card for board selection transition extraction.
+- `docs/superpowers/plans/2026-05-26-gameclient-board-selection-model.md` - implementation plan for board selection transition extraction.
+- `src/components/game/boardSelectionModel.ts` - extracted board selection transition model.
+- `src/components/game/boardSelectionModel.test.ts` - focused board selection transition coverage.
 
 ## Evidence of Completion
 
@@ -141,6 +148,12 @@
 - [x] Lint: `npm run lint`
 - [x] TypeScript: `npx tsc --noEmit`
 - [x] Event feed task-card gate: `npm run harness:task-card -- docs/tasks/2026-05-gameclient-event-feed-model.md`
+- [x] Harness check: `npm run harness:check`
+- [x] Structure audit: `npm run audit:structure`
+- [x] Board selection focused test: `npm run test -- src/components/game/boardSelectionModel.test.ts`
+- [x] Lint: `npm run lint`
+- [x] TypeScript: `npx tsc --noEmit`
+- [x] Board selection task-card gate: `npm run harness:task-card -- docs/tasks/2026-05-gameclient-board-selection-model.md`
 - [x] Harness check: `npm run harness:check`
 - [x] Structure audit: `npm run audit:structure`
 

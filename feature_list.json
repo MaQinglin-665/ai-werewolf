@@ -140,6 +140,16 @@
       ],
       "status": "done",
       "evidence": "src/components/game/tableEventFeed.ts; src/components/game/tableEventFeed.test.ts; npm run test -- src/components/game/tableEventFeed.test.ts; npm run lint; npx tsc --noEmit; npm run audit:structure"
+    },
+    {
+      "id": "gameclient-board-selection-model",
+      "name": "GameClient Board Selection Model",
+      "description": "Extract landing-page board toggle and human-seat transition rules from GameClient into src/components/game/boardSelectionModel.ts with focused tests.",
+      "dependencies": [
+        "gameclient-event-feed-model"
+      ],
+      "status": "done",
+      "evidence": "src/components/game/boardSelectionModel.ts; src/components/game/boardSelectionModel.test.ts; npm run test -- src/components/game/boardSelectionModel.test.ts; npm run lint; npx tsc --noEmit; npm run audit:structure"
     }
   ]
 }
