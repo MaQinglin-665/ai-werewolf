@@ -32,6 +32,8 @@ repeatable, while still leaving judgment to the agent.
 4. Locate the likely work area:
    - Use `docs/feature-registry.md` to find source files, tests, scripts, and
      relevant docs.
+   - In PowerShell, prefer `rg --files` and then filter paths instead of relying
+     on shell-style globs.
    - Read the matching `docs/threads/*.md` file before editing.
 
 5. Confirm task scope:

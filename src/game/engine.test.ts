@@ -410,6 +410,25 @@ describe("game engine", () => {
     expect(state.events.at(-1)).toMatchObject({ type: "ROLE_PHASE_SKIPPED", payload: { role: "GUARD" } });
   });
 
+  it("continues from a dead seer night phase to the witch without a hidden actor turn", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 44 });
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const witch = state.seats.find((seat) => seat.role === "WITCH")!;
+    seer.alive = false;
+    seer.deathReason = "WOLF_KILL";
+    state.phase = "NIGHT_SEER";
+
+    const viewBeforeSkip = buildHumanView(state);
+    expect(viewBeforeSkip.currentActorSeatId).toBeUndefined();
+    expect(viewBeforeSkip.availableActions[0]).toMatchObject({ type: "continue", label: "继续流程" });
+
+    state = applySystemStep(state);
+
+    expect(state.phase).toBe("NIGHT_WITCH");
+    expect(getTurnRequirement(state)).toMatchObject({ type: "ai", actorSeatId: witch.seatId, phase: "NIGHT_WITCH" });
+    expect(state.events.at(-1)).toMatchObject({ type: "ROLE_PHASE_SKIPPED", payload: { role: "SEER" } });
+  });
+
   it("skips the witch wake-up on the 6-player beginner board", () => {
     let state = createGame({ boardId: "6p-beginner-seer", seed: 43, humanSeatId: null });
     const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;

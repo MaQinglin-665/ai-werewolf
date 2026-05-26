@@ -65,3 +65,5 @@ Follow-up:
 - `WebSocket server error: Port 24678 is already in use` can be environment
   noise when the command exits 0. See `docs/verification-matrix.md` and
   `docs/harness-state.md`.
+- In PowerShell, direct ripgrep globs such as `rg src\game\*.test.ts` can fail
+  with path syntax errors. Prefer `rg --files` and then filter the file list.
