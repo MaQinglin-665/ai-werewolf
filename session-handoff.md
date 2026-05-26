@@ -2,9 +2,9 @@
 
 ## Current Objective
 
-- Goal: Complete the three recommended `GameClient.tsx` helper extractions under the harness.
-- Current status: Auto-advance, host audio cue, and AI speech audio helpers have been extracted into focused `src/components/game/**` modules with tests. `GameClient.tsx` is now primarily orchestration for state, refs, effects, and callbacks.
-- Branch / commit: `main`; latest committed baseline before this task was `6da7e55`.
+- Goal: Continue frontend slimming with a small UI data-model boundary under the harness.
+- Current status: Landing-page AI lineup preview calculation has been extracted into `src/components/game/landingLineupPreview.ts` with focused tests. `GameClient.tsx` is now at 1004 lines in the structure audit.
+- Branch / commit: `main`; latest committed baseline before this task was `359219e`.
 
 ## Completed This Session
 
@@ -31,6 +31,11 @@
 - [x] Added `src/components/game/aiSpeechAudio.ts` and `src/components/game/aiSpeechAudio.test.ts`.
 - [x] Updated `src/components/GameClient.tsx` to import the extracted helpers and keep orchestration local.
 - [x] Updated `feature_list.json` and `progress.md` for the new helper extraction features.
+- [x] Created `docs/tasks/2026-05-gameclient-lineup-preview-model.md`.
+- [x] Created `docs/superpowers/plans/2026-05-26-gameclient-lineup-preview-model.md`.
+- [x] Added `src/components/game/landingLineupPreview.ts` and `src/components/game/landingLineupPreview.test.ts`.
+- [x] Updated `src/components/GameClient.tsx` to import the lineup preview helper.
+- [x] Updated `feature_list.json` and `progress.md` for the new lineup preview model feature.
 
 ## Verification Evidence
 
@@ -54,6 +59,12 @@
 | Harness check | `npm run harness:check` | passed | Confirms mechanical harness files and package scripts. |
 | Structure audit | `npm run audit:structure` | passed | Confirms structure audit still passes; `GameClient.tsx` dropped to 1028 lines in the audit output. |
 | Local main-game smoke | `npm run smoke:main-game -- --base-url=http://127.0.0.1:3000` | passed | Covered local 6p beginner seer creation, retry path for non-night human roles, a werewolf night action, stream continue, and final `DAY_SPEECH`. |
+| Lineup preview focused test | `npm run test -- src/components/game/landingLineupPreview.test.ts` | passed | Confirms fixed-seat, spectator-mode, and not-ready preview behavior. |
+| Lint | `npm run lint` | passed | Confirms the extraction has no ESLint errors or warnings. |
+| TypeScript | `npx tsc --noEmit` | passed | Confirms the new helper import and types. |
+| Lineup preview task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-gameclient-lineup-preview-model.md` | passed | Confirms the new task card satisfies harness fields. |
+| Harness check | `npm run harness:check` | passed | Confirms mechanical harness files and package scripts. |
+| Structure audit | `npm run audit:structure` | passed | Confirms structure audit still passes; `GameClient.tsx` dropped to 1004 lines in the audit output. |
 
 ## Files Changed
 
@@ -83,6 +94,10 @@
 - `src/components/game/hostAudioCues.test.ts`
 - `src/components/game/aiSpeechAudio.ts`
 - `src/components/game/aiSpeechAudio.test.ts`
+- `docs/tasks/2026-05-gameclient-lineup-preview-model.md`
+- `docs/superpowers/plans/2026-05-26-gameclient-lineup-preview-model.md`
+- `src/components/game/landingLineupPreview.ts`
+- `src/components/game/landingLineupPreview.test.ts`
 
 ## Decisions Made
 
@@ -93,6 +108,7 @@
 - Keep `GameClient.tsx` as the orchestration layer for now. Extract helpers only when a focused test can describe the boundary first.
 - Host audio playback remains in `GameClient.tsx` because it owns refs and status state; only cue construction moved out.
 - AI speech audio queue and preparation helpers moved out, while network fetch and playback status updates remain in `GameClient.tsx`.
+- Landing-page lineup preview is now treated as a UI data model, while `GameClient.tsx` keeps only memoization and state wiring for it.
 
 ## Blockers / Risks
 
@@ -104,6 +120,7 @@
 - Browser/manual recent-game flow was skipped because rendered UI did not change; run home -> start game -> return home -> recent game list if this storage path is touched again.
 - Production/release checks were skipped because this was a local frontend structure refactor with no deploy or public configuration change.
 - Browser-render visual flow was skipped because layout and visible UI were not changed; local `smoke:main-game` was used for the auto-advance/audio gating surface.
+- Browser/manual flow was skipped for lineup preview because the rendered layout and interactions did not change; the pure calculation is covered by focused tests.
 
 ## Next Session Startup
 
@@ -113,8 +130,9 @@
 4. Read `docs/superpowers/specs/2026-05-26-frontend-structure-boundaries-design.md`.
 5. Read `docs/tasks/2026-05-frontend-css-boundary-map.md`.
 6. Read `docs/tasks/2026-05-gameclient-helper-extractions.md` if continuing frontend slimming.
-7. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
+7. Read `docs/tasks/2026-05-gameclient-lineup-preview-model.md` if continuing landing-page model extraction.
+8. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
 
 ## Recommended Next Step
 
-- Next recommended code-facing step: review and optionally commit this extraction batch. If continuing frontend slimming, pick a UI presentation/action-panel boundary next rather than more audio flow work in the same batch.
+- Next recommended code-facing step: review and optionally commit this extraction batch. If continuing frontend slimming, pick another small UI data-model boundary or one action-panel boundary with focused tests.

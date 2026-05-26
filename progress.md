@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-26 21:45 Asia/Shanghai
-**Session ID:** gameclient helper extractions
-**Active Feature:** gameclient-ai-speech-audio-helpers - GameClient AI Speech Audio Helpers
+**Last Updated:** 2026-05-26 21:55 Asia/Shanghai
+**Session ID:** gameclient lineup preview model
+**Active Feature:** gameclient-lineup-preview-model - GameClient Lineup Preview Model
 
 ## Status
 
@@ -35,17 +35,19 @@
 - [x] AI speech audio cue, TTS chunking, streaming queue, unavailable-error, and audio preparation helpers extracted to `src/components/game/aiSpeechAudio.ts`.
 - [x] Focused helper tests added and watched fail before implementation, then pass after each extraction.
 - [x] Local main-game smoke passed after the helper extractions.
+- [x] Landing-page AI lineup preview calculation extracted to `src/components/game/landingLineupPreview.ts`.
+- [x] Focused lineup preview tests added and watched fail before implementation, then pass after extraction.
 
 ### What's In Progress
 
-- [ ] Review and optionally commit the GameClient helper extraction batch.
-  - Details: Auto-advance, host audio cue, and AI speech audio helper modules are implemented; focused tests, lint, type, harness checks, structure audit, and local main-game smoke passed.
+- [ ] Review and optionally commit the GameClient lineup preview extraction batch.
+  - Details: Landing lineup preview model is implemented; focused test, lint, type, harness checks, and structure audit passed.
   - Blockers: none.
 
 ### What's Next
 
 1. Review and optionally commit this batch.
-2. If continuing frontend slimming, pick a UI presentation or action-panel boundary next; keep audio/auto-advance changes small and tested.
+2. If continuing frontend slimming, pick another small UI data-model boundary or one action-panel boundary with a focused test.
 3. Plan room UI alignment separately before touching `RoomClient.tsx`.
 
 ## Blockers / Risks
@@ -98,6 +100,10 @@
 - `src/components/game/hostAudioCues.test.ts` - focused host audio cue coverage.
 - `src/components/game/aiSpeechAudio.ts` - extracted AI speech audio cue, TTS queue, chunking, and audio preparation helpers.
 - `src/components/game/aiSpeechAudio.test.ts` - focused AI speech audio helper coverage.
+- `docs/tasks/2026-05-gameclient-lineup-preview-model.md` - task card for the landing lineup preview extraction.
+- `docs/superpowers/plans/2026-05-26-gameclient-lineup-preview-model.md` - implementation plan for the lineup preview extraction.
+- `src/components/game/landingLineupPreview.ts` - extracted landing lineup preview data model.
+- `src/components/game/landingLineupPreview.test.ts` - focused landing lineup preview coverage.
 
 ## Evidence of Completion
 
@@ -119,6 +125,12 @@
 - [x] Harness check: `npm run harness:check`
 - [x] Structure audit: `npm run audit:structure`
 - [x] Local main-game smoke: `npm run smoke:main-game -- --base-url=http://127.0.0.1:3000`
+- [x] Lineup preview focused test: `npm run test -- src/components/game/landingLineupPreview.test.ts`
+- [x] Lint: `npm run lint`
+- [x] TypeScript: `npx tsc --noEmit`
+- [x] Lineup preview task-card gate: `npm run harness:task-card -- docs/tasks/2026-05-gameclient-lineup-preview-model.md`
+- [x] Harness check: `npm run harness:check`
+- [x] Structure audit: `npm run audit:structure`
 
 ## Notes for Next Session
 

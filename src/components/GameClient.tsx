@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { resolveAiFriendsForGame } from "@/game/aiFriends";
 import type {
   AiFriendConfig,
   AiRuntimeMode,
@@ -63,6 +62,7 @@ import {
 } from "./game/aiFriendStorage";
 import { getDefaultBoardOptions, getInitialBoardSelection } from "./game/boardSelectionModel";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
+import { buildLandingLineupPreview } from "./game/landingLineupPreview";
 import { MobileGameTable } from "./game/MobileGameTable";
 import {
   clearCurrentGameId,
@@ -75,7 +75,6 @@ import { submitStreamingContinue } from "./game/streamingContinue";
 import type {
   AiSpeechAudioStatus,
   AiSpeechAudioTextCue,
-  AiLineupPreviewItem,
   BoardOption,
   CommandPayload,
   HumanSeatMode,
@@ -181,38 +180,16 @@ export function GameClient() {
     () => (selectedBoardId ? boards.find((board) => board.id === selectedBoardId) : undefined),
     [boards, selectedBoardId],
   );
-  const aiLineupPreview = useMemo<AiLineupPreviewItem[]>(() => {
-    const seatCount = selectedBoard?.seatCount ?? 0;
-    const isSpectatorMode = humanSeatMode === "none";
-    if (seatCount <= 0 || (!isSpectatorMode && !selectedHumanSeatId)) return [];
-    const resolvedFriends = resolveAiFriendsForGame(selectedAiFriends, Math.max(0, isSpectatorMode ? seatCount : seatCount - 1));
-    let aiIndex = 0;
-    return Array.from({ length: seatCount }, (_, index) => {
-      const seatId = index + 1;
-      if (!isSpectatorMode && seatId === selectedHumanSeatId) {
-        return {
-          seatId,
-          nickname: "你",
-          isHuman: true,
-          autoFilled: false,
-        };
-      }
-      const friendIndex = aiIndex;
-      const friend = resolvedFriends[friendIndex];
-      aiIndex += 1;
-      return {
-        seatId,
-        nickname: friend?.displayName ?? "AI",
-        personaName: friend?.persona.name,
-        modelLabel: friend?.persona.modelLabel,
-        avatarDataUrl: friend?.config.avatarDataUrl,
-        ttsVoice: friend?.config.ttsVoice,
-        ttsConfig: friend?.config.ttsConfig,
-        isHuman: false,
-        autoFilled: friendIndex >= selectedAiFriends.length,
-      };
-    });
-  }, [humanSeatMode, selectedAiFriends, selectedBoard?.seatCount, selectedHumanSeatId]);
+  const aiLineupPreview = useMemo(
+    () =>
+      buildLandingLineupPreview({
+        seatCount: selectedBoard?.seatCount ?? 0,
+        humanSeatMode,
+        selectedHumanSeatId,
+        selectedAiFriends,
+      }),
+    [humanSeatMode, selectedAiFriends, selectedBoard?.seatCount, selectedHumanSeatId],
+  );
 
   const selectBoard = useCallback(
     (boardId: string) => {
