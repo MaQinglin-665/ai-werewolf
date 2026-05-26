@@ -11,12 +11,13 @@ scope, verify the change, and leave a clean handoff.
 Before changing files, read:
 
 1. `README.md` for the product overview and local setup.
-2. `docs/README.md` for the project documentation map.
-3. `docs/harness-state.md` for current harness status and recent handoff notes.
-4. `docs/feature-registry.md` when you need to locate source files, tests, or scripts.
-5. `docs/working-agreements.md` for multi-thread collaboration rules.
-6. The relevant `docs/threads/*.md` file for the task area.
-7. The relevant `docs/tasks/*.md` task file if one exists.
+2. `docs/harness-orientation.md` for the startup checklist.
+3. `docs/README.md` for the project documentation map.
+4. `docs/harness-state.md` for current harness status and recent handoff notes.
+5. `docs/feature-registry.md` when you need to locate source files, tests, or scripts.
+6. `docs/working-agreements.md` for multi-thread collaboration rules.
+7. The relevant `docs/threads/*.md` file for the task area.
+8. The relevant `docs/tasks/*.md` task file if one exists.
 
 If no task file exists and the task is larger than a small fix, create or ask
 for a task card using `docs/tasks/HARNESS_TASK_TEMPLATE.md`.

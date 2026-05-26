@@ -13,6 +13,8 @@ currently stands.
   verification guidance, done criteria, and handoff format.
 - `docs/README.md`: documentation map that routes agents to project docs,
   threads, tasks, and harness files.
+- `docs/harness-orientation.md`: startup checklist for checking worktree state,
+  classifying tasks, locating code, choosing verification, and handing off.
 - `docs/tasks/HARNESS_TASK_TEMPLATE.md`: lightweight task-card template for
   scoped agent work.
 - `docs/verification-matrix.md`: task-type matrix for choosing the smallest
@@ -41,6 +43,8 @@ currently stands.
   without repeated broad repo searches.
 - Added `docs/harness-retrospective.md` so repeated lessons can be written back
   into the right harness file instead of staying in chat history.
+- Added `docs/harness-orientation.md` as a text-first startup checklist. Do not
+  script it until the checklist proves stable through repeated use.
 
 ## Current Handoff Items
 
@@ -69,6 +73,6 @@ currently stands.
 
 ## Suggested Next Harness Enhancements
 
-1. Optionally add an orientation script later, but only after the text harness
-   proves stable.
+1. Use `docs/harness-orientation.md` on several real tasks, then decide whether
+   a small `npm run harness:check` script is worth adding.
 2. Run a clean staged review/commit once the current harness files are ready.

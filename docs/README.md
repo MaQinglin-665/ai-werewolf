@@ -9,6 +9,7 @@
 ## 文件导览
 
 - `../AGENTS.md`：AI agent 工作入口，说明启动顺序、任务边界、验证命令和交接格式。
+- `harness-orientation.md`：新任务启动清单，帮助 agent 检查工作区、分类任务、定位文件和选择验证。
 - `harness-state.md`：当前 harness 结构、最近更新、接力事项和已知环境噪音。
 - `harness-retrospective.md`：任务后复盘模板，用于把重复踩坑和可复用经验写回 harness。
 - `feature-registry.md`：中粒度功能索引，帮助 AI agent 快速定位源码、测试、脚本和相关文档。
