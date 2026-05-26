@@ -130,6 +130,16 @@
       ],
       "status": "done",
       "evidence": "src/components/game/landingLineupPreview.ts; src/components/game/landingLineupPreview.test.ts; npm run test -- src/components/game/landingLineupPreview.test.ts; npm run lint; npx tsc --noEmit; npm run audit:structure"
+    },
+    {
+      "id": "gameclient-event-feed-model",
+      "name": "GameClient Event Feed Model",
+      "description": "Extract table event feed filtering, limiting, and ordering from GameClient into src/components/game/tableEventFeed.ts with focused tests.",
+      "dependencies": [
+        "gameclient-lineup-preview-model"
+      ],
+      "status": "done",
+      "evidence": "src/components/game/tableEventFeed.ts; src/components/game/tableEventFeed.test.ts; npm run test -- src/components/game/tableEventFeed.test.ts; npm run lint; npx tsc --noEmit; npm run audit:structure"
     }
   ]
 }

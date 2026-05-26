@@ -72,6 +72,7 @@ import {
   subscribeRecentGameIds,
 } from "./game/recentGamesStore";
 import { submitStreamingContinue } from "./game/streamingContinue";
+import { buildTableEventFeed } from "./game/tableEventFeed";
 import type {
   AiSpeechAudioStatus,
   AiSpeechAudioTextCue,
@@ -880,10 +881,7 @@ export function GameClient() {
     };
   }, [stopAiSpeechAudio, stopHostAudio]);
 
-  const latestEvents = useMemo(
-    () => game?.publicEvents.filter((event) => event.phase !== "DAY_SPEECH").slice(-18).reverse() ?? [],
-    [game],
-  );
+  const latestEvents = useMemo(() => buildTableEventFeed(game), [game]);
 
   return (
     <main

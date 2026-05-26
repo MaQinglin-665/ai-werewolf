@@ -2,9 +2,9 @@
 
 ## Current Objective
 
-- Goal: Continue frontend slimming with a small UI data-model boundary under the harness.
-- Current status: Landing-page AI lineup preview calculation has been extracted into `src/components/game/landingLineupPreview.ts` with focused tests. `GameClient.tsx` is now at 1004 lines in the structure audit.
-- Branch / commit: `main`; latest committed baseline before this task was `359219e`.
+- Goal: Continue frontend slimming with a small table event-feed data-model boundary under the harness.
+- Current status: Table event feed filtering, limiting, and ordering has been extracted into `src/components/game/tableEventFeed.ts` with focused tests. `GameClient.tsx` is now at 1002 lines in the structure audit.
+- Branch / commit: `main`; latest committed baseline before this task was `ab4e6e7`.
 
 ## Completed This Session
 
@@ -36,6 +36,11 @@
 - [x] Added `src/components/game/landingLineupPreview.ts` and `src/components/game/landingLineupPreview.test.ts`.
 - [x] Updated `src/components/GameClient.tsx` to import the lineup preview helper.
 - [x] Updated `feature_list.json` and `progress.md` for the new lineup preview model feature.
+- [x] Created `docs/tasks/2026-05-gameclient-event-feed-model.md`.
+- [x] Created `docs/superpowers/plans/2026-05-26-gameclient-event-feed-model.md`.
+- [x] Added `src/components/game/tableEventFeed.ts` and `src/components/game/tableEventFeed.test.ts`.
+- [x] Updated `src/components/GameClient.tsx` to import the table event feed helper.
+- [x] Updated `feature_list.json` and `progress.md` for the new event feed model feature.
 
 ## Verification Evidence
 
@@ -65,6 +70,12 @@
 | Lineup preview task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-gameclient-lineup-preview-model.md` | passed | Confirms the new task card satisfies harness fields. |
 | Harness check | `npm run harness:check` | passed | Confirms mechanical harness files and package scripts. |
 | Structure audit | `npm run audit:structure` | passed | Confirms structure audit still passes; `GameClient.tsx` dropped to 1004 lines in the audit output. |
+| Event feed focused test | `npm run test -- src/components/game/tableEventFeed.test.ts` | passed | Confirms speech events are filtered, newest 18 events are kept, and output is newest-first. |
+| Lint | `npm run lint` | passed | Confirms the extraction has no ESLint errors or warnings. |
+| TypeScript | `npx tsc --noEmit` | passed | Confirms the new helper import and event fixture types. |
+| Event feed task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-gameclient-event-feed-model.md` | passed | Confirms the new task card satisfies harness fields. |
+| Harness check | `npm run harness:check` | passed | Confirms mechanical harness files and package scripts. |
+| Structure audit | `npm run audit:structure` | passed | Confirms structure audit still passes; `GameClient.tsx` dropped to 1002 lines in the audit output. |
 
 ## Files Changed
 
@@ -98,6 +109,10 @@
 - `docs/superpowers/plans/2026-05-26-gameclient-lineup-preview-model.md`
 - `src/components/game/landingLineupPreview.ts`
 - `src/components/game/landingLineupPreview.test.ts`
+- `docs/tasks/2026-05-gameclient-event-feed-model.md`
+- `docs/superpowers/plans/2026-05-26-gameclient-event-feed-model.md`
+- `src/components/game/tableEventFeed.ts`
+- `src/components/game/tableEventFeed.test.ts`
 
 ## Decisions Made
 
@@ -109,6 +124,7 @@
 - Host audio playback remains in `GameClient.tsx` because it owns refs and status state; only cue construction moved out.
 - AI speech audio queue and preparation helpers moved out, while network fetch and playback status updates remain in `GameClient.tsx`.
 - Landing-page lineup preview is now treated as a UI data model, while `GameClient.tsx` keeps only memoization and state wiring for it.
+- Table event feed filtering and ordering is now treated as a UI data model, while `GameClient.tsx` keeps only memoization and prop wiring for it.
 
 ## Blockers / Risks
 
@@ -121,6 +137,7 @@
 - Production/release checks were skipped because this was a local frontend structure refactor with no deploy or public configuration change.
 - Browser-render visual flow was skipped because layout and visible UI were not changed; local `smoke:main-game` was used for the auto-advance/audio gating surface.
 - Browser/manual flow was skipped for lineup preview because the rendered layout and interactions did not change; the pure calculation is covered by focused tests.
+- Browser/manual flow was skipped for event feed because the rendered layout and interactions did not change; the pure calculation is covered by focused tests.
 
 ## Next Session Startup
 
@@ -131,8 +148,9 @@
 5. Read `docs/tasks/2026-05-frontend-css-boundary-map.md`.
 6. Read `docs/tasks/2026-05-gameclient-helper-extractions.md` if continuing frontend slimming.
 7. Read `docs/tasks/2026-05-gameclient-lineup-preview-model.md` if continuing landing-page model extraction.
-8. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
+8. Read `docs/tasks/2026-05-gameclient-event-feed-model.md` if continuing table event-feed model extraction.
+9. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
 
 ## Recommended Next Step
 
-- Next recommended code-facing step: review and optionally commit this extraction batch. If continuing frontend slimming, pick another small UI data-model boundary or one action-panel boundary with focused tests.
+- Next recommended code-facing step: review and optionally commit this extraction batch. If continuing frontend slimming, pick one action-panel boundary with focused tests, or pause micro-extractions and review the accumulated frontend direction.

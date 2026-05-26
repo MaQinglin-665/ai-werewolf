@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-26 21:55 Asia/Shanghai
-**Session ID:** gameclient lineup preview model
-**Active Feature:** gameclient-lineup-preview-model - GameClient Lineup Preview Model
+**Last Updated:** 2026-05-26 22:00 Asia/Shanghai
+**Session ID:** gameclient event feed model
+**Active Feature:** gameclient-event-feed-model - GameClient Event Feed Model
 
 ## Status
 
@@ -37,17 +37,19 @@
 - [x] Local main-game smoke passed after the helper extractions.
 - [x] Landing-page AI lineup preview calculation extracted to `src/components/game/landingLineupPreview.ts`.
 - [x] Focused lineup preview tests added and watched fail before implementation, then pass after extraction.
+- [x] Table event feed filtering, limit, and ordering extracted to `src/components/game/tableEventFeed.ts`.
+- [x] Focused event feed tests added and watched fail before implementation, then pass after extraction.
 
 ### What's In Progress
 
-- [ ] Review and optionally commit the GameClient lineup preview extraction batch.
-  - Details: Landing lineup preview model is implemented; focused test, lint, type, harness checks, and structure audit passed.
+- [ ] Review and optionally commit the GameClient event feed extraction batch.
+  - Details: Event feed model is implemented; focused test, lint, type, harness checks, and structure audit passed.
   - Blockers: none.
 
 ### What's Next
 
 1. Review and optionally commit this batch.
-2. If continuing frontend slimming, pick another small UI data-model boundary or one action-panel boundary with a focused test.
+2. If continuing frontend slimming, pick one action-panel boundary with a focused test, or stop the current micro-extraction run and review the accumulated frontend direction.
 3. Plan room UI alignment separately before touching `RoomClient.tsx`.
 
 ## Blockers / Risks
@@ -104,6 +106,10 @@
 - `docs/superpowers/plans/2026-05-26-gameclient-lineup-preview-model.md` - implementation plan for the lineup preview extraction.
 - `src/components/game/landingLineupPreview.ts` - extracted landing lineup preview data model.
 - `src/components/game/landingLineupPreview.test.ts` - focused landing lineup preview coverage.
+- `docs/tasks/2026-05-gameclient-event-feed-model.md` - task card for the table event feed extraction.
+- `docs/superpowers/plans/2026-05-26-gameclient-event-feed-model.md` - implementation plan for the event feed extraction.
+- `src/components/game/tableEventFeed.ts` - extracted table event feed data model.
+- `src/components/game/tableEventFeed.test.ts` - focused table event feed coverage.
 
 ## Evidence of Completion
 
@@ -129,6 +135,12 @@
 - [x] Lint: `npm run lint`
 - [x] TypeScript: `npx tsc --noEmit`
 - [x] Lineup preview task-card gate: `npm run harness:task-card -- docs/tasks/2026-05-gameclient-lineup-preview-model.md`
+- [x] Harness check: `npm run harness:check`
+- [x] Structure audit: `npm run audit:structure`
+- [x] Event feed focused test: `npm run test -- src/components/game/tableEventFeed.test.ts`
+- [x] Lint: `npm run lint`
+- [x] TypeScript: `npx tsc --noEmit`
+- [x] Event feed task-card gate: `npm run harness:task-card -- docs/tasks/2026-05-gameclient-event-feed-model.md`
 - [x] Harness check: `npm run harness:check`
 - [x] Structure audit: `npm run audit:structure`
 
