@@ -58,6 +58,38 @@
       ],
       "status": "done",
       "evidence": "docs/tasks/HARNESS_TASK_TEMPLATE.md; scripts/task-card-check.mjs; npm run harness:task-card -- docs/tasks/HARNESS_TASK_TEMPLATE.md docs/tasks/2026-05-task-execution-gate.md; npm run harness:check"
+    },
+    {
+      "id": "frontend-structure-boundaries",
+      "name": "Frontend Structure Boundaries",
+      "description": "Agent-friendly frontend structure roadmap and first CSS boundary-map task for reducing UI/CSS maintenance risk without touching game rules, AI behavior, or room state.",
+      "dependencies": [
+        "structure-framework-audit",
+        "task-execution-gate"
+      ],
+      "status": "done",
+      "evidence": "docs/superpowers/specs/2026-05-26-frontend-structure-boundaries-design.md; docs/tasks/2026-05-frontend-css-boundary-map.md; docs/architecture.md; docs/feature-registry.md; npm run audit:structure; npm run harness:task-card -- docs/tasks/2026-05-frontend-css-boundary-map.md; npm run harness:check"
+    },
+    {
+      "id": "frontend-css-section-governance",
+      "name": "Frontend CSS Section Governance",
+      "description": "Non-behavioral CSS section comments in src/app/globals.css based on the recorded frontend CSS boundary map.",
+      "dependencies": [
+        "frontend-structure-boundaries"
+      ],
+      "status": "done",
+      "evidence": "src/app/globals.css section comments; docs/tasks/2026-05-frontend-css-boundary-map.md"
+    },
+    {
+      "id": "gameclient-recent-games-store",
+      "name": "GameClient Recent Games Store",
+      "description": "Extract recent-game localStorage and subscription helpers from GameClient into src/components/game/recentGamesStore.ts with focused tests.",
+      "dependencies": [
+        "frontend-structure-boundaries",
+        "frontend-css-section-governance"
+      ],
+      "status": "done",
+      "evidence": "src/components/game/recentGamesStore.ts; src/components/game/recentGamesStore.test.ts; npm run test -- src/components/game/recentGamesStore.test.ts"
     }
   ]
 }

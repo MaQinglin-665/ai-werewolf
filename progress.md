@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-26 19:45 Asia/Shanghai
-**Session ID:** local harness optimization
-**Active Feature:** task-execution-gate - Task Execution Gate
+**Last Updated:** 2026-05-26 21:05 Asia/Shanghai
+**Session ID:** frontend css governance and gameclient slimming
+**Active Feature:** gameclient-recent-games-store - GameClient Recent Games Store
 
 ## Status
 
@@ -22,24 +22,35 @@
 - [x] Task-card gate fields added to `docs/tasks/HARNESS_TASK_TEMPLATE.md`.
 - [x] `npm run harness:task-card -- <task-file>` added for mechanical task-card checks.
 - [x] `npm run harness:check` now guards task gate markers.
+- [x] Frontend structure planning direction selected: agent-friendly roadmap, conservative execution, and long-term framework target.
+- [x] Frontend boundary design created for `GameClient.tsx`, `src/components/game/**`, `RoomClient.tsx`, `src/components/rooms/**`, and `src/app/globals.css`.
+- [x] First low-risk frontend task card created for CSS and structure boundary mapping.
+- [x] Current `src/app/globals.css` section map recorded in `docs/tasks/2026-05-frontend-css-boundary-map.md`.
+- [x] Frontend ownership boundaries routed through `docs/architecture.md` and `docs/feature-registry.md`.
+- [x] Non-behavioral section comments added to `src/app/globals.css` without moving selectors or declarations.
+- [x] Recent-game localStorage and subscription helpers extracted from `GameClient.tsx` to `src/components/game/recentGamesStore.ts`.
+- [x] Focused recent-game store tests added and watched fail before implementation, then pass after extraction.
 
 ### What's In Progress
 
-- [ ] Review and optionally commit the task execution gate changes.
-  - Details: implementation and verification are complete.
+- [ ] Review and optionally commit the frontend structure/CSS/GameClient slimming changes.
+  - Details: C, A, and B are implemented; final lint, type, harness, and focused test verification passed.
   - Blockers: none.
 
 ### What's Next
 
-1. Use the task-card gate on the next real bugfix or feature.
-2. For future code-framework optimization, start with one narrow refactor target from `npm run audit:structure`.
-3. Recommended first production-code refactor target: extract pure CSS or UI helper modules before touching rules/AI behavior internals.
+1. Review and optionally commit this batch.
+2. If continuing frontend slimming, pick another small `GameClient` helper only after adding a focused test.
+3. Plan room UI alignment separately before touching `RoomClient.tsx`.
 
 ## Blockers / Risks
 
 - [x] Generic validators may under-score project-specific docs unless standard root files route to them.
 - [x] `init.sh` is a Bash entrypoint; on Windows, use `init.ps1`.
 - [x] The task-card checker verifies structure, not judgment quality; agents still need to choose checks from `docs/verification-matrix.md`.
+- [x] Frontend planning does not reduce line count yet; it creates the route for a later low-risk refactor.
+- [ ] The CSS map is line-based and will drift as styles move.
+- [ ] Browser/manual recent-game behavior was not exercised because rendered UI did not change.
 
 ## Decisions Made
 
@@ -49,6 +60,9 @@
 - **Add a task execution gate to the template**: future non-trivial work should name task type, risk, verification tier, browser/manual decision, state updates, and skipped-check rationale.
   - Context: the harness is structurally mature; the next quality gain is reducing vague task closure.
   - Alternatives considered: relying on prose only in `AGENTS.md`, which is easier for agents to skip.
+- **Start framework optimization from frontend/CSS boundaries**: use an agent-friendly roadmap, conservative execution, and long-term architecture as the framing.
+  - Context: the structure audit found frontend pressure in `globals.css`, `RoomClient.tsx`, and `GameClient.tsx`, while existing `src/components/game` extractions mean a boundary map should come before more movement.
+  - Alternatives considered: immediate AI helper extraction or rules/server extraction, both of which carry stronger behavior-risk and verification needs.
 
 ## Files Modified This Session
 
@@ -60,6 +74,16 @@
 - `feature_list.json` - records the task execution gate as completed harness capability.
 - `progress.md` - records current harness state.
 - `session-handoff.md` - records restart path and evidence.
+- `docs/superpowers/specs/2026-05-26-frontend-structure-boundaries-design.md` - frontend structure roadmap and boundaries.
+- `docs/tasks/2026-05-frontend-css-boundary-map.md` - first frontend structure task card.
+- `docs/superpowers/plans/2026-05-26-frontend-css-boundary-map.md` - implementation plan for the boundary-map task.
+- `docs/architecture.md` - records frontend structure governance boundaries.
+- `docs/feature-registry.md` - routes future table UI structure work through the new design and task card.
+- `src/app/globals.css` - adds non-behavioral section comments.
+- `src/components/GameClient.tsx` - imports recent-game store helpers.
+- `src/components/game/recentGamesStore.ts` - extracted recent-game localStorage and subscription helper.
+- `src/components/game/recentGamesStore.test.ts` - focused helper coverage.
+- `docs/tasks/2026-05-gameclient-recent-games-store.md` - task card and execution record for the GameClient slimming step.
 
 ## Evidence of Completion
 
@@ -70,6 +94,9 @@
 - [x] Lint: `npm run lint`
 - [x] Structure audit: `npm run audit:structure`
 - [x] Task-card gate: `npm run harness:task-card -- docs/tasks/HARNESS_TASK_TEMPLATE.md docs/tasks/2026-05-task-execution-gate.md`
+- [x] Frontend task-card gate: `npm run harness:task-card -- docs/tasks/2026-05-frontend-css-boundary-map.md docs/tasks/2026-05-gameclient-recent-games-store.md`
+- [x] Recent-game focused test: `npm run test -- src/components/game/recentGamesStore.test.ts`
+- [x] TypeScript: `npx tsc --noEmit`
 
 ## Notes for Next Session
 

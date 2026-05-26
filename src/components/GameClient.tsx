@@ -43,6 +43,13 @@ import {
 import { getDefaultBoardOptions, getInitialBoardSelection } from "./game/boardSelectionModel";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
 import { MobileGameTable } from "./game/MobileGameTable";
+import {
+  clearCurrentGameId,
+  getRecentGameIdsServerSnapshot,
+  readRecentGameIds,
+  rememberRecentGameId,
+  subscribeRecentGameIds,
+} from "./game/recentGamesStore";
 import { submitStreamingContinue } from "./game/streamingContinue";
 import type {
   AiSpeechAudioStatus,
@@ -57,14 +64,9 @@ import type {
 } from "./game/clientTypes";
 import { formatSystemMessage } from "./game/viewHelpers";
 
-const CURRENT_GAME_KEY = "ai-werewolf-game-id";
-const RECENT_GAMES_KEY = "ai-werewolf-recent-game-ids";
 const HOST_AUDIO_ENABLED_KEY = "ai-werewolf-host-audio-enabled";
 const AI_SPEECH_AUDIO_ENABLED_KEY = "ai-werewolf-ai-speech-audio-enabled";
 const HOST_AUDIO_BASE_PATH = "/audio/host";
-const EMPTY_RECENT_GAME_IDS: string[] = [];
-let recentGameIdsRawCache: string | null = null;
-let recentGameIdsSnapshotCache: string[] = EMPTY_RECENT_GAME_IDS;
 const AI_SPEECH_MIN_READ_MS = 2600;
 const AI_SPEECH_MAX_READ_MS = 22000;
 const AI_SPEECH_AUDIO_MAX_ATTEMPTS = 1;
@@ -1027,19 +1029,7 @@ export function GameClient() {
   }, []);
 
   const rememberGame = useCallback((gameId: string) => {
-    try {
-      const nextIds = [gameId, ...readRecentGameIds().filter((id) => id !== gameId)].slice(0, 5);
-      window.localStorage.setItem(CURRENT_GAME_KEY, gameId);
-      window.localStorage.setItem(RECENT_GAMES_KEY, JSON.stringify(nextIds));
-    } catch {
-      recentGameIdsRawCache = null;
-      recentGameIdsSnapshotCache = EMPTY_RECENT_GAME_IDS;
-    }
-    try {
-      window.dispatchEvent(new Event("ai-werewolf-recent-games-changed"));
-    } catch {
-      // Recent-game history is a convenience; it must not block starting a game.
-    }
+    rememberRecentGameId(gameId);
   }, []);
 
   useEffect(() => {
@@ -1356,12 +1346,7 @@ export function GameClient() {
       window.clearTimeout(idiotRevealTimerRef.current);
       idiotRevealTimerRef.current = null;
     }
-    try {
-      window.localStorage.removeItem(CURRENT_GAME_KEY);
-      window.dispatchEvent(new Event("ai-werewolf-recent-games-changed"));
-    } catch {
-      // Returning home is a UI transition; storage cleanup should not block it.
-    }
+    clearCurrentGameId();
   }, [stopAiSpeechAudio, stopHostAudio]);
 
   const submitCommand = useCallback(async (payload: CommandPayload) => {
@@ -1810,55 +1795,4 @@ export function GameClient() {
       {idiotReveal && <IdiotRevealOverlay key={idiotReveal.key} cue={idiotReveal} />}
     </main>
   );
-}
-
-function readRecentGameIds(): string[] {
-  if (typeof window === "undefined") {
-    return EMPTY_RECENT_GAME_IDS;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(RECENT_GAMES_KEY);
-    if (raw === recentGameIdsRawCache) {
-      return recentGameIdsSnapshotCache;
-    }
-
-    recentGameIdsRawCache = raw;
-    const parsed = raw ? JSON.parse(raw) : [];
-    recentGameIdsSnapshotCache = Array.isArray(parsed)
-      ? parsed.filter((gameId): gameId is string => typeof gameId === "string").slice(0, 5)
-      : EMPTY_RECENT_GAME_IDS;
-    return recentGameIdsSnapshotCache;
-  } catch {
-    recentGameIdsRawCache = null;
-    recentGameIdsSnapshotCache = EMPTY_RECENT_GAME_IDS;
-    return EMPTY_RECENT_GAME_IDS;
-  }
-}
-
-function getRecentGameIdsServerSnapshot(): string[] {
-  return EMPTY_RECENT_GAME_IDS;
-}
-
-function subscribeRecentGameIds(onStoreChange: () => void): () => void {
-  if (typeof window === "undefined") {
-    return () => undefined;
-  }
-
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key !== CURRENT_GAME_KEY && event.key !== RECENT_GAMES_KEY) return;
-    recentGameIdsRawCache = null;
-    onStoreChange();
-  };
-  const handleLocalChange = () => {
-    recentGameIdsRawCache = null;
-    onStoreChange();
-  };
-
-  window.addEventListener("storage", handleStorage);
-  window.addEventListener("ai-werewolf-recent-games-changed", handleLocalChange);
-  return () => {
-    window.removeEventListener("storage", handleStorage);
-    window.removeEventListener("ai-werewolf-recent-games-changed", handleLocalChange);
-  };
 }

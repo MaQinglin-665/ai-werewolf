@@ -76,7 +76,11 @@ work.
 - Related tests: `src/components/game/*.test.ts`,
   `src/components/AiPoolClient.mobile.test.ts`, `src/app/layout.test.ts`.
 - Docs to read: `docs/threads/frontend.md`,
-  `docs/superpowers/specs/*mobile*.md` when touching mobile table behavior.
+  `docs/superpowers/specs/*mobile*.md` when touching mobile table behavior,
+  `docs/superpowers/specs/2026-05-26-frontend-structure-boundaries-design.md`
+  for broad frontend structure work, and
+  `docs/tasks/2026-05-frontend-css-boundary-map.md` before moving CSS or
+  reshaping `GameClient.tsx`.
 - Verification hints: run `npm run lint` and focused component tests; manually
   exercise the affected flow when UI behavior changes.
 
