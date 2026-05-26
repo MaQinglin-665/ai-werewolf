@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActionPanel,
@@ -620,7 +621,7 @@ export function RoomClient() {
           setInvalidSession({
             detail: buildInvalidRoomSessionDetail(message),
             roomCode: cleanRoomCode,
-            title: urlSession ? "恢复链接已失效" : buildInvalidRoomSessionTitle(message),
+            title: urlSession ? "房间身份已失效" : buildInvalidRoomSessionTitle(message),
           });
         })
         .finally(() => {
@@ -887,27 +888,6 @@ export function RoomClient() {
     await copyRoomLink(link, buildCopyNotice("邀请链接已复制，朋友打开后输入昵称即可加入。", shareOrigin), setNotice, setError);
   }
 
-  async function handleCopyRecoveryLink() {
-    if (!roomView?.playerId) return;
-    await copyRoomLink(
-      buildRoomLink(roomView.room.code, roomView.playerToken ? { playerToken: roomView.playerToken } : { playerId: roomView.playerId }, shareOrigin),
-      buildCopyNotice("我的恢复链接已复制，只能自己保存使用，不要发给其他玩家。", shareOrigin),
-      setNotice,
-      setError,
-    );
-  }
-
-  async function handleCopyPlayerRecoveryLink(player: RoomPlayerView) {
-    if (!roomView) return;
-    const playerLabel = `${player.seatId ? `${player.seatId}号 ` : ""}${player.name}`;
-    await copyRoomLink(
-      buildRoomLink(roomView.room.code, player.playerToken ? { playerToken: player.playerToken } : { playerId: player.playerId }, shareOrigin),
-      buildCopyNotice(`${playerLabel} 的恢复链接已复制，请只发给本人。`, shareOrigin),
-      setNotice,
-      setError,
-    );
-  }
-
   async function handleSubmitCommand(command: HumanCommandInput) {
     if (!roomView?.room.id || !roomView.playerId || commandRequestKeyRef.current) return;
     const idempotencyKey = createRoomIdempotencyKey();
@@ -959,11 +939,9 @@ export function RoomClient() {
       <RoomGameShell
         error={error}
         game={activeGame}
-        isHost={isHost}
         isSubmitting={pending === "command"}
         onExitRoom={async () => clearSession()}
         onNewGame={async () => clearSession()}
-        onCopyPlayerRecoveryLink={(player) => void handleCopyPlayerRecoveryLink(player)}
         onSubmit={handleSubmitCommand}
         hostAudioStatus={hostAudioStatus}
         idiotReveal={idiotReveal}
@@ -977,50 +955,57 @@ export function RoomClient() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0f0a07] text-[#f7ecd2]">
+    <main className={`${roomView ? "h-screen overflow-hidden" : "min-h-screen"} bg-[#0f0a07] text-[#f7ecd2]`}>
       <div
-        className="min-h-screen bg-[linear-gradient(180deg,rgba(11,7,5,0.76),rgba(11,7,5,0.96)),url('/images/werewolf-table-bg.jpg')] bg-cover bg-center px-4 py-6 sm:px-6 lg:px-8"
+        className={`bg-[linear-gradient(180deg,rgba(11,7,5,0.76),rgba(11,7,5,0.96)),url('/images/werewolf-table-bg.jpg')] bg-cover bg-center ${
+          roomView ? "h-full overflow-hidden px-3 py-3 sm:px-4" : "min-h-screen px-4 py-6 sm:px-6 lg:px-8"
+        }`}
       >
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
-          <header className="rounded-[28px] border border-[#7b5a28]/50 bg-[#160f0b]/90 px-5 py-5 shadow-2xl shadow-black/45 sm:px-7">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className={`mx-auto flex w-full max-w-7xl flex-col ${roomView ? "h-full gap-3 overflow-hidden" : "gap-5"}`}>
+          <header
+            className={`border border-[#7b5a28]/50 bg-[#160f0b]/90 shadow-2xl shadow-black/45 ${
+              roomView ? "rounded-[22px] px-4 py-3 sm:px-5" : "rounded-[28px] px-5 py-5 sm:px-7"
+            }`}
+          >
+            <div className={`flex flex-col lg:flex-row lg:items-end lg:justify-between ${roomView ? "gap-2" : "gap-4"}`}>
               <div>
-                <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-bold text-[#f0cf79]">
+                <div className={`${roomView ? "mb-1.5" : "mb-3"} flex flex-wrap items-center gap-2 text-xs font-bold text-[#f0cf79]`}>
                   <span className="rounded-full border border-[#7b5a28]/60 bg-black/25 px-3 py-1">MULTIPLAYER ROOM</span>
                   <span className="rounded-full border border-emerald-400/25 bg-emerald-950/50 px-3 py-1 text-emerald-200">
                     本地房间 MVP
                   </span>
                 </div>
-                <h1 className="text-3xl font-black tracking-normal text-[#fff7df] sm:text-4xl">多人房间</h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#d9c9a8]">
-                  多个真人入座，AI 自动补齐空位。当前房间保存在本机开发进程内。
-                </p>
+                <h1 className={`${roomView ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"} font-black tracking-normal text-[#fff7df]`}>多人房间</h1>
+                {!roomView ? (
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-[#d9c9a8]">
+                    多个真人入座，AI 自动补齐空位。当前房间保存在本机开发进程内。
+                  </p>
+                ) : null}
               </div>
-              {roomView ? (
-                <div className="flex flex-wrap gap-2 text-sm">
-                  <StatusPill label="房间码" value={roomView.room.code} tone="gold" />
-                  <StatusPill label="状态" value={roomStatusLabel(roomView.room.status)} tone="green" />
-                  <StatusPill label="在线" value={roomOnlineSummary(roomView.room.players)} tone="green" />
-                  {selfPlayer ? <StatusPill label="我" value={`${selfPlayer.name}${roomView.playerSeatId ? ` · ${roomView.playerSeatId}号` : ""}`} tone="blue" /> : null}
-                </div>
-              ) : null}
+              <div className="flex flex-col gap-2 lg:items-end">
+                {roomView ? (
+                  <div className="flex flex-wrap gap-2 text-sm lg:justify-end">
+                    <StatusPill label="房间码" value={roomView.room.code} tone="gold" />
+                    <StatusPill label="状态" value={roomStatusLabel(roomView.room.status)} tone="green" />
+                    <StatusPill label="在线" value={roomOnlineSummary(roomView.room.players)} tone="green" />
+                    {selfPlayer ? <StatusPill label="我" value={`${selfPlayer.name}${roomView.playerSeatId ? ` · ${roomView.playerSeatId}号` : ""}`} tone="blue" /> : null}
+                  </div>
+                ) : null}
+                <Link
+                  className="w-fit rounded-full border border-[#f0cf79]/25 bg-black/25 px-4 py-2 text-sm font-bold text-[#f8e9c2] transition hover:border-[#f0cf79]/55 hover:bg-[#2a1d10]"
+                  href="/"
+                >
+                  返回主界面
+                </Link>
+              </div>
             </div>
           </header>
 
-          <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <div className={roomView ? "grid min-h-0 flex-1 gap-3 overflow-hidden" : "grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]"}>
+            {!roomView ? (
             <section className="rounded-[24px] border border-[#7b5a28]/45 bg-[#140c09]/88 p-4 shadow-xl shadow-black/35">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-black text-[#fff1c2]">房间入口</h2>
-                {roomView ? (
-                  <button
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-[#d9c9a8] transition hover:border-[#f0cf79]/40 hover:text-[#fff1c2]"
-                    disabled={pending !== null}
-                    onClick={() => void handleLeaveRoom()}
-                    type="button"
-                  >
-                    {pending === "seat" ? "离开中..." : roomView.room.status === "lobby" ? "离开房间" : "退出本地会话"}
-                  </button>
-                ) : null}
               </div>
 
               <div className="mt-4 space-y-4">
@@ -1086,7 +1071,7 @@ export function RoomClient() {
 
               <Feedback error={error} notice={notice} />
               <AlphaPreflightPanel
-                activeRoomId={roomView?.room.id}
+                activeRoomId={undefined}
                 pageOrigin={pageOrigin}
                 roomHealth={roomHealth}
                 setError={setError}
@@ -1096,14 +1081,19 @@ export function RoomClient() {
                 shareOrigin={shareOrigin}
               />
             </section>
+            ) : null}
 
-            <section className="min-h-[620px] rounded-[28px] border border-[#7b5a28]/45 bg-[#120c09]/88 p-4 shadow-xl shadow-black/35 sm:p-5">
+            <section
+              className={`rounded-[28px] border border-[#7b5a28]/45 bg-[#120c09]/88 shadow-xl shadow-black/35 ${
+                roomView ? "min-h-0 overflow-hidden p-3 sm:p-4" : "min-h-[620px] p-4 sm:p-5"
+              }`}
+            >
               {roomView ? (
-                <div className="flex h-full flex-col gap-5">
+                <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
                   <RoomToolbar
                     isHost={isHost}
                     onCopyInviteLink={() => void handleCopyInviteLink()}
-                    onCopyRecoveryLink={() => void handleCopyRecoveryLink()}
+                    onLeave={() => void handleLeaveRoom()}
                     onRefresh={() => void refreshView(false)}
                     onStart={() => void handleStartRoom()}
                     pending={pending}
@@ -1113,7 +1103,6 @@ export function RoomClient() {
                   {roomView.room.status === "lobby" ? (
                     <LobbyView
                       isHost={isHost}
-                      onCopyPlayerRecoveryLink={(player) => void handleCopyPlayerRecoveryLink(player)}
                       onRemovePlayer={(playerId) => void handleRemovePlayer(playerId)}
                       onSeatChange={(seatId) => void handleSeatChange(seatId)}
                       pending={pending}
@@ -1154,7 +1143,7 @@ export function RoomClient() {
 function RoomToolbar({
   isHost,
   onCopyInviteLink,
-  onCopyRecoveryLink,
+  onLeave,
   onRefresh,
   onStart,
   pending,
@@ -1163,7 +1152,7 @@ function RoomToolbar({
 }: {
   isHost: boolean;
   onCopyInviteLink: () => void;
-  onCopyRecoveryLink: () => void;
+  onLeave: () => void;
   onRefresh: () => void;
   onStart: () => void;
   pending: PendingKind;
@@ -1174,20 +1163,20 @@ function RoomToolbar({
   const onlineCount = roomView.room.players.filter((player) => player.online).length;
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/22 p-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/22 p-3 lg:flex-row lg:items-center lg:justify-between">
       <div>
         <div className="text-sm font-bold text-[#f0cf79]">{roomView.room.board.name}</div>
-        <div className="mt-1 text-xs text-[#bba98a]">
+        <div className="mt-0.5 text-xs text-[#bba98a]">
           {roomView.room.board.roleSummary} · 真人 {humanCount} / {roomView.room.board.seatCount}
         </div>
-        <div className="mt-2 text-xs font-bold text-emerald-200">
+        <div className="mt-1 text-xs font-bold text-emerald-200">
           真人在线 {onlineCount} / {roomView.room.players.length}
         </div>
-        {shareOrigin ? <div className="mt-2 text-xs text-emerald-200">手机链接将使用：{shareOrigin}</div> : null}
+        {shareOrigin ? <div className="mt-1 truncate text-xs text-emerald-200">手机链接：{shareOrigin}</div> : null}
       </div>
       <div className="flex flex-wrap gap-2">
         <button
-          className="rounded-xl border border-[#f0cf79]/30 bg-[#2a1d10] px-4 py-2 text-sm font-bold text-[#f8e9c2] transition hover:border-[#f0cf79]/65 disabled:opacity-55"
+          className="rounded-xl border border-[#f0cf79]/30 bg-[#2a1d10] px-3 py-2 text-sm font-bold text-[#f8e9c2] transition hover:border-[#f0cf79]/65 disabled:opacity-55"
           disabled={pending !== null}
           onClick={onCopyInviteLink}
           type="button"
@@ -1195,24 +1184,24 @@ function RoomToolbar({
           复制邀请链接
         </button>
         <button
-          className="rounded-xl border border-sky-300/25 bg-sky-950/35 px-4 py-2 text-sm font-bold text-sky-100 transition hover:border-sky-200/45 disabled:opacity-55"
-          disabled={pending !== null || !roomView.playerId}
-          onClick={onCopyRecoveryLink}
-          type="button"
-        >
-          复制我的恢复链接
-        </button>
-        <button
-          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-[#f8e9c2] transition hover:border-[#f0cf79]/45 disabled:opacity-55"
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold text-[#f8e9c2] transition hover:border-[#f0cf79]/45 disabled:opacity-55"
           disabled={pending !== null}
           onClick={onRefresh}
           type="button"
         >
           {pending === "refresh" ? "刷新中..." : "刷新视图"}
         </button>
+        <button
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold text-[#d9c9a8] transition hover:border-[#f0cf79]/45 hover:text-[#fff1c2] disabled:opacity-55"
+          disabled={pending !== null}
+          onClick={onLeave}
+          type="button"
+        >
+          {pending === "seat" ? "离开中..." : roomView.room.status === "lobby" ? "离开房间" : "退出本地会话"}
+        </button>
         {roomView.room.status === "lobby" && isHost ? (
           <button
-            className="rounded-xl border border-[#f0cf79]/45 bg-[#f0cf79] px-4 py-2 text-sm font-black text-[#1c1208] transition hover:bg-[#ffe29a] disabled:opacity-55"
+            className="rounded-xl border border-[#f0cf79]/45 bg-[#f0cf79] px-3 py-2 text-sm font-black text-[#1c1208] transition hover:bg-[#ffe29a] disabled:opacity-55"
             disabled={pending !== null || humanCount === 0}
             onClick={onStart}
             type="button"
@@ -1230,9 +1219,7 @@ function RoomGameShell({
   game,
   hostAudioStatus,
   idiotReveal,
-  isHost,
   isSubmitting,
-  onCopyPlayerRecoveryLink,
   onExitRoom,
   onNewGame,
   onSubmit,
@@ -1246,9 +1233,7 @@ function RoomGameShell({
   game: HumanGameView;
   hostAudioStatus: HostAudioStatus | null;
   idiotReveal: IdiotRevealCue | null;
-  isHost: boolean;
   isSubmitting: boolean;
-  onCopyPlayerRecoveryLink: (player: RoomPlayerView) => void;
   onExitRoom: () => Promise<void>;
   onNewGame: () => Promise<void>;
   onSubmit: (command: HumanCommandInput) => Promise<void>;
@@ -1305,13 +1290,6 @@ function RoomGameShell({
                 .join("、")}
             </div>
           ) : null}
-          {isHost ? (
-            <HostPlayerRecoveryPanel
-              disabled={isSubmitting}
-              onCopyPlayerRecoveryLink={onCopyPlayerRecoveryLink}
-              players={roomPlayers}
-            />
-          ) : null}
         </div>
 
         {error ? (
@@ -1336,59 +1314,8 @@ function RoomGameShell({
   );
 }
 
-function HostPlayerRecoveryPanel({
-  disabled,
-  onCopyPlayerRecoveryLink,
-  players,
-}: {
-  disabled: boolean;
-  onCopyPlayerRecoveryLink: (player: RoomPlayerView) => void;
-  players: RoomPlayerView[];
-}) {
-  return (
-    <details className="mt-3 rounded-xl border border-sky-300/15 bg-black/20">
-      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-3 py-2 marker:hidden">
-        <div>
-          <div className="text-xs font-black uppercase tracking-[0.2em] text-sky-100/70">HOST CONTROL</div>
-          <div className="mt-0.5 text-sm font-black text-[#fff7df]">房主控制：玩家恢复链接</div>
-        </div>
-        <span className="rounded-full border border-white/10 bg-black/30 px-2.5 py-1 text-[11px] font-bold text-[#d9c9a8]">
-          {players.length} 名真人
-        </span>
-      </summary>
-      <div className="grid gap-2 border-t border-white/10 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
-        {players.map((player) => (
-          <div
-            className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-white/10 bg-[#090604]/55 px-3 py-2"
-            key={player.playerId}
-          >
-            <div className="min-w-0">
-              <div className="truncate text-sm font-black text-[#fff7df]">
-                {player.seatId ? `${player.seatId}号 · ` : ""}
-                {player.name}
-              </div>
-              <div className="mt-1">
-                <PlayerPresencePill player={player} />
-              </div>
-            </div>
-            <button
-              className="shrink-0 rounded-full border border-sky-300/25 bg-sky-950/35 px-2.5 py-1 text-[11px] font-black text-sky-100 transition hover:border-sky-200/55 disabled:opacity-55"
-              disabled={disabled}
-              onClick={() => onCopyPlayerRecoveryLink(player)}
-              type="button"
-            >
-            复制恢复
-          </button>
-        </div>
-      ))}
-      </div>
-    </details>
-  );
-}
-
 function LobbyView({
   isHost,
-  onCopyPlayerRecoveryLink,
   onRemovePlayer,
   onSeatChange,
   pending,
@@ -1396,7 +1323,6 @@ function LobbyView({
   seatIds,
 }: {
   isHost: boolean;
-  onCopyPlayerRecoveryLink: (player: RoomPlayerView) => void;
   onRemovePlayer: (playerId: string) => void;
   onSeatChange: (seatId: number | null) => void;
   pending: PendingKind;
@@ -1406,10 +1332,10 @@ function LobbyView({
   const occupiedBySelf = roomView.playerSeatId;
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-xl font-black text-[#fff1c2]">选座大厅</h2>
+    <div className="grid min-h-0 flex-1 gap-3 overflow-hidden lg:grid-cols-[minmax(0,1fr)_240px]">
+      <div className="min-h-0 overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-3">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-black text-[#fff1c2]">选座大厅</h2>
           {occupiedBySelf ? (
             <button
               className="rounded-full border border-red-300/25 bg-red-950/35 px-3 py-1.5 text-xs font-bold text-red-100 transition hover:border-red-200/45 disabled:opacity-55"
@@ -1421,7 +1347,7 @@ function LobbyView({
             </button>
           ) : null}
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-6">
           {seatIds.map((seatId) => {
             const seat = roomView.room.seats.find((item) => item.seatId === seatId);
             const isSelf = seat?.playerId === roomView.playerId;
@@ -1429,7 +1355,7 @@ function LobbyView({
             return (
               <button
                 className={[
-                  "min-h-[116px] rounded-2xl border p-3 text-left transition",
+                  "min-h-[70px] rounded-xl border p-2 text-left transition",
                   isSelf
                     ? "border-[#f0cf79]/75 bg-[#2b1a0d]/85 shadow-lg shadow-[#f0cf79]/10"
                     : isOpen
@@ -1442,42 +1368,32 @@ function LobbyView({
                 type="button"
               >
                 <div className="flex items-center justify-between">
-                  <span className="rounded-full bg-black/35 px-2.5 py-1 text-xs font-black text-[#f0cf79]">{seatId}号</span>
-                  <span className="text-xs text-[#bba98a]">{seatStatusLabel(seat)}</span>
+                  <span className="rounded-full bg-black/35 px-2 py-0.5 text-xs font-black text-[#f0cf79]">{seatId}号</span>
+                  <span className="text-[11px] text-[#bba98a]">{seatStatusLabel(seat)}</span>
                 </div>
-                <div className="mt-5 text-lg font-black text-[#fff7df]">{seatName(seat)}</div>
+                <div className="mt-2 text-base font-black text-[#fff7df]">{seatName(seat)}</div>
                 {seat?.playerId ? (
-                  <div className="mt-2">
+                  <div className="mt-1">
                     <PlayerPresencePill player={roomView.room.players.find((player) => player.playerId === seat.playerId)} />
                   </div>
                 ) : null}
-                {isSelf ? <div className="mt-2 text-xs font-bold text-emerald-200">当前玩家</div> : null}
+                {isSelf ? <div className="mt-1 text-xs font-bold text-emerald-200">当前玩家</div> : null}
               </button>
             );
           })}
         </div>
       </div>
 
-      <aside className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <aside className="min-h-0 overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-3">
         <h2 className="text-lg font-black text-[#fff1c2]">玩家</h2>
-        <div className="mt-3 space-y-2">
+        <div className="mt-2 max-h-full space-y-2 overflow-auto pr-1">
           {roomView.room.players.map((player) => (
-            <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2" key={player.playerId}>
+            <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-1.5" key={player.playerId}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-bold text-[#fff7df]">{player.name}</span>
                 <div className="flex items-center gap-2">
                   {player.isHost ? (
                     <span className="rounded-full bg-[#f0cf79] px-2 py-0.5 text-[11px] font-black text-[#1c1208]">房主</span>
-                  ) : null}
-                  {isHost ? (
-                    <button
-                      className="rounded-full border border-sky-300/25 bg-sky-950/35 px-2 py-0.5 text-[11px] font-black text-sky-100 transition hover:border-sky-200/55 disabled:opacity-55"
-                      disabled={pending !== null}
-                      onClick={() => onCopyPlayerRecoveryLink(player)}
-                      type="button"
-                    >
-                      复制恢复
-                    </button>
                   ) : null}
                   {isHost && player.playerId !== roomView.playerId ? (
                     <button
@@ -1492,7 +1408,7 @@ function LobbyView({
                 </div>
               </div>
               <div className="mt-1 text-xs text-[#bba98a]">{player.seatId ? `${player.seatId}号位` : "未入座"}</div>
-              <div className="mt-2">
+              <div className="mt-1">
                 <PlayerPresencePill player={player} />
               </div>
             </div>
@@ -1964,7 +1880,7 @@ function isInvalidRoomSessionMessage(message: string): boolean {
 function buildInvalidRoomSessionTitle(message: string): string {
   if (message.includes("房间不存在")) return "房间不存在或已关闭";
   if (message.includes("缺少玩家凭据")) return "缺少玩家凭据";
-  if (message.includes("玩家凭据")) return "恢复链接已失效";
+  if (message.includes("玩家凭据")) return "房间身份已失效";
   return "你已不在这个房间";
 }
 
@@ -1973,10 +1889,10 @@ function buildInvalidRoomSessionDetail(message: string): string {
     return "这个房间已经不存在，可能是开发服务重启、房间被清理，或房间码输入错误。";
   }
   if (message.includes("缺少玩家凭据")) {
-    return "当前链接缺少玩家身份，不能直接恢复视角。请使用邀请链接重新加入，或使用自己的恢复链接。";
+    return "当前链接缺少玩家身份，不能直接恢复视角。请使用邀请链接重新加入。";
   }
   if (message.includes("玩家凭据")) {
-    return "当前恢复链接里的玩家凭据已经失效。请让房主重新发送恢复链接，或使用邀请链接重新加入。";
+    return "当前玩家身份已经失效。请使用邀请链接重新加入。";
   }
   return "你的房间身份已失效，可能是被房主移出、自己在其他设备离开，或本地房间状态被重置。";
 }

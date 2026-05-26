@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildMimoChatCompletionsUrl, generateMimoTtsAudio } from "./mimoTts";
+import { buildMimoChatCompletionsUrl, generateMimoTtsAudio, sanitizeMimoApiKey } from "./mimoTts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -8,6 +8,11 @@ afterEach(() => {
 });
 
 describe("Mimo TTS runtime config", () => {
+  it("extracts a pasted token-plan key without trailing prose or punctuation", () => {
+    expect(sanitizeMimoApiKey("tp-example_key-123，这是mimo的TTS")).toBe("tp-example_key-123");
+    expect(sanitizeMimoApiKey("  Bearer tp-example_key-123,  ")).toBe("tp-example_key-123");
+  });
+
   it("accepts either a base URL or a full chat completions endpoint", () => {
     expect(buildMimoChatCompletionsUrl("https://tts.example.com")).toBe("https://tts.example.com/v1/chat/completions");
     expect(buildMimoChatCompletionsUrl("https://tts.example.com/v1")).toBe("https://tts.example.com/v1/chat/completions");

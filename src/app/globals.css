@@ -49,25 +49,41 @@ button:disabled {
   display: none;
 }
 
+.mobile-ai-pool-layout,
+.mobile-ai-pool-side,
+.mobile-ai-pool-side > div,
+.mobile-ai-quick-add-entry,
+.mobile-ai-queue-card,
+.mobile-ai-custom-note {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.mobile-ai-pool-side {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 @media (max-width: 639px) {
   .mobile-ai-pool-page {
-    overflow-x: hidden;
+    height: 100svh;
+    overflow: hidden;
     background-attachment: scroll;
   }
 
   .mobile-ai-pool-shell {
-    gap: 10px;
-    min-height: 100svh;
+    gap: 6px;
+    height: 100svh;
+    min-height: 0;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    overflow: hidden;
     padding: 8px;
   }
 
   .mobile-ai-pool-header {
-    position: sticky;
-    top: 0;
     z-index: 20;
     align-items: center;
     border-radius: 18px;
-    padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 10px;
+    padding: calc(env(safe-area-inset-top, 0px) + 7px) 12px 8px;
   }
 
   .mobile-ai-pool-header > div {
@@ -79,7 +95,7 @@ button:disabled {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 22px;
+    font-size: 20px;
     line-height: 1.15;
   }
 
@@ -88,26 +104,52 @@ button:disabled {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .mobile-ai-pool-header a {
     flex: 0 0 auto;
-    padding: 8px 11px;
+    padding: 7px 10px;
     font-size: 12px;
   }
 
+  .mobile-ai-mode-card {
+    border-radius: 18px;
+    padding: 10px;
+  }
+
+  .mobile-ai-mode-card > div:first-child {
+    margin-bottom: 8px;
+  }
+
+  .mobile-ai-mode-card p,
+  .mobile-ai-mode-card button span:last-child {
+    display: none;
+  }
+
+  .mobile-ai-mode-card button {
+    border-radius: 14px;
+    padding: 8px 10px;
+  }
+
   .mobile-ai-pool-layout {
-    gap: 10px;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 6px;
+    overflow: hidden;
   }
 
   .mobile-ai-pool-list {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
     border-radius: 22px;
-    padding: 12px;
+    overflow: hidden;
+    padding: 10px;
   }
 
   .mobile-ai-pool-list-head {
-    margin-bottom: 10px;
+    margin-bottom: 7px;
     gap: 8px;
   }
 
@@ -125,7 +167,11 @@ button:disabled {
   }
 
   .mobile-ai-pool-grid {
-    gap: 8px;
+    align-items: flex-start;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: 0;
+    gap: 6px;
+    overflow: hidden;
   }
 
   .mobile-ai-pool-card {
@@ -145,11 +191,12 @@ button:disabled {
   }
 
   .mobile-ai-profile-summary {
-    min-height: 72px;
+    min-height: 78px;
     border-radius: 16px;
     background:
       linear-gradient(135deg, rgba(255, 255, 255, 0.045), transparent 48%),
       rgba(8, 18, 13, 0.22);
+    padding: 8px;
   }
 
   .mobile-ai-profile-card[open] .mobile-ai-profile-summary {
@@ -160,7 +207,31 @@ button:disabled {
   }
 
   .mobile-ai-profile-panel {
-    background: rgba(4, 10, 8, 0.16);
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    overflow-y: auto;
+    border: 0;
+    background: rgba(4, 10, 8, 0.96);
+    padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px calc(env(safe-area-inset-bottom, 0px) + 14px);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobile-ai-profile-card:not([open]) > .mobile-ai-profile-panel {
+    display: none;
+  }
+
+  .mobile-ai-config-overlay-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: -4px -2px 10px;
+    border-radius: 18px;
+    background:
+      linear-gradient(180deg, rgba(15, 33, 24, 0.96), rgba(7, 15, 11, 0.92)),
+      rgba(4, 10, 8, 0.96);
+    padding: 10px;
+    backdrop-filter: blur(12px);
   }
 
   .mobile-ai-panel-status {
@@ -169,23 +240,30 @@ button:disabled {
 
   .mobile-ai-card-main {
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr) auto;
-    gap: 8px;
-    align-items: center;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 5px 7px;
+    align-items: start;
   }
 
   .mobile-ai-select {
+    grid-column: 1;
+    grid-row: 1;
     margin-top: 0;
-    width: 18px;
-    height: 18px;
+    width: 17px;
+    height: 17px;
   }
 
   .mobile-ai-card-main > .relative {
-    width: 38px;
-    height: 48px;
+    grid-column: 1;
+    grid-row: 2;
+    width: 36px;
+    height: 44px;
   }
 
   .mobile-ai-card-info {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
     min-width: 0;
   }
 
@@ -198,13 +276,14 @@ button:disabled {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 16px;
+    font-size: 14px;
     line-height: 1.15;
   }
 
   .mobile-ai-card-template,
   .mobile-ai-card-model,
   .mobile-ai-card-voice {
+    display: none;
     max-width: 100%;
     padding: 2px 7px;
     font-size: 10px;
@@ -225,7 +304,7 @@ button:disabled {
   }
 
   .mobile-ai-summary-meta {
-    margin-top: 5px;
+    display: none;
   }
 
   .mobile-ai-summary-meta .mobile-ai-card-template {
@@ -237,9 +316,7 @@ button:disabled {
   }
 
   .mobile-ai-config-entry {
-    padding: 6px 9px;
-    font-size: 11px;
-    line-height: 1;
+    display: none;
   }
 
   .mobile-ai-avatar-actions {
@@ -294,18 +371,75 @@ button:disabled {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    border-radius: 14px;
+    margin: -2px;
+    padding: 7px 8px;
+    transition:
+      background 160ms ease,
+      border-color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .mobile-ai-config-section > summary:hover,
+  .mobile-ai-config-section[open] > summary {
+    background: rgba(255, 255, 255, 0.055);
+  }
+
+  .mobile-ai-config-section > summary:active {
+    transform: scale(0.992);
   }
 
   .mobile-ai-config-section > summary::-webkit-details-marker {
     display: none;
   }
 
-  .mobile-ai-config-section > summary span:last-child {
+  .mobile-ai-config-title {
+    flex: 0 0 auto;
+    font-size: 13px;
+  }
+
+  .mobile-ai-config-control {
+    display: inline-flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .mobile-ai-config-status {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     text-align: right;
+  }
+
+  .mobile-ai-config-action {
+    flex: 0 0 auto;
+    border-width: 1px;
+    border-radius: 999px;
+    padding: 3px 7px;
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  .mobile-ai-config-chevron {
+    display: grid;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: currentColor;
+    font-size: 14px;
+    line-height: 1;
+    transition: transform 160ms ease;
+  }
+
+  .mobile-ai-config-section[open] .mobile-ai-config-chevron {
+    transform: rotate(180deg);
   }
 
   .mobile-ai-config-stack > .grid,
@@ -321,7 +455,33 @@ button:disabled {
   }
 
   .mobile-ai-pool-side {
-    gap: 10px;
+    order: -1;
+    gap: 6px;
+  }
+
+  .mobile-ai-pool-side > div {
+    gap: 6px;
+  }
+
+  .mobile-ai-quick-add-entry {
+    border-radius: 18px;
+    padding: 10px;
+  }
+
+  .mobile-ai-quick-add-entry p,
+  .mobile-ai-tuning-reference,
+  .mobile-ai-queue-card,
+  .mobile-ai-custom-note {
+    display: none;
+  }
+
+  .mobile-ai-add-overlay {
+    overflow-y: auto;
+  }
+
+  .mobile-ai-add-card {
+    max-height: calc(100svh - 32px);
+    overflow-y: auto;
   }
 }
 

@@ -108,6 +108,14 @@ export async function generateMimoTtsAudio({
   return Buffer.from(audio.value, "base64");
 }
 
+export function sanitizeMimoApiKey(value: string | undefined): string | undefined {
+  const clean = value?.trim();
+  if (!clean) return undefined;
+  const embeddedKey = clean.match(/(?:tp|sk)-[A-Za-z0-9_-]+/);
+  if (embeddedKey?.[0]) return embeddedKey[0];
+  return clean.replace(/[，,。.;；:\s]+$/g, "") || undefined;
+}
+
 function buildTtsMessages(text: string, instructions: string | undefined): Array<{ role: "user" | "assistant"; content: string }> {
   if (!instructions) {
     return [

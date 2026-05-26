@@ -35,6 +35,38 @@ describe("ai friends", () => {
     expect(copy.createdAt).toBe("2026-05-15T00:00:00.000Z");
   });
 
+  it("applies a persona template as one complete tuning preset", async () => {
+    const { applyAiFriendPersonaTemplate } = await import("./aiFriends");
+    const source = getDefaultAiFriends("test")[0];
+    const custom = {
+      ...copyAiFriend(source, { id: "friend-template", now: "2026-05-15T00:00:00.000Z" }),
+      riskTolerance: 1,
+      bluffing: 1,
+      preferences: {
+        logic: 0,
+        identity: 0,
+        vote: 0,
+        emotion: 0,
+        memory: 0,
+        leadership: 0,
+        deception: 0,
+        caution: 0,
+      },
+    };
+
+    const result = applyAiFriendPersonaTemplate(custom, "doubao-pressure-bluffer");
+    const doubao = getDefaultAiFriends("test").find((friend) => friend.basePersonaId === "doubao-pressure-bluffer")!;
+
+    expect(result).toMatchObject({
+      id: "friend-template",
+      nickname: "DeepSeek副本",
+      basePersonaId: "doubao-pressure-bluffer",
+      riskTolerance: doubao.riskTolerance,
+      bluffing: doubao.bluffing,
+      preferences: doubao.preferences,
+    });
+  });
+
   it("round-trips custom friends through import and export JSON", () => {
     const custom = copyAiFriend(getDefaultAiFriends("test")[2], { id: "friend-gpt", now: "2026-05-15T00:00:00.000Z" });
     const exported = serializeAiFriendExport([custom]);

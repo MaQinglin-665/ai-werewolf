@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>安装 DeepSeek + Mimo 语音 AI</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b1020;
+        --panel: #11192c;
+        --panel-2: #16243b;
+        --line: #314259;
+        --text: #f5f7fb;
+        --muted: #a7b4c8;
+        --accent: #4dd6b8;
+        --accent-2: #7cb7ff;
+        --danger: #ff9a9a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter,
+          "Microsoft YaHei",
+          "PingFang SC",
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+
+      main {
+        width: min(920px, 100%);
+        margin: 0 auto;
+        padding: 22px 14px 36px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(24px, 7vw, 42px);
+        line-height: 1.06;
+        letter-spacing: 0;
+      }
+
+      p {
+        margin: 0;
+      }
+
+      .lead {
+        max-width: 760px;
+        color: var(--muted);
+        line-height: 1.65;
+        font-size: 15px;
+      }
+
+      .panel {
+        margin-top: 18px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 8px;
+        padding: 14px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .friend {
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+        border-radius: 8px;
+        padding: 12px;
+      }
+
+      .friend h2 {
+        margin: 0 0 6px;
+        font-size: 16px;
+        letter-spacing: 0;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .tag {
+        border: 1px solid rgba(124, 183, 255, 0.32);
+        border-radius: 999px;
+        padding: 3px 8px;
+      }
+
+      label {
+        display: block;
+        margin: 12px 0 6px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #080d18;
+        color: var(--text);
+        font: inherit;
+        padding: 11px 12px;
+        outline: none;
+      }
+
+      input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(77, 214, 184, 0.14);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .checks {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .check {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .check input {
+        width: 18px;
+        min-width: 18px;
+        height: 18px;
+        margin: 1px 0 0;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      button,
+      a.button {
+        border: 0;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #062018;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 700;
+        padding: 11px 14px;
+        min-height: 44px;
+        text-decoration: none;
+      }
+
+      button.secondary,
+      a.button.secondary {
+        background: #24334b;
+        color: var(--text);
+        border: 1px solid var(--line);
+      }
+
+      .status {
+        min-height: 24px;
+        margin-top: 12px;
+        color: var(--muted);
+        line-height: 1.55;
+        white-space: pre-wrap;
+      }
+
+      .status.ok {
+        color: var(--accent);
+      }
+
+      .status.err {
+        color: var(--danger);
+      }
+
+      .hint {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      @media (max-width: 680px) {
+        main {
+          padding: 18px 12px 28px;
+        }
+
+        .grid,
+        .row {
+          grid-template-columns: 1fr;
+        }
+
+        button,
+        a.button {
+          width: 100%;
+          text-align: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>DeepSeek + Mimo 语音 AI</h1>
+      <p class="lead">
+        一键把 8 个 DeepSeek 决策 AI 写入当前浏览器的 AI 池，并给它们绑定 Mimo TTS。API Key 只保存到当前浏览器
+        localStorage，不会写入项目文件。
+      </p>
+
+      <section class="panel">
+        <div class="row">
+          <div>
+            <label for="tts-key">Mimo TTS API Key</label>
+            <input id="tts-key" type="password" autocomplete="off" placeholder="粘贴 Mimo TTS token" />
+          </div>
+          <div>
+            <label for="llm-key">DeepSeek API Key</label>
+            <input id="llm-key" type="password" autocomplete="off" placeholder="开启真实 DeepSeek 时必填" />
+          </div>
+        </div>
+
+        <div class="checks">
+          <label class="check">
+            <input id="enable-llm" type="checkbox" checked />
+            <span>安装后切到真实 DeepSeek 模式。开启真实 DeepSeek 模式需要填写 DeepSeek API Key。</span>
+          </label>
+          <label class="check">
+            <input id="keep-custom" type="checkbox" checked />
+            <span>保留现有自定义 AI，只替换同名的这 8 个 DeepSeek 语音 AI。</span>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="install" type="button">安装到当前浏览器</button>
+          <a class="button secondary" href="/ai-pool">打开 AI 池</a>
+          <a class="button secondary" href="/">回到游戏</a>
+        </div>
+        <div id="status" class="status">正在读取语音包...</div>
+        <p class="hint">
+          手机也需要在手机浏览器打开这个页面并安装一次，因为手机和电脑的 localStorage 是分开的。Mimo voice id 可以在下方按账号实际音色修改；如果某个 voice
+          id 不可用，游戏端会继续尝试默认 Mimo 音色。
+        </p>
+      </section>
+
+      <section class="panel">
+        <div id="friends" class="grid" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script>
+      const PACK_URL = "./deepseek-mimo-voice-pack.json";
+      const KEYS = {
+        friends: "ai-werewolf-ai-friends-v1",
+        selection: "ai-werewolf-selected-ai-friends-v1",
+        secrets: "ai-werewolf-ai-friend-llm-secrets-v1",
+        mode: "ai-werewolf-ai-runtime-mode-v1",
+        aiSpeechAudio: "ai-werewolf-ai-speech-audio-enabled",
+      };
+
+      const statusEl = document.querySelector("#status");
+      const friendsEl = document.querySelector("#friends");
+      const installButton = document.querySelector("#install");
+      let packFriends = [];
+
+      function setStatus(message, type) {
+        statusEl.textContent = message;
+        statusEl.className = `status ${type || ""}`.trim();
+      }
+
+      function readJsonStorage(key, fallback) {
+        try {
+          const raw = window.localStorage.getItem(key);
+          return raw ? JSON.parse(raw) : fallback;
+        } catch {
+          return fallback;
+        }
+      }
+
+      function readStoredFriends() {
+        const parsed = readJsonStorage(KEYS.friends, { version: 1, friends: [] });
+        return parsed && parsed.version === 1 && Array.isArray(parsed.friends) ? parsed.friends : [];
+      }
+
+      function readStoredSecrets() {
+        const parsed = readJsonStorage(KEYS.secrets, {});
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+      }
+
+      function sanitizeVoice(value, fallback) {
+        const clean = String(value || "")
+          .trim()
+          .replace(/\s+/g, "_")
+          .slice(0, 80);
+        return clean || fallback;
+      }
+
+      function renderFriends() {
+        friendsEl.textContent = "";
+        const fragment = document.createDocumentFragment();
+        for (const friend of packFriends) {
+          const card = document.createElement("article");
+          card.className = "friend";
+          const model = friend.llmConfig && friend.llmConfig.model ? friend.llmConfig.model : "deepseek-chat";
+          const voice = friend.ttsConfig && friend.ttsConfig.voice ? friend.ttsConfig.voice : friend.ttsVoice || "mimo_default";
+          card.innerHTML = `
+            <h2>${friend.nickname}</h2>
+            <div class="meta">
+              <span class="tag">${model}</span>
+              <span class="tag">${friend.basePersonaId}</span>
+            </div>
+            <label for="voice-${friend.id}">Mimo voice id</label>
+            <input id="voice-${friend.id}" data-friend-id="${friend.id}" value="${voice}" autocomplete="off" />
+          `;
+          fragment.appendChild(card);
+        }
+        friendsEl.appendChild(fragment);
+      }
+
+      function resolveMimoBaseUrl(ttsKey, fallbackBaseUrl) {
+        if (!ttsKey) return fallbackBaseUrl || "https://api.xiaomimimo.com";
+        return ttsKey.startsWith("tp-") ? "https://token-plan-cn.xiaomimimo.com" : "https://api.xiaomimimo.com";
+      }
+
+      function buildFriendsForInstall(ttsKey) {
+        const voiceInputs = new Map(
+          Array.from(document.querySelectorAll("[data-friend-id]")).map((input) => [input.dataset.friendId, input.value]),
+        );
+        const now = new Date().toISOString();
+        return packFriends.map((friend) => {
+          const fallbackVoice = friend.ttsConfig && friend.ttsConfig.voice ? friend.ttsConfig.voice : friend.ttsVoice || "mimo_default";
+          const fallbackBaseUrl =
+            friend.ttsConfig && friend.ttsConfig.baseUrl ? friend.ttsConfig.baseUrl : "https://api.xiaomimimo.com";
+          const voice = sanitizeVoice(voiceInputs.get(friend.id), fallbackVoice);
+          return {
+            ...friend,
+            ttsVoice: voice,
+            ttsConfig: {
+              ...friend.ttsConfig,
+              baseUrl: resolveMimoBaseUrl(ttsKey, fallbackBaseUrl),
+              voice,
+            },
+            updatedAt: now,
+          };
+        });
+      }
+
+      function installPack() {
+        if (!packFriends.length) {
+          setStatus("语音包还没有加载完成。", "err");
+          return;
+        }
+
+        const ttsKey = document.querySelector("#tts-key").value.trim();
+        const llmKey = document.querySelector("#llm-key").value.trim();
+        const enableLlm = document.querySelector("#enable-llm").checked;
+        const keepCustom = document.querySelector("#keep-custom").checked;
+        if (enableLlm && !llmKey) {
+          setStatus("开启真实 DeepSeek 模式需要填写 DeepSeek API Key。只想先装 Mimo 声音的话，可以取消勾选真实 DeepSeek 模式后再安装。", "err");
+          return;
+        }
+
+        const friends = buildFriendsForInstall(ttsKey);
+        const packIds = new Set(friends.map((friend) => friend.id));
+        const existingFriends = keepCustom ? readStoredFriends().filter((friend) => friend && !packIds.has(friend.id)) : [];
+        const mergedFriends = [...existingFriends, ...friends];
+
+        window.localStorage.setItem(KEYS.friends, JSON.stringify({ version: 1, friends: mergedFriends }, null, 2));
+        window.localStorage.setItem(KEYS.selection, JSON.stringify(friends.map((friend) => friend.id)));
+
+        if (ttsKey || llmKey) {
+          const secrets = readStoredSecrets();
+          for (const friend of friends) {
+            secrets[friend.id] = {
+              ...(secrets[friend.id] || {}),
+              ...(llmKey ? { apiKey: llmKey } : {}),
+              ...(ttsKey ? { ttsApiKey: ttsKey } : {}),
+            };
+          }
+          window.localStorage.setItem(KEYS.secrets, JSON.stringify(secrets));
+        }
+
+        if (enableLlm && llmKey) {
+          window.localStorage.setItem(KEYS.mode, "llm");
+        } else if (!enableLlm) {
+          window.localStorage.setItem(KEYS.mode, "mock");
+        }
+        if (ttsKey) {
+          window.localStorage.setItem(KEYS.aiSpeechAudio, "true");
+        }
+
+        const keyLine = ttsKey
+          ? ttsKey.startsWith("tp-")
+            ? "已写入 Mimo TTS key，已开启 AI 播报，并切到 token-plan-cn TTS 地址。"
+            : "已写入 Mimo TTS key，并已开启 AI 播报。"
+          : "未写入 Mimo TTS key，之后可在 AI 池补。";
+        const llmLine = llmKey ? "已写入 DeepSeek key，并开启真实 DeepSeek 模式。" : "未开启真实 DeepSeek 模式，游戏会继续使用本地模拟决策。";
+        setStatus(`已安装 ${friends.length} 个 DeepSeek 语音 AI。\n${keyLine}\n${llmLine}`, "ok");
+      }
+
+      async function loadPack() {
+        try {
+          const response = await fetch(PACK_URL, { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const pack = await response.json();
+          if (!pack || pack.version !== 1 || !Array.isArray(pack.friends) || pack.friends.length !== 8) {
+            throw new Error("语音包结构不正确");
+          }
+          packFriends = pack.friends;
+          renderFriends();
+          setStatus("语音包已加载，可以安装。", "ok");
+        } catch (error) {
+          setStatus(`读取语音包失败：${error instanceof Error ? error.message : String(error)}`, "err");
+        }
+      }
+
+      installButton.addEventListener("click", installPack);
+      loadPack();
+    </script>
+  </body>
+</html>
