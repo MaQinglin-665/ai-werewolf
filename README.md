@@ -2,6 +2,8 @@
 
 一个 AI 狼人杀 Alpha 试玩项目。你可以在本地和一桌 AI 玩家完成一局狼人杀，也可以通过公网 Alpha 房间邀请朋友一起小范围试玩。
 
+AI agent 参与本仓库开发时，请先阅读 [AGENTS.md](AGENTS.md)，再根据任务范围进入 `docs/README.md`、`docs/threads/` 和 `docs/tasks/`。
+
 当前项目有两条试玩路径：
 
 - 本地 Release ZIP：适合第一次体验、演示 AI 发言和测试不同板子。

@@ -2,10 +2,16 @@
 
 这个目录用于让主线程、子线程和未来的新对话共享同一套项目上下文。
 
+如果你是 AI agent，请先从根目录 `AGENTS.md` 开始。`AGENTS.md` 是工作入口；本文件是文档地图，帮助你选择下一步该读哪个项目文档。
+
 建议每次开启新线程前，先让它读取这里的文件，而不是重新解释整个项目。
 
 ## 文件导览
 
+- `../AGENTS.md`：AI agent 工作入口，说明启动顺序、任务边界、验证命令和交接格式。
+- `harness-state.md`：当前 harness 结构、最近更新、接力事项和已知环境噪音。
+- `harness-retrospective.md`：任务后复盘模板，用于把重复踩坑和可复用经验写回 harness。
+- `feature-registry.md`：中粒度功能索引，帮助 AI agent 快速定位源码、测试、脚本和相关文档。
 - `architecture.md`：当前架构、核心边界和长期拆分方向。
 - `roadmap.md`：近期优先级和阶段目标。
 - `/alpha-health`：部署后优先打开的只读健康面板，用来确认 Alpha/生产最小闭环状态和下一条 smoke 命令。
@@ -15,10 +21,11 @@
 - `alpha-feedback-ops.md`：阶段三反馈分级、试玩前检查、排障顺序和修复验收口径。
 - `promotion/social-playtest-kit.md`：朋友圈和社交平台试玩邀请素材包，包含可复制文案、截图脚本和反馈问题。
 - `current-release.md`：当前公网 Alpha 发布状态，记录本地/GitHub、Render、腾讯云版本和最近 smoke 结果。
+- `verification-matrix.md`：按任务类型选择最小有效验证命令，避免漏跑关键检查或无意义地跑全套。
 - `tencent-cloud-deploy.md`：腾讯云 Ubuntu 服务器部署流程。每次准备让公网用户看到新版本时，除了推 Render/GitHub，也必须同步推送到这台云服务器并跑 smoke。
 - `working-agreements.md`：多线程协作规则。
 - `threads/`：不同协作线程的责任范围。
-- `tasks/`：具体任务说明和任务模板。
+- `tasks/`：具体任务说明和任务模板；较大的 agent 任务优先使用 `tasks/HARNESS_TASK_TEMPLATE.md` 写清目标、范围、完成定义和验证。
 - `decisions/`：已经确认的架构决策。
 
 ## 推荐工作方式
