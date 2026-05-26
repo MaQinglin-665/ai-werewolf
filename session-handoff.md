@@ -2,9 +2,9 @@
 
 ## Current Objective
 
-- Goal: Extract the GameClient lifecycle request boundary under the harness.
-- Current status: `src/components/game/gameClientRequests.ts` now owns single-player load/create/normal command requests and pure stream-continue speech context. `GameClient.tsx` keeps React orchestration, audio refs, and UI status transitions.
-- Branch / commit: `main`; latest committed baseline before this task was `28fa2bd`.
+- Goal: Design the `/ai-pool` bulk LLM preset workflow under the harness.
+- Current status: The design is recorded in `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md`, with a matching task card at `docs/tasks/2026-05-ai-pool-bulk-llm-presets.md`. Implementation has not started.
+- Branch / commit: `main`; latest committed baseline before this design task was `28fa2bd`.
 
 ## Completed This Session
 
@@ -56,6 +56,10 @@
 - [x] Added `src/components/game/gameClientRequests.test.ts`.
 - [x] Updated `src/components/GameClient.tsx` to import lifecycle request helpers while keeping orchestration local.
 - [x] Updated `feature_list.json` and `progress.md` for the lifecycle request feature.
+- [x] Created `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md`.
+- [x] Created `docs/tasks/2026-05-ai-pool-bulk-llm-presets.md`.
+- [x] Recorded the planned feature in `feature_list.json`.
+- [x] Updated `progress.md` and this handoff for the design review state.
 
 ## Verification Evidence
 
@@ -110,6 +114,7 @@
 | Structure audit | `npm run audit:structure` | passed | Confirms structure audit still passes; `GameClient.tsx` is 987 lines in the audit output. |
 | Local main-game smoke | `npm run smoke:main-game -- --base-url=http://127.0.0.1:3010` | passed | Covered local 6p beginner seer creation, a werewolf night action, stream continue, and final `DAY_SPEECH`. |
 | Build | `npm run build` | passed | Production build passed with the existing Turbopack NFT warning for `next.config.ts` -> `src/server/roomService.ts`. |
+| AI pool preset design checks | `npm run harness:task-card -- docs/tasks/2026-05-ai-pool-bulk-llm-presets.md`; `npm run harness:check`; `node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"`; `git diff --check` | passed | `git diff --check` reported only CRLF replacement warnings for existing Windows line-ending behavior. |
 
 ## Files Changed
 
@@ -155,6 +160,8 @@
 - `docs/superpowers/plans/2026-05-26-gameclient-lifecycle-requests.md`
 - `src/components/game/gameClientRequests.ts`
 - `src/components/game/gameClientRequests.test.ts`
+- `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md`
+- `docs/tasks/2026-05-ai-pool-bulk-llm-presets.md`
 
 ## Decisions Made
 
@@ -170,6 +177,7 @@
 - Board toggle and human-seat transition rules are now treated as landing UI state modeling, while `GameClient.tsx` keeps only state setter wiring for them.
 - Stop micro-extracting tiny helpers for now. The next useful code-facing boundary is a medium-risk `gameClientRequests` extraction that separates request construction/response parsing from UI orchestration.
 - Game lifecycle request construction, response parsing, and stream-continue speech context are now treated as a frontend request boundary. `GameClient.tsx` should keep state transitions, refs, and UI orchestration local.
+- AI pool real-model setup should move toward local LLM presets plus bulk apply to currently selected AI friends. First implementation slice should cover LLM only, while reserving the same framework for TTS later.
 
 ## Blockers / Risks
 
@@ -188,6 +196,7 @@
 - Browser/manual flow was skipped for lifecycle requests because the visible UI contract did not change; local `smoke:main-game` covered creation, command submission, stream continue, and `DAY_SPEECH`.
 - The first smoke attempt against `http://127.0.0.1:3000` timed out because an old dev server process was unhealthy. PID `47860` was stopped and a clean dev server on `http://127.0.0.1:3010` passed the smoke.
 - Production/release checks were skipped because no deployment, public URL, or runtime configuration changed.
+- AI pool bulk LLM presets are currently design-only. Implementation still needs focused tests, browser/manual `/ai-pool` checks, and API key redaction coverage if a server-side connection-test route is added.
 
 ## Next Session Startup
 
@@ -202,8 +211,9 @@
 9. Read `docs/tasks/2026-05-gameclient-board-selection-model.md` if continuing landing board-selection model extraction.
 10. Read `docs/superpowers/specs/2026-05-26-frontend-structure-review.md` before starting the next larger frontend boundary.
 11. Read `docs/tasks/2026-05-gameclient-lifecycle-requests.md` if touching single-player lifecycle requests again.
-12. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
+12. Read `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md` and `docs/tasks/2026-05-ai-pool-bulk-llm-presets.md` before implementing AI pool preset work.
+13. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
 
 ## Recommended Next Step
 
-- Next recommended code-facing step: pause further `GameClient.tsx` request extraction and choose the next boundary deliberately. Room UI alignment should be task-carded separately before touching `src/components/RoomClient.tsx`.
+- Next recommended code-facing step: after user approval of the AI pool preset design, write `docs/superpowers/plans/2026-05-27-ai-pool-bulk-llm-presets.md` before touching `src/components/AiPoolClient.tsx` or adding a connection-test route.

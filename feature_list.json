@@ -170,6 +170,16 @@
       ],
       "status": "done",
       "evidence": "src/components/game/gameClientRequests.ts; src/components/game/gameClientRequests.test.ts; docs/tasks/2026-05-gameclient-lifecycle-requests.md; npm run test -- src/components/game/gameClientRequests.test.ts; npm run lint; npx tsc --noEmit; npm run smoke:main-game -- --base-url=http://127.0.0.1:3010; npm run build"
+    },
+    {
+      "id": "ai-pool-bulk-llm-presets",
+      "name": "AI Pool Bulk LLM Presets",
+      "description": "Design a reusable local LLM preset workflow for /ai-pool with bulk apply to the currently selected AI friends and a future TTS-compatible preset framework.",
+      "dependencies": [
+        "frontend-structure-review"
+      ],
+      "status": "not-started",
+      "evidence": "docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md; docs/tasks/2026-05-ai-pool-bulk-llm-presets.md"
     }
   ]
 }

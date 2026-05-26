@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-26 22:38 Asia/Shanghai
-**Session ID:** gameclient lifecycle requests
-**Active Feature:** gameclient-lifecycle-requests - GameClient Lifecycle Requests
+**Last Updated:** 2026-05-27 00:00 Asia/Shanghai
+**Session ID:** ai-pool bulk llm presets design
+**Active Feature:** ai-pool-bulk-llm-presets - AI Pool Bulk LLM Presets
 
 ## Status
 
@@ -49,15 +49,15 @@
 
 ### What's In Progress
 
-- [ ] No active implementation task after the GameClient lifecycle request extraction.
-  - Details: Request construction, response parsing, and stream-continue speech context are extracted; focused tests, lint, typecheck, build, harness checks, structure audit, and local main-game smoke passed.
-  - Blockers: none.
+- [ ] AI Pool Bulk LLM Presets is in design review.
+  - Details: The intended first slice is a local LLM preset manager and bulk-apply panel near the `/ai-pool` AI mode card. It targets currently selected AI friends, supports multiple presets, two apply modes, manual connection tests, and leaves TTS as a planned extension of the same framework.
+  - Blockers: waiting for user review of `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md`.
 
 ### What's Next
 
-1. Review and optionally continue with the next frontend boundary from `docs/superpowers/specs/2026-05-26-frontend-structure-review.md`.
-2. Plan room UI alignment separately before touching `RoomClient.tsx`.
-3. Keep future `GameClient.tsx` work focused on orchestration, not request or data-shaping logic.
+1. Review `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md`.
+2. If approved, write an implementation plan under `docs/superpowers/plans/` before touching code.
+3. Keep the first implementation slice focused on LLM presets and bulk apply; TTS remains a documented future extension.
 
 ## Blockers / Risks
 
@@ -127,6 +127,8 @@
 - `docs/superpowers/plans/2026-05-26-gameclient-lifecycle-requests.md` - implementation plan for the lifecycle request helper extraction.
 - `src/components/game/gameClientRequests.ts` - extracted lifecycle request helpers and stream-continue speech context.
 - `src/components/game/gameClientRequests.test.ts` - focused request-helper coverage.
+- `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md` - design for local LLM presets, connection tests, and bulk apply in `/ai-pool`.
+- `docs/tasks/2026-05-ai-pool-bulk-llm-presets.md` - task card for the design and later implementation.
 
 ## Evidence of Completion
 
@@ -178,6 +180,7 @@
 - [x] Structure audit: `npm run audit:structure`
 - [x] Local main-game smoke: `npm run smoke:main-game -- --base-url=http://127.0.0.1:3010`
 - [x] Build: `npm run build`
+- [x] AI pool bulk LLM preset design checks: `npm run harness:task-card -- docs/tasks/2026-05-ai-pool-bulk-llm-presets.md`; `npm run harness:check`; `node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"`; `git diff --check` passed with only CRLF warnings.
 
 ## Notes for Next Session
 
