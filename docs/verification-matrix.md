@@ -22,6 +22,7 @@ depend on what changed.
 | --- | --- | --- | --- |
 | Docs-only | Read back changed docs; inspect `git diff` | Check links or commands manually if changed | State why code tests were skipped |
 | Root harness / task templates | Read back `AGENTS.md`, task cards, and linked docs; inspect `git diff`; run `npm run harness:check` when package scripts or required harness files change | Dry-run a small task card mentally against the handoff format | Name the intended agent behavior change |
+| Structure / framework audit | `npm run audit:structure`; read `docs/architecture.md` and relevant thread docs | Focused tests only if production code moves; broader tests after refactors | Report largest files, intended boundary change, and whether code behavior changed |
 | Frontend/UI | `npm run lint`; run relevant test if one exists; manually exercise the visible flow when feasible | `npm run build`; browser smoke of the affected path | Include the page/flow checked, or why manual verification was skipped |
 | Single-player main game | `npm run smoke:main-game` against the target base URL when a server is running; focused API/component tests for changed route or client logic | Browser smoke of home -> table -> first action -> day speech; `npm run build` for release confidence | Include base URL, board, role/action covered, and final phase |
 | Rules engine | Add or update focused rule tests; `npm run test` | `npm run simulate:ai` for behavior interactions | Name the rule scenario and the test that protects it |

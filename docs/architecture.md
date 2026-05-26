@@ -100,6 +100,11 @@ HTTP API 层。
 
 ## 推荐拆分方向
 
+Use `npm run audit:structure` before planning broad refactors. The command
+reports the largest source files and directory-level size signals while
+excluding generated files and heavy image assets. Treat the output as triage,
+not as an automatic instruction to split the largest file first.
+
 ### 前端
 
 ```text

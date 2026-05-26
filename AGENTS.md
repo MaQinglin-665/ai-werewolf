@@ -6,21 +6,30 @@ agent-readable operating manual for this repository.
 Harness idea: do not rely on chat memory. Read the repository, pick a narrow
 scope, verify the change, and leave a clean handoff.
 
+## Startup Workflow
+
 ## Start Here
 
 Before changing files, read:
 
 1. `README.md` for the product overview and local setup.
 2. `docs/harness-orientation.md` for the startup checklist.
-3. `docs/README.md` for the project documentation map.
-4. `docs/harness-state.md` for current harness status and recent handoff notes.
-5. `docs/feature-registry.md` when you need to locate source files, tests, or scripts.
-6. `docs/working-agreements.md` for multi-thread collaboration rules.
-7. The relevant `docs/threads/*.md` file for the task area.
-8. The relevant `docs/tasks/*.md` task file if one exists.
+3. `feature_list.json` for active feature status, dependencies, and evidence.
+4. `progress.md` for current state, blockers, files touched, and next step.
+5. `session-handoff.md` if the previous session ended mid-task.
+6. `docs/README.md` for the project documentation map.
+7. `docs/harness-state.md` for current harness status and recent handoff notes.
+8. `docs/feature-registry.md` when you need to locate source files, tests, or scripts.
+9. `docs/working-agreements.md` for multi-thread collaboration rules.
+10. The relevant `docs/threads/*.md` file for the task area.
+11. The relevant `docs/tasks/*.md` task file if one exists.
 
 If no task file exists and the task is larger than a small fix, create or ask
 for a task card using `docs/tasks/HARNESS_TASK_TEMPLATE.md`.
+
+For a clean restart, run `powershell -NoProfile -ExecutionPolicy Bypass -File
+init.ps1` on Windows or `./init.sh` in a Bash-compatible shell. Keep the session
+restartable from repository files, not from chat history.
 
 ## Project Shape
 
@@ -41,7 +50,9 @@ Common ownership areas:
 
 ## Scope Rules
 
-- Work on one clear task at a time.
+- One feature at a time: work on one clear task at a time.
+- Stay in scope: use task cards, `feature_list.json`, and the relevant thread
+  docs to avoid unrelated edits.
 - Do not make drive-by refactors.
 - Do not edit `.env`, secrets, database files, generated audio caches, `.next`,
   `node_modules`, or `tmp` unless the user explicitly asks.
@@ -78,6 +89,8 @@ Useful targeted checks:
 Production checks should use the documented deployment flow in
 `docs/tencent-cloud-deploy.md` and `docs/current-release.md`.
 
+## Definition of Done
+
 ## Done Means
 
 A task is not done until:
@@ -87,6 +100,22 @@ A task is not done until:
 - Any skipped verification is named with the reason.
 - User-visible behavior, changed files, and remaining risks are summarized.
 - The working tree is not polluted by unrelated edits.
+
+When a task updates feature status, record the status and verification evidence
+in `feature_list.json`, `progress.md`, the relevant task card, or the final
+handoff.
+
+## End of Session
+
+Before ending substantial work:
+
+1. Run the verification selected from `docs/verification-matrix.md`.
+2. Record command output or manual evidence in the handoff.
+3. Update `progress.md` with Last Updated, files changed, blockers, and the
+   recommended next step.
+4. Update `session-handoff.md` if the next session needs an explicit restart
+   path.
+5. Leave the working tree clean or clearly explain uncommitted changes.
 
 ## Handoff Format
 

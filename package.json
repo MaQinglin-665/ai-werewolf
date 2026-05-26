@@ -13,6 +13,7 @@
     "llm:evaluate": "node scripts/evaluate-llm-game.mjs",
     "llm:evaluate:deepseek": "node scripts/evaluate-llm-game.mjs --models=deepseek-chat,deepseek-reasoner --base-url=https://api.deepseek.com --lineup-count=12 --json-mode=on",
     "audit:ai": "node scripts/audit-ai-experience.mjs",
+    "audit:structure": "node scripts/structure-audit.mjs",
     "simulate:ai": "node scripts/simulate-ai.mjs",
     "simulate:diagnose": "node scripts/diagnose-simulation-balance.mjs",
     "simulate:health": "node scripts/health-check-12p.mjs",

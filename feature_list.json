@@ -1,0 +1,52 @@
+{
+  "features": [
+    {
+      "id": "harness-core",
+      "name": "Core Agent Harness",
+      "description": "Repository instructions, documentation routing, task cards, state, verification matrix, and retrospective loop for AI coding agents.",
+      "dependencies": [],
+      "status": "done",
+      "evidence": "AGENTS.md, docs/harness-orientation.md, docs/harness-state.md, docs/verification-matrix.md, docs/feature-registry.md, docs/harness-retrospective.md, docs/tasks/HARNESS_TASK_TEMPLATE.md; npm run harness:check"
+    },
+    {
+      "id": "main-game-smoke",
+      "name": "Single-Player Main Game Smoke",
+      "description": "Fast HTTP smoke for 6-player game creation, first human night action, stream continue, and DAY_SPEECH entry.",
+      "dependencies": [
+        "harness-core"
+      ],
+      "status": "done",
+      "evidence": "scripts/main-game-smoke.mjs; npm run smoke:main-game -- --base-url=http://127.0.0.1:3000"
+    },
+    {
+      "id": "standard-lifecycle-files",
+      "name": "Standard Harness Lifecycle Files",
+      "description": "Compatibility layer for mature harness patterns: feature tracker, progress log, session handoff template, and initialization entrypoint.",
+      "dependencies": [
+        "harness-core"
+      ],
+      "status": "done",
+      "evidence": "feature_list.json, progress.md, session-handoff.md, init.sh; external harness-creator validator improved from 32/100 to 100/100; npm run harness:check"
+    },
+    {
+      "id": "browser-render-smoke",
+      "name": "Browser Rendering Smoke",
+      "description": "Optional future smoke for visual/hydration confidence when UI layout changes need more than HTTP coverage.",
+      "dependencies": [
+        "main-game-smoke"
+      ],
+      "status": "not-started",
+      "evidence": ""
+    },
+    {
+      "id": "structure-framework-audit",
+      "name": "Structure Framework Audit",
+      "description": "Repeatable structure audit command and task card for choosing low-risk framework optimization targets.",
+      "dependencies": [
+        "standard-lifecycle-files"
+      ],
+      "status": "done",
+      "evidence": "scripts/structure-audit.mjs; npm run audit:structure passed; npm run lint passed; external harness-creator validator 100/100"
+    }
+  ]
+}

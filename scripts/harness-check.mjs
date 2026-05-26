@@ -6,6 +6,11 @@ const root = process.cwd();
 
 const requiredFiles = [
   "AGENTS.md",
+  "feature_list.json",
+  "progress.md",
+  "session-handoff.md",
+  "init.sh",
+  "init.ps1",
   "docs/README.md",
   "docs/harness-orientation.md",
   "docs/harness-state.md",
