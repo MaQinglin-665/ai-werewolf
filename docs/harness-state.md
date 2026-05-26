@@ -45,6 +45,8 @@ currently stands.
   into the right harness file instead of staying in chat history.
 - Added `docs/harness-orientation.md` as a text-first startup checklist. Do not
   script it until the checklist proves stable through repeated use.
+- Added `npm run harness:check` for read-only mechanical checks: git status,
+  required harness files, and expected package scripts.
 
 ## Current Handoff Items
 
@@ -73,6 +75,6 @@ currently stands.
 
 ## Suggested Next Harness Enhancements
 
-1. Use `docs/harness-orientation.md` on several real tasks, then decide whether
-   a small `npm run harness:check` script is worth adding.
+1. Use `npm run harness:check` on several real tasks and keep it limited to
+   mechanical checks unless repeated use proves another check is stable.
 2. Run a clean staged review/commit once the current harness files are ready.

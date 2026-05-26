@@ -10,6 +10,7 @@ repeatable, while still leaving judgment to the agent.
 
 1. Check the working tree:
    - Run `git status --short`.
+   - Optionally run `npm run harness:check` for mechanical harness checks.
    - Identify uncommitted changes before editing.
    - Do not overwrite unrelated user or parallel-agent changes.
 
@@ -62,10 +63,11 @@ Ask before proceeding when:
 
 ## Future Script Candidate
 
-Do not add a script until this checklist proves stable. A future
-`npm run harness:check` could safely automate only mechanical checks such as:
+`npm run harness:check` now automates only mechanical checks:
 
 - `git status --short`
 - required harness files exist
 - current package scripts include expected validation commands
-- recently changed files map to at least one feature-registry area
+
+Do not expand the script to classify tasks or choose verification until the
+text checklist has proven that those decisions are stable enough to automate.

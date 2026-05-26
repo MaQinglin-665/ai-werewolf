@@ -1,0 +1,83 @@
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+
+const root = process.cwd();
+
+const requiredFiles = [
+  "AGENTS.md",
+  "docs/README.md",
+  "docs/harness-orientation.md",
+  "docs/harness-state.md",
+  "docs/feature-registry.md",
+  "docs/verification-matrix.md",
+  "docs/harness-retrospective.md",
+  "docs/tasks/HARNESS_TASK_TEMPLATE.md",
+];
+
+const requiredScripts = [
+  "lint",
+  "test",
+  "build",
+  "llm:check",
+  "simulate:ai",
+  "simulate:diagnose",
+  "smoke:room-sse",
+  "smoke:room-action:vote",
+  "preflight:production",
+];
+
+const failures = [];
+
+printSection("Git status");
+try {
+  const status = execFileSync("git", ["status", "--short"], {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+  console.log(status || "clean");
+} catch (error) {
+  failures.push(`git status failed: ${error instanceof Error ? error.message : String(error)}`);
+}
+
+printSection("Harness files");
+for (const file of requiredFiles) {
+  if (existsSync(path.join(root, file))) {
+    console.log(`ok  ${file}`);
+  } else {
+    failures.push(`missing required harness file: ${file}`);
+    console.log(`no  ${file}`);
+  }
+}
+
+printSection("Package scripts");
+let packageJson;
+try {
+  packageJson = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+} catch (error) {
+  failures.push(`could not read package.json: ${error instanceof Error ? error.message : String(error)}`);
+}
+
+const scripts = packageJson?.scripts ?? {};
+for (const script of requiredScripts) {
+  if (Object.hasOwn(scripts, script)) {
+    console.log(`ok  ${script}`);
+  } else {
+    failures.push(`missing package script: ${script}`);
+    console.log(`no  ${script}`);
+  }
+}
+
+printSection("Result");
+if (failures.length > 0) {
+  for (const failure of failures) console.log(`fail  ${failure}`);
+  process.exitCode = 1;
+} else {
+  console.log("ok  harness mechanical checks passed");
+}
+
+function printSection(title) {
+  console.log(`\n${title}`);
+  console.log("-".repeat(title.length));
+}
