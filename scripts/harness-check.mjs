@@ -31,6 +31,17 @@ const requiredScripts = [
   "smoke:room-action:vote",
   "smoke:main-game",
   "preflight:production",
+  "harness:task-card",
+];
+
+const requiredTaskTemplateMarkers = [
+  "## Task Gate",
+  "Task type:",
+  "Risk level: low | medium | high",
+  "Required verification tier:",
+  "Browser/manual verification:",
+  "State updates required:",
+  "Skipped checks must record:",
 ];
 
 const failures = [];
@@ -73,6 +84,21 @@ for (const script of requiredScripts) {
     failures.push(`missing package script: ${script}`);
     console.log(`no  ${script}`);
   }
+}
+
+printSection("Task card gate");
+try {
+  const template = readFileSync(path.join(root, "docs/tasks/HARNESS_TASK_TEMPLATE.md"), "utf8");
+  for (const marker of requiredTaskTemplateMarkers) {
+    if (template.includes(marker)) {
+      console.log(`ok  ${marker}`);
+    } else {
+      failures.push(`task template missing gate marker: ${marker}`);
+      console.log(`no  ${marker}`);
+    }
+  }
+} catch (error) {
+  failures.push(`could not read task template: ${error instanceof Error ? error.message : String(error)}`);
 }
 
 printSection("Result");

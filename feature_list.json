@@ -47,6 +47,17 @@
       ],
       "status": "done",
       "evidence": "scripts/structure-audit.mjs; npm run audit:structure passed; npm run lint passed; external harness-creator validator 100/100"
+    },
+    {
+      "id": "task-execution-gate",
+      "name": "Task Execution Gate",
+      "description": "Task-card gate that requires task type, risk, verification tier, browser/manual decision, state updates, and skipped-check rationale.",
+      "dependencies": [
+        "standard-lifecycle-files",
+        "structure-framework-audit"
+      ],
+      "status": "done",
+      "evidence": "docs/tasks/HARNESS_TASK_TEMPLATE.md; scripts/task-card-check.mjs; npm run harness:task-card -- docs/tasks/HARNESS_TASK_TEMPLATE.md docs/tasks/2026-05-task-execution-gate.md; npm run harness:check"
     }
   ]
 }

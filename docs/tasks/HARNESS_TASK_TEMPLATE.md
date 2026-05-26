@@ -14,6 +14,40 @@ Goal:
 
 Why it matters:
 
+## Task Gate
+
+Task type:
+
+Risk level: low | medium | high
+
+Required verification tier:
+
+- [ ] Docs/readback only
+- [ ] Focused automated test
+- [ ] Lint/type/build confidence
+- [ ] Smoke or browser/manual flow
+- [ ] Production/release check
+
+Browser/manual verification:
+
+- Required? yes | no
+- If yes, flow or URL:
+- If skipped, reason:
+
+State updates required:
+
+- [ ] `feature_list.json`
+- [ ] `progress.md`
+- [ ] `session-handoff.md`
+- [ ] Relevant `docs/tasks/*.md`
+- [ ] Not needed because:
+
+Skipped checks must record:
+
+- Check skipped:
+- Reason:
+- Residual risk:
+
 ## Context To Read First
 
 - `docs/working-agreements.md`
