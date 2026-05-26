@@ -2,10 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { resolveAiFriendsForGame } from "@/game/aiFriends";
-import { stripSpeechStageDirections } from "@/game/speechText";
 import type {
   AiFriendConfig,
-  AiFriendRuntimeLlmConfig,
   AiFriendRuntimeTtsConfig,
   AiRuntimeMode,
   AvailableHumanAction,
@@ -45,6 +43,7 @@ import {
 import { getDefaultBoardOptions, getInitialBoardSelection } from "./game/boardSelectionModel";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
 import { MobileGameTable } from "./game/MobileGameTable";
+import { submitStreamingContinue } from "./game/streamingContinue";
 import type {
   AiSpeechAudioStatus,
   AiSpeechAudioTextCue,
@@ -887,76 +886,6 @@ async function tryPlayHostClip(audio: HTMLAudioElement, clip: string): Promise<v
   }
 
   throw lastError;
-}
-
-async function submitStreamingContinue(
-  game: HumanGameView,
-  payload: Extract<CommandPayload, { type: "continue" }>,
-  runtimeAiLlmConfigs: Record<string, AiFriendRuntimeLlmConfig> | undefined,
-  aiRuntimeMode: AiRuntimeMode,
-  setLiveAiSpeech: React.Dispatch<React.SetStateAction<LiveAiSpeech | null>>,
-  onSpeechTextSnapshot?: (text: string) => void,
-): Promise<HumanGameView> {
-  const speaker = game.currentSpeakerSeatId
-    ? game.tableSummary.tableMemory.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId)
-    : undefined;
-  let finalView: HumanGameView | undefined;
-  if (speaker) {
-    setLiveAiSpeech({
-      gameId: game.id,
-      speaker,
-      text: "",
-    });
-  }
-
-  const response = await fetch(`/api/games/${game.id}/commands/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, aiRuntimeMode, aiLlmConfigs: runtimeAiLlmConfigs }),
-  });
-  if (!response.ok || !response.body) {
-    const data = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(data.error ?? "流式推进失败。");
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  const handleEvent = (rawEvent: string) => {
-    const event = rawEvent.match(/^event:\s*(.+)$/m)?.[1]?.trim() ?? "message";
-    const dataText = rawEvent.match(/^data:\s*([\s\S]*)$/m)?.[1]?.trim();
-    if (!dataText) return;
-    const data = JSON.parse(dataText) as { text?: string; view?: HumanGameView; error?: string };
-    if (event === "speech" && data.text && speaker) {
-      const visibleText = stripSpeechStageDirections(data.text);
-      setLiveAiSpeech({
-        gameId: game.id,
-        speaker,
-        text: visibleText,
-      });
-      if (visibleText) {
-        onSpeechTextSnapshot?.(visibleText);
-      }
-    }
-    if (event === "done" && data.view) {
-      finalView = data.view;
-    }
-    if (event === "error") {
-      throw new Error(data.error ?? "流式推进失败。");
-    }
-  };
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split(/\n\n/);
-    buffer = events.pop() ?? "";
-    for (const event of events) handleEvent(event);
-  }
-  if (buffer.trim()) handleEvent(buffer);
-  if (!finalView) throw new Error("流式推进没有返回最终牌桌。");
-  return finalView;
 }
 
 export function GameClient() {

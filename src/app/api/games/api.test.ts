@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as submitCommand } from "./[gameId]/commands/route";
+import { POST as submitStreamingCommand } from "./[gameId]/commands/stream/route";
 import { GET as getGame } from "./[gameId]/route";
 import { POST as submitVoiceInput } from "./[gameId]/voice-input/route";
 import { POST as recordSiteAnalyticsEvent } from "../analytics/events/route";
@@ -165,6 +166,36 @@ describe("game api routes", () => {
     expect(response.status).toBe(200);
     expect(nextView.id).toBe(initialView.id);
     expect(nextView.publicEvents.length).toBeGreaterThanOrEqual(initialView.publicEvents.length);
+  });
+
+  it("streams one visible AI or system step with continue", async () => {
+    const createResponse = await createGame();
+    const initialView = (await createResponse.json()) as HumanGameView;
+    const continueAction = initialView.availableActions.find((action) => action.type === "continue");
+
+    if (!continueAction) {
+      expect(initialView.availableActions.length).toBeGreaterThan(0);
+      return;
+    }
+
+    const response = await submitStreamingCommand(
+      new Request(`http://localhost/api/games/${initialView.id}/commands/stream`, {
+        method: "POST",
+        body: JSON.stringify({ type: "continue" }),
+      }),
+      { params: Promise.resolve({ gameId: initialView.id }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("text/event-stream");
+    expect(response.body).toBeTruthy();
+
+    const events = await readSseEvents(response.body!);
+    const doneEvent = events.find((event) => event.event === "done");
+    expect(doneEvent).toBeDefined();
+    const payload = JSON.parse(doneEvent!.data) as { view: HumanGameView };
+    expect(payload.view.id).toBe(initialView.id);
+    expect(payload.view.publicEvents.length).toBeGreaterThanOrEqual(initialView.publicEvents.length);
   });
 
   it("surfaces a clear recovery message when the single-player server snapshot is missing", async () => {
@@ -356,4 +387,30 @@ function commandFromAction(action: AvailableHumanAction): Record<string, unknown
   }
 
   throw new Error(`Unsupported action type: ${(action as { type: string }).type}`);
+}
+
+async function readSseEvents(body: ReadableStream<Uint8Array>): Promise<Array<{ event: string; data: string }>> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+
+  return text
+    .split("\n\n")
+    .map((chunk) => {
+      const event = chunk.match(/^event: (.+)$/m)?.[1];
+      const data = chunk.match(/^data: (.+)$/m)?.[1];
+      return event && data ? { event, data } : undefined;
+    })
+    .filter((event): event is { event: string; data: string } => Boolean(event));
 }
