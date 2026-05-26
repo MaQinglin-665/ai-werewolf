@@ -160,6 +160,16 @@
       ],
       "status": "done",
       "evidence": "docs/superpowers/specs/2026-05-26-frontend-structure-review.md; docs/tasks/2026-05-frontend-structure-review.md; npm run audit:structure; npm run harness:task-card -- docs/tasks/2026-05-frontend-structure-review.md; npm run harness:check"
+    },
+    {
+      "id": "gameclient-lifecycle-requests",
+      "name": "GameClient Lifecycle Requests",
+      "description": "Extract single-player game lifecycle request helpers and stream-continue speech context from GameClient into src/components/game/gameClientRequests.ts with focused tests.",
+      "dependencies": [
+        "frontend-structure-review"
+      ],
+      "status": "done",
+      "evidence": "src/components/game/gameClientRequests.ts; src/components/game/gameClientRequests.test.ts; docs/tasks/2026-05-gameclient-lifecycle-requests.md; npm run test -- src/components/game/gameClientRequests.test.ts; npm run lint; npx tsc --noEmit; npm run smoke:main-game -- --base-url=http://127.0.0.1:3010; npm run build"
     }
   ]
 }

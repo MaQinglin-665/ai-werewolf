@@ -61,6 +61,12 @@ import {
   type AiFriendLlmSecretMap,
 } from "./game/aiFriendStorage";
 import { getDefaultBoardOptions, getInitialBoardSelection, resolveBoardSelectionToggle } from "./game/boardSelectionModel";
+import {
+  buildStreamingContinueContext,
+  createGameView,
+  loadGameView,
+  submitGameCommand,
+} from "./game/gameClientRequests";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
 import { buildLandingLineupPreview } from "./game/landingLineupPreview";
 import { MobileGameTable } from "./game/MobileGameTable";
@@ -474,9 +480,7 @@ export function GameClient() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/games/${gameId}`);
-        if (!response.ok) throw new Error("对局不存在或已被清理。");
-        const view = (await response.json()) as HumanGameView;
+        const view = await loadGameView(gameId);
         rememberGame(view.id);
         setRoleIntroGameId(null);
         setGame(view);
@@ -493,17 +497,13 @@ export function GameClient() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/games", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          boardId: boardId ?? selectedBoardId ?? undefined,
-          humanSeatId: humanSeatMode === "none" ? null : selectedHumanSeatId ?? undefined,
-          aiFriends: selectedAiFriends,
-        }),
+      const view = await createGameView({
+        boardId,
+        selectedBoardId,
+        humanSeatMode,
+        selectedHumanSeatId,
+        selectedAiFriends,
       });
-      if (!response.ok) throw new Error("创建对局失败。");
-      const view = (await response.json()) as HumanGameView;
       rememberGame(view.id);
       setRoleIntroGameId(view.humanSeatId === null ? null : view.id);
       setGame(view);
@@ -555,19 +555,16 @@ export function GameClient() {
     let streamingTts: ReturnType<typeof createStreamingAiSpeechTtsQueue> | undefined;
     try {
       if (payload.type === "continue") {
-        const previousSpeechKeys = new Set(game.tableSummary.recentSpeeches.map((speech) => speechStreamKey(game.id, speech)));
-        const streamingSpeaker = game.currentSpeakerSeatId
-          ? game.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId)
-          : undefined;
-        let streamingSpeechKeyPrefix: string | undefined;
-        if (effectiveAiSpeechAudioEnabled && streamingSpeaker && streamingSpeaker.seatId !== game.humanSeatId) {
+        const { previousSpeechKeys, streamingSpeaker, streamingSpeechKeyPrefix } = buildStreamingContinueContext(
+          game,
+          effectiveAiSpeechAudioEnabled,
+        );
+        if (streamingSpeaker && streamingSpeechKeyPrefix) {
           stopAiSpeechAudio();
           const runId = aiSpeechAudioRunRef.current;
-          const speechKeyPrefix = `${game.id}:${game.day}:live-tts:${streamingSpeaker.seatId}`;
-          streamingSpeechKeyPrefix = speechKeyPrefix;
           streamingTts = createStreamingAiSpeechTtsQueue({
             gameId: game.id,
-            speechKeyPrefix,
+            speechKeyPrefix: streamingSpeechKeyPrefix,
             speaker: streamingSpeaker,
             voicePersonaName: streamingSpeaker.personaName,
             ttsVoice: streamingSpeaker.ttsVoice,
@@ -630,16 +627,13 @@ export function GameClient() {
         return;
       }
 
-      const response = await fetch(`/api/games/${game.id}/commands`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, aiRuntimeMode, aiLlmConfigs: runtimeAiLlmConfigs }),
+      const nextView = await submitGameCommand({
+        gameId: game.id,
+        payload,
+        aiRuntimeMode,
+        aiLlmConfigs: runtimeAiLlmConfigs,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error ?? "动作执行失败。");
-      }
-      setGame(data as HumanGameView);
+      setGame(nextView);
     } catch (submitError) {
       streamingTts?.cancel();
       setError(submitError instanceof Error ? submitError.message : "动作执行失败。");

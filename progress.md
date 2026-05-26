@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-26 22:20 Asia/Shanghai
-**Session ID:** frontend structure review
-**Active Feature:** frontend-structure-review - Frontend Structure Review
+**Last Updated:** 2026-05-26 22:38 Asia/Shanghai
+**Session ID:** gameclient lifecycle requests
+**Active Feature:** gameclient-lifecycle-requests - GameClient Lifecycle Requests
 
 ## Status
 
@@ -43,18 +43,21 @@
 - [x] Focused board selection transition tests added and watched fail before implementation, then pass after extraction.
 - [x] `GameClient.tsx` dropped below 1000 lines in `npm run audit:structure`.
 - [x] Frontend structure review recorded current `GameClient.tsx` responsibilities and the next larger lifecycle request boundary.
+- [x] Game lifecycle request helpers extracted to `src/components/game/gameClientRequests.ts`.
+- [x] Focused lifecycle request tests added and watched fail before implementation, then pass after extraction.
+- [x] Local main-game smoke passed on a clean dev server at `http://127.0.0.1:3010`.
 
 ### What's In Progress
 
-- [ ] No active implementation task after the frontend structure review batch.
-  - Details: Current responsibilities and next recommended `gameClientRequests` boundary are documented; harness checks and structure audit passed.
+- [ ] No active implementation task after the GameClient lifecycle request extraction.
+  - Details: Request construction, response parsing, and stream-continue speech context are extracted; focused tests, lint, typecheck, build, harness checks, structure audit, and local main-game smoke passed.
   - Blockers: none.
 
 ### What's Next
 
-1. Create `docs/tasks/2026-05-gameclient-lifecycle-requests.md` before extracting request helpers.
-2. Plan and implement `src/components/game/gameClientRequests.ts` with focused request-helper tests.
-3. Plan room UI alignment separately before touching `RoomClient.tsx`.
+1. Review and optionally continue with the next frontend boundary from `docs/superpowers/specs/2026-05-26-frontend-structure-review.md`.
+2. Plan room UI alignment separately before touching `RoomClient.tsx`.
+3. Keep future `GameClient.tsx` work focused on orchestration, not request or data-shaping logic.
 
 ## Blockers / Risks
 
@@ -120,6 +123,10 @@
 - `src/components/game/boardSelectionModel.test.ts` - focused board selection transition coverage.
 - `docs/tasks/2026-05-frontend-structure-review.md` - task card for the accumulated frontend structure review.
 - `docs/superpowers/specs/2026-05-26-frontend-structure-review.md` - review document naming the next larger frontend boundary.
+- `docs/tasks/2026-05-gameclient-lifecycle-requests.md` - task card for the lifecycle request helper extraction.
+- `docs/superpowers/plans/2026-05-26-gameclient-lifecycle-requests.md` - implementation plan for the lifecycle request helper extraction.
+- `src/components/game/gameClientRequests.ts` - extracted lifecycle request helpers and stream-continue speech context.
+- `src/components/game/gameClientRequests.test.ts` - focused request-helper coverage.
 
 ## Evidence of Completion
 
@@ -163,6 +170,14 @@
 - [x] Harness check: `npm run harness:check`
 - [x] Feature list JSON: `node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"`
 - [x] Diff check: `git diff --check`
+- [x] Lifecycle request focused test: `npm run test -- src/components/game/gameClientRequests.test.ts`
+- [x] Lint: `npm run lint`
+- [x] TypeScript: `npx tsc --noEmit`
+- [x] Lifecycle request task-card gate: `npm run harness:task-card -- docs/tasks/2026-05-gameclient-lifecycle-requests.md`
+- [x] Harness check: `npm run harness:check`
+- [x] Structure audit: `npm run audit:structure`
+- [x] Local main-game smoke: `npm run smoke:main-game -- --base-url=http://127.0.0.1:3010`
+- [x] Build: `npm run build`
 
 ## Notes for Next Session
 

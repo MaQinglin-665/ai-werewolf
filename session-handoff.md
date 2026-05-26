@@ -2,9 +2,9 @@
 
 ## Current Objective
 
-- Goal: Review accumulated frontend slimming work and choose the next larger boundary under the harness.
-- Current status: Frontend structure review is recorded in `docs/superpowers/specs/2026-05-26-frontend-structure-review.md`. The next recommended code-facing boundary is `gameClientRequests`, not more tiny helper extraction.
-- Branch / commit: `main`; latest committed baseline before this task was `14a535d`.
+- Goal: Extract the GameClient lifecycle request boundary under the harness.
+- Current status: `src/components/game/gameClientRequests.ts` now owns single-player load/create/normal command requests and pure stream-continue speech context. `GameClient.tsx` keeps React orchestration, audio refs, and UI status transitions.
+- Branch / commit: `main`; latest committed baseline before this task was `28fa2bd`.
 
 ## Completed This Session
 
@@ -50,6 +50,12 @@
 - [x] Created `docs/tasks/2026-05-frontend-structure-review.md`.
 - [x] Created `docs/superpowers/specs/2026-05-26-frontend-structure-review.md`.
 - [x] Updated `feature_list.json` and `progress.md` for the structure review feature.
+- [x] Created `docs/tasks/2026-05-gameclient-lifecycle-requests.md`.
+- [x] Created `docs/superpowers/plans/2026-05-26-gameclient-lifecycle-requests.md`.
+- [x] Added `src/components/game/gameClientRequests.ts`.
+- [x] Added `src/components/game/gameClientRequests.test.ts`.
+- [x] Updated `src/components/GameClient.tsx` to import lifecycle request helpers while keeping orchestration local.
+- [x] Updated `feature_list.json` and `progress.md` for the lifecycle request feature.
 
 ## Verification Evidence
 
@@ -95,6 +101,15 @@
 | Harness check | `npm run harness:check` | passed | Confirms mechanical harness files and package scripts. |
 | Feature list JSON | `node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"` | passed | Confirms feature tracker JSON remains valid. |
 | Diff check | `git diff --check` | passed | Only CRLF conversion warnings from Git were reported. |
+| Lifecycle request RED test | `npm run test -- src/components/game/gameClientRequests.test.ts` | failed as expected | Failed because `./gameClientRequests` did not exist yet. |
+| Lifecycle request focused test | `npm run test -- src/components/game/gameClientRequests.test.ts` | passed | Confirms load, create, normal command submission, and stream context helpers. |
+| TypeScript | `npx tsc --noEmit` | passed | Confirms GameClient helper imports and request helper types. |
+| Lint | `npm run lint` | passed | Confirms no ESLint errors or warnings after extraction. |
+| Lifecycle request task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-gameclient-lifecycle-requests.md` | passed | Confirms the new task card satisfies harness fields. |
+| Harness check | `npm run harness:check` | passed | Confirms mechanical harness files and package scripts. |
+| Structure audit | `npm run audit:structure` | passed | Confirms structure audit still passes; `GameClient.tsx` is 987 lines in the audit output. |
+| Local main-game smoke | `npm run smoke:main-game -- --base-url=http://127.0.0.1:3010` | passed | Covered local 6p beginner seer creation, a werewolf night action, stream continue, and final `DAY_SPEECH`. |
+| Build | `npm run build` | passed | Production build passed with the existing Turbopack NFT warning for `next.config.ts` -> `src/server/roomService.ts`. |
 
 ## Files Changed
 
@@ -136,6 +151,10 @@
 - `docs/superpowers/plans/2026-05-26-gameclient-board-selection-model.md`
 - `docs/tasks/2026-05-frontend-structure-review.md`
 - `docs/superpowers/specs/2026-05-26-frontend-structure-review.md`
+- `docs/tasks/2026-05-gameclient-lifecycle-requests.md`
+- `docs/superpowers/plans/2026-05-26-gameclient-lifecycle-requests.md`
+- `src/components/game/gameClientRequests.ts`
+- `src/components/game/gameClientRequests.test.ts`
 
 ## Decisions Made
 
@@ -150,6 +169,7 @@
 - Table event feed filtering and ordering is now treated as a UI data model, while `GameClient.tsx` keeps only memoization and prop wiring for it.
 - Board toggle and human-seat transition rules are now treated as landing UI state modeling, while `GameClient.tsx` keeps only state setter wiring for them.
 - Stop micro-extracting tiny helpers for now. The next useful code-facing boundary is a medium-risk `gameClientRequests` extraction that separates request construction/response parsing from UI orchestration.
+- Game lifecycle request construction, response parsing, and stream-continue speech context are now treated as a frontend request boundary. `GameClient.tsx` should keep state transitions, refs, and UI orchestration local.
 
 ## Blockers / Risks
 
@@ -165,6 +185,9 @@
 - Browser/manual flow was skipped for event feed because the rendered layout and interactions did not change; the pure calculation is covered by focused tests.
 - Browser/manual flow was skipped for board selection because the intended behavior is unchanged and covered by focused transition tests.
 - Browser/manual flow and automated code tests were skipped for the structure review because no production code changed.
+- Browser/manual flow was skipped for lifecycle requests because the visible UI contract did not change; local `smoke:main-game` covered creation, command submission, stream continue, and `DAY_SPEECH`.
+- The first smoke attempt against `http://127.0.0.1:3000` timed out because an old dev server process was unhealthy. PID `47860` was stopped and a clean dev server on `http://127.0.0.1:3010` passed the smoke.
+- Production/release checks were skipped because no deployment, public URL, or runtime configuration changed.
 
 ## Next Session Startup
 
@@ -178,8 +201,9 @@
 8. Read `docs/tasks/2026-05-gameclient-event-feed-model.md` if continuing table event-feed model extraction.
 9. Read `docs/tasks/2026-05-gameclient-board-selection-model.md` if continuing landing board-selection model extraction.
 10. Read `docs/superpowers/specs/2026-05-26-frontend-structure-review.md` before starting the next larger frontend boundary.
-11. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
+11. Read `docs/tasks/2026-05-gameclient-lifecycle-requests.md` if touching single-player lifecycle requests again.
+12. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
 
 ## Recommended Next Step
 
-- Next recommended code-facing step: create `docs/tasks/2026-05-gameclient-lifecycle-requests.md`, then plan and implement `src/components/game/gameClientRequests.ts` with focused request-helper tests plus local `smoke:main-game`.
+- Next recommended code-facing step: pause further `GameClient.tsx` request extraction and choose the next boundary deliberately. Room UI alignment should be task-carded separately before touching `src/components/RoomClient.tsx`.
