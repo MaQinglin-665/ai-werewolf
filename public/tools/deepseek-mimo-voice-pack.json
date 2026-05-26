@@ -1,0 +1,293 @@
+{
+  "version": 1,
+  "friends": [
+    {
+      "id": "friend-deepseek-mimo-calm",
+      "nickname": "DS冷静推演",
+      "basePersonaId": "deepseek-calm-analyst",
+      "llmConfig": {
+        "provider": "openai-compatible",
+        "label": "DeepSeek · 推理",
+        "baseUrl": "https://api.deepseek.com",
+        "model": "deepseek-reasoner",
+        "mergeSystemIntoUser": true
+      },
+      "ttsVoice": "mimo_default",
+      "ttsConfig": {
+        "provider": "mimo-compatible",
+        "label": "Mimo · 冷静推演",
+        "baseUrl": "https://api.xiaomimimo.com",
+        "model": "mimo-v2.5-tts",
+        "voice": "mimo_default",
+        "format": "mp3",
+        "authHeader": "Authorization"
+      },
+      "riskTolerance": 0.42,
+      "bluffing": 0.18,
+      "preferences": {
+        "logic": 0.95,
+        "identity": 0.72,
+        "vote": 0.68,
+        "emotion": 0.18,
+        "memory": 0.74,
+        "leadership": 0.62,
+        "deception": 0.2,
+        "caution": 0.78
+      },
+      "createdAt": "2026-05-24T00:00:00.000+08:00",
+      "updatedAt": "2026-05-24T00:00:00.000+08:00"
+    },
+    {
+      "id": "friend-deepseek-mimo-boundary",
+      "nickname": "DS边界带队",
+      "basePersonaId": "claude-careful-leader",
+      "llmConfig": {
+        "provider": "openai-compatible",
+        "label": "DeepSeek · 审查",
+        "baseUrl": "https://api.deepseek.com",
+        "model": "deepseek-reasoner",
+        "mergeSystemIntoUser": true
+      },
+      "ttsVoice": "mimo_default",
+      "ttsConfig": {
+        "provider": "mimo-compatible",
+        "label": "Mimo · 边界带队",
+        "baseUrl": "https://api.xiaomimimo.com",
+        "model": "mimo-v2.5-tts",
+        "voice": "mimo_default",
+        "format": "mp3",
+        "authHeader": "Authorization"
+      },
+      "riskTolerance": 0.35,
+      "bluffing": 0.12,
+      "preferences": {
+        "logic": 0.82,
+        "identity": 0.82,
+        "vote": 0.62,
+        "emotion": 0.34,
+        "memory": 0.74,
+        "leadership": 0.84,
+        "deception": 0.12,
+        "caution": 0.9
+      },
+      "createdAt": "2026-05-24T00:00:00.000+08:00",
+      "updatedAt": "2026-05-24T00:00:00.000+08:00"
+    },
+    {
+      "id": "friend-deepseek-mimo-balanced",
+      "nickname": "DS平衡归纳",
+      "basePersonaId": "gpt-balanced-organizer",
+      "llmConfig": {
+        "provider": "openai-compatible",
+        "label": "DeepSeek · 组织",
+        "baseUrl": "https://api.deepseek.com",
+        "model": "deepseek-chat",
+        "mergeSystemIntoUser": true
+      },
+      "ttsVoice": "default_zh",
+      "ttsConfig": {
+        "provider": "mimo-compatible",
+        "label": "Mimo · 平衡归纳",
+        "baseUrl": "https://api.xiaomimimo.com",
+        "model": "mimo-v2.5-tts",
+        "voice": "default_zh",
+        "format": "mp3",
+        "authHeader": "Authorization"
+      },
+      "riskTolerance": 0.5,
+      "bluffing": 0.2,
+      "preferences": {
+        "logic": 0.76,
+        "identity": 0.68,
+        "vote": 0.78,
+        "emotion": 0.4,
+        "memory": 0.64,
+        "leadership": 0.78,
+        "deception": 0.18,
+        "caution": 0.64
+      },
+      "createdAt": "2026-05-24T00:00:00.000+08:00",
+      "updatedAt": "2026-05-24T00:00:00.000+08:00"
+    },
+    {
+      "id": "friend-deepseek-mimo-pressure",
+      "nickname": "DS强压归票",
+      "basePersonaId": "doubao-pressure-bluffer",
+      "llmConfig": {
+        "provider": "openai-compatible",
+        "label": "DeepSeek · 进攻",
+        "baseUrl": "https://api.deepseek.com",
+        "model": "deepseek-chat",
+        "mergeSystemIntoUser": true
+      },
+      "ttsVoice": "default_zh",
+      "ttsConfig": {
+        "provider": "mimo-compatible",
+        "label": "Mimo · 强压归票",
+        "baseUrl": "https://api.xiaomimimo.com",
+        "model": "mimo-v2.5-tts",
+        "voice": "default_zh",
+        "format": "mp3",
+        "authHeader": "Authorization"
+      },
+      "riskTolerance": 0.78,
+      "bluffing": 0.45,
+      "preferences": {
+        "logic": 0.66,
+        "identity": 0.58,
+        "vote": 0.92,
+        "emotion": 0.72,
+        "memory": 0.46,
+        "leadership": 0.88,
+        "deception": 0.46,
+        "caution": 0.36
+      },
+      "createdAt": "2026-05-24T00:00:00.000+08:00",
+      "updatedAt": "2026-05-24T00:00:00.000+08:00"
+    },
+    {
+      "id": "friend-deepseek-mimo-memory",
+      "nickname": "DS细节复盘",
+      "basePersonaId": "mimo-logic-checker",
+      "llmConfig": {
+        "provider": "openai-compatible",
+        "label": "DeepSeek · 复核",
+        "baseUrl": "https://api.deepseek.com",
+        "model": "deepseek-reasoner",
+        "mergeSystemIntoUser": true
+      },
+      "ttsVoice": "mimo_default",
+      "ttsConfig": {
+        "provider": "mimo-compatible",
+        "label": "Mimo · 细节复盘",
+        "baseUrl": "https://api.xiaomimimo.com",
+        "model": "mimo-v2.5-tts",
+        "voice": "mimo_default",
+        "format": "mp3",
+        "authHeader": "Authorization"
+      },
+      "riskTolerance": 0.38,
+      "bluffing": 0.14,
+      "preferences": {
+        "logic": 0.9,
+        "identity": 0.78,
+        "vote": 0.6,
+        "emotion": 0.26,
+        "memory": 0.94,
+        "leadership": 0.54,
+        "deception": 0.14,
+        "caution": 0.82
+      },
+      "createdAt": "2026-05-24T00:00:00.000+08:00",
+      "updatedAt": "2026-05-24T00:00:00.000+08:00"
+    },
+    {
+      "id": "friend-deepseek-mimo-observer",
+      "nickname": "DS静默观察",
+      "basePersonaId": "gemini-quiet-observer",
+      "llmConfig": {
+        "provider": "openai-compatible",
+        "label": "DeepSeek · 多线",
+        "baseUrl": "https://api.deepseek.com",
+        "model": "deepseek-chat",
+        "mergeSystemIntoUser": true
+      },
+      "ttsVoice": "default_zh",
+      "ttsConfig": {
+        "provider": "mimo-compatible",
+        "label": "Mimo · 静默观察",
+        "baseUrl": "https://api.xiaomimimo.com",
+        "model": "mimo-v2.5-tts",
+        "voice": "default_zh",
+        "format": "mp3",
+        "authHeader": "Authorization"
+      },
+      "riskTolerance": 0.46,
+      "bluffing": 0.18,
+      "preferences": {
+        "logic": 0.82,
+        "identity": 0.64,
+        "vote": 0.58,
+        "emotion": 0.3,
+        "memory": 0.76,
+        "leadership": 0.46,
+        "deception": 0.18,
+        "caution": 0.72
+      },
+      "createdAt": "2026-05-24T00:00:00.000+08:00",
+      "updatedAt": "2026-05-24T00:00:00.000+08:00"
+    },
+    {
+      "id": "friend-deepseek-mimo-structured",
+      "nickname": "DS结构站边",
+      "basePersonaId": "glm-structured-voter",
+      "llmConfig": {
+        "provider": "openai-compatible",
+        "label": "DeepSeek · 结构",
+        "baseUrl": "https://api.deepseek.com",
+        "model": "deepseek-chat",
+        "mergeSystemIntoUser": true
+      },
+      "ttsVoice": "default_zh",
+      "ttsConfig": {
+        "provider": "mimo-compatible",
+        "label": "Mimo · 结构站边",
+        "baseUrl": "https://api.xiaomimimo.com",
+        "model": "mimo-v2.5-tts",
+        "voice": "default_zh",
+        "format": "mp3",
+        "authHeader": "Authorization"
+      },
+      "riskTolerance": 0.52,
+      "bluffing": 0.22,
+      "preferences": {
+        "logic": 0.84,
+        "identity": 0.7,
+        "vote": 0.86,
+        "emotion": 0.28,
+        "memory": 0.68,
+        "leadership": 0.74,
+        "deception": 0.2,
+        "caution": 0.62
+      },
+      "createdAt": "2026-05-24T00:00:00.000+08:00",
+      "updatedAt": "2026-05-24T00:00:00.000+08:00"
+    },
+    {
+      "id": "friend-deepseek-mimo-identity",
+      "nickname": "DS身份长线",
+      "basePersonaId": "kimi-identity-focused",
+      "llmConfig": {
+        "provider": "openai-compatible",
+        "label": "DeepSeek · 长线",
+        "baseUrl": "https://api.deepseek.com",
+        "model": "deepseek-reasoner",
+        "mergeSystemIntoUser": true
+      },
+      "ttsVoice": "mimo_default",
+      "ttsConfig": {
+        "provider": "mimo-compatible",
+        "label": "Mimo · 身份长线",
+        "baseUrl": "https://api.xiaomimimo.com",
+        "model": "mimo-v2.5-tts",
+        "voice": "mimo_default",
+        "format": "mp3",
+        "authHeader": "Authorization"
+      },
+      "riskTolerance": 0.4,
+      "bluffing": 0.16,
+      "preferences": {
+        "logic": 0.82,
+        "identity": 0.94,
+        "vote": 0.64,
+        "emotion": 0.22,
+        "memory": 0.9,
+        "leadership": 0.58,
+        "deception": 0.16,
+        "caution": 0.84
+      },
+      "createdAt": "2026-05-24T00:00:00.000+08:00",
+      "updatedAt": "2026-05-24T00:00:00.000+08:00"
+    }
+  ]
+}

@@ -9,7 +9,7 @@ import {
 } from "@/ai/speechProviders";
 import { buildAiTableRead, createSpeechPlan, createVotePlan } from "@/ai/tableRead";
 import { getAiRoster } from "./personas";
-import { buildAgentView, buildHumanView } from "./projection";
+import { buildAgentView, buildHumanView, buildPlayerView } from "./projection";
 import { buildGameReview } from "./review";
 import { stripSpeechStageDirections } from "./speechText";
 import { buildTableMemory } from "./tableMemory";
@@ -20,9 +20,11 @@ import {
   createGame,
   evaluateWinCondition,
   getSeat,
+  getTurnRequirement,
   hydrateGameState,
   isIdiotRevealed,
 } from "./engine";
+import { BOARD_PRESETS } from "./boards";
 
 describe("game engine", () => {
   it("assigns the 9-player preset role counts", () => {
@@ -408,6 +410,80 @@ describe("game engine", () => {
     expect(state.events.at(-1)).toMatchObject({ type: "ROLE_PHASE_SKIPPED", payload: { role: "GUARD" } });
   });
 
+  it("continues from a dead seer night phase to the witch without a hidden actor turn", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 44 });
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const witch = state.seats.find((seat) => seat.role === "WITCH")!;
+    seer.alive = false;
+    seer.deathReason = "WOLF_KILL";
+    state.phase = "NIGHT_SEER";
+
+    const viewBeforeSkip = buildHumanView(state);
+    expect(viewBeforeSkip.currentActorSeatId).toBeUndefined();
+    expect(viewBeforeSkip.availableActions[0]).toMatchObject({ type: "continue", label: "继续流程" });
+
+    state = applySystemStep(state);
+
+    expect(state.phase).toBe("NIGHT_WITCH");
+    expect(getTurnRequirement(state)).toMatchObject({ type: "ai", actorSeatId: witch.seatId, phase: "NIGHT_WITCH" });
+    expect(state.events.at(-1)).toMatchObject({ type: "ROLE_PHASE_SKIPPED", payload: { role: "SEER" } });
+  });
+
+  it("skips the witch wake-up on the 6-player beginner board", () => {
+    let state = createGame({ boardId: "6p-beginner-seer", seed: 43, humanSeatId: null });
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const victim = state.seats.find((seat) => seat.role === "VILLAGER")!;
+    const checkTarget = state.seats.find((seat) => seat.seatId !== seer.seatId)!;
+
+    expect(state.seats.some((seat) => seat.role === "WITCH")).toBe(false);
+
+    state = applyCommand(state, { type: "wolfKill", actorSeatId: wolf.seatId, targetSeatId: victim.seatId });
+    expect(state.phase).toBe("NIGHT_SEER");
+
+    state = applyCommand(state, { type: "seerCheck", actorSeatId: seer.seatId, targetSeatId: checkTarget.seatId });
+
+    expect(state.phase).toBe("DAY_ANNOUNCEMENT");
+    expect(state.events.some((event) => event.type === "ROLE_PHASE_SKIPPED" && event.payload.role === "WITCH")).toBe(false);
+    expect(buildHumanView(state).phaseLabel).toBe("天亮结算");
+  });
+
+  it("does not enter night wake-up phases for roles absent from any official board", () => {
+    const roleByNightPhase = {
+      NIGHT_WOLF_BEAUTY: "WOLF_BEAUTY",
+      NIGHT_GUARD: "GUARD",
+      NIGHT_SEER: "SEER",
+      NIGHT_WITCH: "WITCH",
+    } as const;
+    type NightRolePhase = keyof typeof roleByNightPhase;
+    const roleByNightPhaseEntries = Object.entries(roleByNightPhase) as Array<
+      [NightRolePhase, (typeof roleByNightPhase)[NightRolePhase]]
+    >;
+
+    for (const board of Object.values(BOARD_PRESETS)) {
+      let state = createGame({ boardId: board.id, seed: 44, humanSeatId: null });
+      const boardRoles = new Set(board.roles);
+      const visitedNightPhases = [state.phase];
+
+      for (let step = 0; state.phase.startsWith("NIGHT") && step < 8; step += 1) {
+        const requirement = getTurnRequirement(state);
+        if (requirement.type === "ai" || requirement.type === "human") {
+          state = applyCommand(state, createMockCommand(buildAgentView(state, requirement.actorSeatId)));
+        } else if (requirement.type === "system") {
+          state = applySystemStep(state);
+        } else {
+          break;
+        }
+        if (state.phase.startsWith("NIGHT")) visitedNightPhases.push(state.phase);
+      }
+
+      const absentRolePhases = roleByNightPhaseEntries
+        .filter(([phase, role]) => !boardRoles.has(role) && visitedNightPhases.includes(phase))
+        .map(([phase, role]) => `${board.id}:${phase}:${role}`);
+      expect(absentRolePhases).toEqual([]);
+    }
+  });
+
   it("resolves sheriff election, pk ties, and sheriff weighted exile votes", () => {
     let electedState = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 12 });
     electedState.phase = "SHERIFF_VOTE";
@@ -549,6 +625,7 @@ describe("game engine", () => {
       payload: { sheriffSpeech: true, message: "我警上发言会围绕昨夜情况和后续票型来拿警徽。" },
     });
     expect(advanced.aiLogs[0]).toMatchObject({
+      day: 1,
       provider: "test-sheriff-speech",
       output: { type: "sheriffSpeech", message: "我警上发言会围绕昨夜情况和后续票型来拿警徽。" },
     });
@@ -759,7 +836,7 @@ describe("game engine", () => {
     expect(state.phase).toBe("DAY_SPEECH");
   });
 
-  it("only lets hunter shoot after wolf kill or exile", () => {
+  it("only lets hunter choose whether to reveal after wolf kill or exile", () => {
     let wolfKilledHunter = createGame({ seed: 7 });
     const wolf = wolfKilledHunter.seats.find((seat) => seat.role === "WEREWOLF")!;
     const hunter = wolfKilledHunter.seats.find((seat) => seat.role === "HUNTER")!;
@@ -770,12 +847,13 @@ describe("game engine", () => {
     });
     wolfKilledHunter.phase = "DAY_ANNOUNCEMENT";
     wolfKilledHunter = applySystemStep(wolfKilledHunter);
-    expect(wolfKilledHunter.phase).toBe("HUNTER_SHOT");
+    expect(wolfKilledHunter.phase).toBe("HUNTER_REVEAL");
 
     let poisonedHunter = createGame({ seed: 7 });
     poisonedHunter.phase = "DAY_ANNOUNCEMENT";
     poisonedHunter.night.witchPoisonTargetSeatId = hunter.seatId;
     poisonedHunter = applySystemStep(poisonedHunter);
+    expect(poisonedHunter.phase).not.toBe("HUNTER_REVEAL");
     expect(poisonedHunter.phase).not.toBe("HUNTER_SHOT");
     expect(getSeat(poisonedHunter, hunter.seatId).deathReason).toBe("WITCH_POISON");
   });
@@ -885,10 +963,28 @@ describe("game engine", () => {
 
     state = applySystemStep(state);
 
-    expect(state.phase).toBe("HUNTER_SHOT");
+    expect(state.phase).toBe("HUNTER_REVEAL");
     expect(state.pendingHunterShot?.shooterSeatId).toBe(hunter.seatId);
     expect(state.lastWordsSeatId).toBeUndefined();
     expect(state.lastWordsQueue).toEqual([hunter.seatId]);
+
+    state = applyCommand(state, {
+      type: "hunterReveal",
+      actorSeatId: hunter.seatId,
+      reveal: true,
+    });
+
+    expect(state.phase).toBe("HUNTER_SHOT");
+    expect(state.events.at(-1)?.type).toBe("HUNTER_REVEALED");
+    expect(buildHumanView(state).availableActions[0]).toEqual(
+      expect.objectContaining({ type: "hunterShoot", canSkip: false }),
+    );
+    expect(() =>
+      applyCommand(state, {
+        type: "hunterShoot",
+        actorSeatId: hunter.seatId,
+      }),
+    ).toThrow(/必须带走/);
 
     state = applyCommand(state, {
       type: "hunterShoot",
@@ -920,6 +1016,56 @@ describe("game engine", () => {
       .filter((event) => event.type === "LAST_WORDS_CREATED")
       .map((event) => event.actorSeatId);
     expect(lastWordActors.slice(-2)).toEqual([hunter.seatId, target.seatId]);
+  });
+
+  it("lets an exiled hunter decline reveal without a public hunter broadcast", () => {
+    let state = createGame({ seed: 35 });
+    const hunter = state.seats.find((seat) => seat.role === "HUNTER")!;
+    state.phase = "EXILE_RESOLUTION";
+    state.votes = Object.fromEntries(state.seats.map((seat) => [String(seat.seatId), hunter.seatId]));
+
+    state = applySystemStep(state);
+    state = applyCommand(state, {
+      type: "hunterReveal",
+      actorSeatId: hunter.seatId,
+      reveal: false,
+    });
+
+    expect(state.phase).toBe("LAST_WORDS");
+    expect(state.lastWordsSeatId).toBe(hunter.seatId);
+    expect(state.lastWordsQueue).toBeUndefined();
+    expect(state.pendingHunterShot).toBeUndefined();
+    expect(state.events.some((event) => event.type === "HUNTER_SHOT")).toBe(false);
+    expect(buildHumanView(state).publicEvents.some((event) => event.type === "HUNTER_SKIPPED")).toBe(false);
+
+    state = applyCommand(state, {
+      type: "lastWords",
+      actorSeatId: hunter.seatId,
+      message: "I will not reveal hunter.",
+    });
+
+    expect(state.phase).toBe("NIGHT_WOLVES");
+  });
+
+  it("keeps hunter reveal prompt private until the hunter flips", () => {
+    let state = createGame({ seed: 35 });
+    const hunter = state.seats.find((seat) => seat.role === "HUNTER")!;
+    const viewer = state.seats.find((seat) => seat.seatId !== hunter.seatId)!;
+    state.phase = "EXILE_RESOLUTION";
+    state.votes = Object.fromEntries(state.seats.map((seat) => [String(seat.seatId), hunter.seatId]));
+
+    state = applySystemStep(state);
+
+    const hunterView = buildPlayerView(state, hunter.seatId, { allowFlowControls: true });
+    const publicView = buildPlayerView(state, viewer.seatId, { allowFlowControls: true });
+    const publicPromptText = [
+      publicView.phaseLabel,
+      ...publicView.availableActions.map((action) => `${action.type === "continue" ? action.label : action.type} ${"description" in action ? action.description : ""}`),
+    ].join(" ");
+
+    expect(hunterView.availableActions).toContainEqual(expect.objectContaining({ type: "hunterReveal" }));
+    expect(publicView.currentActorSeatId).toBeUndefined();
+    expect(publicPromptText).not.toMatch(/猎人|翻牌|发动技能|技能确认/);
   });
 
   it("gives the hunter-shot target last words before continuing", () => {
@@ -1368,12 +1514,13 @@ describe("game engine", () => {
     const plan = createSpeechPlan(view);
     const result = await mockSpeechProvider.generateSpeech(view, plan);
 
-    expect(result.speech).toMatch(/理由是|拆因果|给边界|正面回答|两条线|身份和站边|听感/);
-    expect(result.speech).toMatch(/如果/);
+    expect(result.speech).toMatch(/卡我的是|公开发言|给边界|正面解释|两条线|身份和站边|听感/);
+    expect(result.speech).toMatch(/如果|需要|票型前|补硬/);
+    expect(result.speech).not.toMatch(/理由是：|依据是|这个结论来自|拆因果|第一点|盘问议程|追问先落|票口按这个条件|可改票条件/);
     expect(result.speech).not.toMatch(/队友|狼队|真实身份|隐藏身份|系统/);
   });
 
-  it("does not pressure a reported gold-water target in fallback seer speech", async () => {
+  it("does not leak or pressure a hidden gold-water target in fallback seer speech", async () => {
     const state = Array.from({ length: 30 }, (_, seed) => createGame({ seed: seed + 70, humanSeatId: 9 })).find((candidate) =>
       candidate.seats.some((seat) => seat.isAi && seat.role === "SEER"),
     )!;
@@ -1386,9 +1533,9 @@ describe("game engine", () => {
 
     const result = await mockSpeechProvider.generateSpeech(buildAgentView(state, seer.seatId));
 
-    expect(result.speech).toContain(`${target.seatId}号`);
-    expect(result.speech).toContain("金水");
-    expect(result.speech).toMatch(/硬踩金水|不作为今天出人焦点/);
+    expect(result.speech).not.toContain("我跳预言家");
+    expect(result.speech).not.toContain(`${target.seatId}号是金水`);
+    expect(result.speech).not.toContain("昨晚验");
     expect(result.speech).not.toMatch(new RegExp(`${target.seatId}号[^。]*(正面解释|压过去|只给结论)`));
   });
 
@@ -1398,13 +1545,13 @@ describe("game engine", () => {
     const provider = createConstrainedLlmSpeechProvider({
       providerId: "broken-json-speech",
       strictness: "guided",
-      render: async () => "{\"speech\":\"我是6号。场上信息给得很快，2号跳女巫点9号",
+      render: async () => "{\"speech\":\"我是6号。第一轮信息还少，我先只看公开发言顺序。票口等发言链更完整再落",
     });
 
     const result = await provider.generateSpeech(buildAgentView(state, speaker.seatId));
 
     expect(result.isFallback).toBe(false);
-    expect(result.speech).toBe("我是6号。场上信息给得很快，2号跳女巫点9号");
+    expect(result.speech).toBe("我是6号。第一轮信息还少，我先只看公开发言顺序。票口等发言链更完整再落");
   });
 
   it("builds a table briefing that separates facts, unknowns, and speech order", () => {
@@ -1565,8 +1712,10 @@ describe("game engine", () => {
     const logicSpeech = (await mockSpeechProvider.generateSpeech(logicView, createSpeechPlan(logicView))).speech;
     const pressureSpeech = (await mockSpeechProvider.generateSpeech(pressureView, createSpeechPlan(pressureView))).speech;
 
-    expect(logicSpeech).toMatch(/拆因果/);
-    expect(pressureSpeech).toMatch(/正面回答/);
+    expect(logicSpeech).toMatch(/公开信息|能听到的点|发言顺序|票型/);
+    expect(logicSpeech).not.toMatch(/理由是：|依据是|拆因果|第一点|盘问议程|可改票条件/);
+    expect(pressureSpeech).toMatch(/讲实|过程补出来/);
+    expect(pressureSpeech.length).toBeLessThanOrEqual(380);
     expect(logicSpeech).not.toBe(pressureSpeech);
   });
 
@@ -1585,7 +1734,7 @@ describe("game engine", () => {
     expect(planFor("Kimi").personaCue?.mode).toBe("identity");
   });
 
-  it("keeps speech plans out of guided LLM input but preserves them for strict mode", () => {
+  it("passes sanitized speech plans into guided and strict LLM input", () => {
     let state = createGame({ seed: 67, humanSeatId: 9 });
     const speaker = state.seats.find((seat) => seat.isAi && seat.role !== "WEREWOLF")!;
     const previous = state.seats.find((seat) => seat.isAi && seat.seatId !== speaker.seatId)!;
@@ -1604,7 +1753,9 @@ describe("game engine", () => {
     const strictInput = buildConstrainedSpeechInput(view, plan, "strict");
     const serialized = JSON.stringify(input);
 
-    expect(input.speechPlan).toBeUndefined();
+    expect(input.speechPlan?.targetSpeechStatus).toBe(plan.targetSpeechStatus);
+    expect(input.speechPlan?.allowedInteraction).toBe(plan.allowedInteraction);
+    expect(input.speechPlan?.interaction?.line).toBe(plan.interaction?.line);
     expect(strictInput.speechPlan?.interaction?.line).toBe(plan.interaction?.line);
     expect(strictInput.speechPlan?.personaCue?.directives.length).toBeGreaterThan(0);
     expect(serialized).not.toMatch(/privateKnowledge|wolfTeamPlan|ROLE_ASSIGNED/);
@@ -1663,7 +1814,7 @@ describe("game engine", () => {
     expect(input.privateContext.witch?.currentVictim).toBeUndefined();
     expect(input.privateContext.witch?.savedTarget?.seatId).toBe(victim.seatId);
     expect(input.privateContext.witch?.antidoteUsedTonight).toBe(true);
-    expect(input.speechPlan).toBeUndefined();
+    expect(input.speechPlan?.allowedInteraction).toBe("none");
   });
 
   it("lets witch claim and lead when identity pressure needs a god anchor", () => {
@@ -1706,6 +1857,27 @@ describe("game engine", () => {
     expect(plan.talkingPoints.join("。")).toContain("我拍女巫");
   });
 
+  it("lets a day-one hunter hard claim when a prior speaker marks them as the vote pressure", () => {
+    let state = createGame({ seed: 76, humanSeatId: 9 });
+    const hunter = state.seats.find((seat) => seat.role === "HUNTER")!;
+    const priorSpeaker = state.seats.find((seat) => seat.isAi && seat.seatId !== hunter.seatId)!;
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [priorSpeaker.seatId, hunter.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: priorSpeaker.seatId,
+      message: `我先压${hunter.seatId}号，如果后置仍只给结论不给过程，我会把票压过去。`,
+    });
+
+    const plan = createSpeechPlan(buildAgentView(state, hunter.seatId));
+
+    expect(plan.kind).toBe("rally");
+    expect(plan.claimIntent).toEqual(expect.objectContaining({ claimedRole: "HUNTER", strength: "hard" }));
+    expect(plan.talkingPoints.join("。")).toContain("我拍猎人");
+  });
+
   it("keeps the last hidden god from claiming when two god roles are already exposed", () => {
     let state = createGame({ seed: 72, humanSeatId: 9 });
     const seer = state.seats.find((seat) => seat.role === "SEER")!;
@@ -1745,7 +1917,7 @@ describe("game engine", () => {
     state = applyCommand(state, {
       type: "speak",
       actorSeatId: first!.seatId,
-      message: "我这里是平民牌，先按公开信息投。",
+      message: "我是平民牌，先按公开信息投。",
     });
     state = applyCommand(state, {
       type: "speak",
@@ -1909,7 +2081,8 @@ describe("game engine", () => {
       strictness: "guided",
       async render(input) {
         expect(input.speechStrictness).toBe("guided");
-        expect(input.constraints).toBeUndefined();
+        expect(input.constraints?.join("\n")).toContain("狼人杀允许低信息推测");
+        expect(input.constraints?.join("\n")).toContain("死亡/平安夜直接按公开死亡形态处理");
         return `我临时改一下视角，${target.seatId}号像查杀，先听这里解释。`;
       },
     });
@@ -1920,7 +2093,7 @@ describe("game engine", () => {
     expect(result.speech).toContain(`${target.seatId}号像查杀`);
   });
 
-  it("allows guided seer speech to bluff around a real check", async () => {
+  it("rejects guided seer speech that flips a real black check into gold water", async () => {
     const state = createGame({ seed: 23 });
     const seer = state.seats.find((seat) => seat.isAi && seat.role === "SEER")!;
     const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
@@ -1943,8 +2116,11 @@ describe("game engine", () => {
 
     const result = await provider.generateSpeech(view, plan);
 
-    expect(result.isFallback).toBe(false);
-    expect(result.speech).toContain(`${wolf.seatId}号是金水`);
+    expect(result.isFallback).toBe(true);
+    expect(result.speech).toMatch(new RegExp(`${wolf.seatId}号.*是查杀`));
+    expect(result.speech).toMatch(/票口|硬身份反证/);
+    expect(result.speech).not.toMatch(new RegExp(`听${wolf.seatId}号.*怎么回应`));
+    expect(result.speech).not.toContain(`${wolf.seatId}号是金水`);
   });
 
   it("allows guided wolf speeches to cut or black a wolf teammate as a strategy", async () => {
@@ -1975,16 +2151,20 @@ describe("game engine", () => {
     const input = buildConstrainedSpeechInput(view, createSpeechPlan(view));
     const serialized = JSON.stringify(input);
 
-    expect(serialized).not.toContain("constraints");
-    expect(serialized).not.toContain("speechPlan");
+    expect(input.constraints?.join("\n")).toContain("狼人杀允许低信息推测");
+    expect(input.constraints?.join("\n")).toContain("不要把女巫是谁");
+    expect(input.speechPlan?.targetSpeechStatus).toBeDefined();
+    expect(input.speechPlan?.allowedInteraction).toBeDefined();
     expect(serialized).not.toMatch(/privateKnowledge|wolfTeamPlan|assignments|wolfTeammates|ROLE_ASSIGNED/);
-    expect(validateRenderedSpeech(view, createSpeechPlan(view), "系统告诉我真实身份，队友别暴露。")).toEqual([]);
-    expect(validateRenderedSpeech(view, createSpeechPlan(view), "作为AI语言模型，我会根据规则分析。")).toEqual([]);
+    expect(validateRenderedSpeech(view, createSpeechPlan(view), "系统告诉我真实身份，队友别暴露。", "loose")).toEqual([]);
+    expect(validateRenderedSpeech(view, createSpeechPlan(view), "作为AI语言模型，我会根据规则分析。", "loose")).toEqual([]);
     expect(validateRenderedSpeech(view, createSpeechPlan(view), "作为AI语言模型，我会根据规则分析。", "strict")).toEqual(
       expect.arrayContaining(["发言包含离局或模型说明"]),
     );
     const unspoken = view.aliveSeats.find((seat) => seat.seatId !== view.mySeatId)!;
-    expect(validateRenderedSpeech(view, createSpeechPlan(view), `${unspoken.seatId}号到现在给的信息量太少，没有明确站边。`)).toEqual([]);
+    expect(validateRenderedSpeech(view, createSpeechPlan(view), `${unspoken.seatId}号到现在给的信息量太少，没有明确站边。`)).toEqual(
+      expect.arrayContaining([`把本轮未发言的${unspoken.seatId}号当成已发言评价`]),
+    );
     expect(validateRenderedSpeech(view, createSpeechPlan(view), `${unspoken.seatId}号到现在给的信息量太少，没有明确站边。`, "strict")).toEqual(
       expect.arrayContaining([`把本轮未发言的${unspoken.seatId}号当成已发言评价`]),
     );
@@ -2064,7 +2244,7 @@ describe("game engine", () => {
     expect(result.isFallback).toBe(false);
     expect(result.provider).toBe("test-action-llm");
     expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
-    expect(result.command.reason).toBe("public pressure and vote shape point there");
+    expect(result.command.reason).toBe("备选票线：公开发言和票型压力可解释，作为合法分歧票口。");
   });
 
   it("adds a compact public decision summary to LLM action input", () => {
@@ -2150,7 +2330,8 @@ describe("game engine", () => {
 
     expect(result.isFallback).toBe(false);
     expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
-    expect(result.command.reason).toBe(expectedReason);
+    expect(expectedReason).toContain("备选票线");
+    expect(result.command.reason).toBe("备选票线：公开发言和票型压力可解释，作为合法分歧票口。");
   });
 
   it("falls back when LLM action chooses a missing candidate", async () => {
@@ -2626,9 +2807,12 @@ describe("game engine", () => {
     const goodView = buildAgentView(state, good.seatId);
 
     expect(wolfView.privateKnowledge.wolfTeamPlan).toBeDefined();
+    expect(wolfView.privateKnowledge.wolfTeamPlan?.nightStrategy).toBeDefined();
+    expect(wolfView.privateKnowledge.wolfTeamPlan!.nightStrategy!.summary).toContain("首夜");
+    expect(wolfView.privateKnowledge.wolfTeamPlan?.nightStrategy?.nightTarget).toBeDefined();
     expect(wolfView.privateKnowledge.wolfTeamPlan?.assignments).toHaveLength(3);
     expect(goodView.privateKnowledge.wolfTeamPlan).toBeUndefined();
-    expect(JSON.stringify(goodView.publicSummary.tableMemory)).not.toMatch(/COUNTERCLAIM_SEER|PUSH_MISLYNCH|狼队/);
+    expect(JSON.stringify(goodView.publicSummary.tableMemory)).not.toMatch(/COUNTERCLAIM_SEER|PUSH_MISLYNCH|狼队|战术/);
   });
 
   it("has wolf AI coordinate around the private team plan without public teammate leakage", () => {
@@ -2796,14 +2980,18 @@ describe("game engine", () => {
     expect(review.claims).toHaveLength(2);
     expect(review.claims.every((claim) => claim.isCounterclaim)).toBe(true);
     expect(review.claims.find((claim) => claim.claimant.seatId === wolf.seatId)?.truthful).toBe(false);
-    expect(review.strategyNotes.some((note) => note.title === "狼队悍跳")).toBe(true);
-    expect(review.turningPoints.some((point) => point.title.includes("对跳") || point.description.includes("声称"))).toBe(true);
+    expect(review.strategyNotes.some((note) => note.title === "狼队悍跳")).toBe(false);
+    expect(review.turningPoints.some((point) => point.title.includes("对跳") || point.description.includes("声称"))).toBe(false);
   });
 
-  it("lets bold wolf AI distance-vote a teammate from public identity pressure", () => {
-    let state = createGame({ seed: 24 });
-    const wolf = state.seats.find((seat) => seat.isAi && seat.role === "WEREWOLF")!;
-    const teammate = state.seats.find((seat) => seat.role === "WEREWOLF" && seat.seatId !== wolf.seatId)!;
+  it("lets bold wolf AI distance-vote a teammate from hard public identity pressure", () => {
+    let state = createGame({ seed: 24, humanSeatId: null });
+    const wolves = state.seats
+      .filter((seat) => seat.role === "WEREWOLF")
+      .sort((a, b) => b.seatId - a.seatId);
+    const teammate = wolves[0]!;
+    const wolf = wolves[2]!;
+    const challenger = state.seats.find((seat) => seat.role === "SEER")!;
     wolf.persona = {
       id: "bold-distance-wolf",
       name: "测试倒钩狼",
@@ -2822,11 +3010,24 @@ describe("game engine", () => {
       actorSeatId: teammate.seatId,
       message: "我跳预言家，2号是金水。",
     });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [challenger.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: challenger.seatId,
+      message: `我跳预言家，${teammate.seatId}号是查杀，先从这条对跳线归票。`,
+    });
     state.phase = "DAY_VOTE";
 
-    const plan = createVotePlan(buildAgentView(state, wolf.seatId));
+    const view = buildAgentView(state, wolf.seatId);
+    const assignment = view.privateKnowledge.wolfTeamPlan?.assignments.find((item) => item.seat.seatId === wolf.seatId);
+    const plan = createVotePlan(view);
 
+    expect(assignment?.task).toBe("DISTANCE");
+    expect(assignment?.supportSeat?.seatId).toBe(teammate.seatId);
     expect(plan.target.seatId).toBe(teammate.seatId);
+    expect(plan.wolfVoteTactic).toBe("planned_distance");
     expect(plan.reason).not.toMatch(/队友|狼队|WEREWOLF/);
   });
 

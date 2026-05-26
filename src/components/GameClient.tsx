@@ -2,10 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { resolveAiFriendsForGame } from "@/game/aiFriends";
-import { stripSpeechStageDirections } from "@/game/speechText";
 import type {
   AiFriendConfig,
-  AiFriendRuntimeLlmConfig,
   AiFriendRuntimeTtsConfig,
   AiRuntimeMode,
   AvailableHumanAction,
@@ -42,7 +40,17 @@ import {
   resolveSelectedAiFriends,
   type AiFriendLlmSecretMap,
 } from "./game/aiFriendStorage";
+import { getDefaultBoardOptions, getInitialBoardSelection } from "./game/boardSelectionModel";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
+import { MobileGameTable } from "./game/MobileGameTable";
+import {
+  clearCurrentGameId,
+  getRecentGameIdsServerSnapshot,
+  readRecentGameIds,
+  rememberRecentGameId,
+  subscribeRecentGameIds,
+} from "./game/recentGamesStore";
+import { submitStreamingContinue } from "./game/streamingContinue";
 import type {
   AiSpeechAudioStatus,
   AiSpeechAudioTextCue,
@@ -56,17 +64,14 @@ import type {
 } from "./game/clientTypes";
 import { formatSystemMessage } from "./game/viewHelpers";
 
-const CURRENT_GAME_KEY = "ai-werewolf-game-id";
-const RECENT_GAMES_KEY = "ai-werewolf-recent-game-ids";
 const HOST_AUDIO_ENABLED_KEY = "ai-werewolf-host-audio-enabled";
 const AI_SPEECH_AUDIO_ENABLED_KEY = "ai-werewolf-ai-speech-audio-enabled";
 const HOST_AUDIO_BASE_PATH = "/audio/host";
-const EMPTY_RECENT_GAME_IDS: string[] = [];
-let recentGameIdsRawCache: string | null = null;
-let recentGameIdsSnapshotCache: string[] = EMPTY_RECENT_GAME_IDS;
 const AI_SPEECH_MIN_READ_MS = 2600;
 const AI_SPEECH_MAX_READ_MS = 22000;
 const AI_SPEECH_AUDIO_MAX_ATTEMPTS = 1;
+const DEFAULT_BOARD_OPTIONS = getDefaultBoardOptions();
+const DEFAULT_BOARD_SELECTION = getInitialBoardSelection(DEFAULT_BOARD_OPTIONS);
 const AI_SPEECH_AUDIO_PLAYBACK_RATE = 1.12;
 const AI_SPEECH_TTS_MIN_CHUNK_CHARS = 12;
 const AI_SPEECH_TTS_SOFT_CHUNK_CHARS = 28;
@@ -563,6 +568,13 @@ function buildHostAudioCue(game: HumanGameView, completedKeys: ReadonlySet<strin
     return { key: `${game.id}:${game.day}:exile`, clips: [hostClip("vote-revealed")] };
   }
 
+  if (game.phase === "HUNTER_REVEAL") {
+    return {
+      key: `${game.id}:${game.day}:hunter-reveal:${currentActor?.isHuman ? "human" : "ai"}`,
+      clips: [],
+    };
+  }
+
   if (game.phase === "HUNTER_SHOT") {
     return {
       key: `${game.id}:${game.day}:hunter:${currentActor?.isHuman ? "human" : "ai"}`,
@@ -878,82 +890,12 @@ async function tryPlayHostClip(audio: HTMLAudioElement, clip: string): Promise<v
   throw lastError;
 }
 
-async function submitStreamingContinue(
-  game: HumanGameView,
-  payload: Extract<CommandPayload, { type: "continue" }>,
-  runtimeAiLlmConfigs: Record<string, AiFriendRuntimeLlmConfig> | undefined,
-  aiRuntimeMode: AiRuntimeMode,
-  setLiveAiSpeech: React.Dispatch<React.SetStateAction<LiveAiSpeech | null>>,
-  onSpeechTextSnapshot?: (text: string) => void,
-): Promise<HumanGameView> {
-  const speaker = game.currentSpeakerSeatId
-    ? game.tableSummary.tableMemory.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId)
-    : undefined;
-  let finalView: HumanGameView | undefined;
-  if (speaker) {
-    setLiveAiSpeech({
-      gameId: game.id,
-      speaker,
-      text: "",
-    });
-  }
-
-  const response = await fetch(`/api/games/${game.id}/commands/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, aiRuntimeMode, aiLlmConfigs: runtimeAiLlmConfigs }),
-  });
-  if (!response.ok || !response.body) {
-    const data = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(data.error ?? "流式推进失败。");
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  const handleEvent = (rawEvent: string) => {
-    const event = rawEvent.match(/^event:\s*(.+)$/m)?.[1]?.trim() ?? "message";
-    const dataText = rawEvent.match(/^data:\s*([\s\S]*)$/m)?.[1]?.trim();
-    if (!dataText) return;
-    const data = JSON.parse(dataText) as { text?: string; view?: HumanGameView; error?: string };
-    if (event === "speech" && data.text && speaker) {
-      const visibleText = stripSpeechStageDirections(data.text);
-      setLiveAiSpeech({
-        gameId: game.id,
-        speaker,
-        text: visibleText,
-      });
-      if (visibleText) {
-        onSpeechTextSnapshot?.(visibleText);
-      }
-    }
-    if (event === "done" && data.view) {
-      finalView = data.view;
-    }
-    if (event === "error") {
-      throw new Error(data.error ?? "流式推进失败。");
-    }
-  };
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split(/\n\n/);
-    buffer = events.pop() ?? "";
-    for (const event of events) handleEvent(event);
-  }
-  if (buffer.trim()) handleEvent(buffer);
-  if (!finalView) throw new Error("流式推进没有返回最终牌桌。");
-  return finalView;
-}
-
 export function GameClient() {
   const [game, setGame] = useState<HumanGameView | null>(null);
-  const [boards, setBoards] = useState<BoardOption[]>([]);
-  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
+  const [boards, setBoards] = useState<BoardOption[]>(DEFAULT_BOARD_OPTIONS);
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(DEFAULT_BOARD_SELECTION.selectedBoardId);
   const [humanSeatMode, setHumanSeatMode] = useState<HumanSeatMode>("random");
-  const [selectedHumanSeatId, setSelectedHumanSeatId] = useState<number | null>(null);
+  const [selectedHumanSeatId, setSelectedHumanSeatId] = useState<number | null>(DEFAULT_BOARD_SELECTION.selectedHumanSeatId);
   const [customAiFriends, setCustomAiFriends] = useState<AiFriendConfig[]>(EMPTY_CUSTOM_AI_FRIENDS);
   const [aiLlmSecrets, setAiLlmSecrets] = useState<AiFriendLlmSecretMap>({});
   const [selectedAiFriendIds, setSelectedAiFriendIds] = useState<string[]>(getDefaultSelectedAiFriendIds);
@@ -1087,10 +1029,7 @@ export function GameClient() {
   }, []);
 
   const rememberGame = useCallback((gameId: string) => {
-    const nextIds = [gameId, ...readRecentGameIds().filter((id) => id !== gameId)].slice(0, 5);
-    window.localStorage.setItem(CURRENT_GAME_KEY, gameId);
-    window.localStorage.setItem(RECENT_GAMES_KEY, JSON.stringify(nextIds));
-    window.dispatchEvent(new Event("ai-werewolf-recent-games-changed"));
+    rememberRecentGameId(gameId);
   }, []);
 
   useEffect(() => {
@@ -1107,6 +1046,7 @@ export function GameClient() {
 
   useEffect(() => {
     let cancelled = false;
+    if (typeof fetch !== "function") return;
     void fetch("/api/games/boards")
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error("读取板子失败。"))))
       .then((data: { boards?: BoardOption[] }) => {
@@ -1376,6 +1316,38 @@ export function GameClient() {
       setLoading(false);
     }
   }, [humanSeatMode, rememberGame, selectedAiFriends, selectedBoardId, selectedHumanSeatId]);
+
+  const returnHome = useCallback(() => {
+    setGame(null);
+    setLoading(false);
+    setError(null);
+    setRoleIntroGameId(null);
+    setPhaseCurtain(null);
+    setIdiotReveal(null);
+    setIdentityBookOpen(false);
+    setGlossaryOpen(false);
+    setLiveAiSpeech(null);
+    setPendingCommandType(null);
+    stopHostAudio();
+    stopAiSpeechAudio();
+    lastCurtainKeyRef.current = null;
+    activeIdiotRevealKeyRef.current = null;
+    autoReadGameIdRef.current = null;
+    autoReadSpeechKeysRef.current.clear();
+    completedHostAudioKeysRef.current.clear();
+    completedAiSpeechAudioKeysRef.current.clear();
+    streamingAiSpeechAudioKeysRef.current.clear();
+    textFallbackAiSpeechKeysRef.current.clear();
+    aiSpeechAudioAttemptCountsRef.current.clear();
+    aiSpeechAudioGameIdRef.current = null;
+    lastHostAudioKeyRef.current = null;
+    lastAiSpeechAudioKeyRef.current = null;
+    if (idiotRevealTimerRef.current !== null) {
+      window.clearTimeout(idiotRevealTimerRef.current);
+      idiotRevealTimerRef.current = null;
+    }
+    clearCurrentGameId();
+  }, [stopAiSpeechAudio, stopHostAudio]);
 
   const submitCommand = useCallback(async (payload: CommandPayload) => {
     if (!game) return;
@@ -1717,18 +1689,21 @@ export function GameClient() {
       }}
     >
       <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-4 px-3 py-3 sm:px-5 lg:px-7">
-        <RoomHeader
-          game={game}
-          loading={loading}
-          aiSpeechAudioEnabled={aiSpeechAudioEnabled}
-          aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
-          hostAudioEnabled={hostAudioEnabled}
-          onNewGame={startGame}
-          onOpenIdentityBook={() => setIdentityBookOpen(true)}
-          onOpenGlossary={() => setGlossaryOpen(true)}
-          onToggleAiSpeechAudio={toggleAiSpeechAudio}
-          onToggleHostAudio={toggleHostAudio}
-        />
+        <div className={game ? "hidden sm:block" : ""}>
+          <RoomHeader
+            game={game}
+            loading={loading}
+            aiSpeechAudioEnabled={aiSpeechAudioEnabled}
+            aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
+            hostAudioEnabled={hostAudioEnabled}
+            onNewGame={startGame}
+            onReturnHome={game ? returnHome : undefined}
+            onOpenIdentityBook={() => setIdentityBookOpen(true)}
+            onOpenGlossary={() => setGlossaryOpen(true)}
+            onToggleAiSpeechAudio={toggleAiSpeechAudio}
+            onToggleHostAudio={toggleHostAudio}
+          />
+        </div>
 
         {error && (
           <div className="rounded-lg border border-[#e46d55]/45 bg-[#381511]/90 px-4 py-3 text-sm text-[#ffd8cf] shadow-lg">
@@ -1756,39 +1731,61 @@ export function GameClient() {
           />
         ) : (
           <div className="grid flex-1 gap-4">
-            <PhaseRhythm game={game} />
-            <HostStage game={game} />
-            <FlowStatusBar
+            <MobileGameTable
               game={game}
               loading={loading}
               pendingCommandType={pendingCommandType}
               liveAiSpeech={liveAiSpeech}
+              hostAudioEnabled={hostAudioEnabled}
+              aiSpeechAudioEnabled={aiSpeechAudioEnabled}
               hostAudioStatus={hostAudioStatus}
               aiSpeechAudioStatus={aiSpeechAudioStatus}
               aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
-              onPauseAiSpeechAudio={pauseAiSpeechAudio}
-              onResumeAiSpeechAudio={resumeAiSpeechAudio}
-              onSkipAiSpeechAudio={skipAiSpeechAudio}
+              events={latestEvents}
+              onNewGame={() => startGame()}
+              onReturnHome={returnHome}
+              onSubmit={submitCommand}
+              onOpenIdentityBook={() => setIdentityBookOpen(true)}
+              onOpenGlossary={() => setGlossaryOpen(true)}
               onToggleAiSpeechAudio={toggleAiSpeechAudio}
+              onToggleHostAudio={toggleHostAudio}
             />
-            <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,420px)]">
-              <div className="grid content-start gap-4">
-                <SeatBoard game={game} liveAiSpeech={liveAiSpeech} aiSpeechAudioStatus={aiSpeechAudioStatus} />
-                {game.review && <ReviewPanel game={game} />}
-              </div>
 
-              <aside className="grid content-start gap-4">
-                <ActionPanel game={game} loading={loading} onNewGame={startGame} onSubmit={submitCommand} />
-                <VoteTable game={game} loading={loading} pendingCommandType={pendingCommandType} />
-                <AuxiliaryInfoPanel game={game} events={latestEvents} />
-              </aside>
-            </section>
+            <div className="hidden gap-4 sm:grid">
+              <PhaseRhythm game={game} />
+              <HostStage game={game} />
+              <FlowStatusBar
+                game={game}
+                loading={loading}
+                pendingCommandType={pendingCommandType}
+                liveAiSpeech={liveAiSpeech}
+                hostAudioStatus={hostAudioStatus}
+                aiSpeechAudioStatus={aiSpeechAudioStatus}
+                aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
+                onPauseAiSpeechAudio={pauseAiSpeechAudio}
+                onResumeAiSpeechAudio={resumeAiSpeechAudio}
+                onSkipAiSpeechAudio={skipAiSpeechAudio}
+                onToggleAiSpeechAudio={toggleAiSpeechAudio}
+              />
+              <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,420px)]">
+                <div className="grid content-start gap-4">
+                  <SeatBoard game={game} liveAiSpeech={liveAiSpeech} aiSpeechAudioStatus={aiSpeechAudioStatus} />
+                  {game.review && <ReviewPanel game={game} />}
+                </div>
+
+                <aside className="grid content-start gap-4">
+                  <ActionPanel game={game} loading={loading} onNewGame={startGame} onReturnHome={returnHome} onSubmit={submitCommand} />
+                  <VoteTable game={game} loading={loading} pendingCommandType={pendingCommandType} />
+                  <AuxiliaryInfoPanel game={game} events={latestEvents} />
+                </aside>
+              </section>
+            </div>
           </div>
         )}
       </div>
 
       {game && game.humanSeatId !== null && roleIntroGameId === game.id && (
-        <RoleIntroOverlay game={game} onEnter={() => setRoleIntroGameId(null)} />
+        <RoleIntroOverlay game={game} onEnter={() => setRoleIntroGameId(null)} onReturnHome={returnHome} />
       )}
       {identityBookOpen && (
         <IdentityBookOverlay game={game} activeBoardId={game?.board.id ?? selectedBoardId ?? undefined} onClose={() => setIdentityBookOpen(false)} />
@@ -1798,55 +1795,4 @@ export function GameClient() {
       {idiotReveal && <IdiotRevealOverlay key={idiotReveal.key} cue={idiotReveal} />}
     </main>
   );
-}
-
-function readRecentGameIds(): string[] {
-  if (typeof window === "undefined") {
-    return EMPTY_RECENT_GAME_IDS;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(RECENT_GAMES_KEY);
-    if (raw === recentGameIdsRawCache) {
-      return recentGameIdsSnapshotCache;
-    }
-
-    recentGameIdsRawCache = raw;
-    const parsed = raw ? JSON.parse(raw) : [];
-    recentGameIdsSnapshotCache = Array.isArray(parsed)
-      ? parsed.filter((gameId): gameId is string => typeof gameId === "string").slice(0, 5)
-      : EMPTY_RECENT_GAME_IDS;
-    return recentGameIdsSnapshotCache;
-  } catch {
-    recentGameIdsRawCache = null;
-    recentGameIdsSnapshotCache = EMPTY_RECENT_GAME_IDS;
-    return EMPTY_RECENT_GAME_IDS;
-  }
-}
-
-function getRecentGameIdsServerSnapshot(): string[] {
-  return EMPTY_RECENT_GAME_IDS;
-}
-
-function subscribeRecentGameIds(onStoreChange: () => void): () => void {
-  if (typeof window === "undefined") {
-    return () => undefined;
-  }
-
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key !== CURRENT_GAME_KEY && event.key !== RECENT_GAMES_KEY) return;
-    recentGameIdsRawCache = null;
-    onStoreChange();
-  };
-  const handleLocalChange = () => {
-    recentGameIdsRawCache = null;
-    onStoreChange();
-  };
-
-  window.addEventListener("storage", handleStorage);
-  window.addEventListener("ai-werewolf-recent-games-changed", handleLocalChange);
-  return () => {
-    window.removeEventListener("storage", handleStorage);
-    window.removeEventListener("ai-werewolf-recent-games-changed", handleLocalChange);
-  };
 }

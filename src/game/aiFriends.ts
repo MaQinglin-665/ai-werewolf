@@ -65,6 +65,18 @@ export function copyAiFriend(friend: AiFriendConfig, options: { id?: string; now
   };
 }
 
+export function applyAiFriendPersonaTemplate(friend: AiFriendConfig, basePersonaId: string): AiFriendConfig {
+  const basePersona = getAiPersonaById(basePersonaId) ?? getAiPersonaById(friend.basePersonaId);
+  if (!basePersona) return friend;
+  return {
+    ...friend,
+    basePersonaId: basePersona.id,
+    riskTolerance: basePersona.riskTolerance,
+    bluffing: basePersona.bluffing,
+    preferences: normalizePreferences(basePersona.preferences),
+  };
+}
+
 export function createAiFriendId(): string {
   return `friend-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }

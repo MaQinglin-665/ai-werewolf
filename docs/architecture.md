@@ -100,6 +100,11 @@ HTTP API 层。
 
 ## 推荐拆分方向
 
+Use `npm run audit:structure` before planning broad refactors. The command
+reports the largest source files and directory-level size signals while
+excluding generated files and heavy image assets. Treat the output as triage,
+not as an automatic instruction to split the largest file first.
+
 ### 前端
 
 ```text
@@ -118,6 +123,20 @@ src/components/game/
     useAiSpeechAudio.ts
     useVoiceInput.ts
 ```
+
+### 前端结构治理
+
+前端结构优化先从边界治理开始，而不是直接重写组件树。
+
+当前约定：
+
+- `src/components/GameClient.tsx` 保持单人牌桌的 orchestration 层，负责顶层状态、请求协调、桌面/移动端组合和音频/自动推进协调。
+- `src/components/game/**` 放纯展示组件、移动端牌桌、表格面板、前端 view helper 和对应测试。
+- `src/components/RoomClient.tsx` 保持房间流程 orchestration 层。
+- `src/components/rooms/**` 是后续房间大厅/房间牌桌展示组件和纯 room UI model 的目标目录。
+- `src/app/globals.css` 目前仍是共享样式面。先按 `docs/tasks/2026-05-frontend-css-boundary-map.md` 记录 section map，再决定是否增加非行为性 section 注释、CSS partial import 或 CSS modules。
+
+不要在同一轮里同时拆 `GameClient.tsx`、`RoomClient.tsx` 和 `globals.css`。优先从一个非行为性 CSS 整理或一个纯前端 helper 提取开始。
 
 ### 规则引擎
 

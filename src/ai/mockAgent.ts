@@ -1,5 +1,6 @@
 import { applyCommand, applySystemStep, getTurnRequirement } from "@/game/engine";
 import { clampProbability, stableRoll, stableSignedJitter } from "@/game/decisionNoise";
+import type { RuntimeAiProviderMode } from "@/game/llmConfig";
 import { buildAgentView } from "@/game/projection";
 import { isWolfRole } from "@/game/roleUtils";
 import type {
@@ -16,7 +17,13 @@ import type {
 import { createConfiguredActionProvider } from "./actionProviders";
 import { refreshAiSeatMemory, rememberAiDecision, storeAiSeatMemory } from "./seatMemory";
 import { createConfiguredSpeechProvider, mockSpeechProvider } from "./speechProviders";
-import { buildAiTableRead, createSpeechPlan, createVotePlan } from "./tableRead";
+import {
+  buildAiTableRead,
+  createSpeechPlan,
+  createVotePlan,
+  isDayOneSoftPowerHintBlackCheckProtectedTarget,
+  isProtectedSeerGoldTarget,
+} from "./tableRead";
 import type { AiActionProvider, AiDecisionLog, AiSpeechProvider, AiSpeechProviderContext } from "./types";
 
 const POWER_CLAIM_ROLES = new Set(["SEER", "WITCH", "HUNTER", "IDIOT", "KNIGHT", "GUARD"]);
@@ -111,6 +118,7 @@ export async function advanceWithMockAi(
     state = storeAiSeatMemory(state, memoryAfterDecision);
     aiLogs.push({
       gameId: state.id,
+      day: prompt.day,
       seatNumber: actorSeatId,
       phase: requirement.phase,
       provider: speechResult?.provider ?? actionResult?.provider ?? mockActionProvider.providerId,
@@ -241,6 +249,7 @@ async function advanceAiTurn(
     state,
     aiLog: {
       gameId: state.id,
+      day: prompt.day,
       seatNumber: requirement.actorSeatId,
       phase: requirement.phase,
       provider: speechResult?.provider ?? actionResult?.provider ?? mockActionProvider.providerId,
@@ -257,8 +266,9 @@ async function advanceAiTurn(
   };
 }
 
-export function createConfiguredAiOptions(options: { forceMock?: boolean } = {}): AiAdvanceOptions {
-  if (options.forceMock) {
+export function createConfiguredAiOptions(optionsOrMode: { forceMock?: boolean } | RuntimeAiProviderMode = {}): AiAdvanceOptions {
+  const forceMock = typeof optionsOrMode === "string" ? optionsOrMode === "mock" : optionsOrMode.forceMock === true;
+  if (forceMock) {
     return {
       speechProvider: mockSpeechProvider,
       actionProvider: mockActionProvider,
@@ -303,7 +313,7 @@ export function createMockCommand(
         type: "seerCheck",
         actorSeatId,
         targetSeatId: target.seatId,
-        reason: `${target.name} 是当前焦点，查验收益最高。`,
+        reason: buildSeerCheckReason(tableRead, target),
       };
     }
     case "NIGHT_WITCH":
@@ -379,6 +389,13 @@ export function createMockCommand(
       };
     case "DAY_VOTE": {
       const plan = votePlan ?? createVotePlan(view, tableRead);
+      if (plan.abstain) {
+        return {
+          type: "vote",
+          actorSeatId,
+          reason: plan.reason,
+        };
+      }
       return {
         type: "vote",
         actorSeatId,
@@ -392,16 +409,30 @@ export function createMockCommand(
         type: "knightDuel",
         actorSeatId,
         targetSeatId: target?.seatId,
-        reason: target ? `${target.name} 的公开狼面足够高，骑士决斗可以直接验证。` : "证据还不足，骑士先保留决斗窗口。",
+        reason: target ? buildKnightDuelReason(tableRead, target) : "证据还不足，骑士先保留决斗窗口。",
+      };
+    }
+    case "HUNTER_REVEAL": {
+      const target = chooseShotTarget(
+        view,
+        tableRead,
+        "hunterShoot",
+        view.aliveSeats.filter((seat) => seat.seatId !== actorSeatId),
+      );
+      return {
+        type: "hunterReveal",
+        actorSeatId,
+        reveal: Boolean(target),
+        reason: target ? buildShotReason(tableRead, target, "hunterShoot") : "没有足够确定的带人目标，选择不翻牌。",
       };
     }
     case "HUNTER_SHOT": {
-      const target = chooseShotTarget(view, tableRead, "hunterShoot");
+      const target = chooseShotTarget(view, tableRead, "hunterShoot") ?? view.aliveSeats.find((seat) => seat.seatId !== actorSeatId);
       return {
         type: "hunterShoot",
         actorSeatId,
         targetSeatId: target?.seatId,
-        reason: target ? `${target.name} 的公开疑点最高，猎人枪优先处理。` : "没有足够确定的带人目标。",
+        reason: target ? buildShotReason(tableRead, target, "hunterShoot") : "猎人已经翻牌，必须带走一名存活玩家。",
       };
     }
     case "WOLF_KING_SHOT": {
@@ -410,7 +441,7 @@ export function createMockCommand(
         type: "wolfKingShoot",
         actorSeatId,
         targetSeatId: target?.seatId,
-        reason: target ? `${target.name} 的公开收益最高，狼王枪优先处理。` : "没有足够确定的带人目标。",
+        reason: target ? buildShotReason(tableRead, target, "wolfKingShoot") : "没有足够确定的带人目标。",
       };
     }
     case "SHERIFF_HANDOFF": {
@@ -493,6 +524,26 @@ function clipFact(text: string, limit: number): string {
   return clean.length <= limit ? clean : `${clean.slice(0, limit - 1)}…`;
 }
 
+function guardProtectScore(view: AgentView, tableRead: AiTableRead, seat: SeatRead): number {
+  const publicSeer = seat.publicClaims.some((claim) => claim.claimedRole === "SEER");
+  const guardConflictPenalty = view.rules.guardSaveConflictKills && view.day <= 1 && publicSeer ? 8 : 0;
+  const supportActors = new Set(
+    seat.publicStancedBy
+      .filter((stance) => stance.kind === "SUPPORT" || stance.kind === "FOLLOW")
+      .map((stance) => stance.actor.seatId),
+  );
+
+  return (
+    seat.trust -
+    seat.suspicion * 0.12 +
+    publicRoleValueScore(seat) * 0.8 +
+    publicCueAttentionScore(tableRead, seat) * 0.35 +
+    supportActors.size * 3 -
+    guardConflictPenalty +
+    stableSignedJitter(["guard-protect", view.day, view.mySeatId, view.persona?.id, seat.seatId], 4)
+  );
+}
+
 function chooseGuardTarget(view: AgentView, tableRead: AiTableRead): ActionTarget | undefined {
   const action = getAction(view, "guardAction");
   const targets = action.targets;
@@ -500,12 +551,24 @@ function chooseGuardTarget(view: AgentView, tableRead: AiTableRead): ActionTarge
   const bySeatId = new Map(tableRead.seats.map((seat) => [seat.seatId, seat]));
   const self = targets.find((target) => target.seatId === view.mySeatId);
   const publicSeer = targets.find((target) => bySeatId.get(target.seatId)?.publicClaims.some((claim) => claim.claimedRole === "SEER"));
-  if (publicSeer && stableRoll(["guard-seer", view.day, view.mySeatId, publicSeer.seatId]) < 0.72) return publicSeer;
-  if (self && stableRoll(["guard-self", view.day, view.mySeatId]) < 0.24) return self;
+  const publicSeerRead = publicSeer ? bySeatId.get(publicSeer.seatId) : undefined;
+  const seerProtectedByWitchRisk = Boolean(
+    publicSeerRead &&
+      view.rules.guardSaveConflictKills &&
+      view.day <= 1 &&
+      publicSeerRead.trust >= publicSeerRead.suspicion,
+  );
+  if (publicSeer && !seerProtectedByWitchRisk && stableRoll(["guard-seer", view.day, view.mySeatId, publicSeer.seatId]) < 0.72) {
+    return publicSeer;
+  }
+  if (self && stableRoll(["guard-self", view.day, view.mySeatId]) < 0.18) return self;
   return [...targets].sort((a, b) => {
     const readA = bySeatId.get(a.seatId);
     const readB = bySeatId.get(b.seatId);
-    return (readB ? readB.trust - readB.suspicion * 0.15 : 0) - (readA ? readA.trust - readA.suspicion * 0.15 : 0);
+    return (
+      (readB ? guardProtectScore(view, tableRead, readB) : 0) -
+      (readA ? guardProtectScore(view, tableRead, readA) : 0)
+    );
   })[0];
 }
 
@@ -579,7 +642,7 @@ function chooseWolfKillTarget(view: AgentView, tableRead: AiTableRead): ActionTa
 
   const candidates = tableRead.seats
     .filter((seat) => legalTargetIds.has(seat.seatId) && !isPrivateWolfSeat(view, seat.seatId))
-    .sort((a, b) => nightKillScore(view, b) - nightKillScore(view, a) || a.seatId - b.seatId);
+    .sort((a, b) => nightKillScore(view, tableRead, b) - nightKillScore(view, tableRead, a) || a.seatId - b.seatId);
   return toTarget(candidates[0] ?? action.targets[0]);
 }
 
@@ -588,17 +651,26 @@ function chooseWolfBeautyCharmTarget(view: AgentView, tableRead: AiTableRead): A
   const legalTargetIds = new Set(action.targets.map((target) => target.seatId));
   const candidates = tableRead.seats
     .filter((seat) => legalTargetIds.has(seat.seatId) && !isPrivateWolfSeat(view, seat.seatId))
-    .sort((a, b) => wolfBeautyCharmScore(b) - wolfBeautyCharmScore(a) || a.seatId - b.seatId);
+    .sort((a, b) => wolfBeautyCharmScore(view, tableRead, b) - wolfBeautyCharmScore(view, tableRead, a) || a.seatId - b.seatId);
   return candidates[0] ? toTarget(candidates[0]) : action.canSkip ? undefined : action.targets[0];
 }
 
-function wolfBeautyCharmScore(seat: SeatRead): number {
+function wolfBeautyCharmScore(view: AgentView, tableRead: AiTableRead, seat: SeatRead): number {
   const powerClaimValue = seat.publicClaims.reduce((score, claim) => {
     if (claim.claimedRole === "SEER") return Math.max(score, 24);
     if (claim.claimedRole === "WITCH" || claim.claimedRole === "HUNTER" || claim.claimedRole === "KNIGHT") return Math.max(score, 18);
+    if (claim.claimedRole === "GUARD" || claim.claimedRole === "IDIOT") return Math.max(score, 12);
     return score;
   }, 0);
-  return seat.trust - seat.suspicion * 0.18 + powerClaimValue;
+  const roundValue = view.day >= 2 ? 6 : 0;
+  return (
+    seat.trust -
+    seat.suspicion * 0.18 +
+    powerClaimValue +
+    publicRoleValueScore(seat) * 0.35 +
+    publicCueAttentionScore(tableRead, seat) * 0.4 +
+    roundValue
+  );
 }
 
 function chooseWolfPotionBaitTarget(
@@ -642,7 +714,7 @@ function chooseSeerTarget(view: AgentView, tableRead: AiTableRead): ActionTarget
 
   const candidates = tableRead.seats
     .filter((seat) => legalTargetIds.has(seat.seatId))
-    .sort((a, b) => seerCheckScore(view, b) - seerCheckScore(view, a) || a.seatId - b.seatId);
+    .sort((a, b) => seerCheckScore(view, tableRead, b) - seerCheckScore(view, tableRead, a) || a.seatId - b.seatId);
   return toTarget(candidates[0] ?? action.targets.find((target) => !checked.has(target.seatId)) ?? action.targets[0]);
 }
 
@@ -681,7 +753,7 @@ function chooseWitchAction(view: AgentView, tableRead: AiTableRead): Command {
         actorSeatId: view.mySeatId,
         mode: "poison",
         targetSeatId: target.seatId,
-        reason: `${target.name} 的公开疑点较高，毒药用于加速排坑。`,
+        reason: buildWitchPoisonReason(tableRead, target),
       };
     }
   }
@@ -698,16 +770,17 @@ function chooseShotTarget(
   view: AgentView,
   tableRead: AiTableRead,
   actionType: "hunterShoot" | "wolfKingShoot",
+  legalTargets?: ActionTarget[],
 ): ActionTarget | undefined {
-  const action = getAction(view, actionType);
-  const legalTargetIds = new Set(action.targets.map((target) => target.seatId));
+  const actionTargets = legalTargets ?? getAction(view, actionType).targets;
+  const legalTargetIds = new Set(actionTargets.map((target) => target.seatId));
   const candidates = tableRead.seats
     .filter((seat) => legalTargetIds.has(seat.seatId))
-    .sort((a, b) => hunterShotScore(b) - hunterShotScore(a) || a.seatId - b.seatId);
+    .sort((a, b) => hunterShotScore(tableRead, b) - hunterShotScore(tableRead, a) || a.seatId - b.seatId);
   const target = candidates.find((seat) => {
     const publicWolfCheck = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF");
     const threshold = (publicWolfCheck ? 62 : 72) - (view.persona?.riskTolerance ?? 0.45) * 8;
-    return hasStrongHunterShotEvidence(seat) && seat.suspicion >= threshold;
+    return hasStrongHunterShotEvidence(tableRead, seat) && seat.suspicion >= threshold;
   });
 
   return target ? toTarget(target) : undefined;
@@ -716,28 +789,34 @@ function chooseShotTarget(
 function chooseKnightDuelTarget(view: AgentView, tableRead: AiTableRead): ActionTarget | undefined {
   const action = getAction(view, "knightDuel");
   const legalTargetIds = new Set(action.targets.map((target) => target.seatId));
-  const target = tableRead.seats
+  const candidates = tableRead.seats
     .filter((seat) => legalTargetIds.has(seat.seatId))
-    .sort((a, b) => knightDuelScore(b) - knightDuelScore(a) || a.seatId - b.seatId)[0];
+    .sort((a, b) => knightDuelScore(tableRead, b) - knightDuelScore(tableRead, a) || a.seatId - b.seatId);
+  const target = candidates.find((seat) => {
+    const publicWolfCheck = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF");
+    const threshold = (publicWolfCheck ? 64 : 84) - (view.persona?.riskTolerance ?? 0.45) * 8;
+    return hasStrongKnightDuelEvidence(tableRead, seat) && seat.suspicion >= threshold;
+  });
 
-  const publicWolfCheck = target?.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ?? false;
-  const threshold = (publicWolfCheck ? 64 : 84) - (view.persona?.riskTolerance ?? 0.45) * 8;
-  if (!target || !hasStrongKnightDuelEvidence(target) || target.suspicion < threshold) return undefined;
-  return toTarget(target);
+  return target ? toTarget(target) : undefined;
 }
 
-function knightDuelScore(seat: SeatRead): number {
+function knightDuelScore(tableRead: AiTableRead, seat: SeatRead): number {
   const publicWolfCheckBonus = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ? 16 : 0;
   const counterclaimBonus = seat.publicClaims.some((claim) => claim.claimedRole === "SEER") ? 5 : 0;
-  return seat.suspicion - seat.trust * 0.12 + publicWolfCheckBonus + counterclaimBonus;
+  return seat.suspicion - seat.trust * 0.12 + publicWolfCheckBonus + counterclaimBonus + publicCueAttentionScore(tableRead, seat) * 0.6;
 }
 
-function hasStrongKnightDuelEvidence(seat: SeatRead): boolean {
+function hasStrongKnightDuelEvidence(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (isProtectedStrongActionGoldTarget(tableRead, seat) || isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat)) {
+    return false;
+  }
+
   if (seat.pressure.some((item) => item.includes("未对跳") || item.includes("被后置预言家查杀"))) {
     return false;
   }
   if (seat.pressure.some((item) => item.includes("夜死后遗留查杀") || item.includes("后置查杀已跳预言家"))) {
-    return true;
+    return hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId);
   }
   const negativeActors = new Set(
     seat.publicStancedBy
@@ -745,7 +824,12 @@ function hasStrongKnightDuelEvidence(seat: SeatRead): boolean {
       .map((stance) => stance.actor.seatId),
   );
   const hasPublicBlackCheck = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF");
-  return hasPublicBlackCheck && seat.suspicion >= 92 && negativeActors.size >= 3;
+  const trustedBlackCheck = hasTrustedPublicWolfCheck(tableRead, seat);
+  if (hasPublicBlackCheck && !trustedBlackCheck) return false;
+  if (trustedBlackCheck && tableRead.day >= 3 && seat.suspicion >= 90 && (negativeActors.size >= 2 || hasStrongPublicActionCue(tableRead, seat))) {
+    return true;
+  }
+  return !hasPublicBlackCheck && tableRead.day >= 3 && hasStrongPublicActionCue(tableRead, seat) && seat.suspicion >= 96 && negativeActors.size >= 3;
 }
 
 function chooseWhiteWolfKingExplodeTarget(
@@ -756,7 +840,7 @@ function chooseWhiteWolfKingExplodeTarget(
   const legalTargetIds = new Set(targets.map((target) => target.seatId));
   const target = tableRead.seats
     .filter((seat) => legalTargetIds.has(seat.seatId) && !seat.isWolfTeammate)
-    .sort((a, b) => whiteWolfKingExplodeScore(b) - whiteWolfKingExplodeScore(a) || a.seatId - b.seatId)[0];
+    .sort((a, b) => whiteWolfKingExplodeScore(tableRead, b) - whiteWolfKingExplodeScore(tableRead, a) || a.seatId - b.seatId)[0];
   return target ? toTarget(target) : undefined;
 }
 
@@ -767,7 +851,7 @@ function shouldWhiteWolfKingExplode(view: AgentView, tableRead: AiTableRead, tar
   if (targetRead.isWolfTeammate) return false;
 
   const selfPressure = selfRead.suspicion - selfRead.trust;
-  const targetValue = whiteWolfKingExplodeScore(targetRead);
+  const targetValue = whiteWolfKingExplodeScore(tableRead, targetRead);
   const underHardPressure =
     selfPressure >= 30 ||
     selfRead.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ||
@@ -787,15 +871,17 @@ function shouldWhiteWolfKingExplode(view: AgentView, tableRead: AiTableRead, tar
   return stableRoll(["white-wolf-king-explode", view.day, view.mySeatId, target.seatId, view.persona?.id]) < threshold;
 }
 
-function whiteWolfKingExplodeScore(seat: SeatRead): number {
+function whiteWolfKingExplodeScore(tableRead: AiTableRead, seat: SeatRead): number {
   const claimValue = seat.publicClaims.reduce((score, claim) => {
     if (claim.claimedRole === "SEER") return Math.max(score, 40);
     if (claim.claimedRole === "WITCH" || claim.claimedRole === "HUNTER" || claim.claimedRole === "GUARD") return Math.max(score, 28);
+    if (claim.claimedRole === "KNIGHT") return Math.max(score, 24);
+    if (claim.claimedRole === "IDIOT") return Math.max(score, 10);
     if (claim.claimedRole === "VILLAGER") return Math.max(score, 8);
     return score;
   }, 0);
   const checkedGoodValue = seat.publicChecksAgainst.some((check) => check.result === "GOOD") ? 14 : 0;
-  return seat.trust * 0.85 - seat.suspicion * 0.12 + claimValue + checkedGoodValue;
+  return seat.trust * 0.85 - seat.suspicion * 0.12 + claimValue + checkedGoodValue + publicCueAttentionScore(tableRead, seat) * 0.5;
 }
 
 function getWhiteWolfKingExplodeAction(view: AgentView) {
@@ -816,6 +902,9 @@ function shouldSaveVictim(view: AgentView, tableRead: AiTableRead, victim: Actio
   const victimRead = tableRead.seats.find((seat) => seat.seatId === victim.seatId);
   if (shouldDeferPublicSeerSaveToGuard(view, victimRead)) return false;
   if (victimRead?.publicClaims.some((claim) => claim.claimedRole === "SEER")) return true;
+  if (victimRead && publicRoleValueScore(victimRead) >= 18 && victimRead.trust >= victimRead.suspicion - 8) {
+    return true;
+  }
   if (view.day === 1) {
     const trustDelta = victimRead ? (victimRead.trust - victimRead.suspicion) / 160 : 0;
     const threshold = clampProbability(0.58 + trustDelta - (view.persona?.riskTolerance ?? 0.45) * 0.16);
@@ -842,7 +931,13 @@ function witchPoisonScore(tableRead: AiTableRead, seat: SeatRead): number {
   const counterclaimBonus = isSeerCounterclaimant(tableRead, seat.seatId) ? 12 : 0;
   const reactiveClaimantBonus = isReactiveSeerClaimant(tableRead.tableMemory, seat.seatId) ? 18 : 0;
   const deadSeerLegacyBonus = hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId) ? 22 : 0;
-  const protectedTargetPenalty = isProtectedPowerClaim(tableRead, seat) || isTargetOfReactiveSeerBlackCheck(tableRead, seat.seatId) ? 32 : 0;
+  const protectedTargetPenalty =
+    isProtectedPowerClaim(tableRead, seat) ||
+    isTargetOfReactiveSeerBlackCheck(tableRead, seat.seatId) ||
+    isProtectedStrongActionGoldTarget(tableRead, seat) ||
+    isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat)
+      ? 32
+      : 0;
   return (
     seat.suspicion -
     seat.trust * 0.08 +
@@ -856,7 +951,12 @@ function witchPoisonScore(tableRead: AiTableRead, seat: SeatRead): number {
 }
 
 function hasStrongWitchPoisonEvidence(tableRead: AiTableRead, seat: SeatRead): boolean {
-  if (isProtectedPowerClaim(tableRead, seat) || isTargetOfReactiveSeerBlackCheck(tableRead, seat.seatId)) {
+  if (
+    isProtectedPowerClaim(tableRead, seat) ||
+    isTargetOfReactiveSeerBlackCheck(tableRead, seat.seatId) ||
+    isProtectedStrongActionGoldTarget(tableRead, seat) ||
+    isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat)
+  ) {
     return false;
   }
 
@@ -871,11 +971,30 @@ function hasStrongWitchPoisonEvidence(tableRead: AiTableRead, seat: SeatRead): b
   }
 
   const challengePressure = seat.suspicion - seat.trust;
-  if (isSeerCounterclaimant(tableRead, seat.seatId) && seat.suspicion >= 86 && challengePressure >= 32) {
+  const pressureActors = publicActionPressureActors(seat);
+  if (isSeerCounterclaimant(tableRead, seat.seatId) && seat.suspicion >= 90 && challengePressure >= 38 && pressureActors.length >= 2) {
+    return true;
+  }
+
+  if (hasStrongPublicPoisonCue(tableRead, seat) && seat.suspicion >= 90) {
     return true;
   }
 
   return hasTrustedPublicWolfCheck(tableRead, seat) && seat.suspicion >= 86;
+}
+
+function isProtectedStrongActionGoldTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (!isProtectedSeerGoldTarget(tableRead, seat)) return false;
+  if (seat.isKnownWolf || hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId)) return false;
+
+  const challengePressure = seat.suspicion - seat.trust;
+  const overwhelmingPublicCase =
+    hasTrustedPublicWolfCheck(tableRead, seat) &&
+    seat.suspicion >= 96 &&
+    challengePressure >= 54 &&
+    publicActionPressureActors(seat).length >= 4;
+
+  return !overwhelmingPublicCase;
 }
 
 function isProtectedPowerClaim(tableRead: AiTableRead, seat: SeatRead): boolean {
@@ -908,8 +1027,17 @@ function isTrustedPublicSeerForPoison(tableRead: AiTableRead, claimant: SeatRead
 }
 
 function hasDeadSeerLegacyBlackCheck(tableRead: AiTableRead, targetSeatId: number): boolean {
-  return tableRead.tableMemory.seerLegacies.some((legacy) =>
-    legacy.checks.some((check) => check.target.seatId === targetSeatId && check.result === "WEREWOLF"),
+  return Boolean(findActionableDeadSeerLegacyBlackCheck(tableRead, targetSeatId));
+}
+
+function findActionableDeadSeerLegacyBlackCheck(
+  tableRead: AiTableRead,
+  targetSeatId: number,
+): AiTableRead["tableMemory"]["seerLegacies"][number] | undefined {
+  return tableRead.tableMemory.seerLegacies.find(
+    (legacy) =>
+      legacy.deathKind !== "exile" &&
+      legacy.checks.some((check) => check.target.seatId === targetSeatId && check.result === "WEREWOLF"),
   );
 }
 
@@ -964,19 +1092,181 @@ function isReactiveSeerBlackCheck(
   return claim.sourceSpeechSeq > targetClaim.sourceSpeechSeq;
 }
 
-function hunterShotScore(seat: SeatRead): number {
-  const publicWolfCheckBonus = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ? 12 : 0;
-  const trustedClaimPenalty = seat.publicClaims.some((claim) => claim.claimedRole === "SEER" || claim.claimedRole === "WITCH") ? 8 : 0;
-  return seat.suspicion - seat.trust * 0.1 + publicWolfCheckBonus - trustedClaimPenalty;
+function publicRoleValueScore(seat: SeatRead): number {
+  const claimValue = seat.publicClaims.reduce((score, claim) => {
+    switch (claim.claimedRole) {
+      case "SEER":
+        return Math.max(score, 30);
+      case "WITCH":
+        return Math.max(score, 24);
+      case "HUNTER":
+      case "KNIGHT":
+      case "GUARD":
+        return Math.max(score, 18);
+      case "IDIOT":
+        return Math.max(score, 10);
+      case "VILLAGER":
+        return Math.max(score, 4);
+      default:
+        return score;
+    }
+  }, 0);
+  const checkedGoodValue = seat.publicChecksAgainst.some((check) => check.result === "GOOD") ? 8 : 0;
+  return claimValue + checkedGoodValue;
 }
 
-function hasStrongHunterShotEvidence(seat: SeatRead): boolean {
+function publicCueAttentionScore(tableRead: AiTableRead, seat: SeatRead): number {
+  return tableRead.tableMemory.reasoningCues.reduce((total, cue) => {
+    const touchesSeat = cue.target?.seatId === seat.seatId || cue.actor?.seatId === seat.seatId;
+    if (!touchesSeat) return total;
+    if (cue.weight === "strong") return total + 10;
+    if (cue.weight === "medium") return total + 6;
+    return total + 3;
+  }, 0);
+}
+
+function buildSeerCheckReason(tableRead: AiTableRead, target: ActionTarget): string {
+  const seat = findSeatRead(tableRead, target);
+  const evidence = seat ? describePublicActionEvidence(tableRead, seat) : undefined;
+  return evidence
+    ? `${target.name}这条线有验人收益：${evidence}，今晚先查清。`
+    : `${target.name}是当前焦点，查验收益最高。`;
+}
+
+function buildWitchPoisonReason(tableRead: AiTableRead, target: SeatRead): string {
+  const evidence = describePublicActionEvidence(tableRead, target);
+  return evidence
+    ? `${target.name}的狼面不是单点听感：${evidence}，毒药用来提前排掉这条硬坑。`
+    : `${target.name}的公开疑点较高，毒药用于加速排坑。`;
+}
+
+function buildShotReason(tableRead: AiTableRead, target: ActionTarget, actionType: "hunterShoot" | "wolfKingShoot"): string {
+  const seat = findSeatRead(tableRead, target);
+  const evidence = seat ? describePublicActionEvidence(tableRead, seat) : undefined;
+  const toolText = actionType === "hunterShoot" ? "猎人枪" : "狼王枪";
+  return evidence
+    ? `${target.name}的公开证据能闭合：${evidence}，${toolText}先处理这里。`
+    : `${target.name}的公开疑点最高，${toolText}优先处理。`;
+}
+
+function buildKnightDuelReason(tableRead: AiTableRead, target: ActionTarget): string {
+  const seat = findSeatRead(tableRead, target);
+  const evidence = seat ? describePublicActionEvidence(tableRead, seat) : undefined;
+  return evidence
+    ? `${target.name}的狼面有公开依据：${evidence}，骑士决斗可以直接验证。`
+    : `${target.name}的公开狼面足够高，骑士决斗可以直接验证。`;
+}
+
+function describePublicActionEvidence(tableRead: AiTableRead, seat: SeatRead): string | undefined {
+  const legacy = findActionableDeadSeerLegacyBlackCheck(tableRead, seat.seatId);
+  if (legacy) return `${legacy.claimant.name}夜死后留下查杀线`;
+
+  const trustedCheck = seat.publicChecksAgainst.find((check) => check.result === "WEREWOLF");
+  if (trustedCheck) return `${trustedCheck.claimant.name}公开报过查杀`;
+
+  const cue = strongestReasoningCue(tableRead, seat);
+  if (cue) {
+    const evidence = cue.evidence[0] ? `，依据是${clipActionReason(cue.evidence[0], 36)}` : "";
+    return `公开线索指向这里：${clipActionReason(cue.summary, 44)}${evidence}`;
+  }
+
+  const pressureActors = publicActionPressureActors(seat);
+  if (pressureActors.length >= 2) {
+    return `${pressureActors.slice(0, 3).map((actor) => actor.name).join("、")}都给过公开压力`;
+  }
+
+  const structuralPressure = seat.pressure.find((item) => /查验|对跳|身份|站边|票型|死亡|夜死|归票|施压/.test(item));
+  if (structuralPressure) return clipActionReason(structuralPressure, 50);
+
+  return undefined;
+}
+
+function hasStrongPublicActionCue(tableRead: AiTableRead, seat: SeatRead): boolean {
+  const cue = strongestReasoningCue(tableRead, seat);
+  if (!cue || cue.weight !== "strong") return false;
+
+  const pressureGap = seat.suspicion - seat.trust;
+  const cueText = `${cue.summary} ${cue.evidence.join(" ")}`;
+  const hasStructuralCue = /查验|对跳|身份|站边|票型|起票|补票|死亡|夜死|归票|闭环|反复/.test(cueText);
+  return pressureGap >= 28 && (hasStructuralCue || publicActionPressureActors(seat).length >= 1);
+}
+
+function hasStrongPublicPoisonCue(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (!hasStrongPublicActionCue(tableRead, seat)) return false;
+  if (hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId)) return true;
+  if (hasTrustedPublicWolfCheck(tableRead, seat)) return true;
+  if (hasUntrustedPublicWolfCheck(tableRead, seat)) return false;
+  return publicActionPressureActors(seat).length >= 2;
+}
+
+function hasUntrustedPublicWolfCheck(tableRead: AiTableRead, seat: SeatRead): boolean {
+  const hasPublicWolfCheck = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF");
+  return hasPublicWolfCheck && !hasTrustedPublicWolfCheck(tableRead, seat) && !hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId);
+}
+
+function strongestReasoningCue(
+  tableRead: AiTableRead,
+  seat: SeatRead,
+): AiTableRead["tableMemory"]["reasoningCues"][number] | undefined {
+  return tableRead.tableMemory.reasoningCues
+    .filter((cue) => cue.target?.seatId === seat.seatId)
+    .sort((a, b) => reasoningCueActionRank(b.weight) - reasoningCueActionRank(a.weight))[0];
+}
+
+function reasoningCueActionRank(weight: AiTableRead["tableMemory"]["reasoningCues"][number]["weight"]): number {
+  if (weight === "strong") return 3;
+  if (weight === "medium") return 2;
+  return 1;
+}
+
+function publicActionPressureActors(seat: SeatRead): ActionTarget[] {
+  const actors = new Map<number, ActionTarget>();
+  for (const stance of seat.publicStancedBy) {
+    if (stance.kind === "QUESTION" || stance.kind === "PRESSURE") {
+      actors.set(stance.actor.seatId, stance.actor);
+    }
+  }
+  return [...actors.values()];
+}
+
+function findSeatRead(tableRead: AiTableRead, target: ActionTarget): SeatRead | undefined {
+  return tableRead.seats.find((seat) => seat.seatId === target.seatId);
+}
+
+function clipActionReason(text: string, limit: number): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  return clean.length <= limit ? clean : `${clean.slice(0, limit - 1)}…`;
+}
+
+function hunterShotScore(tableRead: AiTableRead, seat: SeatRead): number {
+  const publicWolfCheckBonus = seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") ? 12 : 0;
+  const trustedClaimPenalty = seat.publicClaims.some((claim) => claim.claimedRole === "SEER" || claim.claimedRole === "WITCH")
+    ? 24
+    : seat.publicClaims.some((claim) => POWER_CLAIM_ROLES.has(claim.claimedRole))
+      ? 14
+      : 0;
+  return seat.suspicion - seat.trust * 0.1 + publicWolfCheckBonus - trustedClaimPenalty + publicCueAttentionScore(tableRead, seat) * 0.45;
+}
+
+function hasStrongHunterShotEvidence(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (isProtectedStrongActionGoldTarget(tableRead, seat) || isDayOneSoftPowerHintBlackCheckProtectedTarget(tableRead, seat)) {
+    return false;
+  }
+
   if (seat.pressure.some((item) => item.includes("被后置预言家查杀") || item.includes("未对跳"))) {
     return false;
   }
 
   if (seat.pressure.some((item) => item.includes("夜死后遗留查杀"))) {
-    return true;
+    return hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId);
+  }
+
+  if (isOnlyContestedSeerBlackCheckPressure(tableRead, seat)) {
+    return false;
+  }
+
+  if (isProtectedHunterShotTarget(tableRead, seat)) {
+    return false;
   }
 
   const negativeActors = new Set(
@@ -999,16 +1289,53 @@ function hasStrongHunterShotEvidence(seat: SeatRead): boolean {
   const pressureActors = new Set(
     seat.publicStancedBy.filter((stance) => stance.kind === "PRESSURE").map((stance) => stance.actor.seatId),
   );
+  const hasBlackCheckPressure = seat.pressure.some((item) => /查杀/.test(item)) || seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF");
   if (
     pressureActors.size >= 1 &&
     seat.suspicion >= 88 &&
-    seat.pressure.some((item) => /施压|查杀|对跳|归票|公开/.test(item))
+    seat.pressure.some((item) => /施压|查杀|对跳|归票|公开/.test(item)) &&
+    (!hasBlackCheckPressure || hasTrustedPublicWolfCheck(tableRead, seat))
   ) {
     return true;
   }
+  if (hasStrongPublicActionCue(tableRead, seat) && seat.suspicion >= 88) return true;
   if (negativeActors.size >= 3 && seat.suspicion >= 88) return true;
 
-  return seat.publicChecksAgainst.some((check) => check.result === "WEREWOLF") && seat.suspicion >= 90 && negativeActors.size >= 2;
+  return hasTrustedPublicWolfCheck(tableRead, seat) && seat.suspicion >= 90 && negativeActors.size >= 2;
+}
+
+function isOnlyContestedSeerBlackCheckPressure(tableRead: AiTableRead, seat: SeatRead): boolean {
+  const wolfChecks = seat.publicChecksAgainst.filter((check) => check.result === "WEREWOLF");
+  if (wolfChecks.length === 0) return false;
+  if (hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId)) return false;
+  if (isSeerCounterclaimant(tableRead, seat.seatId) || isReactiveSeerClaimant(tableRead.tableMemory, seat.seatId)) return false;
+
+  return wolfChecks.every((check) => isSeerCounterclaimant(tableRead, check.claimant.seatId));
+}
+
+function isProtectedHunterShotTarget(tableRead: AiTableRead, seat: SeatRead): boolean {
+  if (seat.isKnownWolf || hasDeadSeerLegacyBlackCheck(tableRead, seat.seatId)) return false;
+
+  const powerClaim = seat.publicClaims.find((claim) => POWER_CLAIM_ROLES.has(claim.claimedRole));
+  if (!powerClaim) return false;
+
+  if (powerClaim.claimedRole === "SEER") {
+    return !isSeerCounterclaimant(tableRead, seat.seatId) && !isReactiveSeerClaimant(tableRead.tableMemory, seat.seatId);
+  }
+
+  const sameRoleCounterclaim = isCounterclaimant(tableRead, seat.seatId, powerClaim.claimedRole);
+  if (sameRoleCounterclaim) return false;
+
+  const negativeActors = new Set(
+    seat.publicStancedBy
+      .filter((stance) => stance.kind === "QUESTION" || stance.kind === "PRESSURE")
+      .map((stance) => stance.actor.seatId),
+  );
+  const challengePressure = seat.suspicion - seat.trust;
+  const overwhelmingPublicCase =
+    hasTrustedPublicWolfCheck(tableRead, seat) && seat.suspicion >= 96 && challengePressure >= 54 && negativeActors.size >= 4;
+
+  return !overwhelmingPublicCase;
 }
 
 function shouldTakeDirectNightShot(view: AgentView, reason: string, targetSeatId: number): boolean {
@@ -1019,17 +1346,31 @@ function shouldTakeDirectNightShot(view: AgentView, reason: string, targetSeatId
   return stableRoll(["night-shot", reason, view.day, view.mySeatId, view.persona?.id, targetSeatId]) < threshold;
 }
 
-function nightKillScore(view: AgentView, seat: SeatRead): number {
+function nightKillScore(view: AgentView, tableRead: AiTableRead, seat: SeatRead): number {
   return (
     seat.trust -
     seat.suspicion * 0.28 +
-    (seat.publicClaims.some((claim) => claim.claimedRole === "SEER") ? 14 : 0) +
+    publicRoleValueScore(seat) * 0.7 +
+    publicCueAttentionScore(tableRead, seat) * 0.35 +
     stableSignedJitter(["night-kill", view.day, view.mySeatId, view.persona?.id, seat.seatId], 7)
   );
 }
 
-function seerCheckScore(view: AgentView, seat: SeatRead): number {
-  return seat.suspicion - seat.trust * 0.1 + stableSignedJitter(["seer-check", view.day, view.mySeatId, view.persona?.id, seat.seatId], 6);
+function seerCheckScore(view: AgentView, tableRead: AiTableRead, seat: SeatRead): number {
+  const counterclaimBonus = isSeerCounterclaimant(tableRead, seat.seatId) ? 18 : 0;
+  const focusBonus = tableRead.focus?.seatId === seat.seatId ? 10 : tableRead.backupFocus?.seatId === seat.seatId ? 5 : 0;
+  const stanceShiftBonus = tableRead.tableMemory.stanceShifts.some((shift) => shift.actor.seatId === seat.seatId) ? 8 : 0;
+  const claimPenalty = seat.publicClaims.some((claim) => claim.claimedRole !== "SEER") ? 8 : 0;
+  return (
+    seat.suspicion -
+    seat.trust * 0.1 +
+    counterclaimBonus +
+    focusBonus +
+    stanceShiftBonus +
+    publicCueAttentionScore(tableRead, seat) * 0.5 -
+    claimPenalty +
+    stableSignedJitter(["seer-check", view.day, view.mySeatId, view.persona?.id, seat.seatId], 6)
+  );
 }
 
 function buildWolfKillReason(view: AgentView, target: ActionTarget): string {

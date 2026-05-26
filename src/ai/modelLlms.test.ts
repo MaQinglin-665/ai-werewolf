@@ -66,6 +66,34 @@ describe("model LLM routing", () => {
     expect(result.text).toBe("{\"ok\":true}");
   });
 
+  it("allows non-GLM speech requests to use a 60s default timeout cap", async () => {
+    process.env.AI_LLM_API_KEY = "test-key";
+    process.env.AI_LLM_TIMEOUT_MS = "60000";
+    delete process.env.AI_LLM_SPEECH_TIMEOUT_MS;
+    delete process.env.AI_LLM_SPEECH_TIMEOUT_MS_CAP;
+    delete process.env.GPT_TIMEOUT_MS;
+    delete process.env.GPT_SPEECH_TIMEOUT_MS;
+
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "{\"ok\":true}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await callRoutedModelJson({
+      personaName: "GPT",
+      task: "speech",
+      system: "Return JSON.",
+      input: { seat: 1 },
+      maxTokens: 100,
+    });
+
+    expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 60000);
+  });
+
   it("tries gpt-5.5 when the primary GPT model request fails", async () => {
     process.env.AI_LLM_API_KEY = "test-key";
     process.env.AI_MODEL_GPT = "gpt-5.4";
@@ -130,6 +158,100 @@ describe("model LLM routing", () => {
     expect(request.model).toBe("custom-model");
     expect(headers.Authorization).toBe("Bearer custom-secret");
     expect(result).toEqual({ text: "{\"ok\":true}", providerId: "custom-action:custom-model" });
+  });
+
+  it("routes custom DeepSeek reasoner action requests to deepseek-chat for JSON stability", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "{\"candidateId\":\"vote:2\"}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await callRoutedModelJson({
+      personaName: "Claude",
+      task: "action",
+      system: "Return JSON.",
+      input: { candidates: [{ id: "vote:2" }] },
+      maxTokens: 100,
+      customLlm: {
+        provider: "openai-compatible",
+        label: "deepseek-reasoner",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-reasoner",
+        apiKey: "custom-secret",
+        mergeSystemIntoUser: true,
+      },
+    });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[string | URL | Request, RequestInit | undefined]>;
+    const request = JSON.parse(String(calls[0]![1]?.body)) as { model: string };
+    expect(request.model).toBe("deepseek-chat");
+    expect(result).toEqual({ text: "{\"candidateId\":\"vote:2\"}", providerId: "custom-action:deepseek-chat" });
+  });
+
+  it("can disable custom action model overrides for A/B checks", async () => {
+    process.env.AI_LLM_CUSTOM_ACTION_MODEL_OVERRIDES = "off";
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "{\"candidateId\":\"vote:2\"}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await callRoutedModelJson({
+      personaName: "Claude",
+      task: "action",
+      system: "Return JSON.",
+      input: { candidates: [{ id: "vote:2" }] },
+      maxTokens: 100,
+      customLlm: {
+        provider: "openai-compatible",
+        label: "deepseek-reasoner",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-reasoner",
+        apiKey: "custom-secret",
+        mergeSystemIntoUser: true,
+      },
+    });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[string | URL | Request, RequestInit | undefined]>;
+    const request = JSON.parse(String(calls[0]![1]?.body)) as { model: string };
+    expect(request.model).toBe("deepseek-reasoner");
+    expect(result).toEqual({ text: "{\"candidateId\":\"vote:2\"}", providerId: "custom-action:deepseek-reasoner" });
+  });
+
+  it("keeps custom DeepSeek reasoner speech requests on deepseek-reasoner", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "{\"speech\":\"我继续盘公开信息。\"}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await callRoutedModelJson({
+      personaName: "Claude",
+      task: "speech",
+      system: "Return JSON.",
+      input: { seat: 2 },
+      maxTokens: 100,
+      customLlm: {
+        provider: "openai-compatible",
+        label: "deepseek-reasoner",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-reasoner",
+        apiKey: "custom-secret",
+        mergeSystemIntoUser: true,
+      },
+    });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[string | URL | Request, RequestInit | undefined]>;
+    const request = JSON.parse(String(calls[0]![1]?.body)) as { model: string };
+    expect(request.model).toBe("deepseek-reasoner");
+    expect(result).toEqual({ text: "{\"speech\":\"我继续盘公开信息。\"}", providerId: "custom-speech:deepseek-reasoner" });
   });
 
   it("can route action requests to another persona when the primary provider fails", async () => {

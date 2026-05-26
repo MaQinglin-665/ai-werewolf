@@ -4,13 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AI_FRIEND_AVATAR_DATA_URL_MAX_LENGTH,
-  AI_FRIEND_PREFERENCE_KEYS,
+  applyAiFriendPersonaTemplate,
   copyAiFriend,
-  parseAiFriendExport,
-  sanitizeCustomAiFriends,
-  serializeAiFriendExport,
 } from "@/game/aiFriends";
-import type { AiFriendConfig, AiFriendLlmConfig, AiFriendTtsConfig, AiPersonaPreferences, AiRuntimeMode } from "@/game/types";
+import type { AiFriendConfig, AiFriendLlmConfig, AiFriendTtsConfig, AiRuntimeMode } from "@/game/types";
 import {
   buildAiFriendOptions,
   getDefaultSelectedAiFriendIds,
@@ -27,29 +24,18 @@ import {
 import type { AiFriendOption } from "./game/clientTypes";
 import { MODEL_CARD_IMAGES, ROLE_CARD_IMAGES } from "./game/viewHelpers";
 
-const AI_FRIEND_PREFERENCE_LABELS: Record<keyof AiPersonaPreferences, string> = {
-  logic: "逻辑",
-  identity: "身份",
-  vote: "票型",
-  emotion: "情绪",
-  memory: "记忆",
-  leadership: "带队",
-  deception: "诈术",
-  caution: "谨慎",
-};
-
 const AI_TUNING_EXPLANATIONS: Array<{ label: string; detail: string }> = [
-  { label: "风险", detail: "越高越敢强推、悍跳、硬站边；越低越偏保守观察。" },
-  { label: "诈身份", detail: "越高越可能用身份口径施压或替神挡刀；越低越少假装神职。" },
-  { label: "逻辑", detail: "重视发言顺序、矛盾、因果链，发言更像拆盘。" },
-  { label: "身份", detail: "更关注预言家、女巫、猎人、守卫等身份线和对跳关系。" },
-  { label: "票型", detail: "更重视投票结果、归票收益、分票和跟票行为。" },
-  { label: "情绪", detail: "更容易根据强势发言、犹豫、攻击性调整判断和语气。" },
-  { label: "记忆", detail: "更会引用前几轮发言、改口、历史站边和长期矛盾。" },
-  { label: "带队", detail: "越高越主动归票、收束桌面；越低越倾向给观察和边界。" },
-  { label: "诈术", detail: "更擅长伪装视角、切割、倒钩和制造公开逻辑压力。" },
-  { label: "谨慎", detail: "越高越少冒进拍身份或冲票，更强调留后路和二次验证。" },
+  { label: "逻辑链推演型", detail: "用公开事实链拆发言顺序、票型因果和前后矛盾，结论更克制。" },
+  { label: "边界审查型", detail: "盯事实边界和越界发言，适合稳定归票、要求可疑位补站边。" },
+  { label: "平衡组织型", detail: "先整理分散信息，再给综合判断，节奏稳但不会长期旁观。" },
+  { label: "快节奏压迫型", detail: "用强压和即时反应带动桌面，更敢给身份压力和结论。" },
+  { label: "细节校验型", detail: "抓上一轮发言、改口、票型变化和站边转向，适合查漏补缺。" },
+  { label: "多线观察型", detail: "发言短、少站死边，但会留下清晰观察点，生存感更强。" },
+  { label: "结构站边型", detail: "重视语气态度背后的结构矛盾，容易捕捉强势或回避的不自然感。" },
+  { label: "长线记忆型", detail: "围绕身份线和历史发言追踪长期冲突，重视对跳、金水和查杀变化。" },
 ];
+
+const AI_TUNING_EXPLANATION_BY_LABEL = new Map(AI_TUNING_EXPLANATIONS.map((item) => [item.label, item.detail]));
 
 type AiRuntimeConfig = {
   llm: {
@@ -307,8 +293,6 @@ export function AiPoolClient() {
   const [aiLlmSecrets, setAiLlmSecrets] = useState<AiFriendLlmSecretMap>({});
   const [selectedAiFriendIds, setSelectedAiFriendIds] = useState<string[]>(getDefaultSelectedAiFriendIds);
   const [aiRuntimeMode, setAiRuntimeMode] = useState<AiRuntimeMode>("mock");
-  const [aiTransferText, setAiTransferText] = useState("");
-  const [importError, setImportError] = useState<string | null>(null);
   const [quickAddNickname, setQuickAddNickname] = useState("");
   const [quickAddBaseId, setQuickAddBaseId] = useState(() => getDefaultSelectedAiFriendIds()[0] ?? "");
   const [quickAddUseCustomLlm, setQuickAddUseCustomLlm] = useState(false);
@@ -318,6 +302,7 @@ export function AiPoolClient() {
   const [quickAddLlmApiKey, setQuickAddLlmApiKey] = useState("");
   const [quickAddMergeSystemIntoUser, setQuickAddMergeSystemIntoUser] = useState(false);
   const [quickAddTtsVoice, setQuickAddTtsVoice] = useState("");
+  const [customAiError, setCustomAiError] = useState<string | null>(null);
   const [aiRuntimeConfig, setAiRuntimeConfig] = useState<AiRuntimeConfig | null>(null);
   const aiFriends = useMemo(() => buildAiFriendOptions(customAiFriends), [customAiFriends]);
   const baseAiFriends = useMemo(() => aiFriends.filter((friend) => friend.isDefault), [aiFriends]);
@@ -446,7 +431,7 @@ export function AiPoolClient() {
         .filter((id, index, values) => values.indexOf(id) === index);
       return replaced ? next : [...next, targetId];
     });
-    setImportError(null);
+    setCustomAiError(null);
   }, []);
 
   const saveAiFriendTtsConfig = useCallback((friend: AiFriendOption, ttsConfig: AiFriendTtsConfig, apiKey: string) => {
@@ -488,7 +473,7 @@ export function AiPoolClient() {
         .filter((id, index, values) => values.indexOf(id) === index);
       return replaced ? next : [...next, targetId];
     });
-    setImportError(null);
+    setCustomAiError(null);
   }, []);
 
   const copyAiFriendToCustom = useCallback(
@@ -498,7 +483,7 @@ export function AiPoolClient() {
       const next = copyAiFriend(source);
       setCustomAiFriends((current) => [...current, next]);
       setSelectedAiFriendIds((current) => [...current, next.id]);
-      setImportError(null);
+      setCustomAiError(null);
     },
     [aiFriends],
   );
@@ -516,7 +501,7 @@ export function AiPoolClient() {
         })
       : undefined;
     if (quickAddUseCustomLlm && !llmConfig) {
-      setImportError("自定义大模型需要填写有效的接口地址和模型名称。");
+      setCustomAiError("自定义大模型需要填写有效的接口地址和模型名称。");
       return;
     }
     const next = {
@@ -535,7 +520,7 @@ export function AiPoolClient() {
     setSelectedAiFriendIds((current) => [...current, next.id]);
     setQuickAddNickname("");
     setQuickAddLlmApiKey("");
-    setImportError(null);
+    setCustomAiError(null);
   }, [
     baseAiFriends,
     quickAddBaseId,
@@ -601,9 +586,9 @@ export function AiPoolClient() {
           .filter((id, index, values) => values.indexOf(id) === index);
         return replaced ? next : [...next, targetId];
       });
-      setImportError(null);
+      setCustomAiError(null);
     } catch (error) {
-      setImportError(error instanceof Error ? error.message : "头像上传失败。");
+      setCustomAiError(error instanceof Error ? error.message : "头像上传失败。");
     }
   }, []);
 
@@ -611,7 +596,7 @@ export function AiPoolClient() {
     (friend: AiFriendOption) => {
       if (friend.isDefault || !friend.avatarDataUrl) return;
       updateCustomAiFriend(friend.id, { avatarDataUrl: undefined });
-      setImportError(null);
+      setCustomAiError(null);
     },
     [updateCustomAiFriend],
   );
@@ -627,42 +612,18 @@ export function AiPoolClient() {
     setSelectedAiFriendIds((current) => current.filter((id) => id !== friendId));
   }, []);
 
-  const exportCustomAi = useCallback(() => {
-    setAiTransferText(serializeAiFriendExport(customAiFriends));
-    setImportError(null);
-  }, [customAiFriends]);
-
-  const importCustomAi = useCallback(() => {
-    try {
-      const imported = parseAiFriendExport(aiTransferText);
-      const sanitized = sanitizeCustomAiFriends(imported);
-      setCustomAiFriends(sanitized);
-      setAiLlmSecrets((current) => {
-        const validIds = new Set(sanitized.map((friend) => friend.id));
-        return Object.fromEntries(Object.entries(current).filter(([friendId]) => validIds.has(friendId)));
-      });
-      setSelectedAiFriendIds((current) => [
-        ...current.filter((id) => id.startsWith("default:")),
-        ...sanitized.map((friend) => friend.id),
-      ]);
-      setImportError(null);
-    } catch (error) {
-      setImportError(error instanceof Error ? error.message : "自定义AI导入失败。");
-    }
-  }, [aiTransferText]);
-
   const selectedCount = selectedAiFriends.length;
 
   return (
     <main
-      className="min-h-screen bg-[#100b0a] bg-cover bg-center bg-fixed text-[#f7ead5]"
+      className="mobile-ai-pool-page min-h-screen bg-[#100b0a] bg-cover bg-center bg-fixed text-[#f7ead5]"
       style={{
         backgroundImage:
           "linear-gradient(180deg, rgba(7,9,12,0.72), rgba(16,11,10,0.9)), url('/images/werewolf-table-bg.jpg')",
       }}
     >
-      <div className="mx-auto grid min-h-screen w-full max-w-[1400px] content-start gap-4 px-3 py-3 sm:px-5 lg:px-7">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#7da8e3]/24 bg-[#0d1623]/82 px-4 py-3 shadow-2xl shadow-black/25 backdrop-blur-md">
+      <div className="mobile-ai-pool-shell mx-auto grid min-h-screen w-full max-w-[1400px] content-start gap-4 px-3 py-3 sm:px-5 lg:px-7">
+        <header className="mobile-ai-pool-header flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#7da8e3]/24 bg-[#0d1623]/82 px-4 py-3 shadow-2xl shadow-black/25 backdrop-blur-md">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#b8d6ff]/68">AI Pool</div>
             <h1 className="mt-1 text-2xl font-semibold tracking-normal">AI池和自定义AI</h1>
@@ -679,7 +640,9 @@ export function AiPoolClient() {
           </Link>
         </header>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_360px]">
+        <AiRuntimeModeCard mode={aiRuntimeMode} aiRuntimeConfig={aiRuntimeConfig} onModeChange={setAiRuntimeMode} />
+
+        <section className="mobile-ai-pool-layout grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_360px]">
           <AiPoolList
             friends={aiPoolFriends}
             templateFriends={baseAiFriends}
@@ -695,13 +658,11 @@ export function AiPoolClient() {
             onSaveTtsConfig={saveAiFriendTtsConfig}
             onDelete={deleteCustomAiFriend}
           />
-          <div className="grid content-start gap-4">
-            <AiRuntimeModeCard mode={aiRuntimeMode} aiRuntimeConfig={aiRuntimeConfig} onModeChange={setAiRuntimeMode} />
+          <div className="mobile-ai-pool-side grid content-start gap-4">
             <CustomAiTransferCard
               baseFriends={baseAiFriends}
               selectedFriends={selectedAiFriends}
               selectedCount={selectedCount}
-              customCount={customAiFriends.length}
               quickAddNickname={quickAddNickname}
               quickAddBaseId={quickAddBaseId}
               quickAddUseCustomLlm={quickAddUseCustomLlm}
@@ -711,9 +672,8 @@ export function AiPoolClient() {
               quickAddLlmApiKey={quickAddLlmApiKey}
               quickAddMergeSystemIntoUser={quickAddMergeSystemIntoUser}
               quickAddTtsVoice={quickAddTtsVoice}
+              customAiError={customAiError}
               aiRuntimeConfig={aiRuntimeConfig}
-              value={aiTransferText}
-              error={importError}
               onQuickAddNicknameChange={setQuickAddNickname}
               onQuickAddBaseChange={setQuickAddBaseId}
               onQuickAddUseCustomLlmChange={setQuickAddUseCustomLlm}
@@ -727,18 +687,14 @@ export function AiPoolClient() {
               onMove={moveSelectedAiFriend}
               onRemove={removeSelectedAiFriend}
               onRandomize={randomizeSelectedAiFriends}
-              onChange={setAiTransferText}
-              onExport={exportCustomAi}
-              onImport={importCustomAi}
             />
-            <AiTuningReference />
+            <AiTuningReference className="mobile-ai-tuning-reference" />
           </div>
         </section>
       </div>
     </main>
   );
 }
-
 function AiRuntimeModeCard({
   mode,
   aiRuntimeConfig,
@@ -757,7 +713,7 @@ function AiRuntimeModeCard({
         : "已选择真实 LLM，但当前还没有检测到可用模型配置。";
 
   return (
-    <section className="rounded-[24px] border border-[#7da8e3]/22 bg-[#0d1623]/78 p-4 shadow-2xl shadow-black/30 backdrop-blur-md">
+    <section className="mobile-ai-mode-card rounded-[24px] border border-[#7da8e3]/22 bg-[#0d1623]/78 p-4 shadow-2xl shadow-black/30 backdrop-blur-md">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-[#e4efff]">对局 AI 模式</h2>
@@ -835,17 +791,17 @@ function AiPoolList({
   const baseOptions = templateFriends;
 
   return (
-    <section className="rounded-[28px] border border-[#77d898]/20 bg-[#0f2118]/76 p-4 shadow-2xl shadow-black/35 backdrop-blur-md sm:p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <section className="mobile-ai-pool-list rounded-[28px] border border-[#77d898]/20 bg-[#0f2118]/76 p-4 shadow-2xl shadow-black/35 backdrop-blur-md sm:p-5">
+      <div className="mobile-ai-pool-list-head mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-[#dff4df]">AI池</h2>
-          <p className="mt-1 text-sm text-[#9fc8a7]">勾选后会按顺序加入下一局，不足座位由默认 AI 自动补齐；12 人局会补满 11 位 AI，并自动改名避免重名。</p>
+          <p className="mobile-ai-pool-description mt-1 text-sm text-[#9fc8a7]">勾选后会按顺序加入下一局，不足座位由默认 AI 自动补齐；12 人局会补满 11 位 AI，并自动改名避免重名。</p>
         </div>
-        <span className="rounded-full border border-[#77d898]/20 bg-[#77d898]/10 px-3 py-1 text-xs text-[#a8f0b6]">
+        <span className="mobile-ai-save-pill rounded-full border border-[#77d898]/20 bg-[#77d898]/10 px-3 py-1 text-xs text-[#a8f0b6]">
           本地保存
         </span>
       </div>
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="mobile-ai-pool-grid grid gap-3 lg:grid-cols-2">
         {friends.map((friend) => {
           const selected = selectedIds.includes(friend.id);
           const hasCustomAvatar = Boolean(friend.avatarDataUrl);
@@ -853,38 +809,76 @@ function AiPoolList({
             <article
               key={friend.id}
               className={[
-                "rounded-2xl border p-3 transition",
+                "mobile-ai-pool-card overflow-hidden rounded-2xl border transition",
                 selected ? "border-[#77d898]/42 bg-[#10261a]/82" : "border-[#f1c76e]/14 bg-black/20",
               ].join(" ")}
             >
-              <div className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={selected}
-                  onChange={() => onToggle(friend.id)}
-                  className="mt-1 h-4 w-4 accent-[#77d898]"
-                  aria-label={`选择${friend.nickname}`}
-                />
-                <AiFriendAvatar friend={friend} className="mt-0.5" size="large" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-[#f7ead5]">{friend.nickname}</span>
-                    <span className="rounded-full border border-[#f1c76e]/20 px-2 py-0.5 text-[11px] text-[#f1d796]">
-                      {formatPersonaTemplateStatus(friend)}
+              <details className="mobile-ai-card-config mobile-ai-profile-card">
+                <summary className="mobile-ai-profile-summary cursor-pointer list-none p-3">
+                  <div className="mobile-ai-card-main flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={() => onToggle(friend.id)}
+                      className="mobile-ai-select h-4 w-4 accent-[#77d898]"
+                      aria-label={`选择${friend.nickname}`}
+                    />
+                    <AiFriendAvatar friend={friend} size="large" />
+                    <div className="mobile-ai-card-info min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="mobile-ai-card-name min-w-0 truncate font-semibold text-[#f7ead5]">{friend.nickname}</span>
+                        <span className="mobile-ai-card-type shrink-0 rounded-full border border-[#77d898]/18 bg-[#0f2118]/44 px-2 py-0.5 text-[11px] text-[#a8f0b6]">
+                          {selected ? "已入局" : "待入局"}
+                        </span>
+                      </div>
+                      <div className="mobile-ai-card-persona mt-1 truncate text-xs text-[#ad9c7d]">{friend.basePersonaLabel}</div>
+                      <div className="mobile-ai-card-tags mobile-ai-summary-meta mt-2 flex flex-wrap items-center gap-1.5">
+                        <span className="mobile-ai-card-template rounded-full border border-[#f1c76e]/20 px-2 py-0.5 text-[11px] text-[#f1d796]">
+                          {formatPersonaTemplateStatus(friend)}
+                        </span>
+                        {friend.basePersonaModelLabel && (
+                          <span className="mobile-ai-card-model max-w-[150px] truncate rounded-full border border-[#7da8e3]/20 bg-[#0d1623]/55 px-2 py-0.5 text-[11px] text-[#b8d6ff]" title={friend.basePersonaModelLabel}>
+                            {formatLlmStatus(aiRuntimeConfig, friend)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="mobile-ai-config-entry shrink-0 rounded-full border border-[#f1c76e]/24 bg-black/18 px-3 py-1.5 text-xs font-semibold text-[#f1d796]">
+                      配置
                     </span>
-                    {friend.basePersonaModelLabel && (
-                    <span className="max-w-[150px] truncate rounded-full border border-[#7da8e3]/20 bg-[#0d1623]/55 px-2 py-0.5 text-[11px] text-[#b8d6ff]" title={friend.basePersonaModelLabel}>
+                  </div>
+                </summary>
+
+                <div className="mobile-ai-profile-panel border-t border-white/10 p-3" role="dialog" aria-label={`${friend.nickname}配置`}>
+                  <div className="mobile-ai-config-overlay-head mb-3 flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-lg font-semibold text-[#f7ead5]">{friend.nickname}</div>
+                      <div className="mt-0.5 truncate text-xs text-[#ad9c7d]">{friend.basePersonaLabel}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.currentTarget.closest("details")?.removeAttribute("open");
+                      }}
+                      className="rounded-full border border-[#f1c76e]/24 bg-black/18 px-3 py-1.5 text-xs font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10"
+                    >
+                      关闭
+                    </button>
+                  </div>
+                  <div className="mobile-ai-panel-status mb-3 flex flex-wrap items-center gap-2">
+                    <span className="mobile-ai-card-template rounded-full border border-[#f1c76e]/20 px-2 py-0.5 text-[11px] text-[#f1d796]">
+                      {friend.isDefault ? "内置AI" : "自定义AI"}
+                    </span>
+                    <span className="mobile-ai-card-model max-w-[190px] truncate rounded-full border border-[#7da8e3]/20 bg-[#0d1623]/55 px-2 py-0.5 text-[11px] text-[#b8d6ff]" title={friend.basePersonaModelLabel ?? ""}>
                       {formatLlmStatus(aiRuntimeConfig, friend)}
                     </span>
-                    )}
-                    <span className="max-w-[170px] truncate rounded-full border border-[#77d898]/18 bg-[#0f2118]/55 px-2 py-0.5 text-[11px] text-[#a8f0b6]" title={`发言声音：${formatTtsStatus(aiRuntimeConfig, friend)}`}>
+                    <span className="mobile-ai-card-voice max-w-[220px] truncate rounded-full border border-[#77d898]/18 bg-[#0f2118]/55 px-2 py-0.5 text-[11px] text-[#a8f0b6]" title={`发言声音：${formatTtsStatus(aiRuntimeConfig, friend)}`}>
                       发言声音 · {formatTtsStatus(aiRuntimeConfig, friend)}
                     </span>
-                    <span className="text-[11px] text-[#9fc8a7]">{friend.isDefault ? "内置AI" : "自定义AI"}</span>
                   </div>
-                  <div className="mt-1 text-xs leading-5 text-[#ad9c7d]">{friend.basePersonaLabel}</div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/14 px-2 py-2">
-                    <label className="cursor-pointer rounded-full border border-[#7da8e3]/24 bg-[#0d1623]/55 px-3 py-1.5 text-xs font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/12">
+                  <div className="mobile-ai-avatar-actions flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/14 px-2 py-2">
+                    <label className="mobile-ai-upload cursor-pointer rounded-full border border-[#7da8e3]/24 bg-[#0d1623]/55 px-3 py-1.5 text-xs font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/12">
                       {hasCustomAvatar ? "更换头像" : "上传头像"}
                       <input
                         type="file"
@@ -906,96 +900,76 @@ function AiPoolList({
                         移除头像
                       </button>
                     )}
-                    <span className="text-[11px] text-[#9fc8a7]">头像会显示在开局预览和牌桌座位卡。</span>
+                    <span className="mobile-ai-avatar-help text-[11px] text-[#9fc8a7]">头像会显示在开局预览和牌桌座位卡。</span>
                   </div>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onCopy(friend.id)}
-                    className="rounded-full border border-[#f1c76e]/22 bg-black/18 px-3 py-1.5 text-xs font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10"
-                  >
-                    复制为自定义
-                  </button>
-                  {!friend.isDefault && (
+                  <div className="mobile-ai-card-actions mt-3 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => onDelete(friend.id)}
-                      className="rounded-full border border-[#e46d55]/25 bg-[#2b1110]/50 px-3 py-1.5 text-xs font-semibold text-[#ffb1a4] transition hover:bg-[#3a1712]"
+                      onClick={() => onCopy(friend.id)}
+                      className="mobile-ai-copy-action rounded-full border border-[#f1c76e]/22 bg-black/18 px-3 py-1.5 text-xs font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10"
                     >
-                      删除
+                      复制为自定义
                     </button>
-                  )}
-                </div>
-              </div>
-
-              <details className="mt-3 rounded-xl border border-white/10 bg-black/18 p-3">
-                <summary className="cursor-pointer text-xs font-semibold text-[#dcc9a7]">配置这个 AI</summary>
-                <div className="mt-3 grid gap-3">
-                  <AiCardModelConfig
-                    key={`${friend.id}:${friend.llmConfig?.baseUrl ?? ""}:${friend.llmConfig?.model ?? ""}:${aiLlmSecrets[friend.id]?.apiKey ?? ""}`}
-                    friend={friend}
-                    aiRuntimeConfig={aiRuntimeConfig}
-                    apiKey={aiLlmSecrets[friend.id]?.apiKey ?? ""}
-                    onSave={onSaveLlmConfig}
-                  />
-                  <AiCardTtsConfig
-                    key={`${friend.id}:tts:${friend.ttsConfig?.baseUrl ?? ""}:${friend.ttsConfig?.model ?? ""}:${friend.ttsConfig?.voice ?? friend.ttsVoice ?? ""}:${aiLlmSecrets[friend.id]?.ttsApiKey ?? ""}`}
-                    friend={friend}
-                    aiRuntimeConfig={aiRuntimeConfig}
-                    apiKey={aiLlmSecrets[friend.id]?.ttsApiKey ?? ""}
-                    onSave={onSaveTtsConfig}
-                  />
-                  {!friend.isDefault && (
-                  <div className="mt-3 grid gap-3">
-                    <label className="grid gap-1 text-xs text-[#ad9c7d]">
-                      昵称
-                      <input
-                        value={friend.nickname}
-                        maxLength={16}
-                        onChange={(event) => onUpdate(friend.id, { nickname: event.target.value })}
-                        className="rounded-xl border border-[#f1c76e]/18 bg-black/28 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#f1c76e]/45"
-                      />
-                    </label>
-                    <label className="grid gap-1 text-xs text-[#ad9c7d]">
-                      打法模板
-                      <select
-                        value={friend.basePersonaId}
-                        onChange={(event) => onUpdate(friend.id, { basePersonaId: event.target.value })}
-                        className="rounded-xl border border-[#f1c76e]/18 bg-black/28 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#f1c76e]/45"
+                    {!friend.isDefault && (
+                      <button
+                        type="button"
+                        onClick={() => onDelete(friend.id)}
+                        className="rounded-full border border-[#e46d55]/25 bg-[#2b1110]/50 px-3 py-1.5 text-xs font-semibold text-[#ffb1a4] transition hover:bg-[#3a1712]"
                       >
-                        {baseOptions.map((option) => (
-                          <option key={option.basePersonaId} value={option.basePersonaId}>
-                            {formatPersonaTemplateOptionLabel(option)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className="grid gap-3">
-                      <div className="grid gap-2">
-                        <AiPoolSlider label="风险" value={friend.riskTolerance} onChange={(value) => onUpdate(friend.id, { riskTolerance: value })} />
-                        <AiPoolSlider label="诈身份" value={friend.bluffing} onChange={(value) => onUpdate(friend.id, { bluffing: value })} />
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {AI_FRIEND_PREFERENCE_KEYS.map((key) => (
-                            <AiPoolSlider
-                              key={key}
-                              label={AI_FRIEND_PREFERENCE_LABELS[key]}
-                              value={friend.preferences[key]}
-                              onChange={(value) =>
-                                onUpdate(friend.id, {
-                                  preferences: {
-                                    ...friend.preferences,
-                                    [key]: value,
-                                  },
-                                })
-                              }
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+                        删除
+                      </button>
+                    )}
                   </div>
-                  )}
+
+                  <div className="mobile-ai-config-stack mt-3 grid gap-3">
+                    <details className="mobile-ai-config-section rounded-2xl border border-[#7da8e3]/14 bg-[#0d1623]/42 p-3">
+                      <summary className="mobile-ai-config-summary cursor-pointer list-none text-xs font-semibold text-[#d8e7ff]">
+                        <span className="mobile-ai-config-title">模型接口</span>
+                        <span className="mobile-ai-config-control text-[#b8d6ff]/72">
+                          <span className="mobile-ai-config-status">{formatLlmStatus(aiRuntimeConfig, friend)}</span>
+                          <span className="mobile-ai-config-action border-[#7da8e3]/25 bg-[#7da8e3]/10 text-[#b8d6ff]">配置</span>
+                          <span className="mobile-ai-config-chevron">⌄</span>
+                        </span>
+                      </summary>
+                      <div className="mt-3">
+                        <AiCardModelConfig
+                          key={`${friend.id}:${friend.llmConfig?.baseUrl ?? ""}:${friend.llmConfig?.model ?? ""}:${aiLlmSecrets[friend.id]?.apiKey ?? ""}`}
+                          friend={friend}
+                          aiRuntimeConfig={aiRuntimeConfig}
+                          apiKey={aiLlmSecrets[friend.id]?.apiKey ?? ""}
+                          onSave={onSaveLlmConfig}
+                        />
+                      </div>
+                    </details>
+                    <details className="mobile-ai-config-section rounded-2xl border border-[#77d898]/14 bg-[#0f2118]/42 p-3">
+                      <summary className="mobile-ai-config-summary cursor-pointer list-none text-xs font-semibold text-[#dff4df]">
+                        <span className="mobile-ai-config-title">语音接口</span>
+                        <span className="mobile-ai-config-control text-[#a8f0b6]/72">
+                          <span className="mobile-ai-config-status">{formatTtsStatus(aiRuntimeConfig, friend)}</span>
+                          <span className="mobile-ai-config-action border-[#77d898]/25 bg-[#77d898]/10 text-[#a8f0b6]">配置</span>
+                          <span className="mobile-ai-config-chevron">⌄</span>
+                        </span>
+                      </summary>
+                      <div className="mt-3">
+                        <AiCardTtsConfig
+                          key={`${friend.id}:tts:${friend.ttsConfig?.baseUrl ?? ""}:${friend.ttsConfig?.model ?? ""}:${friend.ttsConfig?.voice ?? friend.ttsVoice ?? ""}:${aiLlmSecrets[friend.id]?.ttsApiKey ?? ""}`}
+                          friend={friend}
+                          aiRuntimeConfig={aiRuntimeConfig}
+                          apiKey={aiLlmSecrets[friend.id]?.ttsApiKey ?? ""}
+                          onSave={onSaveTtsConfig}
+                        />
+                      </div>
+                    </details>
+                  </div>
+                  <PersonaTypeBriefList
+                    options={baseOptions}
+                    activeBasePersonaId={friend.basePersonaId}
+                    onSelect={
+                      friend.isDefault
+                        ? undefined
+                        : (basePersonaId) => onUpdate(friend.id, applyAiFriendPersonaTemplate(friend, basePersonaId))
+                    }
+                  />
                 </div>
               </details>
             </article>
@@ -1047,6 +1021,64 @@ function AiAvatarCardArt({ src }: { src: string }) {
   );
 }
 
+function PersonaTypeBriefList({
+  options,
+  activeBasePersonaId,
+  onSelect,
+}: {
+  options: AiFriendOption[];
+  activeBasePersonaId: string;
+  onSelect?: (basePersonaId: string) => void;
+}) {
+  return (
+    <section className="mobile-ai-persona-type-briefs mt-3 rounded-2xl border border-[#f1c76e]/12 bg-black/14 p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h3 className="text-xs font-semibold text-[#f1d796]">打法类型速览</h3>
+        <span className="text-[11px] text-[#dcc9a7]/62">选择类型会自动套用默认倾向</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {options.map((option) => {
+          const active = option.basePersonaId === activeBasePersonaId;
+          const className = `mobile-ai-persona-type-option rounded-2xl border px-3 py-2 text-left ${
+            active
+              ? "border-[#f1c76e]/32 bg-[#2b220e]/70"
+              : "border-[#f1c76e]/10 bg-black/16"
+          }`;
+          const content = (
+            <>
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <div className="truncate text-xs font-semibold text-[#f1d796]">{option.basePersonaLabel}</div>
+                {active && <span className="shrink-0 rounded-full bg-[#f1c76e]/14 px-2 py-0.5 text-[10px] text-[#f1d796]">当前</span>}
+              </div>
+              <div className="mt-1 line-clamp-2 text-[11px] leading-4 text-[#dcc9a7]/76">
+                {AI_TUNING_EXPLANATION_BY_LABEL.get(option.basePersonaLabel) ?? `${option.basePersonaName} 的默认打法倾向。`}
+              </div>
+            </>
+          );
+          if (onSelect) {
+            return (
+              <button
+                key={option.basePersonaId}
+                type="button"
+                onClick={() => onSelect(option.basePersonaId)}
+                className={`${className} transition hover:border-[#f1c76e]/30 hover:bg-[#2b220e]/48`}
+                aria-pressed={active}
+              >
+                {content}
+              </button>
+            );
+          }
+          return (
+            <div key={option.basePersonaId} className={className}>
+              {content}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function AiTuningReference({ className = "" }: { className?: string }) {
   return (
     <aside className={`rounded-[24px] border border-[#77d898]/22 bg-[#0f2118]/76 p-4 text-xs leading-5 text-[#9fc8a7] shadow-2xl shadow-black/30 backdrop-blur-md ${className}`}>
@@ -1063,25 +1095,6 @@ function AiTuningReference({ className = "" }: { className?: string }) {
         ))}
       </div>
     </aside>
-  );
-}
-
-function AiPoolSlider({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return (
-    <label className="grid min-w-0 gap-1 text-xs text-[#ad9c7d]">
-      <span className="flex items-center justify-between gap-2">
-        <span className="min-w-0 truncate">{label}</span>
-        <span className="shrink-0">{Math.round(value * 100)}</span>
-      </span>
-      <input
-        type="range"
-        min={0}
-        max={100}
-        value={Math.round(value * 100)}
-        onChange={(event) => onChange(Number(event.target.value) / 100)}
-        className="w-full min-w-0 accent-[#77d898]"
-      />
-    </label>
   );
 }
 
@@ -1402,7 +1415,6 @@ function CustomAiTransferCard({
   aiRuntimeConfig,
   selectedFriends,
   selectedCount,
-  customCount,
   quickAddNickname,
   quickAddBaseId,
   quickAddUseCustomLlm,
@@ -1412,8 +1424,7 @@ function CustomAiTransferCard({
   quickAddLlmApiKey,
   quickAddMergeSystemIntoUser,
   quickAddTtsVoice,
-  value,
-  error,
+  customAiError,
   onQuickAddNicknameChange,
   onQuickAddBaseChange,
   onQuickAddUseCustomLlmChange,
@@ -1427,15 +1438,11 @@ function CustomAiTransferCard({
   onMove,
   onRemove,
   onRandomize,
-  onChange,
-  onExport,
-  onImport,
 }: {
   baseFriends: AiFriendOption[];
   aiRuntimeConfig: AiRuntimeConfig | null;
   selectedFriends: AiFriendOption[];
   selectedCount: number;
-  customCount: number;
   quickAddNickname: string;
   quickAddBaseId: string;
   quickAddUseCustomLlm: boolean;
@@ -1445,8 +1452,7 @@ function CustomAiTransferCard({
   quickAddLlmApiKey: string;
   quickAddMergeSystemIntoUser: boolean;
   quickAddTtsVoice: string;
-  value: string;
-  error: string | null;
+  customAiError: string | null;
   onQuickAddNicknameChange: (value: string) => void;
   onQuickAddBaseChange: (value: string) => void;
   onQuickAddUseCustomLlmChange: (value: boolean) => void;
@@ -1460,10 +1466,8 @@ function CustomAiTransferCard({
   onMove: (friendId: string, direction: -1 | 1) => void;
   onRemove: (friendId: string) => void;
   onRandomize: () => void;
-  onChange: (value: string) => void;
-  onExport: () => void;
-  onImport: () => void;
 }) {
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const quickAddCustomLlmConfig = quickAddUseCustomLlm
     ? buildCustomLlmConfig({
         label: quickAddLlmLabel,
@@ -1472,20 +1476,57 @@ function CustomAiTransferCard({
         mergeSystemIntoUser: quickAddMergeSystemIntoUser,
       })
     : undefined;
+  const submitQuickAdd = () => {
+    onQuickAdd();
+    setQuickAddOpen(false);
+  };
 
   return (
     <div className="grid content-start gap-4">
-      <section className="rounded-[24px] border border-[#7da8e3]/22 bg-[#0d1623]/78 p-4 shadow-2xl shadow-black/30 backdrop-blur-md">
-        <div className="mb-3 flex items-center justify-between gap-3">
+      <section className="mobile-ai-quick-add-entry rounded-[24px] border border-[#7da8e3]/22 bg-[#0d1623]/78 p-4 shadow-2xl shadow-black/30 backdrop-blur-md">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-[#e4efff]">快速新增AI</h2>
             <p className="mt-1 text-xs text-[#b8d6ff]/72">填昵称，选择或填写 AI 大模型，再选发言声音，保存后自动加入本局队列。</p>
           </div>
-          <span className="rounded-full border border-[#7da8e3]/20 bg-[#7da8e3]/10 px-2 py-1 text-xs text-[#b8d6ff]">
-            表单
-          </span>
+          <button
+            type="button"
+            onClick={() => setQuickAddOpen(true)}
+            className="rounded-full border border-[#7da8e3]/25 bg-[#7da8e3]/10 px-3 py-2 text-xs font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/16"
+          >
+            新增
+          </button>
         </div>
-        <div className="grid gap-3">
+      </section>
+
+      {quickAddOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="quick-add-ai-title"
+          className="mobile-ai-add-overlay fixed inset-0 z-[65] overflow-y-auto bg-black/86 px-3 py-5 backdrop-blur-md sm:px-5"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setQuickAddOpen(false);
+          }}
+        >
+          <section
+            className="mobile-ai-add-card mx-auto w-full max-w-3xl rounded-[30px] border border-[#7da8e3]/30 bg-[#0d1623]/96 p-4 shadow-2xl shadow-black/70 sm:p-5"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#7da8e3]/15 pb-4">
+              <div className="min-w-0">
+                <h2 id="quick-add-ai-title" className="text-xl font-semibold text-[#e4efff]">快速新增AI</h2>
+                <p className="mt-1 text-xs leading-5 text-[#b8d6ff]/72">新增后会自动进入本局队列。</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickAddOpen(false)}
+                className="rounded-full border border-[#7da8e3]/25 bg-black/18 px-4 py-2 text-sm font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/10"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="grid gap-3">
           <label className="grid gap-1 text-xs text-[#ad9c7d]">
             昵称
             <input
@@ -1592,18 +1633,25 @@ function CustomAiTransferCard({
             customLlmApiKey={quickAddLlmApiKey}
             ttsVoice={quickAddTtsVoice}
           />
+          {customAiError && (
+            <div className="rounded-xl border border-[#e46d55]/28 bg-[#2b1110]/55 px-3 py-2 text-xs text-[#ffb1a4]">
+              {customAiError}
+            </div>
+          )}
           <button
             type="button"
-            onClick={onQuickAdd}
+            onClick={submitQuickAdd}
             disabled={baseFriends.length === 0}
             className="rounded-full bg-[#2f8157] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-black/25 transition hover:bg-[#379566] disabled:opacity-45"
           >
             添加并入队
           </button>
+            </div>
+          </section>
         </div>
-      </section>
+      )}
 
-      <section className="rounded-[24px] border border-[#77d898]/22 bg-[#0f2118]/76 p-4 shadow-2xl shadow-black/30 backdrop-blur-md">
+      <section className="mobile-ai-queue-card rounded-[24px] border border-[#77d898]/22 bg-[#0f2118]/76 p-4 shadow-2xl shadow-black/30 backdrop-blur-md">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-[#dff4df]">本局 AI 队列</h2>
@@ -1628,7 +1676,7 @@ function CustomAiTransferCard({
             暂未选择 AI，开局时会用默认 AI 自动补齐。
           </div>
         ) : (
-          <div className="max-h-[330px] space-y-2 overflow-auto pr-1">
+          <div className="mobile-ai-queue-list max-h-[330px] space-y-2 overflow-auto pr-1">
             {selectedFriends.map((friend, index) => (
               <div key={friend.id} className="rounded-2xl border border-[#77d898]/14 bg-black/18 px-3 py-2">
                 <div className="flex items-center gap-2">
@@ -1685,45 +1733,7 @@ function CustomAiTransferCard({
         )}
       </section>
 
-      <section className="rounded-[24px] border border-[#7da8e3]/22 bg-[#0d1623]/78 p-4 shadow-2xl shadow-black/30 backdrop-blur-md">
-        <details>
-          <summary className="cursor-pointer list-none">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold text-[#e4efff]">高级导入导出</h2>
-              <span className="rounded-full border border-[#7da8e3]/20 bg-[#7da8e3]/10 px-2 py-1 text-xs text-[#b8d6ff]">
-                {selectedCount} 入局 · {customCount} 已保存
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-[#b8d6ff]/68">迁移配置时再展开使用。</p>
-          </summary>
-          <div className="mt-3">
-            <textarea
-              value={value}
-              onChange={(event) => onChange(event.target.value)}
-              rows={9}
-              className="w-full resize-none rounded-2xl border border-[#7da8e3]/16 bg-black/24 px-3 py-2 text-xs leading-5 text-[#d8e7ff] outline-none focus:border-[#7da8e3]/45"
-            />
-            {error && <div className="mt-2 rounded-xl border border-[#e46d55]/28 bg-[#2b1110]/55 px-3 py-2 text-xs text-[#ffb1a4]">{error}</div>}
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={onExport}
-                className="rounded-full border border-[#7da8e3]/25 bg-black/18 px-3 py-2 text-xs font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/10"
-              >
-                导出 JSON
-              </button>
-              <button
-                type="button"
-                onClick={onImport}
-                className="rounded-full border border-[#77d898]/25 bg-[#0f2118]/55 px-3 py-2 text-xs font-semibold text-[#a8f0b6] transition hover:bg-[#1d4e33]/75"
-              >
-                导入 JSON
-              </button>
-            </div>
-          </div>
-        </details>
-      </section>
-      <section className="rounded-[24px] border border-[#f1c76e]/22 bg-[#130d0b]/80 p-4 text-sm leading-6 text-[#dcc9a7] shadow-2xl shadow-black/30 backdrop-blur-md">
+      <section className="mobile-ai-custom-note rounded-[24px] border border-[#f1c76e]/22 bg-[#130d0b]/80 p-4 text-sm leading-6 text-[#dcc9a7] shadow-2xl shadow-black/30 backdrop-blur-md">
         复制内置 AI 后会生成一个可编辑的自定义AI。开局页会读取这里保存的入局选择。
       </section>
     </div>

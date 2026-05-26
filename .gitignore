@@ -13,10 +13,19 @@
 # testing
 /coverage
 
+# local scratch and Codex workflow artifacts
+/tmp/
+/.worktrees/
+/.superpowers/
+/promo-ai-werewolf/
+
 # local database and generated prisma client
 /prisma/dev.db
 /prisma/dev.db-journal
 /src/generated/prisma
+
+# local multiplayer room snapshots
+/.local/
 
 # generated runtime speech cache
 /public/audio/ai-speech/*.mp3
@@ -48,6 +57,7 @@ codex-dev-*.log
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+!.env.production.example
 
 # vercel
 .vercel

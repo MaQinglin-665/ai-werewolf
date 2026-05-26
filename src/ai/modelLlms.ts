@@ -11,6 +11,18 @@ export type LlmOutputStabilityHint = {
   previousIssue: string;
   previousOutput?: string;
   expectedFormat: string;
+  repairInstructions?: string[];
+  speechContract?: {
+    move: string;
+    target?: {
+      seatId: number;
+      name: string;
+    };
+    mustSay: string[];
+    mayAsk: string[];
+    mustNotAsk: string[];
+    voteBoundary?: string;
+  };
 };
 
 export type LlmOutputAttemptLog = {
@@ -159,7 +171,8 @@ export function listModelRouteStatuses(): ModelRouteStatus[] {
 
 export async function callRoutedModelJson(options: RoutedJsonOptions): Promise<RoutedLlmResponse> {
   const customLlm = sanitizeAiFriendRuntimeLlmConfig(options.customLlm);
-  const route = customLlm ? buildCustomModelRoute(customLlm) : getModelRoute(options.personaName);
+  const routedCustomLlm = customLlm ? withCustomTaskModelOverride(customLlm, options.task) : undefined;
+  const route = routedCustomLlm ? buildCustomModelRoute(routedCustomLlm) : getModelRoute(options.personaName);
   const apiKey = resolveRouteApiKey(route);
   const baseUrl = resolveRouteBaseUrl(route, apiKey);
   const primaryModel = route.customModel ?? readRouteModelEnv(route) ?? readRouteEnv(route, "MODEL") ?? route.defaultModel;
@@ -431,6 +444,29 @@ function buildCustomModelRoute(config: AiFriendRuntimeLlmConfig): ModelRoute {
   };
 }
 
+function withCustomTaskModelOverride(
+  config: AiFriendRuntimeLlmConfig,
+  task: RoutedJsonOptions["task"],
+): AiFriendRuntimeLlmConfig {
+  if (task !== "action") return config;
+  const overrideModel = resolveCustomActionModelOverride(config.model);
+  return overrideModel ? { ...config, model: overrideModel } : config;
+}
+
+function resolveCustomActionModelOverride(model: string): string | undefined {
+  const configured = readOptionalEnv("AI_LLM_CUSTOM_ACTION_MODEL_OVERRIDES");
+  if (configured && /^(off|none|false|0)$/i.test(configured)) return undefined;
+  const rules =
+    configured
+      ? configured
+      : "deepseek-reasoner=deepseek-chat";
+  for (const rule of rules.split(",")) {
+    const [from, to] = rule.split(/[:=]/).map((part) => part?.trim()).filter(Boolean);
+    if (from && to && from.toLowerCase() === model.trim().toLowerCase()) return to;
+  }
+  return undefined;
+}
+
 function getModelRouteByNameOrId(value: string | undefined): ModelRoute | undefined {
   const normalized = value?.trim().toLowerCase();
   if (!normalized) return undefined;
@@ -632,7 +668,7 @@ function readTaskTimeoutMs(route: ModelRoute, task: RoutedJsonOptions["task"]): 
 
   if (task !== "speech") return readNumberEnv("AI_LLM_TIMEOUT_MS", 12000);
   const timeoutMs = readNumberEnv("AI_LLM_SPEECH_TIMEOUT_MS", readNumberEnv("AI_LLM_TIMEOUT_MS", 45000));
-  const defaultCap = route.id === "glm" ? 90000 : 45000;
+  const defaultCap = route.id === "glm" ? 90000 : 60000;
   const cap = readNumberEnv("AI_LLM_SPEECH_TIMEOUT_MS_CAP", defaultCap);
   return Math.min(Math.max(route.id === "glm" ? 90000 : timeoutMs, timeoutMs), Math.max(route.id === "glm" ? 90000 : cap, cap));
 }
