@@ -140,3 +140,43 @@ Verification:
 Remaining risks:
 - ...
 ```
+
+## Implementation Record
+
+Completed:
+- Added role-card data model and safe role-only roster import/export.
+- Passed role cards through local game creation into setup snapshots and AI personas.
+- Added role-card guidance to real LLM speech and action prompts while keeping action role-card text out of the system prompt.
+- Updated `/ai-pool` into a character roster with role-card editing, source summary, role-name editing, Mock warning, and import/export controls.
+- Import overwrite now updates selected AI ids and prunes stale local LLM/TTS secrets.
+- Verified desktop and mobile `/ai-pool` layout through Chrome headless screenshots and DOM checks.
+
+Changed files:
+- `src/game/types.ts`
+- `src/game/aiFriends.ts`
+- `src/components/game/aiFriendRoleRoster.ts`
+- `src/components/game/aiFriendRoleRoster.test.ts`
+- `src/app/api/games/route.ts`
+- `src/app/api/games/aiFriends.test.ts`
+- `src/ai/speechProviders.ts`
+- `src/ai/speechProviders.test.ts`
+- `src/ai/actionProviders.ts`
+- `src/ai/actionProviders.test.ts`
+- `src/components/AiPoolClient.tsx`
+- `src/components/AiPoolClient.mobile.test.ts`
+- `src/app/globals.css`
+
+Verification:
+- `npm run test -- src/components/game/aiFriendRoleRoster.test.ts src/app/api/games/aiFriends.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts src/components/AiPoolClient.mobile.test.ts` passed: 5 files, 113 tests.
+- `npm run harness:task-card -- docs/tasks/2026-05-ai-pool-character-roster.md` passed.
+- `npm run harness:check` passed.
+- `node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"` passed.
+- `git diff --check` passed.
+- `npm run lint` passed with 2 pre-existing warnings in `src/ai/speechProviders.test.ts` for unused mock parameters.
+- `npx tsc --noEmit` passed.
+- Chrome headless desktop `/ai-pool` at `1365x900`: roster, source, import/export, Mock warning, quick add, and queue present; no horizontal overflow.
+- Chrome headless mobile `/ai-pool` at `390x844`: roster, source, import/export, Mock warning, and quick add present; no horizontal overflow; import dialog showed append and overwrite controls.
+
+Skipped checks:
+- Real provider role-play game test was not run because no safe disposable API key was provided and testing may produce model cost.
+- `npm run build` was attempted after installing dependencies in the isolated worktree. It compiled successfully but failed type-checking on a pre-existing unrelated `src/server/gameService.ts:739` implicit-`any` in the Prisma transaction callback. The existing Turbopack NFT warning for `next.config.ts` -> `src/server/roomService.ts` also remained.
