@@ -67,6 +67,13 @@ import {
   loadGameView,
   submitGameCommand,
 } from "./game/gameClientRequests";
+import {
+  CLASS_TRIAL_THEME_MODE_STORAGE_KEY,
+  getClassTrialPackStatus,
+  parseClassTrialThemeMode,
+  type ClassTrialPackManifest,
+  type ClassTrialThemeMode,
+} from "./game/classTrialTheme";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
 import { buildLandingLineupPreview } from "./game/landingLineupPreview";
 import { MobileGameTable } from "./game/MobileGameTable";
@@ -134,6 +141,8 @@ export function GameClient() {
   const [aiLlmSecrets, setAiLlmSecrets] = useState<AiFriendLlmSecretMap>({});
   const [selectedAiFriendIds, setSelectedAiFriendIds] = useState<string[]>(getDefaultSelectedAiFriendIds);
   const [aiRuntimeMode, setAiRuntimeMode] = useState<AiRuntimeMode>("mock");
+  const [classTrialThemeMode, setClassTrialThemeMode] = useState<ClassTrialThemeMode>("default");
+  const [classTrialPackManifest, setClassTrialPackManifest] = useState<ClassTrialPackManifest | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roleIntroGameId, setRoleIntroGameId] = useState<string | null>(null);
@@ -197,6 +206,7 @@ export function GameClient() {
       }),
     [humanSeatMode, selectedAiFriends, selectedBoard?.seatCount, selectedHumanSeatId],
   );
+  const classTrialPackStatus = useMemo(() => getClassTrialPackStatus(classTrialPackManifest), [classTrialPackManifest]);
 
   const selectBoard = useCallback(
     (boardId: string) => {
@@ -243,8 +253,24 @@ export function GameClient() {
       setAiLlmSecrets(readStoredAiFriendLlmSecrets());
       setSelectedAiFriendIds(readStoredSelectedAiFriendIds());
       setAiRuntimeMode(readStoredAiRuntimeMode());
+      setClassTrialThemeMode(parseClassTrialThemeMode(window.localStorage.getItem(CLASS_TRIAL_THEME_MODE_STORAGE_KEY)));
     }, 0);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/class-trial-pack/manifest.json")
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((manifest: ClassTrialPackManifest | undefined) => {
+        if (!cancelled) setClassTrialPackManifest(manifest);
+      })
+      .catch(() => {
+        if (!cancelled) setClassTrialPackManifest(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -354,6 +380,11 @@ export function GameClient() {
       return next;
     });
   }, [stopAiSpeechAudio]);
+
+  const selectClassTrialThemeMode = useCallback((mode: ClassTrialThemeMode) => {
+    setClassTrialThemeMode(mode);
+    window.localStorage.setItem(CLASS_TRIAL_THEME_MODE_STORAGE_KEY, mode);
+  }, []);
 
   const playHostAudioCue = useCallback(
     async (cue: HostAudioCue, runId: number) => {
@@ -916,6 +947,10 @@ export function GameClient() {
             recentGameIds={recentGameIds}
             onLoadGame={loadGameById}
             onStartGame={() => startGame(selectedBoardId ?? undefined)}
+            classTrialThemeMode={classTrialThemeMode}
+            classTrialPackAvailable={classTrialPackStatus.available}
+            classTrialPackMessage={classTrialPackStatus.message}
+            onSelectClassTrialThemeMode={selectClassTrialThemeMode}
           />
         ) : (
           <div className="grid flex-1 gap-4">
