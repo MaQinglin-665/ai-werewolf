@@ -232,6 +232,13 @@ export type AiPersonaPreferences = {
   caution: number;
 };
 
+export type AiFriendRoleCard = {
+  source: string;
+  speakingStyle: string;
+  reasoningStyle: string;
+  avoid: string;
+};
+
 export type AiFriendLlmConfig = {
   provider: "openai-compatible";
   label?: string;
@@ -265,6 +272,7 @@ export type AiFriendConfig = {
   nickname: string;
   basePersonaId: string;
   avatarDataUrl?: string;
+  roleCard?: AiFriendRoleCard;
   llmConfig?: AiFriendLlmConfig;
   ttsVoice?: string;
   ttsConfig?: AiFriendTtsConfig;
@@ -283,6 +291,7 @@ export type AiFriendSeatSetup = {
   personaName: string;
   modelLabel?: string;
   avatarDataUrl?: string;
+  roleCard?: AiFriendRoleCard;
   ttsVoice?: string;
   ttsConfig?: AiFriendTtsConfig;
   isDefault: boolean;
@@ -604,6 +613,7 @@ export type AiPersona = {
   riskTolerance: number;
   bluffing: number;
   preferences?: AiPersonaPreferences;
+  roleCard?: AiFriendRoleCard;
 };
 
 export type AiSeatBelief = {

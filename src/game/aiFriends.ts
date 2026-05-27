@@ -1,12 +1,14 @@
 import { getAiPersonaById, getAiRoster } from "./personas";
 import { formatAiFriendLlmModelLabel, sanitizeAiFriendLlmConfig, sanitizeAiFriendTtsConfig } from "./llmConfig";
-import type { AiFriendConfig, AiFriendSeatSetup, AiPersona, AiPersonaPreferences } from "./types";
+import type { AiFriendConfig, AiFriendRoleCard, AiFriendSeatSetup, AiPersona, AiPersonaPreferences } from "./types";
 
 export const AI_FRIENDS_STORAGE_KEY = "ai-werewolf-ai-friends-v1";
 export const AI_FRIEND_SELECTION_STORAGE_KEY = "ai-werewolf-selected-ai-friends-v1";
 export const AI_FRIENDS_EXPORT_VERSION = 1;
 export const DEFAULT_AI_FRIEND_ID_PREFIX = "default:";
 export const AI_FRIEND_AVATAR_DATA_URL_MAX_LENGTH = 220_000;
+export const AI_FRIEND_ROLE_SOURCE_MAX_LENGTH = 80;
+export const AI_FRIEND_ROLE_FIELD_MAX_LENGTH = 240;
 
 const AI_FRIEND_AVATAR_DATA_URL_PATTERN = /^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/]+=*$/;
 
@@ -129,6 +131,7 @@ export function sanitizeAiFriendConfig(value: unknown): AiFriendConfig | undefin
     nickname: sanitizeNickname(readString(value.nickname, 16) || basePersona.name),
     basePersonaId: basePersona.id,
     avatarDataUrl: sanitizeAiFriendAvatarDataUrl(value.avatarDataUrl),
+    roleCard: sanitizeAiFriendRoleCard(value.roleCard),
     llmConfig: sanitizeAiFriendLlmConfig(value.llmConfig),
     ttsVoice: sanitizeTtsVoice(readString(value.ttsVoice, 80)),
     ttsConfig: sanitizeAiFriendTtsConfig(value.ttsConfig),
@@ -149,6 +152,7 @@ export function buildAiPersonaFromFriend(friend: AiFriendConfig): AiPersona {
     riskTolerance: clampUnit(friend.riskTolerance, base.riskTolerance),
     bluffing: clampUnit(friend.bluffing, base.bluffing),
     preferences: normalizePreferences(friend.preferences),
+    roleCard: sanitizeAiFriendRoleCard(friend.roleCard),
   };
 }
 
@@ -174,6 +178,7 @@ export function resolveAiFriendsForGame(selectedFriends: AiFriendConfig[] | unde
         personaName: persona.name,
         modelLabel: persona.modelLabel,
         avatarDataUrl: config.avatarDataUrl,
+        roleCard: config.roleCard,
         ttsVoice: config.ttsVoice,
         ttsConfig: config.ttsConfig,
         isDefault: isDefaultAiFriend(config),
@@ -231,6 +236,21 @@ function uniqueCopyName(value: string): string {
 function sanitizeTtsVoice(value: string | undefined): string | undefined {
   const clean = value?.trim().replace(/\s+/g, "_").slice(0, 80);
   return clean || undefined;
+}
+
+export function sanitizeAiFriendRoleCard(value: unknown): AiFriendRoleCard | undefined {
+  if (!isRecord(value)) return undefined;
+  const source = readString(value.source, AI_FRIEND_ROLE_SOURCE_MAX_LENGTH);
+  const speakingStyle = readString(value.speakingStyle, AI_FRIEND_ROLE_FIELD_MAX_LENGTH);
+  const reasoningStyle = readString(value.reasoningStyle, AI_FRIEND_ROLE_FIELD_MAX_LENGTH);
+  const avoid = readString(value.avoid, AI_FRIEND_ROLE_FIELD_MAX_LENGTH);
+  if (!source && !speakingStyle && !reasoningStyle && !avoid) return undefined;
+  return {
+    source: source ?? "",
+    speakingStyle: speakingStyle ?? "",
+    reasoningStyle: reasoningStyle ?? "",
+    avoid: avoid ?? "",
+  };
 }
 
 function sanitizeAiFriendAvatarDataUrl(value: unknown): string | undefined {
