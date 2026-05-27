@@ -2,6 +2,7 @@
 
 export { RoomHeader } from "./RoomHeader";
 export { LandingPanel } from "./LandingPanel";
+export { ClassTrialGameTable } from "./ClassTrialGameTable";
 export { SeatBoard } from "./SeatBoard";
 export { ActionPanel } from "./ActionPanel";
 export { ReviewPanel } from "./ReviewPanel";

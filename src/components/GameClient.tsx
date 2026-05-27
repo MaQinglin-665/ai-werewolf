@@ -9,6 +9,7 @@ import type {
 import {
   ActionPanel,
   AuxiliaryInfoPanel,
+  ClassTrialGameTable,
   FlowStatusBar,
   GlossaryOverlay,
   HostStage,
@@ -898,6 +899,7 @@ export function GameClient() {
   }, [stopAiSpeechAudio, stopHostAudio]);
 
   const latestEvents = useMemo(() => buildTableEventFeed(game), [game]);
+  const classTrialThemeActive = classTrialThemeMode === "class-trial" && Boolean(game);
 
   return (
     <main
@@ -954,27 +956,31 @@ export function GameClient() {
           />
         ) : (
           <div className="grid flex-1 gap-4">
-            <MobileGameTable
-              game={game}
-              loading={loading}
-              pendingCommandType={pendingCommandType}
-              liveAiSpeech={liveAiSpeech}
-              hostAudioEnabled={hostAudioEnabled}
-              aiSpeechAudioEnabled={aiSpeechAudioEnabled}
-              hostAudioStatus={hostAudioStatus}
-              aiSpeechAudioStatus={aiSpeechAudioStatus}
-              aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
-              events={latestEvents}
-              onNewGame={() => startGame()}
-              onReturnHome={returnHome}
-              onSubmit={submitCommand}
-              onOpenIdentityBook={() => setIdentityBookOpen(true)}
-              onOpenGlossary={() => setGlossaryOpen(true)}
-              onToggleAiSpeechAudio={toggleAiSpeechAudio}
-              onToggleHostAudio={toggleHostAudio}
-            />
+            {classTrialThemeActive ? (
+              <ClassTrialGameTable game={game} loading={loading} onReturnHome={returnHome} onSubmit={submitCommand} />
+            ) : (
+              <MobileGameTable
+                game={game}
+                loading={loading}
+                pendingCommandType={pendingCommandType}
+                liveAiSpeech={liveAiSpeech}
+                hostAudioEnabled={hostAudioEnabled}
+                aiSpeechAudioEnabled={aiSpeechAudioEnabled}
+                hostAudioStatus={hostAudioStatus}
+                aiSpeechAudioStatus={aiSpeechAudioStatus}
+                aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
+                events={latestEvents}
+                onNewGame={() => startGame()}
+                onReturnHome={returnHome}
+                onSubmit={submitCommand}
+                onOpenIdentityBook={() => setIdentityBookOpen(true)}
+                onOpenGlossary={() => setGlossaryOpen(true)}
+                onToggleAiSpeechAudio={toggleAiSpeechAudio}
+                onToggleHostAudio={toggleHostAudio}
+              />
+            )}
 
-            <div className="hidden gap-4 sm:grid">
+            {!classTrialThemeActive && <div className="hidden gap-4 sm:grid">
               <PhaseRhythm game={game} />
               <HostStage game={game} />
               <FlowStatusBar
@@ -1002,7 +1008,7 @@ export function GameClient() {
                   <AuxiliaryInfoPanel game={game} events={latestEvents} />
                 </aside>
               </section>
-            </div>
+            </div>}
           </div>
         )}
       </div>
