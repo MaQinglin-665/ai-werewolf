@@ -1,6 +1,6 @@
 # Current Release Status
 
-Last checked: 2026-05-26 22:54 Asia/Shanghai.
+Last checked: 2026-05-27 19:19 Asia/Shanghai.
 
 Use this file as the first stop before sharing the public Alpha link or starting a new deployment. Update it after every public-facing release.
 
@@ -13,9 +13,9 @@ Use this file as the first stop before sharing the public Alpha link or starting
 
 ## Current Source State
 
-- Working branch: `main`
-- Current public runtime baseline: `31a2896 refactor: extract gameclient lifecycle requests`
-- Local worktree at runtime check: pushed to `origin/main`
+- Working branch: `codex/ai-pool-character-roster`
+- Current public runtime baseline: `a6be5d8 fix: type prisma transaction client`
+- Local worktree at runtime check: pushed to `origin/codex/ai-pool-character-roster`
 - Render deployment branch at last check: `1cb8eb2 deploy: sync mobile interaction signals`
 
 Render is intentionally tracked through `codex/room-render-production-minimum`. Tencent Cloud is deployed from the current source archive path. When a release should be visible in both public environments, update both lanes and record the two heads here.
@@ -28,9 +28,9 @@ This file may be updated by documentation-only commits after the runtime baselin
 - Compose root: `/opt/ai-werewolf`
 - Live app source: `/opt/ai-werewolf/app`
 - Main service: `ai-werewolf-app`
-- Latest deployed source: `31a2896 refactor: extract gameclient lifecycle requests`
-- Rollback source tree: `/opt/ai-werewolf/app-backup-20260526-224922`
-- Last container status: `ai-werewolf-app` healthy, image `sha256:e3682ace06bc1ce2bfacfcd4617e246e7ebc8e263e2c571c574fd6ddbfb3579d`, nginx and Postgres running
+- Latest deployed source: `a6be5d8 fix: type prisma transaction client`
+- Rollback source tree: `/opt/ai-werewolf/app-backup-20260527-191746-pre-character-roster`
+- Last container status: `ai-werewolf-app` healthy, image `sha256:06c5860a222341a4bbc7f01cb5a0aee9176ef09f98001708b1151cc169be302f`, nginx and Postgres running
 
 Latest verification:
 
@@ -38,7 +38,7 @@ Latest verification:
 npm run preflight:production -- --base-url=https://175.178.199.245
 ```
 
-Result at 2026-05-26 22:53 Asia/Shanghai: `ok=true`, all production minimum checks passed.
+Result at 2026-05-27 19:18 Asia/Shanghai: `ok=true`, all production minimum checks passed.
 
 Latest room smoke:
 
@@ -46,7 +46,7 @@ Latest room smoke:
 $env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-sse
 ```
 
-Result at 2026-05-26 22:54 Asia/Shanghai: `ok=true`, room `IRTYL4`, host seat `1`, guest seat `2`.
+Result at 2026-05-27 19:18 Asia/Shanghai: `ok=true`, room `RPBY6V`, host seat `1`, guest seat `2`.
 
 Latest main game smoke:
 
@@ -54,7 +54,7 @@ Latest main game smoke:
 npm run smoke:main-game -- --base-url=https://175.178.199.245
 ```
 
-Result at 2026-05-26 22:54 Asia/Shanghai: `ok=true`, board `6p-beginner-seer`, human seat `1`, submitted `wolfKill`, final phase `DAY_SPEECH`.
+Result at 2026-05-27 19:19 Asia/Shanghai: `ok=true`, board `6p-beginner-seer`, human seat `1`, submitted `wolfKill`, final phase `DAY_SPEECH`.
 
 Latest mobile UI asset probe:
 
@@ -62,7 +62,7 @@ Latest mobile UI asset probe:
 # fetched public HTML assets and searched for the shipped mobile UI classes
 ```
 
-Result: found `mobile-seat-token-action-ready`, `mobile-drawer-tab-has-activity`, and `mobile-speech-filter-chip-active`.
+Result: public `/ai-pool` HTML includes `AI池和自定义AI`, `角色名册`, `人物来源`, `说话方式`, `推理习惯`, and `不要做什么`.
 
 ## Render Free Mirror
 

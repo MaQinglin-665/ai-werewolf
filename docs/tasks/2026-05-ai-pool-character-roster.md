@@ -155,8 +155,15 @@ Verification:
 - node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"
 - git diff --check
 - Chrome headless desktop and 390x844 mobile checks at http://127.0.0.1:3011/ai-pool
+- npm run prisma:generate
+- npm run build
+- Tencent Cloud docker build and app recreate
+- npm run preflight:production -- --base-url=https://175.178.199.245
+- $env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm run smoke:room-sse
+- npm run smoke:main-game -- --base-url=https://175.178.199.245
+- Public /ai-pool HTML probe
 
 Remaining risks:
 - Real-provider role-play validation was skipped because no safe disposable key was provided and live model calls can create cost.
-- npm run build was attempted and stopped on existing unrelated src/server/gameService.ts:739 implicit-any drift after compilation succeeded.
+- Render mirror was not deployed; this rollout targeted Tencent Cloud primary Alpha only.
 ```

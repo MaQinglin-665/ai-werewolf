@@ -2,7 +2,7 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-27 02:55 Asia/Shanghai
+**Last Updated:** 2026-05-27 19:19 Asia/Shanghai
 **Session ID:** ai-pool character roster
 **Active Feature:** ai-pool-character-roster - AI Pool Character Roster
 
@@ -48,6 +48,7 @@
 - [x] Local main-game smoke passed on a clean dev server at `http://127.0.0.1:3010`.
 - [x] AI Pool Bulk LLM Presets implemented for `/ai-pool`: local presets, bulk apply, user-triggered test route, responsive panel, and result summary.
 - [x] AI Pool Character Roster implemented in the isolated worktree: local role cards, safe role-only import/export, `/api/games` propagation, real LLM speech/action prompt wiring, and `/ai-pool` character roster UI.
+- [x] AI Pool Character Roster deployed to Tencent Cloud primary Alpha at `https://175.178.199.245`.
 
 ### What's In Progress
 
@@ -55,7 +56,7 @@
 
 ### What's Next
 
-1. Let the user inspect `/ai-pool` from branch `codex/ai-pool-character-roster`.
+1. Let the user inspect the public `/ai-pool` at `https://175.178.199.245/ai-pool`.
 2. If accepted, decide whether to merge the worktree branch back to the main checkout.
 3. Run a real-provider role-play game only if the user provides a safe disposable key and accepts possible model cost.
 
@@ -196,7 +197,8 @@
 - [x] Character roster lint/type: `npm run lint`; `npx tsc --noEmit`
 - [x] Character roster harness checks: `npm run harness:task-card -- docs/tasks/2026-05-ai-pool-character-roster.md`; `npm run harness:check`; feature-list JSON parse; `git diff --check`
 - [x] Character roster browser checks: desktop and 390x844 mobile viewport at `http://127.0.0.1:3011/ai-pool`, including roster, source text, mock warning, import/export, and import dialog controls.
-- [ ] Character roster build: attempted `npm run build`, but it stopped on an existing unrelated `src/server/gameService.ts:739` implicit-any error after successful compilation.
+- [x] Character roster build/deploy: `npm run prisma:generate`; `npm run build`; server `docker build`; Tencent Cloud app recreate.
+- [x] Character roster production checks: `npm run preflight:production -- --base-url=https://175.178.199.245`; `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm run smoke:room-sse`; `npm run smoke:main-game -- --base-url=https://175.178.199.245`; public `/ai-pool` HTML probe.
 
 ## Notes for Next Session
 

@@ -3,8 +3,8 @@
 ## Current Objective
 
 - Goal: Implement the `/ai-pool` character roster workflow under the harness.
-- Current status: Implementation is complete in the isolated worktree branch. Next step is user inspection and merge decision.
-- Branch / commit: `codex/ai-pool-character-roster`; latest implementation commit before handoff docs is `8c76e2b`.
+- Current status: Implementation is complete and deployed to Tencent Cloud primary Alpha. Next step is user inspection and merge decision.
+- Branch / commit: `codex/ai-pool-character-roster`; latest deployed source is `a6be5d8`.
 
 ## Completed This Session
 
@@ -75,6 +75,8 @@
 - [x] Added role-card guidance to real LLM speech and action prompts while keeping user-authored role text out of the action system prompt.
 - [x] Upgraded `/ai-pool` into a character roster UI with avatar, role name, source, speaking style, reasoning style, avoid field, mock warning, and import/export controls.
 - [x] Verified the visible `/ai-pool` flow on desktop and mobile viewports with Chrome headless.
+- [x] Fixed the Prisma transaction client type annotation that blocked production `next build`.
+- [x] Deployed the character roster build to Tencent Cloud primary Alpha at `https://175.178.199.245`.
 
 ## Verification Evidence
 
@@ -140,9 +142,14 @@
 | Character roster focused tests | `npm run test -- src/components/game/aiFriendRoleRoster.test.ts src/app/api/games/aiFriends.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts src/components/AiPoolClient.mobile.test.ts` | passed | 5 files, 113 tests. Covers role roster storage/import/export, API propagation, prompt wiring, and static UI. |
 | Character roster lint | `npm run lint` | passed | Passed with two existing unused-parameter warnings in `src/ai/speechProviders.test.ts`. |
 | Character roster typecheck | `npx tsc --noEmit` | passed | Confirms role-card type propagation. |
-| Character roster build | `npm run build` | blocked | Compilation completed, then type checking stopped on existing unrelated `src/server/gameService.ts:739` implicit-any drift. |
+| Character roster build | `npm run prisma:generate`; `npm run build` | passed | Build passed with the existing Turbopack NFT warning for `next.config.ts` -> `src/server/roomService.ts`. |
 | Character roster browser desktop | Chrome headless at `http://127.0.0.1:3011/ai-pool` | passed | Verified roster, source text, mock warning, import/export, quick add, and queue visibility without horizontal overflow. |
 | Character roster browser mobile | Chrome headless 390x844 at `http://127.0.0.1:3011/ai-pool` | passed | Verified roster cards, source text, mock warning, import/export, and import dialog append/overwrite controls without horizontal overflow. |
+| Tencent Cloud candidate build | server `docker build` from clean archive | passed | Docker build ran `npm ci`, `npm run prisma:generate`, `npm run build`, and `npm prune --omit=dev`. |
+| Tencent Cloud preflight | `npm run preflight:production -- --base-url=https://175.178.199.245` | passed | `ok=true`, production minimum checks passed. |
+| Tencent Cloud room SSE smoke | `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm run smoke:room-sse` | passed | `ok=true`, room `RPBY6V`, host seat `1`, guest seat `2`. |
+| Tencent Cloud main-game smoke | `npm run smoke:main-game -- --base-url=https://175.178.199.245` | passed | `ok=true`, board `6p-beginner-seer`, human seat `1`, submitted `wolfKill`, final phase `DAY_SPEECH`. |
+| Tencent Cloud AI pool probe | `curl.exe -k -L --max-time 30 https://175.178.199.245/ai-pool` | passed | Public HTML includes the character roster labels and role-card fields. |
 
 ## Files Changed
 
@@ -207,6 +214,8 @@
 - `src/ai/actionProviders.test.ts`
 - `src/components/AiPoolClient.tsx`
 - `src/components/AiPoolClient.mobile.test.ts`
+- `src/server/gameService.ts`
+- `docs/current-release.md`
 
 ## Decisions Made
 
@@ -245,7 +254,7 @@
 - Real-provider connection testing was skipped because no safe disposable API key was provided and the test route can create model cost.
 - In-app Browser screenshot capture timed out, so the UI verification evidence is DOM/viewport based rather than screenshot based.
 - Real-provider role-play validation was skipped because no safe disposable API key was provided and live model calls can create cost.
-- `npm run build` is currently blocked by an existing unrelated `src/server/gameService.ts:739` implicit-any error after compilation succeeds.
+- Render mirror was not deployed; this rollout targeted the Tencent Cloud primary Alpha only.
 
 ## Next Session Startup
 
@@ -266,4 +275,4 @@
 
 ## Recommended Next Step
 
-- Next recommended step: let the user inspect `/ai-pool` on branch `codex/ai-pool-character-roster`; if accepted, merge the worktree branch back to the main checkout.
+- Next recommended step: let the user inspect `https://175.178.199.245/ai-pool`; if accepted, merge the worktree branch back to the main checkout.
