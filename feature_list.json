@@ -190,6 +190,17 @@
       ],
       "status": "not-started",
       "evidence": "docs/superpowers/specs/2026-05-27-ai-pool-character-roster-design.md; docs/tasks/2026-05-ai-pool-character-roster.md; docs/superpowers/plans/2026-05-27-ai-pool-character-roster.md"
+    },
+    {
+      "id": "long-running-task-registry",
+      "name": "Long-running Task Registry",
+      "description": "Machine-readable registry and docs for paused, blocked, running, failed, killed, or resumable multi-session tasks.",
+      "dependencies": [
+        "standard-lifecycle-files",
+        "task-execution-gate"
+      ],
+      "status": "done",
+      "evidence": "long_running_tasks.json; docs/long-running-tasks.md; scripts/long-running-tasks-check.mjs; npm run harness:long-tasks; npm run harness:task-card -- docs/tasks/2026-05-long-running-task-registry.md; npm run harness:check"
     }
   ]
 }

@@ -2,8 +2,8 @@
 
 ## Current Objective
 
-- Goal: Plan the `/ai-pool` character roster workflow under the harness.
-- Current status: Design and implementation plan are complete. Implementation has not started; next step is choosing execution mode for `docs/superpowers/plans/2026-05-27-ai-pool-character-roster.md`.
+- Goal: Maintain `/ai-pool` character roster handoff and add long-running task registry support to the harness.
+- Current status: AI Pool Character Roster implementation notes are present; long-running task registry files and validation have been added.
 - Branch / commit: `main`; latest committed design baseline is `c020424`.
 
 ## Completed This Session
@@ -70,6 +70,10 @@
 - [x] Created `docs/tasks/2026-05-ai-pool-character-roster.md`.
 - [x] Created `docs/superpowers/plans/2026-05-27-ai-pool-character-roster.md`.
 - [x] Recorded the planned character roster feature in `feature_list.json` and `progress.md`.
+- [x] Added `long_running_tasks.json` as a machine-readable registry for resumable, blocked, running, failed, killed, and completed long-running tasks.
+- [x] Added `docs/long-running-tasks.md` and `docs/tasks/2026-05-long-running-task-registry.md`.
+- [x] Added `scripts/long-running-tasks-check.mjs` and `npm run harness:long-tasks`.
+- [x] Routed long-running task usage through `AGENTS.md`, `docs/README.md`, and `scripts/harness-check.mjs`.
 
 ## Verification Evidence
 
@@ -132,6 +136,8 @@
 | AI pool browser mobile | Browser viewport `390x844` at `http://127.0.0.1:3010/ai-pool` | passed | Bulk entry and opened panel controls were reachable in phone viewport. |
 | AI pool build | `npm run build` | passed | Existing Turbopack NFT warning for `next.config.ts` -> `src/server/roomService.ts` remained. |
 | Character roster task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-ai-pool-character-roster.md` | passed | Confirms the new role roster task card satisfies harness fields. |
+| Long-running task registry | `npm run harness:long-tasks` | passed | Confirms registry JSON shape, status values, ids, handoff pointers, and next actions. |
+| Long-running task card | `npm run harness:task-card -- docs/tasks/2026-05-long-running-task-registry.md` | passed | Confirms the registry task card satisfies harness fields. |
 
 ## Files Changed
 
@@ -184,6 +190,14 @@
 - `src/components/game/aiFriendLlmPresets.test.ts`
 - `src/app/api/ai-config/test-llm/route.ts`
 - `src/app/api/ai-config/test-llm/route.test.ts`
+- `AGENTS.md`
+- `docs/README.md`
+- `docs/long-running-tasks.md`
+- `docs/tasks/2026-05-long-running-task-registry.md`
+- `long_running_tasks.json`
+- `scripts/long-running-tasks-check.mjs`
+- `scripts/harness-check.mjs`
+- `package.json`
 
 ## Decisions Made
 
@@ -200,6 +214,7 @@
 - Stop micro-extracting tiny helpers for now. The next useful code-facing boundary is a medium-risk `gameClientRequests` extraction that separates request construction/response parsing from UI orchestration.
 - Game lifecycle request construction, response parsing, and stream-continue speech context are now treated as a frontend request boundary. `GameClient.tsx` should keep state transitions, refs, and UI orchestration local.
 - AI pool real-model setup should move toward local LLM presets plus bulk apply to currently selected AI friends. First implementation slice should cover LLM only, while reserving the same framework for TTS later.
+- Long-running or blocked work should now be recorded in `long_running_tasks.json`, with detailed restart context linked from task cards or handoff files instead of pasted into the registry.
 
 ## Blockers / Risks
 
@@ -220,13 +235,15 @@
 - Production/release checks were skipped because no deployment, public URL, or runtime configuration changed.
 - Real-provider connection testing was skipped because no safe disposable API key was provided and the test route can create model cost.
 - In-app Browser screenshot capture timed out, so the UI verification evidence is DOM/viewport based rather than screenshot based.
+- The long-running task registry validates structure, not freshness; agents still need to update status and next action as work changes.
 
 ## Next Session Startup
 
 1. Read `AGENTS.md`.
 2. Read `feature_list.json` and `progress.md`.
-3. Review this handoff.
-4. Read `docs/superpowers/specs/2026-05-26-frontend-structure-boundaries-design.md`.
+3. Read `long_running_tasks.json` if resuming, diagnosing, or coordinating a long-running task.
+4. Review this handoff.
+5. Read `docs/superpowers/specs/2026-05-26-frontend-structure-boundaries-design.md`.
 5. Read `docs/tasks/2026-05-frontend-css-boundary-map.md`.
 6. Read `docs/tasks/2026-05-gameclient-helper-extractions.md` if continuing frontend slimming.
 7. Read `docs/tasks/2026-05-gameclient-lineup-preview-model.md` if continuing landing-page model extraction.

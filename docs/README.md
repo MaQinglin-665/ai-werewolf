@@ -12,6 +12,7 @@
 - `harness-orientation.md`：新任务启动清单，帮助 agent 检查工作区、分类任务、定位文件和选择验证。
 - `harness-state.md`：当前 harness 结构、最近更新、接力事项和已知环境噪音。
 - `harness-retrospective.md`：任务后复盘模板，用于把重复踩坑和可复用经验写回 harness。
+- `long-running-tasks.md`：长期任务登记说明，配合根目录 `long_running_tasks.json` 追踪跨会话、阻塞、后台诊断和可恢复任务。
 - `feature-registry.md`：中粒度功能索引，帮助 AI agent 快速定位源码、测试、脚本和相关文档。
 - `architecture.md`：当前架构、核心边界和长期拆分方向。
 - `roadmap.md`：近期优先级和阶段目标。

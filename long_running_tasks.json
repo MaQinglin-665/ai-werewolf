@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "updated_at": "2026-05-27T16:45:00+08:00",
+  "tasks": [
+    {
+      "id": "lrt-harness-long-running-registry",
+      "title": "Long-running task registry harness",
+      "status": "done",
+      "owner": "codex",
+      "scope": [
+        "long_running_tasks.json",
+        "docs/long-running-tasks.md",
+        "scripts/long-running-tasks-check.mjs",
+        "scripts/harness-check.mjs",
+        "package.json"
+      ],
+      "started_at": "2026-05-27T16:45:00+08:00",
+      "updated_at": "2026-05-27T16:45:00+08:00",
+      "related_task_card": "",
+      "handoff_pointer": "progress.md",
+      "last_verified_command": "",
+      "next_action": "Use this registry for the next multi-session optimization or long-running diagnostic.",
+      "notes": "Initial registry entry for the harness capability itself."
+    }
+  ]
+}

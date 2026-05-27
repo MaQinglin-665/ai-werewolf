@@ -16,16 +16,21 @@ Before changing files, read:
 2. `docs/harness-orientation.md` for the startup checklist.
 3. `feature_list.json` for active feature status, dependencies, and evidence.
 4. `progress.md` for current state, blockers, files touched, and next step.
-5. `session-handoff.md` if the previous session ended mid-task.
-6. `docs/README.md` for the project documentation map.
-7. `docs/harness-state.md` for current harness status and recent handoff notes.
-8. `docs/feature-registry.md` when you need to locate source files, tests, or scripts.
-9. `docs/working-agreements.md` for multi-thread collaboration rules.
-10. The relevant `docs/threads/*.md` file for the task area.
-11. The relevant `docs/tasks/*.md` task file if one exists.
+5. `long_running_tasks.json` for paused, blocked, running, or resumable long-running work.
+6. `session-handoff.md` if the previous session ended mid-task.
+7. `docs/README.md` for the project documentation map.
+8. `docs/harness-state.md` for current harness status and recent handoff notes.
+9. `docs/feature-registry.md` when you need to locate source files, tests, or scripts.
+10. `docs/working-agreements.md` for multi-thread collaboration rules.
+11. The relevant `docs/threads/*.md` file for the task area.
+12. The relevant `docs/tasks/*.md` task file if one exists.
 
 If no task file exists and the task is larger than a small fix, create or ask
 for a task card using `docs/tasks/HARNESS_TASK_TEMPLATE.md`.
+
+If the task spans sessions, runs long diagnostics, blocks on external state, or
+may be resumed by another agent, create or update `long_running_tasks.json`
+using `docs/long-running-tasks.md`.
 
 For a clean restart, run `powershell -NoProfile -ExecutionPolicy Bypass -File
 init.ps1` on Windows or `./init.sh` in a Bash-compatible shell. Keep the session
@@ -104,6 +109,9 @@ A task is not done until:
 When a task updates feature status, record the status and verification evidence
 in `feature_list.json`, `progress.md`, the relevant task card, or the final
 handoff.
+
+When a task is long-running or blocked, record its status, owner, latest
+verification, and next action in `long_running_tasks.json`.
 
 ## End of Session
 

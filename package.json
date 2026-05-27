@@ -32,6 +32,7 @@
     "check:production-env": "node scripts/room-production-env-check.mjs",
     "harness:check": "node scripts/harness-check.mjs",
     "harness:task-card": "node scripts/task-card-check.mjs",
+    "harness:long-tasks": "node scripts/long-running-tasks-check.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "prisma:generate": "prisma generate",

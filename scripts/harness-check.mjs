@@ -11,7 +11,9 @@ const requiredFiles = [
   "session-handoff.md",
   "init.sh",
   "init.ps1",
+  "long_running_tasks.json",
   "docs/README.md",
+  "docs/long-running-tasks.md",
   "docs/harness-orientation.md",
   "docs/harness-state.md",
   "docs/feature-registry.md",
@@ -32,6 +34,7 @@ const requiredScripts = [
   "smoke:main-game",
   "preflight:production",
   "harness:task-card",
+  "harness:long-tasks",
 ];
 
 const requiredTaskTemplateMarkers = [
