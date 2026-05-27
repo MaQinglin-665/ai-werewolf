@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { AiPoolClient, reconcileRoleRosterSelection } from "./AiPoolClient";
+import { AiPoolClient, pruneRoleRosterSecrets, reconcileRoleRosterSelection } from "./AiPoolClient";
 
 function renderAiPoolClientHtml(): string {
   return renderToStaticMarkup(createElement(AiPoolClient));
@@ -101,6 +101,7 @@ describe("AiPoolClient mobile layout", () => {
 
     expect(html).toContain("角色名册");
     expect(html).toContain("角色详情");
+    expect(html).toContain("角色名<input");
     expect(html).toContain("人物来源");
     expect(html).toContain("说话方式");
     expect(html).toContain("推理习惯");
@@ -114,7 +115,7 @@ describe("AiPoolClient mobile layout", () => {
 
     expect(html).toContain("mobile-ai-card-source");
     expect(html).toContain("人物来源 · 未填写");
-    expect(html.indexOf("mobile-ai-card-source")).toBeLessThan(html.indexOf("mobile-ai-config-entry"));
+    expectHtmlOrder(html, "mobile-ai-card-source", "mobile-ai-config-entry");
   });
 
   it("warns that role-play instructions require real LLM mode", () => {
@@ -141,5 +142,21 @@ describe("AiPoolClient mobile layout", () => {
         importedRoleIds: ["friend-imported-1", "friend-imported-2"],
       }),
     ).toEqual(["default:deepseek", "friend-imported-1", "friend-imported-2"]);
+  });
+
+  it("prunes stale custom secrets after role roster overwrite", () => {
+    expect(
+      pruneRoleRosterSecrets(
+        {
+          "friend-old-custom": { apiKey: "old-secret" },
+          "friend-imported-1": { apiKey: "new-secret" },
+          "default:deepseek": { apiKey: "default-secret" },
+        },
+        new Set(["friend-imported-1", "default:deepseek"]),
+      ),
+    ).toEqual({
+      "friend-imported-1": { apiKey: "new-secret" },
+      "default:deepseek": { apiKey: "default-secret" },
+    });
   });
 });

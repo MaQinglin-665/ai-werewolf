@@ -331,6 +331,10 @@ export function reconcileRoleRosterSelection({
   return [...currentSelectedIds, ...uniqueImportedIds].filter((id, index, values) => values.indexOf(id) === index);
 }
 
+export function pruneRoleRosterSecrets(secrets: AiFriendLlmSecretMap, allowedIds: Set<string>): AiFriendLlmSecretMap {
+  return Object.fromEntries(Object.entries(secrets).filter(([friendId]) => allowedIds.has(friendId)));
+}
+
 export function AiPoolClient() {
   const [loaded, setLoaded] = useState(false);
   const [customAiFriends, setCustomAiFriends] = useState<AiFriendConfig[]>([]);
@@ -629,21 +633,22 @@ export function AiPoolClient() {
           mode === "append" ? appendImportedRoleRoster(customAiFriends, imported) : overwriteImportedRoleRoster(imported);
         const importedRoleIds =
           mode === "append" ? nextCustomAiFriends.slice(previousCustomCount).map((friend) => friend.id) : nextCustomAiFriends.map((friend) => friend.id);
+        const nextSelectedIds = reconcileRoleRosterSelection({
+          mode,
+          currentSelectedIds: selectedAiFriendIds,
+          importedRoleIds,
+        });
+        const allowedSecretIds = new Set([...nextCustomAiFriends.map((friend) => friend.id), ...nextSelectedIds]);
         setCustomAiFriends(nextCustomAiFriends);
-        setSelectedAiFriendIds((current) =>
-          reconcileRoleRosterSelection({
-            mode,
-            currentSelectedIds: current,
-            importedRoleIds,
-          }),
-        );
+        setSelectedAiFriendIds(nextSelectedIds);
+        setAiLlmSecrets((current) => pruneRoleRosterSecrets(current, allowedSecretIds));
         setRoleRosterError(mode === "append" ? "已追加导入角色。" : "已覆盖当前本地角色。");
         setRoleRosterImportOpen(false);
       } catch (error) {
         setRoleRosterError(error instanceof Error ? error.message : "角色名册导入失败。");
       }
     },
-    [customAiFriends, roleRosterImportText],
+    [customAiFriends, roleRosterImportText, selectedAiFriendIds],
   );
 
   const saveAiFriendLlmConfig = useCallback((friend: AiFriendOption, llmConfig: AiFriendLlmConfig, apiKey: string) => {
@@ -1527,6 +1532,17 @@ function AiPoolList({
                         </span>
                       </summary>
                       <div className="mt-3 grid gap-3">
+                        <label className="grid gap-1 text-xs text-[#ad9c7d]">
+                          角色名
+                          <input
+                            value={friend.nickname}
+                            maxLength={16}
+                            placeholder="例如：侦探位"
+                            disabled={friend.isDefault}
+                            onChange={(event) => onUpdate(friend.id, { nickname: event.target.value.slice(0, 16) })}
+                            className="rounded-xl border border-[#f1c76e]/18 bg-black/28 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#f1c76e]/45 disabled:opacity-55"
+                          />
+                        </label>
                         <label className="grid gap-1 text-xs text-[#ad9c7d]">
                           人物来源
                           <input
