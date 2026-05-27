@@ -74,6 +74,44 @@ describe("game creation ai friends", () => {
     expect(JSON.stringify(view)).not.toContain("secret-key");
   });
 
+  it("passes AI friend role cards into setup and seat personas", async () => {
+    const friend = {
+      ...copyAiFriend(getDefaultAiFriends("test")[0], { id: "friend-role-card", now: "2026-05-27T00:00:00.000Z" }),
+      nickname: "柯南",
+      roleCard: {
+        source: "名侦探角色",
+        speakingStyle: "短句、直接、先落结论。",
+        reasoningStyle: "先找证据链，再压关键矛盾。",
+        avoid: "不要卖萌，不要说固定台词。",
+      },
+    };
+    const response = await createGame(
+      new Request("http://localhost/api/games", {
+        method: "POST",
+        body: JSON.stringify({ boardId: "9p-seer-witch-hunter", aiFriends: [friend] }),
+      }),
+    );
+    const view = (await response.json()) as HumanGameView;
+    const firstAiSeat = view.seats.find((seat) => seat.isAi);
+
+    expect(response.status).toBe(200);
+    expect(view.setup?.aiFriends[0]).toMatchObject({
+      friendId: "friend-role-card",
+      nickname: "柯南",
+      personaName: "DeepSeek",
+      roleCard: {
+        source: "名侦探角色",
+        speakingStyle: "短句、直接、先落结论。",
+        reasoningStyle: "先找证据链，再压关键矛盾。",
+        avoid: "不要卖萌，不要说固定台词。",
+      },
+    });
+    expect(firstAiSeat).toMatchObject({
+      name: "柯南",
+      personaName: "DeepSeek",
+    });
+  });
+
   it("accepts a fixed human seat id", async () => {
     const response = await createGame(
       new Request("http://localhost/api/games", {

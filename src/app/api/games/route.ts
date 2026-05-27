@@ -1,9 +1,20 @@
 import { createGameRecord } from "@/server/gameService";
-import { AI_FRIEND_AVATAR_DATA_URL_MAX_LENGTH } from "@/game/aiFriends";
+import {
+  AI_FRIEND_AVATAR_DATA_URL_MAX_LENGTH,
+  AI_FRIEND_ROLE_FIELD_MAX_LENGTH,
+  AI_FRIEND_ROLE_SOURCE_MAX_LENGTH,
+} from "@/game/aiFriends";
 import { z } from "zod";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const aiFriendRoleCardSchema = z.object({
+  source: z.string().max(AI_FRIEND_ROLE_SOURCE_MAX_LENGTH),
+  speakingStyle: z.string().max(AI_FRIEND_ROLE_FIELD_MAX_LENGTH),
+  reasoningStyle: z.string().max(AI_FRIEND_ROLE_FIELD_MAX_LENGTH),
+  avoid: z.string().max(AI_FRIEND_ROLE_FIELD_MAX_LENGTH),
+});
 
 const createGameSchema = z
   .object({
@@ -16,6 +27,7 @@ const createGameSchema = z
           nickname: z.string().min(1).max(16),
           basePersonaId: z.string().min(1).max(80),
           avatarDataUrl: z.string().min(1).max(AI_FRIEND_AVATAR_DATA_URL_MAX_LENGTH).startsWith("data:image/").optional(),
+          roleCard: aiFriendRoleCardSchema.optional(),
           llmConfig: z
             .object({
               provider: z.literal("openai-compatible"),
