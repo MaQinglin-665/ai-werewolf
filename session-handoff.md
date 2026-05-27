@@ -2,8 +2,8 @@
 
 ## Current Objective
 
-- Goal: Design the `/ai-pool` bulk LLM preset workflow under the harness.
-- Current status: The design is recorded in `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md`, with a matching task card at `docs/tasks/2026-05-ai-pool-bulk-llm-presets.md`. Implementation has not started.
+- Goal: Implement the `/ai-pool` bulk LLM preset workflow under the harness.
+- Current status: Implementation is complete. `/ai-pool` has a bulk LLM preset panel near the AI mode card, local preset storage, bulk apply behavior, a user-triggered test route, and responsive desktop/mobile verification.
 - Branch / commit: `main`; latest committed baseline before this design task was `28fa2bd`.
 
 ## Completed This Session
@@ -60,6 +60,12 @@
 - [x] Created `docs/tasks/2026-05-ai-pool-bulk-llm-presets.md`.
 - [x] Recorded the planned feature in `feature_list.json`.
 - [x] Updated `progress.md` and this handoff for the design review state.
+- [x] Created `docs/superpowers/plans/2026-05-27-ai-pool-bulk-llm-presets.md`.
+- [x] Added `src/components/game/aiFriendLlmPresets.ts` and focused tests.
+- [x] Added `src/app/api/ai-config/test-llm/route.ts` and focused route tests.
+- [x] Added the bulk LLM preset panel to `src/components/AiPoolClient.tsx`.
+- [x] Updated mobile/static layout coverage and responsive CSS hooks.
+- [x] Verified desktop and 390x844 mobile `/ai-pool` in the in-app Browser.
 
 ## Verification Evidence
 
@@ -115,6 +121,12 @@
 | Local main-game smoke | `npm run smoke:main-game -- --base-url=http://127.0.0.1:3010` | passed | Covered local 6p beginner seer creation, a werewolf night action, stream continue, and final `DAY_SPEECH`. |
 | Build | `npm run build` | passed | Production build passed with the existing Turbopack NFT warning for `next.config.ts` -> `src/server/roomService.ts`. |
 | AI pool preset design checks | `npm run harness:task-card -- docs/tasks/2026-05-ai-pool-bulk-llm-presets.md`; `npm run harness:check`; `node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"`; `git diff --check` | passed | `git diff --check` reported only CRLF replacement warnings for existing Windows line-ending behavior. |
+| AI pool preset focused tests | `npm run test -- src/components/game/aiFriendLlmPresets.test.ts src/app/api/ai-config/test-llm/route.test.ts src/components/AiPoolClient.mobile.test.ts` | passed | Covers local preset storage/apply, test route redaction, and static UI placement. |
+| AI pool preset lint | `npm run lint` | passed | Caught and fixed an initial React purity issue from generating ids during render. |
+| AI pool preset typecheck | `npx tsc --noEmit` | passed | Confirms route and client types. |
+| AI pool browser desktop | Browser at `http://127.0.0.1:3010/ai-pool` | passed | Bulk panel opened; preset fields, shortcuts, test, apply buttons present; single-AI model/voice config remained reachable. |
+| AI pool browser mobile | Browser viewport `390x844` at `http://127.0.0.1:3010/ai-pool` | passed | Bulk entry and opened panel controls were reachable in phone viewport. |
+| AI pool build | `npm run build` | passed | Existing Turbopack NFT warning for `next.config.ts` -> `src/server/roomService.ts` remained. |
 
 ## Files Changed
 
@@ -162,6 +174,11 @@
 - `src/components/game/gameClientRequests.test.ts`
 - `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md`
 - `docs/tasks/2026-05-ai-pool-bulk-llm-presets.md`
+- `docs/superpowers/plans/2026-05-27-ai-pool-bulk-llm-presets.md`
+- `src/components/game/aiFriendLlmPresets.ts`
+- `src/components/game/aiFriendLlmPresets.test.ts`
+- `src/app/api/ai-config/test-llm/route.ts`
+- `src/app/api/ai-config/test-llm/route.test.ts`
 
 ## Decisions Made
 
@@ -196,7 +213,8 @@
 - Browser/manual flow was skipped for lifecycle requests because the visible UI contract did not change; local `smoke:main-game` covered creation, command submission, stream continue, and `DAY_SPEECH`.
 - The first smoke attempt against `http://127.0.0.1:3000` timed out because an old dev server process was unhealthy. PID `47860` was stopped and a clean dev server on `http://127.0.0.1:3010` passed the smoke.
 - Production/release checks were skipped because no deployment, public URL, or runtime configuration changed.
-- AI pool bulk LLM presets are currently design-only. Implementation still needs focused tests, browser/manual `/ai-pool` checks, and API key redaction coverage if a server-side connection-test route is added.
+- Real-provider connection testing was skipped because no safe disposable API key was provided and the test route can create model cost.
+- In-app Browser screenshot capture timed out, so the UI verification evidence is DOM/viewport based rather than screenshot based.
 
 ## Next Session Startup
 
@@ -216,4 +234,4 @@
 
 ## Recommended Next Step
 
-- Next recommended code-facing step: after user approval of the AI pool preset design, write `docs/superpowers/plans/2026-05-27-ai-pool-bulk-llm-presets.md` before touching `src/components/AiPoolClient.tsx` or adding a connection-test route.
+- Next recommended code-facing step: let the user inspect `/ai-pool`; if the bulk LLM flow feels right, plan the TTS preset extension separately.

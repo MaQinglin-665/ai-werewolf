@@ -54,6 +54,9 @@ button:disabled {
 .mobile-ai-pool-side,
 .mobile-ai-pool-side > div,
 .mobile-ai-quick-add-entry,
+.mobile-ai-bulk-llm-card,
+.mobile-ai-bulk-llm-panel,
+.mobile-ai-bulk-llm-results,
 .mobile-ai-queue-card,
 .mobile-ai-custom-note {
   max-width: 100%;
@@ -132,6 +135,25 @@ button:disabled {
   .mobile-ai-mode-card button {
     border-radius: 14px;
     padding: 8px 10px;
+  }
+
+  .mobile-ai-bulk-llm-card {
+    border-radius: 18px;
+    padding: 10px;
+  }
+
+  .mobile-ai-bulk-llm-card p {
+    display: none;
+  }
+
+  .mobile-ai-bulk-llm-panel {
+    max-height: min(72svh, 680px);
+    overflow: auto;
+  }
+
+  .mobile-ai-bulk-llm-results {
+    max-height: 180px;
+    overflow: auto;
   }
 
   .mobile-ai-pool-layout {

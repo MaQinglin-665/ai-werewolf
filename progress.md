@@ -2,8 +2,8 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-27 00:00 Asia/Shanghai
-**Session ID:** ai-pool bulk llm presets design
+**Last Updated:** 2026-05-27 00:53 Asia/Shanghai
+**Session ID:** ai-pool bulk llm presets
 **Active Feature:** ai-pool-bulk-llm-presets - AI Pool Bulk LLM Presets
 
 ## Status
@@ -46,18 +46,19 @@
 - [x] Game lifecycle request helpers extracted to `src/components/game/gameClientRequests.ts`.
 - [x] Focused lifecycle request tests added and watched fail before implementation, then pass after extraction.
 - [x] Local main-game smoke passed on a clean dev server at `http://127.0.0.1:3010`.
+- [x] AI Pool Bulk LLM Presets implemented for `/ai-pool`: local presets, bulk apply, user-triggered test route, responsive panel, and result summary.
 
 ### What's In Progress
 
-- [ ] AI Pool Bulk LLM Presets is in design review.
-  - Details: The intended first slice is a local LLM preset manager and bulk-apply panel near the `/ai-pool` AI mode card. It targets currently selected AI friends, supports multiple presets, two apply modes, manual connection tests, and leaves TTS as a planned extension of the same framework.
-  - Blockers: waiting for user review of `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md`.
+- [ ] No active implementation task after the AI Pool Bulk LLM Presets slice.
+  - Details: `/ai-pool` now has a bulk LLM preset panel near the AI mode card. The first slice intentionally handles LLM only and leaves TTS for a later reuse of the same framework.
+  - Blockers: none.
 
 ### What's Next
 
-1. Review `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md`.
-2. If approved, write an implementation plan under `docs/superpowers/plans/` before touching code.
-3. Keep the first implementation slice focused on LLM presets and bulk apply; TTS remains a documented future extension.
+1. Let the user inspect `/ai-pool` locally and try creating/applying an LLM preset.
+2. If the flow feels right, plan the TTS preset extension as a separate task.
+3. If real-provider testing is needed, use a disposable key because the test route intentionally calls the model.
 
 ## Blockers / Risks
 
@@ -129,6 +130,14 @@
 - `src/components/game/gameClientRequests.test.ts` - focused request-helper coverage.
 - `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md` - design for local LLM presets, connection tests, and bulk apply in `/ai-pool`.
 - `docs/tasks/2026-05-ai-pool-bulk-llm-presets.md` - task card for the design and later implementation.
+- `docs/superpowers/plans/2026-05-27-ai-pool-bulk-llm-presets.md` - implementation plan for the LLM preset workflow.
+- `src/components/game/aiFriendLlmPresets.ts` - local preset storage, sanitization, and bulk apply rules.
+- `src/components/game/aiFriendLlmPresets.test.ts` - focused preset storage and apply coverage.
+- `src/app/api/ai-config/test-llm/route.ts` - user-triggered custom LLM test route.
+- `src/app/api/ai-config/test-llm/route.test.ts` - API key redaction and route behavior coverage.
+- `src/components/AiPoolClient.tsx` - bulk LLM preset panel and wiring.
+- `src/components/AiPoolClient.mobile.test.ts` - static layout coverage for the bulk LLM entry.
+- `src/app/globals.css` - responsive styling hooks for the bulk LLM panel.
 
 ## Evidence of Completion
 
@@ -181,6 +190,9 @@
 - [x] Local main-game smoke: `npm run smoke:main-game -- --base-url=http://127.0.0.1:3010`
 - [x] Build: `npm run build`
 - [x] AI pool bulk LLM preset design checks: `npm run harness:task-card -- docs/tasks/2026-05-ai-pool-bulk-llm-presets.md`; `npm run harness:check`; `node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"`; `git diff --check` passed with only CRLF warnings.
+- [x] AI pool bulk preset focused tests: `npm run test -- src/components/game/aiFriendLlmPresets.test.ts src/app/api/ai-config/test-llm/route.test.ts src/components/AiPoolClient.mobile.test.ts`
+- [x] AI pool bulk preset lint/type/build: `npm run lint`; `npx tsc --noEmit`; `npm run build`
+- [x] AI pool browser checks: desktop and 390x844 mobile viewport at `http://127.0.0.1:3010/ai-pool`
 
 ## Notes for Next Session
 

@@ -17,16 +17,16 @@ Risk level: medium
 Required verification tier:
 
 - [x] Docs/readback only
-- [ ] Focused automated test
-- [ ] Lint/type/build confidence
-- [ ] Smoke or browser/manual flow
+- [x] Focused automated test
+- [x] Lint/type/build confidence
+- [x] Smoke or browser/manual flow
 - [ ] Production/release check
 
 Browser/manual verification:
 
-- Required? no for design stage; yes for implementation stage if visible UI changes are made
+- Required? yes for implementation stage because visible UI changed
 - If yes, flow or URL: `/ai-pool` on desktop and mobile viewport
-- If skipped, reason: this stage only records the approved design and implementation boundaries
+- If skipped, reason: not skipped
 
 State updates required:
 
@@ -38,9 +38,9 @@ State updates required:
 
 Skipped checks must record:
 
-- Check skipped: focused tests, lint/type/build, browser/manual flow
-- Reason: no production code changed in the design stage
-- Residual risk: the design still needs implementation tests and browser verification once UI/API code changes begin
+- Check skipped: real provider connection test
+- Reason: user did not provide a safe disposable API key and the route intentionally warns that testing may produce model cost
+- Residual risk: upstream provider-specific quirks may still appear with real keys; the API route itself is covered with mocked upstream responses and API key redaction tests
 
 ## Context To Read First
 
@@ -125,3 +125,37 @@ Verification:
 Remaining risks:
 - ...
 ```
+
+## Implementation Record
+
+Completed:
+- Added local LLM preset storage and bulk apply rules.
+- Added user-triggered LLM preset test route with API key redaction.
+- Added `/ai-pool` bulk LLM preset panel near the AI mode card.
+- Verified desktop and mobile `/ai-pool` layout through the in-app Browser viewport override.
+
+Changed files:
+- `src/components/game/aiFriendLlmPresets.ts`
+- `src/components/game/aiFriendLlmPresets.test.ts`
+- `src/app/api/ai-config/test-llm/route.ts`
+- `src/app/api/ai-config/test-llm/route.test.ts`
+- `src/components/AiPoolClient.tsx`
+- `src/components/AiPoolClient.mobile.test.ts`
+- `src/app/globals.css`
+- `docs/superpowers/plans/2026-05-27-ai-pool-bulk-llm-presets.md`
+- `docs/tasks/2026-05-ai-pool-bulk-llm-presets.md`
+
+Verification:
+- `npm run test -- src/components/game/aiFriendLlmPresets.test.ts`
+- `npm run test -- src/app/api/ai-config/test-llm/route.test.ts`
+- `npm run test -- src/components/AiPoolClient.mobile.test.ts`
+- `npm run test -- src/components/game/aiFriendLlmPresets.test.ts src/app/api/ai-config/test-llm/route.test.ts src/components/AiPoolClient.mobile.test.ts`
+- `npm run lint`
+- `npx tsc --noEmit`
+- Browser desktop `/ai-pool`: passed at `http://127.0.0.1:3010/ai-pool`; bulk panel opened and single-AI model/voice config remained reachable
+- Browser mobile `/ai-pool`: passed at `390x844`; bulk panel opened and core controls were present
+- `npm run build`
+
+Skipped checks:
+- Real provider connection test was not run because no safe disposable key was provided and testing can create model cost.
+- Browser screenshots were attempted but the in-app browser screenshot capture timed out; DOM and viewport checks passed.

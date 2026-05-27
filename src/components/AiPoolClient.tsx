@@ -22,6 +22,15 @@ import {
   type AiFriendLlmSecretMap,
 } from "./game/aiFriendStorage";
 import type { AiFriendOption } from "./game/clientTypes";
+import {
+  applyLlmPresetToSelectedAiFriends,
+  readStoredAiFriendLlmPresetState,
+  writeStoredAiFriendLlmPresetState,
+  type AiFriendLlmPreset,
+  type AiFriendLlmPresetApplyMode,
+  type AiFriendLlmPresetApplyResult,
+  type AiFriendLlmPresetState,
+} from "./game/aiFriendLlmPresets";
 import { MODEL_CARD_IMAGES, ROLE_CARD_IMAGES } from "./game/viewHelpers";
 
 const AI_TUNING_EXPLANATIONS: Array<{ label: string; detail: string }> = [
@@ -304,6 +313,18 @@ export function AiPoolClient() {
   const [quickAddTtsVoice, setQuickAddTtsVoice] = useState("");
   const [customAiError, setCustomAiError] = useState<string | null>(null);
   const [aiRuntimeConfig, setAiRuntimeConfig] = useState<AiRuntimeConfig | null>(null);
+  const [llmPresetState, setLlmPresetState] = useState<AiFriendLlmPresetState>({ presets: [] });
+  const [bulkLlmOpen, setBulkLlmOpen] = useState(false);
+  const [bulkLlmSelectedPresetId, setBulkLlmSelectedPresetId] = useState("");
+  const [bulkLlmDraftPresetId, setBulkLlmDraftPresetId] = useState("llm-preset:draft");
+  const [bulkLlmName, setBulkLlmName] = useState("");
+  const [bulkLlmBaseUrl, setBulkLlmBaseUrl] = useState(DEFAULT_CUSTOM_LLM_BASE_URL);
+  const [bulkLlmModel, setBulkLlmModel] = useState("");
+  const [bulkLlmApiKey, setBulkLlmApiKey] = useState("");
+  const [bulkLlmMergeSystemIntoUser, setBulkLlmMergeSystemIntoUser] = useState(false);
+  const [bulkLlmError, setBulkLlmError] = useState<string | null>(null);
+  const [bulkLlmTestStatus, setBulkLlmTestStatus] = useState<string | null>(null);
+  const [bulkLlmResults, setBulkLlmResults] = useState<AiFriendLlmPresetApplyResult[]>([]);
   const aiFriends = useMemo(() => buildAiFriendOptions(customAiFriends), [customAiFriends]);
   const baseAiFriends = useMemo(() => aiFriends.filter((friend) => friend.isDefault), [aiFriends]);
   const aiPoolFriends = useMemo(() => {
@@ -320,16 +341,47 @@ export function AiPoolClient() {
     return selectedAiFriendIds.map((id) => byId.get(id)).filter((friend): friend is AiFriendOption => Boolean(friend));
   }, [aiFriends, selectedAiFriendIds]);
 
+  const loadBulkLlmPresetIntoForm = useCallback((preset: AiFriendLlmPreset) => {
+    setBulkLlmSelectedPresetId(preset.id);
+    setBulkLlmName(preset.name);
+    setBulkLlmBaseUrl(preset.baseUrl);
+    setBulkLlmModel(preset.model);
+    setBulkLlmApiKey(preset.apiKey ?? "");
+    setBulkLlmMergeSystemIntoUser(Boolean(preset.mergeSystemIntoUser));
+    setBulkLlmError(null);
+    setBulkLlmTestStatus(null);
+  }, []);
+
+  const clearBulkLlmPresetForm = useCallback(() => {
+    setBulkLlmSelectedPresetId("");
+    setBulkLlmDraftPresetId(`llm-preset:${Date.now().toString(36)}`);
+    setBulkLlmName("");
+    setBulkLlmBaseUrl(DEFAULT_CUSTOM_LLM_BASE_URL);
+    setBulkLlmModel("");
+    setBulkLlmApiKey("");
+    setBulkLlmMergeSystemIntoUser(false);
+    setBulkLlmError(null);
+    setBulkLlmTestStatus(null);
+    setBulkLlmResults([]);
+  }, []);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setCustomAiFriends(readStoredCustomAiFriends());
       setAiLlmSecrets(readStoredAiFriendLlmSecrets());
       setSelectedAiFriendIds(readStoredSelectedAiFriendIds());
       setAiRuntimeMode(readStoredAiRuntimeMode());
+      const storedPresetState = readStoredAiFriendLlmPresetState();
+      setLlmPresetState(storedPresetState);
+      const selectedPreset =
+        storedPresetState.presets.find((preset) => preset.id === storedPresetState.lastUsedPresetId) ?? storedPresetState.presets[0];
+      if (selectedPreset) {
+        loadBulkLlmPresetIntoForm(selectedPreset);
+      }
       setLoaded(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [loadBulkLlmPresetIntoForm]);
 
   useEffect(() => {
     let cancelled = false;
@@ -366,6 +418,11 @@ export function AiPoolClient() {
     writeStoredAiRuntimeMode(aiRuntimeMode);
   }, [aiRuntimeMode, loaded]);
 
+  useEffect(() => {
+    if (!loaded) return;
+    writeStoredAiFriendLlmPresetState(llmPresetState);
+  }, [llmPresetState, loaded]);
+
   const toggleAiFriendSelection = useCallback((friendId: string) => {
     setSelectedAiFriendIds((current) =>
       current.includes(friendId) ? current.filter((id) => id !== friendId) : [...current, friendId],
@@ -391,6 +448,129 @@ export function AiPoolClient() {
     const validIds = new Set(aiFriends.map((friend) => friend.id));
     setSelectedAiFriendIds((current) => shuffleIds(current.filter((id) => validIds.has(id))));
   }, [aiFriends]);
+
+  const currentBulkLlmPreset = useMemo((): AiFriendLlmPreset | undefined => {
+    const name = bulkLlmName.trim().replace(/\s+/g, " ").slice(0, 40);
+    const baseUrl = bulkLlmBaseUrl.trim().replace(/\s+/g, "").replace(/\/+$/, "").slice(0, 260);
+    const model = bulkLlmModel.trim().slice(0, 120);
+    if (!name || !baseUrl || !model) return undefined;
+    try {
+      const url = new URL(baseUrl);
+      if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    } catch {
+      return undefined;
+    }
+    const now = new Date().toISOString();
+    const existing = llmPresetState.presets.find((preset) => preset.id === bulkLlmSelectedPresetId);
+    return {
+      id: bulkLlmSelectedPresetId || bulkLlmDraftPresetId,
+      name,
+      baseUrl,
+      model,
+      ...(bulkLlmApiKey.trim() ? { apiKey: bulkLlmApiKey.trim().slice(0, 4096) } : {}),
+      ...(bulkLlmMergeSystemIntoUser ? { mergeSystemIntoUser: true } : {}),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+  }, [
+    bulkLlmApiKey,
+    bulkLlmBaseUrl,
+    bulkLlmMergeSystemIntoUser,
+    bulkLlmModel,
+    bulkLlmName,
+    bulkLlmDraftPresetId,
+    bulkLlmSelectedPresetId,
+    llmPresetState.presets,
+  ]);
+
+  const saveBulkLlmPreset = useCallback(() => {
+    if (!currentBulkLlmPreset) {
+      setBulkLlmError("需要填写有效的预设名、Base URL 和模型名。");
+      return;
+    }
+    setLlmPresetState((current) => ({
+      presets: [...current.presets.filter((preset) => preset.id !== currentBulkLlmPreset.id), currentBulkLlmPreset],
+      lastUsedPresetId: currentBulkLlmPreset.id,
+    }));
+    setBulkLlmSelectedPresetId(currentBulkLlmPreset.id);
+    setBulkLlmDraftPresetId(`llm-preset:${Date.now().toString(36)}`);
+    setBulkLlmError(null);
+  }, [currentBulkLlmPreset]);
+
+  const deleteBulkLlmPreset = useCallback(() => {
+    if (!bulkLlmSelectedPresetId) return;
+    const preset = llmPresetState.presets.find((item) => item.id === bulkLlmSelectedPresetId);
+    if (!preset) return;
+    if (!window.confirm(`删除 LLM 预设「${preset.name}」？`)) return;
+    setLlmPresetState((current) => {
+      const presets = current.presets.filter((item) => item.id !== preset.id);
+      return { presets, ...(presets[0] ? { lastUsedPresetId: presets[0].id } : {}) };
+    });
+    clearBulkLlmPresetForm();
+  }, [bulkLlmSelectedPresetId, clearBulkLlmPresetForm, llmPresetState.presets]);
+
+  const testBulkLlmPreset = useCallback(async () => {
+    if (!currentBulkLlmPreset) {
+      setBulkLlmError("需要填写有效的预设名、Base URL 和模型名后再测试。");
+      return;
+    }
+    setBulkLlmTestStatus("测试中...");
+    setBulkLlmError(null);
+    try {
+      const response = await fetch("/api/ai-config/test-llm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(currentBulkLlmPreset),
+      });
+      const data = (await response.json()) as {
+        connectivity?: { ok?: boolean; error?: string };
+        projectFormat?: { ok?: boolean; error?: string };
+        error?: string;
+      };
+      if (!response.ok) {
+        setBulkLlmTestStatus(data.error ?? "测试请求失败。");
+        return;
+      }
+      const error = data.connectivity?.error ?? data.projectFormat?.error;
+      setBulkLlmTestStatus(
+        `接口${data.connectivity?.ok ? "可用" : "失败"} · 项目格式${data.projectFormat?.ok ? "可用" : "失败"}${
+          error ? ` · ${error}` : ""
+        }`,
+      );
+    } catch {
+      setBulkLlmTestStatus("测试请求失败，请检查本地服务和网络。");
+    }
+  }, [currentBulkLlmPreset]);
+
+  const applyBulkLlmPreset = useCallback(
+    (mode: AiFriendLlmPresetApplyMode) => {
+      if (!currentBulkLlmPreset) {
+        setBulkLlmError("需要先保存或填写一个有效 LLM 预设。");
+        return;
+      }
+      const result = applyLlmPresetToSelectedAiFriends({
+        aiFriends,
+        customAiFriends,
+        selectedAiFriendIds,
+        aiLlmSecrets,
+        preset: currentBulkLlmPreset,
+        mode,
+        now: new Date().toISOString(),
+      });
+      setCustomAiFriends(result.customAiFriends);
+      setAiLlmSecrets(result.aiLlmSecrets);
+      setSelectedAiFriendIds(result.selectedAiFriendIds);
+      setBulkLlmResults(result.results);
+      setLlmPresetState((current) => ({
+        presets: [...current.presets.filter((preset) => preset.id !== currentBulkLlmPreset.id), currentBulkLlmPreset],
+        lastUsedPresetId: currentBulkLlmPreset.id,
+      }));
+      setBulkLlmSelectedPresetId(currentBulkLlmPreset.id);
+      setBulkLlmDraftPresetId(`llm-preset:${Date.now().toString(36)}`);
+      setBulkLlmError(null);
+    },
+    [aiFriends, aiLlmSecrets, currentBulkLlmPreset, customAiFriends, selectedAiFriendIds],
+  );
 
   const saveAiFriendLlmConfig = useCallback((friend: AiFriendOption, llmConfig: AiFriendLlmConfig, apiKey: string) => {
     const now = new Date().toISOString();
@@ -642,6 +822,34 @@ export function AiPoolClient() {
 
         <AiRuntimeModeCard mode={aiRuntimeMode} aiRuntimeConfig={aiRuntimeConfig} onModeChange={setAiRuntimeMode} />
 
+        <BulkLlmPresetCard
+          open={bulkLlmOpen}
+          presets={llmPresetState.presets}
+          selectedPresetId={bulkLlmSelectedPresetId}
+          selectedCount={selectedCount}
+          name={bulkLlmName}
+          baseUrl={bulkLlmBaseUrl}
+          model={bulkLlmModel}
+          apiKey={bulkLlmApiKey}
+          mergeSystemIntoUser={bulkLlmMergeSystemIntoUser}
+          error={bulkLlmError}
+          testStatus={bulkLlmTestStatus}
+          results={bulkLlmResults}
+          onOpenChange={setBulkLlmOpen}
+          onPresetSelect={loadBulkLlmPresetIntoForm}
+          onNewPreset={clearBulkLlmPresetForm}
+          onNameChange={setBulkLlmName}
+          onBaseUrlChange={setBulkLlmBaseUrl}
+          onModelChange={setBulkLlmModel}
+          onApiKeyChange={setBulkLlmApiKey}
+          onMergeSystemIntoUserChange={setBulkLlmMergeSystemIntoUser}
+          onSave={saveBulkLlmPreset}
+          onDelete={deleteBulkLlmPreset}
+          onTest={testBulkLlmPreset}
+          onApplyFillBlanks={() => applyBulkLlmPreset("fill-blanks")}
+          onApplyOverwrite={() => applyBulkLlmPreset("overwrite")}
+        />
+
         <section className="mobile-ai-pool-layout grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_360px]">
           <AiPoolList
             friends={aiPoolFriends}
@@ -755,6 +963,223 @@ function AiRuntimeModeCard({
           <span className="mt-1 block text-xs opacity-72">使用模型配置</span>
         </button>
       </div>
+    </section>
+  );
+}
+
+function BulkLlmPresetCard({
+  open,
+  presets,
+  selectedPresetId,
+  selectedCount,
+  name,
+  baseUrl,
+  model,
+  apiKey,
+  mergeSystemIntoUser,
+  error,
+  testStatus,
+  results,
+  onOpenChange,
+  onPresetSelect,
+  onNewPreset,
+  onNameChange,
+  onBaseUrlChange,
+  onModelChange,
+  onApiKeyChange,
+  onMergeSystemIntoUserChange,
+  onSave,
+  onDelete,
+  onTest,
+  onApplyFillBlanks,
+  onApplyOverwrite,
+}: {
+  open: boolean;
+  presets: AiFriendLlmPreset[];
+  selectedPresetId: string;
+  selectedCount: number;
+  name: string;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+  mergeSystemIntoUser: boolean;
+  error: string | null;
+  testStatus: string | null;
+  results: AiFriendLlmPresetApplyResult[];
+  onOpenChange: (open: boolean) => void;
+  onPresetSelect: (preset: AiFriendLlmPreset) => void;
+  onNewPreset: () => void;
+  onNameChange: (value: string) => void;
+  onBaseUrlChange: (value: string) => void;
+  onModelChange: (value: string) => void;
+  onApiKeyChange: (value: string) => void;
+  onMergeSystemIntoUserChange: (value: boolean) => void;
+  onSave: () => void;
+  onDelete: () => void;
+  onTest: () => void;
+  onApplyFillBlanks: () => void;
+  onApplyOverwrite: () => void;
+}) {
+  return (
+    <section className="mobile-ai-bulk-llm-card rounded-[24px] border border-[#7da8e3]/22 bg-[#0d1623]/78 p-4 shadow-2xl shadow-black/30 backdrop-blur-md">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-[#e4efff]">批量 LLM 配置</h2>
+          <p className="mt-1 text-xs leading-5 text-[#b8d6ff]/72">
+            管理 LLM 预设，测试连接可能产生少量费用；可对当前勾选的 {selectedCount} 位 AI 执行只填空白或覆盖所选。
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenChange(!open)}
+          className="shrink-0 rounded-full border border-[#7da8e3]/25 bg-[#7da8e3]/10 px-3 py-2 text-xs font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/16"
+        >
+          {open ? "收起" : "配置"}
+        </button>
+      </div>
+      {open && (
+        <div className="mobile-ai-bulk-llm-panel mt-4 grid gap-3 rounded-2xl border border-[#7da8e3]/14 bg-black/16 p-3">
+          <label className="grid gap-1 text-xs text-[#ad9c7d]">
+            LLM 预设
+            <select
+              value={selectedPresetId}
+              onChange={(event) => {
+                const preset = presets.find((item) => item.id === event.target.value);
+                if (preset) {
+                  onPresetSelect(preset);
+                } else {
+                  onNewPreset();
+                }
+              }}
+              className="rounded-xl border border-[#7da8e3]/18 bg-black/28 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#7da8e3]/45"
+            >
+              <option value="">新建预设</option>
+              {presets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.name} · {preset.model}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="grid gap-1 text-xs text-[#ad9c7d]">
+              预设名
+              <input
+                value={name}
+                placeholder="例如：DeepSeek"
+                onChange={(event) => onNameChange(event.target.value)}
+                className="rounded-xl border border-[#7da8e3]/18 bg-black/28 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#7da8e3]/45"
+              />
+            </label>
+            <label className="grid gap-1 text-xs text-[#ad9c7d]">
+              模型名
+              <input
+                value={model}
+                placeholder="deepseek-chat / gpt-4o-mini"
+                onChange={(event) => onModelChange(event.target.value)}
+                className="rounded-xl border border-[#7da8e3]/18 bg-black/28 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#7da8e3]/45"
+              />
+            </label>
+          </div>
+          <label className="grid gap-1 text-xs text-[#ad9c7d]">
+            Base URL
+            <input
+              value={baseUrl}
+              onChange={(event) => onBaseUrlChange(event.target.value)}
+              className="rounded-xl border border-[#7da8e3]/18 bg-black/28 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#7da8e3]/45"
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ["OpenAI", "https://api.openai.com/v1"],
+              ["DeepSeek", "https://api.deepseek.com/v1"],
+              ["OpenRouter", "https://openrouter.ai/api/v1"],
+              ["本地", "http://localhost:11434/v1"],
+            ].map(([label, value]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => onBaseUrlChange(value)}
+                className="rounded-full border border-[#7da8e3]/20 bg-[#7da8e3]/8 px-3 py-1.5 text-xs text-[#b8d6ff]"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <label className="grid gap-1 text-xs text-[#ad9c7d]">
+            API Key
+            <input
+              type="password"
+              value={apiKey}
+              placeholder="仅保存在本机浏览器"
+              onChange={(event) => onApiKeyChange(event.target.value)}
+              className="rounded-xl border border-[#7da8e3]/18 bg-black/28 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#7da8e3]/45"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-xs text-[#ad9c7d]">
+            <input
+              type="checkbox"
+              checked={mergeSystemIntoUser}
+              onChange={(event) => onMergeSystemIntoUserChange(event.target.checked)}
+              className="h-4 w-4 accent-[#7da8e3]"
+            />
+            将系统提示合并进用户消息
+          </label>
+          {error && <div className="rounded-xl border border-[#e46d55]/28 bg-[#2b1110]/55 px-3 py-2 text-xs text-[#ffb1a4]">{error}</div>}
+          {testStatus && <div className="rounded-xl border border-[#7da8e3]/18 bg-[#0d1623]/55 px-3 py-2 text-xs text-[#d8e7ff]">{testStatus}</div>}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={onSave} className="rounded-full bg-[#2f8157] px-4 py-2 text-xs font-semibold text-white">
+              保存预设
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={!selectedPresetId}
+              className="rounded-full border border-[#e46d55]/25 bg-[#2b1110]/50 px-4 py-2 text-xs font-semibold text-[#ffb1a4] disabled:opacity-45"
+            >
+              删除预设
+            </button>
+            <button
+              type="button"
+              onClick={onTest}
+              className="rounded-full border border-[#f1c76e]/24 bg-black/18 px-4 py-2 text-xs font-semibold text-[#f1d796]"
+            >
+              测试连接
+            </button>
+          </div>
+          <p className="text-[11px] leading-5 text-[#ad9c7d]">测试连接会调用一次模型，可能产生少量费用；保存和套用不强制要求测试通过。</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onApplyFillBlanks}
+              disabled={selectedCount === 0}
+              className="rounded-full border border-[#77d898]/25 bg-[#0f2118]/55 px-4 py-2 text-xs font-semibold text-[#a8f0b6] disabled:opacity-45"
+            >
+              只填空白
+            </button>
+            <button
+              type="button"
+              onClick={onApplyOverwrite}
+              disabled={selectedCount === 0}
+              className="rounded-full bg-[#2f8157] px-4 py-2 text-xs font-semibold text-white disabled:opacity-45"
+            >
+              覆盖所选
+            </button>
+          </div>
+          {results.length > 0 && (
+            <div className="mobile-ai-bulk-llm-results grid gap-2 rounded-2xl border border-[#77d898]/14 bg-black/18 p-3">
+              {results.map((result) => (
+                <div key={`${result.friendId}:${result.nextFriendId ?? result.friendId}`} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="min-w-0 truncate text-[#f7ead5]">{result.friendName}</span>
+                  <span className="shrink-0 text-[#a8f0b6]">
+                    {result.status === "filled" ? "已填空白" : result.status === "overwritten" ? "已覆盖" : "已跳过"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }

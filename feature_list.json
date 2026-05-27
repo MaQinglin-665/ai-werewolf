@@ -178,8 +178,8 @@
       "dependencies": [
         "frontend-structure-review"
       ],
-      "status": "not-started",
-      "evidence": "docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md; docs/tasks/2026-05-ai-pool-bulk-llm-presets.md"
+      "status": "done",
+      "evidence": "src/components/game/aiFriendLlmPresets.ts; src/components/game/aiFriendLlmPresets.test.ts; src/app/api/ai-config/test-llm/route.ts; src/app/api/ai-config/test-llm/route.test.ts; src/components/AiPoolClient.tsx; src/components/AiPoolClient.mobile.test.ts; src/app/globals.css; docs/tasks/2026-05-ai-pool-bulk-llm-presets.md; npm run test -- src/components/game/aiFriendLlmPresets.test.ts src/app/api/ai-config/test-llm/route.test.ts src/components/AiPoolClient.mobile.test.ts; npm run lint; npx tsc --noEmit; browser /ai-pool desktop/mobile; npm run build"
     }
   ]
 }

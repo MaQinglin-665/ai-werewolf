@@ -38,10 +38,25 @@ describe("AiPoolClient mobile layout", () => {
     const html = renderToStaticMarkup(createElement(AiPoolClient));
 
     expect(html.indexOf("对局 AI 模式")).toBeLessThan(html.indexOf("AI池</h2>"));
+    expect(html.indexOf("对局 AI 模式")).toBeLessThan(html.indexOf("批量 LLM 配置"));
+    expect(html.indexOf("批量 LLM 配置")).toBeLessThan(html.indexOf("AI池</h2>"));
     expect(html.indexOf("对局 AI 模式")).toBeLessThan(html.indexOf("快速新增AI"));
+    expect(html).toContain("LLM 预设");
+    expect(html).toContain("只填空白");
+    expect(html).toContain("覆盖所选");
+    expect(html).toContain("测试连接");
+    expect(html).toContain("可能产生少量费用");
     expect(html).toContain("快速新增AI");
     expect(html).toContain("新增");
     expect(html).not.toContain("例如：冷静票型位");
+  });
+
+  it("styles the bulk LLM preset panel as a responsive AI pool surface", () => {
+    const css = readFileSync("src/app/globals.css", "utf8");
+
+    expect(css).toContain(".mobile-ai-bulk-llm-card");
+    expect(css).toContain(".mobile-ai-bulk-llm-panel");
+    expect(css).toContain(".mobile-ai-bulk-llm-results");
   });
 
   it("removes advanced import and keeps low priority mobile panels out of the phone viewport", () => {
