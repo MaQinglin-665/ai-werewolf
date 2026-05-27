@@ -300,6 +300,60 @@ describe("routed speech provider", () => {
     expect(result.provider).toBe("custom-speech:deepseek-chat");
     expect(result.speech).toContain("自定义模型deepseek-chat");
   });
+
+  it("passes role-card guidance to routed speech models", async () => {
+    process.env.AI_LLM_MAX_RETRIES = "0";
+
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ message: "我先按证据链压一手2号。" }) } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const state = createGame({ seed: 91 });
+    const speaker = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+    const baseView = buildAgentView(state, speaker.seatId);
+    const view = {
+      ...baseView,
+      persona: {
+        ...baseView.persona!,
+        name: "柯南",
+        roleCard: {
+          source: "名侦探角色",
+          speakingStyle: "短句、直接、先落结论。",
+          reasoningStyle: "先找证据链，再压关键矛盾。",
+          avoid: "不要卖萌，不要说固定台词。",
+        },
+      },
+      llmConfig: {
+        provider: "openai-compatible" as const,
+        baseUrl: "https://custom.example.com",
+        model: "role-card-speech-model",
+        apiKey: "custom-key",
+      },
+    };
+
+    await routedModelSpeechProvider.generateSpeech(view, createSpeechPlan(view));
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { messages: Array<{ role: string; content: string }> };
+    const input = JSON.parse(body.messages.find((message) => message.role === "user")?.content ?? "{}") as ReturnType<
+      typeof buildConstrainedSpeechInput
+    >;
+    const guidanceText = input.playerSpeechGuide.modelStyle.tendencies.join("\n");
+    expect(guidanceText).toContain("角色扮演");
+    expect(guidanceText).toContain("柯南");
+    expect(guidanceText).toContain("名侦探角色");
+    expect(guidanceText).toContain("短句、直接、先落结论。");
+    expect(guidanceText).toContain("先找证据链，再压关键矛盾。");
+    expect(guidanceText).toContain("不要卖萌，不要说固定台词。");
+    expect(guidanceText).toContain("speechContract");
+    expect(guidanceText).toContain("事实");
+  });
 });
 
 describe("mock speech provider", () => {

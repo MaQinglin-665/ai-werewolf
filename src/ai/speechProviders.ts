@@ -757,12 +757,13 @@ function buildModelSpeechStyleGuide(view: AgentView): LlmSpeechInput["playerSpee
   const style = persona?.style ? `保留角色底色：${persona.style}` : "保持稳定、自然的桌游玩家口吻。";
   const goal = persona?.goal ? `打法目标：${persona.goal}` : "围绕公开事实形成可投票判断。";
   const preferences = persona?.preferences;
+  const roleCardLines = roleCardSpeechTendencies(persona);
 
   if (modelName.includes("DeepSeek")) {
     return {
       modelName,
       softTendency: "偏逻辑链校验：把发言、站边、票型按因果顺序串起来，但不要变成判题报告。",
-      tendencies: [style, goal, "优先指出前后不一致、结论缺过程、票型和发言是否闭环。"],
+      tendencies: [style, goal, ...roleCardLines, "优先指出前后不一致、结论缺过程、票型和发言是否闭环。"],
     };
   }
 
@@ -770,7 +771,7 @@ function buildModelSpeechStyleGuide(view: AgentView): LlmSpeechInput["playerSpee
     return {
       modelName,
       softTendency: "偏边界审查：先分清哪些是公开事实、哪些只是推测，再给审慎判断。",
-      tendencies: [style, goal, "可以保留余地，但最后仍要给可执行的观察位或票口。"],
+      tendencies: [style, goal, ...roleCardLines, "可以保留余地，但最后仍要给可执行的观察位或票口。"],
     };
   }
 
@@ -778,7 +779,7 @@ function buildModelSpeechStyleGuide(view: AgentView): LlmSpeechInput["playerSpee
     return {
       modelName,
       softTendency: "偏综合组织：把多条公开信息收束成一个能推进桌面的判断。",
-      tendencies: [style, goal, "适合把身份线、发言顺序和票型放在同一段里归纳。"],
+      tendencies: [style, goal, ...roleCardLines, "适合把身份线、发言顺序和票型放在同一段里归纳。"],
     };
   }
 
@@ -786,7 +787,7 @@ function buildModelSpeechStyleGuide(view: AgentView): LlmSpeechInput["playerSpee
     return {
       modelName,
       softTendency: "偏强压节奏：结论更早、追问更直接，但不能乱踩未发言位。",
-      tendencies: [style, goal, "适合追一个具体目标的过程缺口，别一次索要站边、票口和身份线。"],
+      tendencies: [style, goal, ...roleCardLines, "适合追一个具体目标的过程缺口，别一次索要站边、票口和身份线。"],
     };
   }
 
@@ -794,7 +795,7 @@ function buildModelSpeechStyleGuide(view: AgentView): LlmSpeechInput["playerSpee
     return {
       modelName,
       softTendency: "偏细节校验：抓一个公开细节反复核对，避免大段空泛站边。",
-      tendencies: [style, goal, "适合从一句发言、一次投票或一个身份口径切入。"],
+      tendencies: [style, goal, ...roleCardLines, "适合从一句发言、一次投票或一个身份口径切入。"],
     };
   }
 
@@ -802,7 +803,7 @@ function buildModelSpeechStyleGuide(view: AgentView): LlmSpeechInput["playerSpee
     return {
       modelName,
       softTendency: "偏多线观察：同时保留两条可能性，再给下一轮验证点。",
-      tendencies: [style, goal, "适合说清楚哪些点暂放、哪个具体点需要后续验证。"],
+      tendencies: [style, goal, ...roleCardLines, "适合说清楚哪些点暂放、哪个具体点需要后续验证。"],
     };
   }
 
@@ -810,7 +811,7 @@ function buildModelSpeechStyleGuide(view: AgentView): LlmSpeechInput["playerSpee
     return {
       modelName,
       softTendency: "偏结构站边：看阵营关系、身份冲突和谁在帮谁收口。",
-      tendencies: [style, goal, "适合把人分成观察位、可信位和需要解释的位置。"],
+      tendencies: [style, goal, ...roleCardLines, "适合把人分成观察位、可信位和需要解释的位置。"],
     };
   }
 
@@ -818,7 +819,7 @@ function buildModelSpeechStyleGuide(view: AgentView): LlmSpeechInput["playerSpee
     return {
       modelName,
       softTendency: "偏长线记忆：连接上一轮发言、票型和今天态度变化。",
-      tendencies: [style, goal, "适合指出前后变化、旧疑点是否被解释、票型是否延续。"],
+      tendencies: [style, goal, ...roleCardLines, "适合指出前后变化、旧疑点是否被解释、票型是否延续。"],
     };
   }
 
@@ -831,8 +832,20 @@ function buildModelSpeechStyleGuide(view: AgentView): LlmSpeechInput["playerSpee
   return {
     modelName,
     softTendency: "按当前人格的打法偏好表达，但局势判断优先于风格。",
-    tendencies: [style, goal, preferenceLine],
+    tendencies: [style, goal, preferenceLine, ...roleCardLines],
   };
+}
+
+function roleCardSpeechTendencies(persona: AgentView["persona"]): string[] {
+  const roleCard = persona?.roleCard;
+  if (!roleCard) return [];
+  return [
+    `角色扮演：你正在扮演${persona?.name ?? "当前角色"}；人物来源：${roleCard.source || persona?.name || "未填写"}。`,
+    roleCard.speakingStyle ? `角色说话方式：${roleCard.speakingStyle}` : "",
+    roleCard.reasoningStyle ? `角色推理习惯：${roleCard.reasoningStyle}` : "",
+    roleCard.avoid ? `角色避免事项：${roleCard.avoid}` : "",
+    "角色表现不能违背事实简报、私密身份边界、当前阶段规则或 speechContract；如果角色风格与这些边界冲突，以事实和 speechContract 为准。",
+  ].filter((line): line is string => Boolean(line));
 }
 
 function buildTableBriefing(

@@ -539,6 +539,69 @@ describe("routed action provider", () => {
     expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
   });
 
+  it("passes role-card guidance to routed action models while preserving legal and private boundaries", async () => {
+    process.env.AI_LLM_MAX_RETRIES = "0";
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const requestBody = JSON.parse(String(init?.body)) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      const input = JSON.parse(requestBody.messages.find((message) => message.role === "user")?.content ?? "{}") as {
+        fallbackCandidateId?: string;
+        candidates: Array<{ id: string; command: { type: string } }>;
+      };
+      const candidate = input.candidates.find((item) => item.command.type === "vote") ?? input.candidates[0];
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ candidateId: candidate?.id ?? input.fallbackCandidateId, reason: "公开证据更清晰。" }) } }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const state = createGame({ seed: 91 });
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    state.phase = "DAY_VOTE";
+    const baseView = buildAgentView(state, voter.seatId);
+    const view = {
+      ...baseView,
+      persona: {
+        ...baseView.persona!,
+        name: "柯南",
+        roleCard: {
+          source: "名侦探角色",
+          speakingStyle: "短句、直接、先落结论。",
+          reasoningStyle: "先找证据链，再压关键矛盾。",
+          avoid: "不要卖萌，不要说固定台词。",
+        },
+      },
+      llmConfig: {
+        provider: "openai-compatible" as const,
+        baseUrl: "https://custom.example.com",
+        model: "role-card-action-model",
+        apiKey: "custom-key",
+      },
+    };
+    const tableRead = buildAiTableRead(view);
+    const votePlan = createVotePlan(view, tableRead);
+    const fallbackCommand = createMockCommand(view, tableRead, votePlan);
+
+    const result = await routedModelActionProvider.generateCommand(view, { tableRead, votePlan, fallbackCommand });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { messages: Array<{ role: string; content: string }> };
+    const systemText = body.messages.find((message) => message.role === "system")?.content ?? "";
+    expect(systemText).toContain("柯南");
+    expect(systemText).toContain("名侦探角色");
+    expect(systemText).toContain("短句、直接、先落结论。");
+    expect(systemText).toContain("先找证据链，再压关键矛盾。");
+    expect(systemText).toContain("不要卖萌，不要说固定台词。");
+    expect(systemText).toContain("legal candidates");
+    expect(systemText).toContain("never invent actions");
+    expect(systemText).toContain("private/system context");
+    expect(result.isFallback).toBe(false);
+  });
+
   it("keeps rotating action fallback personas after invalid fallback JSON", async () => {
     process.env.AI_LLM_API_KEY = "test-key";
     process.env.AI_LLM_MAX_RETRIES = "1";
