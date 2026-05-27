@@ -1399,6 +1399,9 @@ function AiPoolList({
                         </span>
                       </div>
                       <div className="mobile-ai-card-persona mt-1 truncate text-xs text-[#ad9c7d]">{friend.basePersonaLabel}</div>
+                      <div className="mobile-ai-card-source mt-1 truncate text-[11px] text-[#f1d796]">
+                        人物来源 · {friend.roleCard?.source || "未填写"}
+                      </div>
                       <div className="mobile-ai-card-tags mobile-ai-summary-meta mt-2 flex flex-wrap items-center gap-1.5">
                         <span className="mobile-ai-card-template rounded-full border border-[#f1c76e]/20 px-2 py-0.5 text-[11px] text-[#f1d796]">
                           {formatPersonaTemplateStatus(friend)}

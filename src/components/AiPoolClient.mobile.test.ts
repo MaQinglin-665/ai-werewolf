@@ -100,6 +100,14 @@ describe("AiPoolClient mobile layout", () => {
     expect(html).toContain("导出角色");
   });
 
+  it("shows a role source line in each roster card summary", () => {
+    const html = renderAiPoolClientHtml();
+
+    expect(html).toContain("mobile-ai-card-source");
+    expect(html).toContain("人物来源 · 未填写");
+    expect(html.indexOf("mobile-ai-card-source")).toBeLessThan(html.indexOf("mobile-ai-config-entry"));
+  });
+
   it("warns that role-play instructions require real LLM mode", () => {
     const html = renderAiPoolClientHtml();
 
