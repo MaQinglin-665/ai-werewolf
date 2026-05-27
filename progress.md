@@ -2,7 +2,7 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-27 01:30 Asia/Shanghai
+**Last Updated:** 2026-05-27 02:55 Asia/Shanghai
 **Session ID:** ai-pool character roster
 **Active Feature:** ai-pool-character-roster - AI Pool Character Roster
 
@@ -47,19 +47,17 @@
 - [x] Focused lifecycle request tests added and watched fail before implementation, then pass after extraction.
 - [x] Local main-game smoke passed on a clean dev server at `http://127.0.0.1:3010`.
 - [x] AI Pool Bulk LLM Presets implemented for `/ai-pool`: local presets, bulk apply, user-triggered test route, responsive panel, and result summary.
-- [x] AI Pool Character Roster design approved and implementation plan written.
+- [x] AI Pool Character Roster implemented in the isolated worktree: local role cards, safe role-only import/export, `/api/games` propagation, real LLM speech/action prompt wiring, and `/ai-pool` character roster UI.
 
 ### What's In Progress
 
-- [ ] AI Pool Character Roster implementation is planned but not started.
-  - Details: `/ai-pool` should become a local character roster with role-card fields, safe role-only import/export, and real LLM speech/action role-play guidance.
-  - Blockers: none.
+- [ ] None for the current character roster task.
 
 ### What's Next
 
-1. Ask the user to choose execution mode for `docs/superpowers/plans/2026-05-27-ai-pool-character-roster.md`.
-2. If implementation starts, follow the plan task-by-task and keep commits focused.
-3. Skip real-provider role-play validation unless the user provides a safe disposable key and accepts possible model cost.
+1. Let the user inspect `/ai-pool` from branch `codex/ai-pool-character-roster`.
+2. If accepted, decide whether to merge the worktree branch back to the main checkout.
+3. Run a real-provider role-play game only if the user provides a safe disposable key and accepts possible model cost.
 
 ## Blockers / Risks
 
@@ -194,6 +192,11 @@
 - [x] AI pool bulk preset focused tests: `npm run test -- src/components/game/aiFriendLlmPresets.test.ts src/app/api/ai-config/test-llm/route.test.ts src/components/AiPoolClient.mobile.test.ts`
 - [x] AI pool bulk preset lint/type/build: `npm run lint`; `npx tsc --noEmit`; `npm run build`
 - [x] AI pool browser checks: desktop and 390x844 mobile viewport at `http://127.0.0.1:3010/ai-pool`
+- [x] Character roster focused tests: `npm run test -- src/components/game/aiFriendRoleRoster.test.ts src/app/api/games/aiFriends.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts src/components/AiPoolClient.mobile.test.ts`
+- [x] Character roster lint/type: `npm run lint`; `npx tsc --noEmit`
+- [x] Character roster harness checks: `npm run harness:task-card -- docs/tasks/2026-05-ai-pool-character-roster.md`; `npm run harness:check`; feature-list JSON parse; `git diff --check`
+- [x] Character roster browser checks: desktop and 390x844 mobile viewport at `http://127.0.0.1:3011/ai-pool`, including roster, source text, mock warning, import/export, and import dialog controls.
+- [ ] Character roster build: attempted `npm run build`, but it stopped on an existing unrelated `src/server/gameService.ts:739` implicit-any error after successful compilation.
 
 ## Notes for Next Session
 

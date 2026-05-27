@@ -129,14 +129,34 @@ If a check cannot be run, record the reason in the handoff.
 
 ```text
 Completed:
-- ...
+- Implemented local AI friend role cards with source, speaking style, reasoning style, and avoid fields.
+- Added safe role-only import/export with append and overwrite behavior.
+- Passed role cards through game creation into AI personas.
+- Added role-card guidance to real LLM speech/action prompts while keeping role text out of action system authority.
+- Upgraded /ai-pool into a character roster UI with role editing, source display, mock warning, and import/export controls.
 
 Changed files:
-- ...
+- src/game/aiFriends.ts
+- src/game/types.ts
+- src/components/game/aiFriendRoleRoster.ts
+- src/app/api/games/route.ts
+- src/ai/speechProviders.ts
+- src/ai/actionProviders.ts
+- src/components/AiPoolClient.tsx
+- src/app/globals.css
+- focused tests and harness state files
 
 Verification:
-- ...
+- npm run test -- src/components/game/aiFriendRoleRoster.test.ts src/app/api/games/aiFriends.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts src/components/AiPoolClient.mobile.test.ts
+- npm run lint
+- npx tsc --noEmit
+- npm run harness:task-card -- docs/tasks/2026-05-ai-pool-character-roster.md
+- npm run harness:check
+- node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"
+- git diff --check
+- Chrome headless desktop and 390x844 mobile checks at http://127.0.0.1:3011/ai-pool
 
 Remaining risks:
-- ...
+- Real-provider role-play validation was skipped because no safe disposable key was provided and live model calls can create cost.
+- npm run build was attempted and stopped on existing unrelated src/server/gameService.ts:739 implicit-any drift after compilation succeeded.
 ```

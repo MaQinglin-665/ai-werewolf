@@ -2,9 +2,9 @@
 
 ## Current Objective
 
-- Goal: Plan the `/ai-pool` character roster workflow under the harness.
-- Current status: Design and implementation plan are complete. Implementation has not started; next step is choosing execution mode for `docs/superpowers/plans/2026-05-27-ai-pool-character-roster.md`.
-- Branch / commit: `main`; latest committed design baseline is `c020424`.
+- Goal: Implement the `/ai-pool` character roster workflow under the harness.
+- Current status: Implementation is complete in the isolated worktree branch. Next step is user inspection and merge decision.
+- Branch / commit: `codex/ai-pool-character-roster`; latest implementation commit before handoff docs is `8c76e2b`.
 
 ## Completed This Session
 
@@ -70,6 +70,11 @@
 - [x] Created `docs/tasks/2026-05-ai-pool-character-roster.md`.
 - [x] Created `docs/superpowers/plans/2026-05-27-ai-pool-character-roster.md`.
 - [x] Recorded the planned character roster feature in `feature_list.json` and `progress.md`.
+- [x] Added local role-card storage, validation, safe role-only import/export, append, and overwrite behavior.
+- [x] Propagated role cards from `/api/games` into AI personas.
+- [x] Added role-card guidance to real LLM speech and action prompts while keeping user-authored role text out of the action system prompt.
+- [x] Upgraded `/ai-pool` into a character roster UI with avatar, role name, source, speaking style, reasoning style, avoid field, mock warning, and import/export controls.
+- [x] Verified the visible `/ai-pool` flow on desktop and mobile viewports with Chrome headless.
 
 ## Verification Evidence
 
@@ -132,6 +137,12 @@
 | AI pool browser mobile | Browser viewport `390x844` at `http://127.0.0.1:3010/ai-pool` | passed | Bulk entry and opened panel controls were reachable in phone viewport. |
 | AI pool build | `npm run build` | passed | Existing Turbopack NFT warning for `next.config.ts` -> `src/server/roomService.ts` remained. |
 | Character roster task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-ai-pool-character-roster.md` | passed | Confirms the new role roster task card satisfies harness fields. |
+| Character roster focused tests | `npm run test -- src/components/game/aiFriendRoleRoster.test.ts src/app/api/games/aiFriends.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts src/components/AiPoolClient.mobile.test.ts` | passed | 5 files, 113 tests. Covers role roster storage/import/export, API propagation, prompt wiring, and static UI. |
+| Character roster lint | `npm run lint` | passed | Passed with two existing unused-parameter warnings in `src/ai/speechProviders.test.ts`. |
+| Character roster typecheck | `npx tsc --noEmit` | passed | Confirms role-card type propagation. |
+| Character roster build | `npm run build` | blocked | Compilation completed, then type checking stopped on existing unrelated `src/server/gameService.ts:739` implicit-any drift. |
+| Character roster browser desktop | Chrome headless at `http://127.0.0.1:3011/ai-pool` | passed | Verified roster, source text, mock warning, import/export, quick add, and queue visibility without horizontal overflow. |
+| Character roster browser mobile | Chrome headless 390x844 at `http://127.0.0.1:3011/ai-pool` | passed | Verified roster cards, source text, mock warning, import/export, and import dialog append/overwrite controls without horizontal overflow. |
 
 ## Files Changed
 
@@ -184,6 +195,18 @@
 - `src/components/game/aiFriendLlmPresets.test.ts`
 - `src/app/api/ai-config/test-llm/route.ts`
 - `src/app/api/ai-config/test-llm/route.test.ts`
+- `src/components/game/aiFriendRoleRoster.ts`
+- `src/components/game/aiFriendRoleRoster.test.ts`
+- `src/game/aiFriends.ts`
+- `src/game/types.ts`
+- `src/app/api/games/route.ts`
+- `src/app/api/games/aiFriends.test.ts`
+- `src/ai/speechProviders.ts`
+- `src/ai/speechProviders.test.ts`
+- `src/ai/actionProviders.ts`
+- `src/ai/actionProviders.test.ts`
+- `src/components/AiPoolClient.tsx`
+- `src/components/AiPoolClient.mobile.test.ts`
 
 ## Decisions Made
 
@@ -200,6 +223,7 @@
 - Stop micro-extracting tiny helpers for now. The next useful code-facing boundary is a medium-risk `gameClientRequests` extraction that separates request construction/response parsing from UI orchestration.
 - Game lifecycle request construction, response parsing, and stream-continue speech context are now treated as a frontend request boundary. `GameClient.tsx` should keep state transitions, refs, and UI orchestration local.
 - AI pool real-model setup should move toward local LLM presets plus bulk apply to currently selected AI friends. First implementation slice should cover LLM only, while reserving the same framework for TTS later.
+- Character roster role-play text should guide model behavior without becoming hard authority. The action provider keeps role-card text in prompt input data, while system text remains reserved for legal-action and private-info guardrails.
 
 ## Blockers / Risks
 
@@ -220,6 +244,8 @@
 - Production/release checks were skipped because no deployment, public URL, or runtime configuration changed.
 - Real-provider connection testing was skipped because no safe disposable API key was provided and the test route can create model cost.
 - In-app Browser screenshot capture timed out, so the UI verification evidence is DOM/viewport based rather than screenshot based.
+- Real-provider role-play validation was skipped because no safe disposable API key was provided and live model calls can create cost.
+- `npm run build` is currently blocked by an existing unrelated `src/server/gameService.ts:739` implicit-any error after compilation succeeds.
 
 ## Next Session Startup
 
@@ -234,9 +260,10 @@
 9. Read `docs/tasks/2026-05-gameclient-board-selection-model.md` if continuing landing board-selection model extraction.
 10. Read `docs/superpowers/specs/2026-05-26-frontend-structure-review.md` before starting the next larger frontend boundary.
 11. Read `docs/tasks/2026-05-gameclient-lifecycle-requests.md` if touching single-player lifecycle requests again.
-12. Read `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md` and `docs/tasks/2026-05-ai-pool-bulk-llm-presets.md` before implementing AI pool preset work.
-13. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
+12. Read `docs/superpowers/specs/2026-05-27-ai-pool-bulk-llm-presets-design.md` and `docs/tasks/2026-05-ai-pool-bulk-llm-presets.md` before editing AI pool preset work.
+13. Read `docs/superpowers/specs/2026-05-27-ai-pool-character-roster-design.md`, `docs/tasks/2026-05-ai-pool-character-roster.md`, and `docs/superpowers/plans/2026-05-27-ai-pool-character-roster.md` before editing character roster work.
+14. Run `powershell -NoProfile -ExecutionPolicy Bypass -File init.ps1`, `./init.sh`, or `npm run harness:check` before editing.
 
 ## Recommended Next Step
 
-- Next recommended code-facing step: let the user inspect `/ai-pool`; if the bulk LLM flow feels right, plan the TTS preset extension separately.
+- Next recommended step: let the user inspect `/ai-pool` on branch `codex/ai-pool-character-roster`; if accepted, merge the worktree branch back to the main checkout.
