@@ -4,9 +4,13 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { AiPoolClient } from "./AiPoolClient";
 
+function renderAiPoolClientHtml(): string {
+  return renderToStaticMarkup(createElement(AiPoolClient));
+}
+
 describe("AiPoolClient mobile layout", () => {
   it("marks the AI pool with compact mobile card structure", () => {
-    const html = renderToStaticMarkup(createElement(AiPoolClient));
+    const html = renderAiPoolClientHtml();
 
     expect(html).toContain("mobile-ai-pool-page");
     expect(html).toContain("mobile-ai-pool-header");
@@ -23,7 +27,7 @@ describe("AiPoolClient mobile layout", () => {
   });
 
   it("shows concrete persona type explanations instead of generic tuning guidance", () => {
-    const html = renderToStaticMarkup(createElement(AiPoolClient));
+    const html = renderAiPoolClientHtml();
 
     expect(html).not.toContain("普通用户只需要选类型");
     expect(html).toContain("逻辑链推演型");
@@ -35,11 +39,11 @@ describe("AiPoolClient mobile layout", () => {
   });
 
   it("puts AI mode before the pool and keeps quick add behind an overlay entry", () => {
-    const html = renderToStaticMarkup(createElement(AiPoolClient));
+    const html = renderAiPoolClientHtml();
 
-    expect(html.indexOf("对局 AI 模式")).toBeLessThan(html.indexOf("AI池</h2>"));
+    expect(html.indexOf("对局 AI 模式")).toBeLessThan(html.indexOf("角色名册</h2>"));
     expect(html.indexOf("对局 AI 模式")).toBeLessThan(html.indexOf("批量 LLM 配置"));
-    expect(html.indexOf("批量 LLM 配置")).toBeLessThan(html.indexOf("AI池</h2>"));
+    expect(html.indexOf("批量 LLM 配置")).toBeLessThan(html.indexOf("角色名册</h2>"));
     expect(html.indexOf("对局 AI 模式")).toBeLessThan(html.indexOf("快速新增AI"));
     expect(html).toContain("LLM 预设");
     expect(html).toContain("只补齐还没配置模型的 AI");
@@ -59,7 +63,7 @@ describe("AiPoolClient mobile layout", () => {
 
   it("removes advanced import and keeps low priority mobile panels out of the phone viewport", () => {
     const css = readFileSync("src/app/globals.css", "utf8");
-    const html = renderToStaticMarkup(createElement(AiPoolClient));
+    const html = renderAiPoolClientHtml();
 
     expect(html).not.toContain("高级导入导出");
     expect(html).not.toContain("导出 JSON");
@@ -74,12 +78,31 @@ describe("AiPoolClient mobile layout", () => {
 
   it("keeps mobile AI cards in a compact two-column grid even when expanded", () => {
     const css = readFileSync("src/app/globals.css", "utf8");
-    const html = renderToStaticMarkup(createElement(AiPoolClient));
+    const html = renderAiPoolClientHtml();
 
     expect(css).toMatch(/\.mobile-ai-pool-grid\s*{\s*align-items: flex-start;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
     expect(css).toMatch(/\.mobile-ai-profile-panel\s*{\s*position: fixed;/);
     expect(html).toContain('role="dialog"');
     expect(html).toContain("关闭");
     expect(css).not.toContain(".mobile-ai-pool-card:has(.mobile-ai-profile-card[open])");
+  });
+
+  it("renders the AI pool as a character roster with role-card fields", () => {
+    const html = renderAiPoolClientHtml();
+
+    expect(html).toContain("角色名册");
+    expect(html).toContain("角色详情");
+    expect(html).toContain("人物来源");
+    expect(html).toContain("说话方式");
+    expect(html).toContain("推理习惯");
+    expect(html).toContain("不要做什么");
+    expect(html).toContain("导入角色");
+    expect(html).toContain("导出角色");
+  });
+
+  it("warns that role-play instructions require real LLM mode", () => {
+    const html = renderAiPoolClientHtml();
+
+    expect(html).toContain("人设和打法扮演只在真实 LLM 生效");
   });
 });

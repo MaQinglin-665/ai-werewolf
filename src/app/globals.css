@@ -67,6 +67,10 @@ button:disabled {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.mobile-ai-role-roster textarea {
+  min-height: 4.25rem;
+}
+
 /* Phone-only landing, AI pool, and early mobile layout rules. */
 @media (max-width: 639px) {
   .mobile-ai-pool-page {
@@ -170,6 +174,14 @@ button:disabled {
     border-radius: 22px;
     overflow: hidden;
     padding: 10px;
+  }
+
+  .mobile-ai-role-roster {
+    gap: 0.75rem;
+  }
+
+  .mobile-ai-role-roster textarea {
+    min-height: 5rem;
   }
 
   .mobile-ai-pool-list-head {

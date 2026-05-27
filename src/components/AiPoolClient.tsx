@@ -31,6 +31,12 @@ import {
   type AiFriendLlmPresetApplyResult,
   type AiFriendLlmPresetState,
 } from "./game/aiFriendLlmPresets";
+import {
+  appendImportedRoleRoster,
+  exportAiFriendRoleRoster,
+  overwriteImportedRoleRoster,
+  parseAiFriendRoleRosterExport,
+} from "./game/aiFriendRoleRoster";
 import { MODEL_CARD_IMAGES, ROLE_CARD_IMAGES } from "./game/viewHelpers";
 
 const AI_TUNING_EXPLANATIONS: Array<{ label: string; detail: string }> = [
@@ -296,6 +302,21 @@ function isConfiguredFriendId(friendId: string): boolean {
   return friendId.startsWith(CONFIGURED_AI_FRIEND_ID_PREFIX);
 }
 
+function updateRoleCardField(
+  friend: AiFriendOption,
+  field: keyof NonNullable<AiFriendConfig["roleCard"]>,
+  value: string,
+): Partial<AiFriendConfig> {
+  const roleCard = {
+    source: friend.roleCard?.source ?? "",
+    speakingStyle: friend.roleCard?.speakingStyle ?? "",
+    reasoningStyle: friend.roleCard?.reasoningStyle ?? "",
+    avoid: friend.roleCard?.avoid ?? "",
+    [field]: value,
+  };
+  return { roleCard };
+}
+
 export function AiPoolClient() {
   const [loaded, setLoaded] = useState(false);
   const [customAiFriends, setCustomAiFriends] = useState<AiFriendConfig[]>([]);
@@ -325,6 +346,9 @@ export function AiPoolClient() {
   const [bulkLlmError, setBulkLlmError] = useState<string | null>(null);
   const [bulkLlmTestStatus, setBulkLlmTestStatus] = useState<string | null>(null);
   const [bulkLlmResults, setBulkLlmResults] = useState<AiFriendLlmPresetApplyResult[]>([]);
+  const [roleRosterImportText, setRoleRosterImportText] = useState("");
+  const [roleRosterImportOpen, setRoleRosterImportOpen] = useState(false);
+  const [roleRosterError, setRoleRosterError] = useState<string | null>(null);
   const aiFriends = useMemo(() => buildAiFriendOptions(customAiFriends), [customAiFriends]);
   const baseAiFriends = useMemo(() => aiFriends.filter((friend) => friend.isDefault), [aiFriends]);
   const aiPoolFriends = useMemo(() => {
@@ -572,6 +596,32 @@ export function AiPoolClient() {
     [aiFriends, aiLlmSecrets, currentBulkLlmPreset, customAiFriends, selectedAiFriendIds],
   );
 
+  const exportRoleRoster = useCallback(() => {
+    const raw = exportAiFriendRoleRoster(aiPoolFriends);
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(raw);
+    }
+    setRoleRosterImportText(raw);
+    setRoleRosterImportOpen(true);
+    setRoleRosterError("角色名册 JSON 已生成；如果浏览器允许，也已复制到剪贴板。");
+  }, [aiPoolFriends]);
+
+  const importRoleRoster = useCallback(
+    (mode: "append" | "overwrite") => {
+      try {
+        const imported = parseAiFriendRoleRosterExport(roleRosterImportText);
+        setCustomAiFriends((current) =>
+          mode === "append" ? appendImportedRoleRoster(current, imported) : overwriteImportedRoleRoster(imported),
+        );
+        setRoleRosterError(mode === "append" ? "已追加导入角色。" : "已覆盖当前本地角色。");
+        setRoleRosterImportOpen(false);
+      } catch (error) {
+        setRoleRosterError(error instanceof Error ? error.message : "角色名册导入失败。");
+      }
+    },
+    [roleRosterImportText],
+  );
+
   const saveAiFriendLlmConfig = useCallback((friend: AiFriendOption, llmConfig: AiFriendLlmConfig, apiKey: string) => {
     const now = new Date().toISOString();
     const targetId = friend.isDefault ? configuredFriendId(friend) : friend.id;
@@ -580,6 +630,7 @@ export function AiPoolClient() {
       nickname: friend.nickname,
       basePersonaId: friend.basePersonaId,
       avatarDataUrl: friend.avatarDataUrl,
+      roleCard: friend.roleCard,
       llmConfig,
       ttsVoice: friend.ttsVoice,
       ttsConfig: friend.ttsConfig,
@@ -622,6 +673,7 @@ export function AiPoolClient() {
       nickname: friend.nickname,
       basePersonaId: friend.basePersonaId,
       avatarDataUrl: friend.avatarDataUrl,
+      roleCard: friend.roleCard,
       llmConfig: friend.llmConfig,
       ttsVoice: ttsConfig.voice,
       ttsConfig,
@@ -739,6 +791,7 @@ export function AiPoolClient() {
         nickname: friend.nickname,
         basePersonaId: friend.basePersonaId,
         avatarDataUrl,
+        roleCard: friend.roleCard,
         llmConfig: friend.llmConfig,
         ttsVoice: friend.ttsVoice,
         ttsConfig: friend.ttsConfig,
@@ -822,6 +875,12 @@ export function AiPoolClient() {
 
         <AiRuntimeModeCard mode={aiRuntimeMode} aiRuntimeConfig={aiRuntimeConfig} onModeChange={setAiRuntimeMode} />
 
+        {aiRuntimeMode === "mock" && (
+          <div className="rounded-2xl border border-[#f1c76e]/25 bg-[#2b2110]/58 px-4 py-3 text-sm leading-6 text-[#f1d796]">
+            当前是 Mock 试玩：角色名和头像会显示，人设和打法扮演只在真实 LLM 生效。
+          </div>
+        )}
+
         <BulkLlmPresetCard
           open={bulkLlmOpen}
           presets={llmPresetState.presets}
@@ -865,6 +924,8 @@ export function AiPoolClient() {
             onSaveLlmConfig={saveAiFriendLlmConfig}
             onSaveTtsConfig={saveAiFriendTtsConfig}
             onDelete={deleteCustomAiFriend}
+            onExportRoleRoster={exportRoleRoster}
+            onOpenRoleRosterImport={() => setRoleRosterImportOpen(true)}
           />
           <div className="mobile-ai-pool-side grid content-start gap-4">
             <CustomAiTransferCard
@@ -899,6 +960,63 @@ export function AiPoolClient() {
             <AiTuningReference className="mobile-ai-tuning-reference" />
           </div>
         </section>
+
+        {roleRosterError && (
+          <div className="rounded-2xl border border-[#f1c76e]/20 bg-black/22 px-4 py-3 text-sm text-[#f1d796]">
+            {roleRosterError}
+          </div>
+        )}
+
+        {roleRosterImportOpen && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="role-roster-import-title"
+            className="fixed inset-0 z-[70] overflow-y-auto bg-black/84 px-3 py-5 backdrop-blur-md sm:px-5"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setRoleRosterImportOpen(false);
+            }}
+          >
+            <section
+              className="mx-auto grid w-full max-w-3xl gap-4 rounded-[28px] border border-[#7da8e3]/28 bg-[#0d1623]/96 p-4 shadow-2xl shadow-black/70 sm:p-5"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h2 id="role-roster-import-title" className="text-lg font-semibold text-[#e4efff]">导入角色名册</h2>
+                <button
+                  type="button"
+                  onClick={() => setRoleRosterImportOpen(false)}
+                  className="rounded-full border border-white/12 px-3 py-2 text-sm text-[#dcc9a7] transition hover:bg-white/8"
+                >
+                  关闭
+                </button>
+              </div>
+              <textarea
+                value={roleRosterImportText}
+                onChange={(event) => setRoleRosterImportText(event.target.value)}
+                rows={12}
+                className="w-full resize-y rounded-2xl border border-[#7da8e3]/18 bg-black/32 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#7da8e3]/45"
+                placeholder="粘贴角色名册 JSON"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => importRoleRoster("append")}
+                  className="rounded-full bg-[#2f8157] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#379566]"
+                >
+                  追加导入
+                </button>
+                <button
+                  type="button"
+                  onClick={() => importRoleRoster("overwrite")}
+                  className="rounded-full border border-[#e46d55]/30 bg-[#2b1110]/60 px-4 py-2 text-sm font-semibold text-[#ffb1a4] transition hover:bg-[#3a1712]"
+                >
+                  覆盖当前角色
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
       </div>
     </main>
   );
@@ -1199,6 +1317,8 @@ function AiPoolList({
   onSaveLlmConfig,
   onSaveTtsConfig,
   onDelete,
+  onExportRoleRoster,
+  onOpenRoleRosterImport,
 }: {
   friends: AiFriendOption[];
   templateFriends: AiFriendOption[];
@@ -1213,19 +1333,39 @@ function AiPoolList({
   onSaveLlmConfig: (friend: AiFriendOption, llmConfig: AiFriendLlmConfig, apiKey: string) => void;
   onSaveTtsConfig: (friend: AiFriendOption, ttsConfig: AiFriendTtsConfig, apiKey: string) => void;
   onDelete: (friendId: string) => void;
+  onExportRoleRoster: () => void;
+  onOpenRoleRosterImport: () => void;
 }) {
   const baseOptions = templateFriends;
 
   return (
-    <section className="mobile-ai-pool-list rounded-[28px] border border-[#77d898]/20 bg-[#0f2118]/76 p-4 shadow-2xl shadow-black/35 backdrop-blur-md sm:p-5">
+    <section className="mobile-ai-pool-list mobile-ai-role-roster rounded-[28px] border border-[#77d898]/20 bg-[#0f2118]/76 p-4 shadow-2xl shadow-black/35 backdrop-blur-md sm:p-5">
       <div className="mobile-ai-pool-list-head mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-[#dff4df]">AI池</h2>
-          <p className="mobile-ai-pool-description mt-1 text-sm text-[#9fc8a7]">勾选后会按顺序加入下一局，不足座位由默认 AI 自动补齐；12 人局会补满 11 位 AI，并自动改名避免重名。</p>
+          <h2 className="text-lg font-semibold text-[#dff4df]">角色名册</h2>
+          <p className="mobile-ai-pool-description mt-1 text-sm text-[#9fc8a7]">
+            勾选后会按顺序加入下一局；角色名、头像和真实 LLM 人设会随开局配置进入牌桌。
+          </p>
         </div>
-        <span className="mobile-ai-save-pill rounded-full border border-[#77d898]/20 bg-[#77d898]/10 px-3 py-1 text-xs text-[#a8f0b6]">
-          本地保存
-        </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onExportRoleRoster}
+            className="rounded-full border border-[#f1c76e]/25 bg-[#f1c76e]/10 px-3 py-2 text-xs font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/16"
+          >
+            导出角色
+          </button>
+          <button
+            type="button"
+            onClick={onOpenRoleRosterImport}
+            className="rounded-full border border-[#7da8e3]/25 bg-[#7da8e3]/10 px-3 py-2 text-xs font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/16"
+          >
+            导入角色
+          </button>
+          <span className="mobile-ai-save-pill rounded-full border border-[#77d898]/20 bg-[#77d898]/10 px-3 py-1 text-xs text-[#a8f0b6]">
+            本地保存
+          </span>
+        </div>
       </div>
       <div className="mobile-ai-pool-grid grid gap-3 lg:grid-cols-2">
         {friends.map((friend) => {
@@ -1348,6 +1488,67 @@ function AiPoolList({
                   </div>
 
                   <div className="mobile-ai-config-stack mt-3 grid gap-3">
+                    <details className="mobile-ai-config-section rounded-2xl border border-[#f1c76e]/14 bg-black/16 p-3" open={!friend.isDefault}>
+                      <summary className="mobile-ai-config-summary cursor-pointer list-none text-xs font-semibold text-[#f1d796]">
+                        <span className="mobile-ai-config-title">角色详情</span>
+                        <span className="mobile-ai-config-control text-[#f1d796]/72">
+                          <span className="mobile-ai-config-status">{friend.roleCard?.source || (friend.isDefault ? "复制后编辑" : "待填写")}</span>
+                          <span className="mobile-ai-config-action border-[#f1c76e]/25 bg-[#f1c76e]/10 text-[#f1d796]">
+                            {friend.isDefault ? "只读" : "编辑"}
+                          </span>
+                          <span className="mobile-ai-config-chevron">⌄</span>
+                        </span>
+                      </summary>
+                      <div className="mt-3 grid gap-3">
+                        <label className="grid gap-1 text-xs text-[#ad9c7d]">
+                          人物来源
+                          <input
+                            value={friend.roleCard?.source ?? ""}
+                            maxLength={80}
+                            placeholder="例如：名侦探角色 / 三国谋士 / 你喜欢的人物"
+                            disabled={friend.isDefault}
+                            onChange={(event) => onUpdate(friend.id, updateRoleCardField(friend, "source", event.target.value))}
+                            className="rounded-xl border border-[#f1c76e]/18 bg-black/28 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#f1c76e]/45 disabled:opacity-55"
+                          />
+                        </label>
+                        <label className="grid gap-1 text-xs text-[#ad9c7d]">
+                          说话方式
+                          <textarea
+                            value={friend.roleCard?.speakingStyle ?? ""}
+                            maxLength={240}
+                            rows={2}
+                            placeholder="例如：短句、直接、先落结论。"
+                            disabled={friend.isDefault}
+                            onChange={(event) => onUpdate(friend.id, updateRoleCardField(friend, "speakingStyle", event.target.value))}
+                            className="resize-none rounded-xl border border-[#f1c76e]/18 bg-black/28 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#f1c76e]/45 disabled:opacity-55"
+                          />
+                        </label>
+                        <label className="grid gap-1 text-xs text-[#ad9c7d]">
+                          推理习惯
+                          <textarea
+                            value={friend.roleCard?.reasoningStyle ?? ""}
+                            maxLength={240}
+                            rows={2}
+                            placeholder="例如：先找证据链，再压关键矛盾。"
+                            disabled={friend.isDefault}
+                            onChange={(event) => onUpdate(friend.id, updateRoleCardField(friend, "reasoningStyle", event.target.value))}
+                            className="resize-none rounded-xl border border-[#f1c76e]/18 bg-black/28 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#f1c76e]/45 disabled:opacity-55"
+                          />
+                        </label>
+                        <label className="grid gap-1 text-xs text-[#ad9c7d]">
+                          不要做什么
+                          <textarea
+                            value={friend.roleCard?.avoid ?? ""}
+                            maxLength={240}
+                            rows={2}
+                            placeholder="例如：不要复读固定台词，不要出戏说自己是 AI。"
+                            disabled={friend.isDefault}
+                            onChange={(event) => onUpdate(friend.id, updateRoleCardField(friend, "avoid", event.target.value))}
+                            className="resize-none rounded-xl border border-[#f1c76e]/18 bg-black/28 px-3 py-2 text-sm text-[#f7ead5] outline-none focus:border-[#f1c76e]/45 disabled:opacity-55"
+                          />
+                        </label>
+                      </div>
+                    </details>
                     <details className="mobile-ai-config-section rounded-2xl border border-[#7da8e3]/14 bg-[#0d1623]/42 p-3">
                       <summary className="mobile-ai-config-summary cursor-pointer list-none text-xs font-semibold text-[#d8e7ff]">
                         <span className="mobile-ai-config-title">模型接口</span>
