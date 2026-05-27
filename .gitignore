@@ -20,6 +20,8 @@
 /promo-ai-werewolf/
 
 # local database and generated prisma client
+/dev.db
+/dev.db-journal
 /prisma/dev.db
 /prisma/dev.db-journal
 /src/generated/prisma
@@ -53,6 +55,7 @@ dev-server.*.log
 dev-server-*.log
 start-server*.log
 codex-dev-*.log
+.codex-*.log
 
 # env files (can opt-in for committing if needed)
 .env*
