@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-27 00:53 Asia/Shanghai
-**Session ID:** ai-pool bulk llm presets
-**Active Feature:** ai-pool-bulk-llm-presets - AI Pool Bulk LLM Presets
+**Last Updated:** 2026-05-27 01:30 Asia/Shanghai
+**Session ID:** ai-pool character roster
+**Active Feature:** ai-pool-character-roster - AI Pool Character Roster
 
 ## Status
 
@@ -47,18 +47,19 @@
 - [x] Focused lifecycle request tests added and watched fail before implementation, then pass after extraction.
 - [x] Local main-game smoke passed on a clean dev server at `http://127.0.0.1:3010`.
 - [x] AI Pool Bulk LLM Presets implemented for `/ai-pool`: local presets, bulk apply, user-triggered test route, responsive panel, and result summary.
+- [x] AI Pool Character Roster design approved and implementation plan written.
 
 ### What's In Progress
 
-- [ ] No active implementation task after the AI Pool Bulk LLM Presets slice.
-  - Details: `/ai-pool` now has a bulk LLM preset panel near the AI mode card. The first slice intentionally handles LLM only and leaves TTS for a later reuse of the same framework.
+- [ ] AI Pool Character Roster implementation is planned but not started.
+  - Details: `/ai-pool` should become a local character roster with role-card fields, safe role-only import/export, and real LLM speech/action role-play guidance.
   - Blockers: none.
 
 ### What's Next
 
-1. Let the user inspect `/ai-pool` locally and try creating/applying an LLM preset.
-2. If the flow feels right, plan the TTS preset extension as a separate task.
-3. If real-provider testing is needed, use a disposable key because the test route intentionally calls the model.
+1. Ask the user to choose execution mode for `docs/superpowers/plans/2026-05-27-ai-pool-character-roster.md`.
+2. If implementation starts, follow the plan task-by-task and keep commits focused.
+3. Skip real-provider role-play validation unless the user provides a safe disposable key and accepts possible model cost.
 
 ## Blockers / Risks
 

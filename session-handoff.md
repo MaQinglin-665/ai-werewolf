@@ -2,9 +2,9 @@
 
 ## Current Objective
 
-- Goal: Implement the `/ai-pool` bulk LLM preset workflow under the harness.
-- Current status: Implementation is complete. `/ai-pool` has a bulk LLM preset panel near the AI mode card, local preset storage, bulk apply behavior, a user-triggered test route, and responsive desktop/mobile verification.
-- Branch / commit: `main`; latest committed baseline before this design task was `28fa2bd`.
+- Goal: Plan the `/ai-pool` character roster workflow under the harness.
+- Current status: Design and implementation plan are complete. Implementation has not started; next step is choosing execution mode for `docs/superpowers/plans/2026-05-27-ai-pool-character-roster.md`.
+- Branch / commit: `main`; latest committed design baseline is `c020424`.
 
 ## Completed This Session
 
@@ -66,6 +66,10 @@
 - [x] Added the bulk LLM preset panel to `src/components/AiPoolClient.tsx`.
 - [x] Updated mobile/static layout coverage and responsive CSS hooks.
 - [x] Verified desktop and 390x844 mobile `/ai-pool` in the in-app Browser.
+- [x] Created `docs/superpowers/specs/2026-05-27-ai-pool-character-roster-design.md`.
+- [x] Created `docs/tasks/2026-05-ai-pool-character-roster.md`.
+- [x] Created `docs/superpowers/plans/2026-05-27-ai-pool-character-roster.md`.
+- [x] Recorded the planned character roster feature in `feature_list.json` and `progress.md`.
 
 ## Verification Evidence
 
@@ -127,6 +131,7 @@
 | AI pool browser desktop | Browser at `http://127.0.0.1:3010/ai-pool` | passed | Bulk panel opened; preset fields, shortcuts, test, apply buttons present; single-AI model/voice config remained reachable. |
 | AI pool browser mobile | Browser viewport `390x844` at `http://127.0.0.1:3010/ai-pool` | passed | Bulk entry and opened panel controls were reachable in phone viewport. |
 | AI pool build | `npm run build` | passed | Existing Turbopack NFT warning for `next.config.ts` -> `src/server/roomService.ts` remained. |
+| Character roster task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-ai-pool-character-roster.md` | passed | Confirms the new role roster task card satisfies harness fields. |
 
 ## Files Changed
 
