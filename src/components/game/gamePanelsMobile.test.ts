@@ -254,6 +254,40 @@ describe("mobile game panels", () => {
     expect(html).toContain("mobile-lobby-seat-number");
   });
 
+  it("shows the local-only class trial theme entry without replacing rooms", () => {
+    const boards = getDefaultBoardOptions();
+    const html = renderToStaticMarkup(
+      createElement(LandingPanel, {
+        loading: false,
+        boards,
+        selectedBoardId: boards[0]?.id ?? null,
+        onSelectBoard: () => undefined,
+        humanSeatMode: "none",
+        selectedHumanSeatId: null,
+        onSelectRandomHumanSeat: () => undefined,
+        onSelectFixedHumanSeat: () => undefined,
+        onSelectNoHumanSeat: () => undefined,
+        selectedAiFriendCount: 9,
+        customAiFriendCount: 0,
+        aiLineupPreview: [],
+        recentGameIds: [],
+        onLoadGame: async () => undefined,
+        onStartGame: async () => undefined,
+        classTrialThemeMode: "class-trial",
+        classTrialPackAvailable: false,
+        classTrialPackMessage:
+          "未找到本地主题素材包。请将素材放在 local-assets/class-trial-pack，并保持该目录不提交到 Git。 未找到本地角色卡。视觉主题可继续，AI 将使用普通行为。",
+        onSelectClassTrialThemeMode: () => undefined,
+      }),
+    );
+
+    expect(html).toContain("学级裁判主题局");
+    expect(html).toContain("本地限定");
+    expect(html).toContain("未找到本地主题素材包");
+    expect(html).toContain("未找到本地角色卡");
+    expect(html).toContain("/rooms");
+  });
+
   it("keeps the duplicate top start action off the home header", () => {
     const html = renderToStaticMarkup(
       createElement(RoomHeader, {

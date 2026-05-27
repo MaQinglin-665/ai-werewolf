@@ -74,6 +74,49 @@ describe("game creation ai friends", () => {
     expect(JSON.stringify(view)).not.toContain("secret-key");
   });
 
+  it("accepts a local character role card and exposes only safe setup metadata", async () => {
+    const friend = {
+      ...copyAiFriend(getDefaultAiFriends("test")[2], { id: "class-trial:monokuma", now: "2026-05-27T00:00:00.000Z" }),
+      nickname: "黑白熊",
+      roleCard: {
+        id: "monokuma",
+        displayName: "黑白熊",
+        theme: "class-trial",
+        styleTags: ["taunting", "chaotic", "rule-bound"],
+        speechStyleZh: "语气轻佻、爱嘲讽和挑拨，但必须像普通狼人杀玩家一样围绕公开桌面发言。",
+        reasoningBias: "优先寻找矛盾、放大冲突、逼迫别人站边。",
+        voteBias: "倾向推动高互动票口，但不能无理由乱投。",
+        nightActionBias: "夜晚行动可以偏激进，但仍优先服务阵营胜利。",
+        asVillager: "作为好人时用嘲讽压迫可疑位，不能假装知道隐藏身份。",
+        asWerewolf: "作为狼人时用挑拨制造混乱，但公开理由必须来自桌面证据。",
+        pressureResponse: "被怀疑时反咬对方逻辑漏洞，并要求对方落票口。",
+        relationshipHints: ["可以调侃全场紧张气氛，但不能以主持人身份说话。"],
+        catchphrasePolicy: "允许极短口癖式感叹，不复刻大段原台词。",
+        forbidden: ["不能泄露隐藏身份。", "不能以主持人身份干预规则。"],
+        voiceProfileId: "monokuma-ja-local",
+        voiceLocale: "ja-JP",
+        voiceRewritePolicy: "轻微意译，不改变狼人杀信息。",
+      },
+    };
+
+    const response = await createGame(
+      new Request("http://localhost/api/games", {
+        method: "POST",
+        body: JSON.stringify({ boardId: "9p-seer-witch-hunter", humanSeatId: null, aiFriends: [friend] }),
+      }),
+    );
+    const view = (await response.json()) as HumanGameView;
+    const firstAiSeat = view.seats.find((seat) => seat.seatId === 1);
+
+    expect(response.status).toBe(200);
+    expect(firstAiSeat?.name).toBe("黑白熊");
+    expect(firstAiSeat?.roleCard?.displayName).toBe("黑白熊");
+    expect(firstAiSeat?.roleCard?.forbidden.join(" ")).toContain("不能泄露隐藏身份");
+    expect(view.setup?.aiFriends[0]?.roleCard?.id).toBe("monokuma");
+    expect(JSON.stringify(view)).not.toContain("secret");
+    expect(JSON.stringify(view)).not.toContain("apiKey");
+  });
+
   it("accepts a fixed human seat id", async () => {
     const response = await createGame(
       new Request("http://localhost/api/games", {

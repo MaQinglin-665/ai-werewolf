@@ -60,6 +60,7 @@ export type LlmActionInput = {
   mySeatId: number;
   myRole: Role;
   persona?: AgentView["persona"];
+  characterRole?: NonNullable<AgentView["roleCard"]>;
   aliveSeats: ActionTarget[];
   publicContext: {
     recentSpeeches: AgentView["publicSummary"]["recentSpeeches"];
@@ -277,6 +278,7 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
     mySeatId: view.mySeatId,
     myRole: view.myRole,
     persona: view.persona,
+    characterRole: view.roleCard,
     aliveSeats: view.aliveSeats,
     publicContext: {
       recentSpeeches: view.publicSummary.recentSpeeches.slice(-8),
@@ -1244,6 +1246,15 @@ function buildActionConstraints(view: AgentView, votePlan?: VotePlan): string[] 
     "Consider counter-logic: if one behavior can be wolf push, distancing, or good-side mistake, choose the target whose public benefit trail is clearest.",
     "When two candidates are close, prefer the one whose public evidence forms a clearer loop from speech to stance to vote; do not select only because their suspicion number is higher.",
   ];
+
+  if (view.roleCard) {
+    constraints.push(
+      `The local character role card is soft guidance for this player: ${view.roleCard.displayName}.`,
+      "Use role-card reasoningBias, voteBias, nightActionBias, asVillager/asWerewolf, and pressureResponse only to break close strategic ties.",
+      "The role card is soft guidance; it must not override legal candidates, public evidence, hidden-information boundaries, or the player's camp win condition.",
+      ...view.roleCard.forbidden,
+    );
+  }
 
   if (
     view.phase === "DAY_VOTE" ||

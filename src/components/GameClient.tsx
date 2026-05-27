@@ -9,6 +9,7 @@ import type {
 import {
   ActionPanel,
   AuxiliaryInfoPanel,
+  ClassTrialGameTable,
   FlowStatusBar,
   GlossaryOverlay,
   HostStage,
@@ -67,6 +68,19 @@ import {
   loadGameView,
   submitGameCommand,
 } from "./game/gameClientRequests";
+import {
+  CLASS_TRIAL_DEFAULT_BOARD_ID,
+  CLASS_TRIAL_THEME_MODE_STORAGE_KEY,
+  buildClassTrialAiFriends,
+  getClassTrialPackStatus,
+  getClassTrialPersonasStatus,
+  getClassTrialThemeStatusMessage,
+  parseClassTrialThemeMode,
+  sanitizeClassTrialPersonas,
+  type ClassTrialPackManifest,
+  type ClassTrialPersonasFile,
+  type ClassTrialThemeMode,
+} from "./game/classTrialTheme";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
 import { buildLandingLineupPreview } from "./game/landingLineupPreview";
 import { MobileGameTable } from "./game/MobileGameTable";
@@ -134,6 +148,9 @@ export function GameClient() {
   const [aiLlmSecrets, setAiLlmSecrets] = useState<AiFriendLlmSecretMap>({});
   const [selectedAiFriendIds, setSelectedAiFriendIds] = useState<string[]>(getDefaultSelectedAiFriendIds);
   const [aiRuntimeMode, setAiRuntimeMode] = useState<AiRuntimeMode>("mock");
+  const [classTrialThemeMode, setClassTrialThemeMode] = useState<ClassTrialThemeMode>("default");
+  const [classTrialPackManifest, setClassTrialPackManifest] = useState<ClassTrialPackManifest | undefined>();
+  const [classTrialPersonas, setClassTrialPersonas] = useState<ClassTrialPersonasFile | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roleIntroGameId, setRoleIntroGameId] = useState<string | null>(null);
@@ -197,6 +214,13 @@ export function GameClient() {
       }),
     [humanSeatMode, selectedAiFriends, selectedBoard?.seatCount, selectedHumanSeatId],
   );
+  const classTrialPackStatus = useMemo(() => getClassTrialPackStatus(classTrialPackManifest), [classTrialPackManifest]);
+  const classTrialPersonasStatus = useMemo(() => getClassTrialPersonasStatus(classTrialPersonas), [classTrialPersonas]);
+  const classTrialStatusMessage = useMemo(
+    () => getClassTrialThemeStatusMessage(classTrialPackStatus, classTrialPersonasStatus),
+    [classTrialPackStatus, classTrialPersonasStatus],
+  );
+  const classTrialAiFriends = useMemo(() => buildClassTrialAiFriends(classTrialPersonas), [classTrialPersonas]);
 
   const selectBoard = useCallback(
     (boardId: string) => {
@@ -243,8 +267,39 @@ export function GameClient() {
       setAiLlmSecrets(readStoredAiFriendLlmSecrets());
       setSelectedAiFriendIds(readStoredSelectedAiFriendIds());
       setAiRuntimeMode(readStoredAiRuntimeMode());
+      setClassTrialThemeMode(parseClassTrialThemeMode(window.localStorage.getItem(CLASS_TRIAL_THEME_MODE_STORAGE_KEY)));
     }, 0);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/class-trial-pack/manifest.json")
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((manifest: ClassTrialPackManifest | undefined) => {
+        if (!cancelled) setClassTrialPackManifest(manifest);
+      })
+      .catch(() => {
+        if (!cancelled) setClassTrialPackManifest(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/class-trial-pack/personas.json")
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((raw: unknown) => {
+        if (!cancelled) setClassTrialPersonas(sanitizeClassTrialPersonas(raw));
+      })
+      .catch(() => {
+        if (!cancelled) setClassTrialPersonas(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -354,6 +409,11 @@ export function GameClient() {
       return next;
     });
   }, [stopAiSpeechAudio]);
+
+  const selectClassTrialThemeMode = useCallback((mode: ClassTrialThemeMode) => {
+    setClassTrialThemeMode(mode);
+    window.localStorage.setItem(CLASS_TRIAL_THEME_MODE_STORAGE_KEY, mode);
+  }, []);
 
   const playHostAudioCue = useCallback(
     async (cue: HostAudioCue, runId: number) => {
@@ -497,12 +557,17 @@ export function GameClient() {
     setLoading(true);
     setError(null);
     try {
+      const useFixedClassTrialLineup =
+        classTrialThemeMode === "class-trial" && classTrialPersonasStatus.available && classTrialAiFriends.length === 9;
       const view = await createGameView({
         boardId,
         selectedBoardId,
         humanSeatMode,
         selectedHumanSeatId,
         selectedAiFriends,
+        boardIdOverride: useFixedClassTrialLineup ? CLASS_TRIAL_DEFAULT_BOARD_ID : undefined,
+        humanSeatModeOverride: useFixedClassTrialLineup ? "none" : undefined,
+        aiFriendsOverride: useFixedClassTrialLineup ? classTrialAiFriends : undefined,
       });
       rememberGame(view.id);
       setRoleIntroGameId(view.humanSeatId === null ? null : view.id);
@@ -512,7 +577,16 @@ export function GameClient() {
     } finally {
       setLoading(false);
     }
-  }, [humanSeatMode, rememberGame, selectedAiFriends, selectedBoardId, selectedHumanSeatId]);
+  }, [
+    classTrialAiFriends,
+    classTrialPersonasStatus.available,
+    classTrialThemeMode,
+    humanSeatMode,
+    rememberGame,
+    selectedAiFriends,
+    selectedBoardId,
+    selectedHumanSeatId,
+  ]);
 
   const returnHome = useCallback(() => {
     setGame(null);
@@ -867,6 +941,7 @@ export function GameClient() {
   }, [stopAiSpeechAudio, stopHostAudio]);
 
   const latestEvents = useMemo(() => buildTableEventFeed(game), [game]);
+  const classTrialThemeActive = classTrialThemeMode === "class-trial" && Boolean(game);
 
   return (
     <main
@@ -877,7 +952,7 @@ export function GameClient() {
       }}
     >
       <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-4 px-3 py-3 sm:px-5 lg:px-7">
-        <div className={game ? "hidden sm:block" : ""}>
+        <div className={game ? (classTrialThemeActive ? "hidden" : "hidden sm:block") : ""}>
           <RoomHeader
             game={game}
             loading={loading}
@@ -916,30 +991,44 @@ export function GameClient() {
             recentGameIds={recentGameIds}
             onLoadGame={loadGameById}
             onStartGame={() => startGame(selectedBoardId ?? undefined)}
+            classTrialThemeMode={classTrialThemeMode}
+            classTrialPackAvailable={classTrialPackStatus.available && classTrialPersonasStatus.available}
+            classTrialPackMessage={classTrialStatusMessage}
+            onSelectClassTrialThemeMode={selectClassTrialThemeMode}
           />
         ) : (
           <div className="grid flex-1 gap-4">
-            <MobileGameTable
-              game={game}
-              loading={loading}
-              pendingCommandType={pendingCommandType}
-              liveAiSpeech={liveAiSpeech}
-              hostAudioEnabled={hostAudioEnabled}
-              aiSpeechAudioEnabled={aiSpeechAudioEnabled}
-              hostAudioStatus={hostAudioStatus}
-              aiSpeechAudioStatus={aiSpeechAudioStatus}
-              aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
-              events={latestEvents}
-              onNewGame={() => startGame()}
-              onReturnHome={returnHome}
-              onSubmit={submitCommand}
-              onOpenIdentityBook={() => setIdentityBookOpen(true)}
-              onOpenGlossary={() => setGlossaryOpen(true)}
-              onToggleAiSpeechAudio={toggleAiSpeechAudio}
-              onToggleHostAudio={toggleHostAudio}
-            />
+            {classTrialThemeActive ? (
+              <ClassTrialGameTable
+                game={game}
+                loading={loading}
+                manifest={classTrialPackManifest}
+                onReturnHome={returnHome}
+                onSubmit={submitCommand}
+              />
+            ) : (
+              <MobileGameTable
+                game={game}
+                loading={loading}
+                pendingCommandType={pendingCommandType}
+                liveAiSpeech={liveAiSpeech}
+                hostAudioEnabled={hostAudioEnabled}
+                aiSpeechAudioEnabled={aiSpeechAudioEnabled}
+                hostAudioStatus={hostAudioStatus}
+                aiSpeechAudioStatus={aiSpeechAudioStatus}
+                aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
+                events={latestEvents}
+                onNewGame={() => startGame()}
+                onReturnHome={returnHome}
+                onSubmit={submitCommand}
+                onOpenIdentityBook={() => setIdentityBookOpen(true)}
+                onOpenGlossary={() => setGlossaryOpen(true)}
+                onToggleAiSpeechAudio={toggleAiSpeechAudio}
+                onToggleHostAudio={toggleHostAudio}
+              />
+            )}
 
-            <div className="hidden gap-4 sm:grid">
+            {!classTrialThemeActive && <div className="hidden gap-4 sm:grid">
               <PhaseRhythm game={game} />
               <HostStage game={game} />
               <FlowStatusBar
@@ -967,7 +1056,7 @@ export function GameClient() {
                   <AuxiliaryInfoPanel game={game} events={latestEvents} />
                 </aside>
               </section>
-            </div>
+            </div>}
           </div>
         )}
       </div>

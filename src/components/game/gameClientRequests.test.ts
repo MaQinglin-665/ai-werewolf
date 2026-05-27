@@ -45,6 +45,48 @@ describe("gameClientRequests", () => {
     });
   });
 
+  it("creates a class-trial game with fixed 9 AI friends, fixed board, and spectator mode", async () => {
+    const view = { id: "class-trial-game" } as HumanGameView;
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(view));
+    const classTrialAiFriends = Array.from({ length: 9 }, (_, index) => ({
+      id: `class-trial:${index + 1}`,
+      nickname: `角色${index + 1}`,
+      basePersonaId: "gpt-balanced-organizer",
+      riskTolerance: 0.5,
+      bluffing: 0.5,
+      preferences: {
+        logic: 0.5,
+        identity: 0.5,
+        vote: 0.5,
+        emotion: 0.5,
+        memory: 0.5,
+        leadership: 0.5,
+        deception: 0.5,
+        caution: 0.5,
+      },
+      createdAt: "class-trial-local",
+      updatedAt: "class-trial-local",
+    })) as AiFriendConfig[];
+
+    await createGameView({
+      boardId: undefined,
+      selectedBoardId: "6p-beginner-seer",
+      humanSeatMode: "fixed",
+      selectedHumanSeatId: 2,
+      selectedAiFriends: [],
+      boardIdOverride: "9p-seer-witch-hunter",
+      humanSeatModeOverride: "none",
+      aiFriendsOverride: classTrialAiFriends,
+      fetcher: fetchMock,
+    });
+
+    expect(JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body))).toMatchObject({
+      boardId: "9p-seer-witch-hunter",
+      humanSeatId: null,
+      aiFriends: classTrialAiFriends,
+    });
+  });
+
   it("submits normal commands with runtime mode and LLM configs", async () => {
     const view = { id: "game-3" } as HumanGameView;
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(view));

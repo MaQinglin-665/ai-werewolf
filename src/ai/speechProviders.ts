@@ -67,6 +67,7 @@ export type LlmSpeechInput = {
   mySeatId: number;
   myRole: Role;
   persona?: AgentView["persona"];
+  characterRole?: NonNullable<AgentView["roleCard"]>;
   aliveSeats: ActionTarget[];
   tableBriefing: {
     text: string;
@@ -320,6 +321,7 @@ export function buildConstrainedSpeechInput(
     mySeatId: view.mySeatId,
     myRole: view.myRole,
     persona: view.persona,
+    characterRole: view.roleCard,
     aliveSeats: view.aliveSeats,
     tableBriefing: buildTableBriefing(view, plan, speechOrder, advancedReasoning, reasoningFrame, rolePlaybook, claimAudit, debateAgenda),
     publicContext: {
@@ -705,9 +707,19 @@ function buildPlayerSpeechGuide(
   const lowInfoOpeningLine = isLowInfoDayOneNoHardInfo(view)
     ? "低信息首轮不用强行站边或落票口：只给观察点、保留态度或审计跟压收益，不把前置位没站边当缺口。"
     : undefined;
+  const roleCard = view.roleCard;
+  const roleCardStyleLines = roleCard
+    ? [
+        `本地主题角色：${roleCard.displayName}。中文对白风格：${roleCard.speechStyleZh}`,
+        `角色推理偏好：${roleCard.reasoningBias}`,
+        `被怀疑时反应：${roleCard.pressureResponse}`,
+        `口癖边界：${roleCard.catchphrasePolicy}`,
+      ]
+    : [];
 
   return {
     tablePlayerStyle: [
+      ...roleCardStyleLines,
       lowInfoOpeningLine,
       lowInfoOpeningLine
         ? "像坐在桌边发言：2-3句短句，只抓一条主线；先给保留态度或观察点，再给1个公开理由，最后留下验证方向。"
@@ -747,6 +759,12 @@ function buildPlayerSpeechGuide(
       "已经发过言的位置只能回看其已发表内容，不要让他后面再补、轮到他再回应。",
       "不要把边角位、语气、短发言、划水这类软状态直接当铁狼证据。",
       "不要泄露私有身份信息；狼队视角、真实查验和女巫药瓶只能按角色策略决定是否公开。",
+      ...(roleCard
+        ? [
+            "角色卡只影响语气和轻度取舍，不能覆盖阵营胜利目标、公开事实边界或狼人杀规则。",
+            ...roleCard.forbidden,
+          ]
+        : []),
     ],
   };
 }

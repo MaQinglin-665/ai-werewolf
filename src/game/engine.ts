@@ -68,6 +68,7 @@ export function createGame(options: CreateGameOptions = {}): GameState {
       llmConfig: resolvedFriend?.config.llmConfig,
       ttsVoice: resolvedFriend?.config.ttsVoice,
       ttsConfig: resolvedFriend?.config.ttsConfig,
+      roleCard: resolvedFriend?.config.roleCard,
     };
   });
 
@@ -173,6 +174,7 @@ function buildLegacySetupSnapshot(state: GameState): GameSetupSnapshot {
           avatarDataUrl: seat.avatarDataUrl,
           ttsVoice: seat.ttsVoice,
           ttsConfig: seat.ttsConfig,
+          roleCard: seat.roleCard,
           isDefault: !seat.aiFriendId || seat.aiFriendId.startsWith(DEFAULT_AI_FRIEND_ID_PREFIX),
         };
       }),

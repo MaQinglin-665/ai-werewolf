@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { AiLineupPreviewItem, BoardOption, HumanSeatMode } from "./clientTypes";
+import type { ClassTrialThemeMode } from "./classTrialTheme";
 import { StatusPill } from "./PanelPrimitives";
 import {
   buildMobileLobbySeatIds,
@@ -28,6 +29,10 @@ export function LandingPanel({
   recentGameIds,
   onLoadGame,
   onStartGame,
+  classTrialThemeMode = "default",
+  classTrialPackAvailable = false,
+  classTrialPackMessage = "未找到本地主题素材包。请将素材放在 local-assets/class-trial-pack，并保持该目录不提交到 Git。",
+  onSelectClassTrialThemeMode = () => undefined,
 }: {
   loading: boolean;
   boards: BoardOption[];
@@ -44,6 +49,10 @@ export function LandingPanel({
   recentGameIds: string[];
   onLoadGame: (gameId: string) => Promise<void>;
   onStartGame: () => Promise<void>;
+  classTrialThemeMode?: ClassTrialThemeMode;
+  classTrialPackAvailable?: boolean;
+  classTrialPackMessage?: string;
+  onSelectClassTrialThemeMode?: (mode: ClassTrialThemeMode) => void;
 }) {
   const selectedBoard = selectedBoardId ? boards.find((board) => board.id === selectedBoardId) : undefined;
   const humanModeLabel = !selectedBoard
@@ -143,6 +152,51 @@ export function LandingPanel({
                 AI阵容 {selectedAiFriendCount}位 ›
               </Link>
             </div>
+            <section className="class-trial-mode-card rounded-2xl border border-[#d8c36d]/26 bg-[#14131d]/78 p-4 shadow-lg shadow-black/20">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d8c36d]/72">Local Theme</div>
+                  <h3 className="mt-1 text-base font-semibold text-[#fff2be]">学级裁判主题局</h3>
+                  <p className="mt-1 text-xs leading-5 text-[#c9bec7]">
+                    本地限定主题，只影响单机/观战局的固定角色、视觉和演出，不进入公网房间。
+                  </p>
+                </div>
+                <span className="rounded-full border border-[#f04b67]/35 bg-[#2d1018]/70 px-2 py-1 text-xs font-semibold text-[#ffd6dd]">
+                  本地限定
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  aria-pressed={classTrialThemeMode === "default"}
+                  onClick={() => onSelectClassTrialThemeMode("default")}
+                  className={[
+                    "rounded-xl border px-3 py-2 text-left text-xs transition",
+                    classTrialThemeMode === "default"
+                      ? "border-[#f1c76e]/58 bg-[#2c2015]/80 text-[#f7ead5]"
+                      : "border-white/10 bg-black/18 text-[#ad9c7d] hover:border-[#f1c76e]/35",
+                  ].join(" ")}
+                >
+                  默认狼人杀
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={classTrialThemeMode === "class-trial"}
+                  onClick={() => onSelectClassTrialThemeMode("class-trial")}
+                  className={[
+                    "rounded-xl border px-3 py-2 text-left text-xs transition",
+                    classTrialThemeMode === "class-trial"
+                      ? "border-[#d8c36d]/72 bg-[#2b2534]/88 text-[#fff2be]"
+                      : "border-white/10 bg-black/18 text-[#ad9c7d] hover:border-[#d8c36d]/45",
+                  ].join(" ")}
+                >
+                  学级裁判主题局
+                </button>
+              </div>
+              <p className={["mt-3 text-xs leading-5", classTrialPackAvailable ? "text-[#a8f0b6]" : "text-[#ffd6dd]"].join(" ")}>
+                {classTrialPackMessage}
+              </p>
+            </section>
             <div className="mobile-board-strip grid gap-3 md:grid-cols-2">
               {boards.map((board) => {
                 const selected = selectedBoardId === board.id;
