@@ -2,8 +2,8 @@
 
 ## Current Objective
 
-- Goal: Ship the first local-only `学级裁判主题局` foundation slice for single-player AI Werewolf.
-- Current status: Model, homepage entry, missing-pack status, localStorage mode selection, local ignored asset pack, first themed table shell, and browser/manual verification are complete. Branch is ready for integration choice.
+- Goal: Prepare the next local-only `学级裁判主题局` fixed-persona slice for single-player AI Werewolf.
+- Current status: Theme foundation is complete. Fixed 9-character persona behavior has an approved chat design and a written spec at `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`; next step is user review, then implementation planning.
 - Branch / worktree: `codex/class-trial-theme-foundation` at `D:\ai-werewolf\.worktrees\class-trial-theme-foundation`.
 - Base note: this worktree was created from `c75b4f5`; the main worktree had unrelated dirty changes and should be merged carefully.
 
@@ -26,6 +26,8 @@
 - [x] Added a local-only `/class-trial-pack/...` route that serves files from `local-assets/class-trial-pack`.
 - [x] Wired the theme table to show the fixed 9-character roster, seat avatars, and active speaker portrait.
 - [x] Replaced mixed-size speaking portraits with closer-size fullbody transparent PNGs, roughly matching `千早爱音`; old half-body downloads are backed up in ignored `local-assets/class-trial-pack/portraits-halfbody-backup`.
+- [x] Created `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md` for local-only fixed 9-character AI behavior.
+- [x] Recorded `class-trial-fixed-personas` in `feature_list.json` as the next not-started feature.
 
 ## Verification Evidence
 
@@ -47,11 +49,13 @@
 | Local asset HTTP checks | `GET /class-trial-pack/manifest.json`; `GET /class-trial-pack/portraits/苗木诚.png` | passed | Both returned 200; portrait content type was `image/png`. |
 | Browser/manual asset flow | in-app Browser at `http://127.0.0.1:3012` | passed | 9 seat avatars rendered; after continuing into speech, active portrait rendered for `江之岛盾子`. |
 | Browser/manual portrait sizing | in-app Browser at `http://127.0.0.1:3012` | passed | Continued through speech samples; human character portraits used the same visible 352px image box and closer source heights. |
+| Fixed persona spec self-review | `Select-String ... TBD|TODO|待定` and manual consistency readback | passed | No placeholders; fixed seats, local-only scope, Public Alpha exclusion, and Japanese voice-line boundary are explicit. |
 
 ## Files Changed
 
 - `.gitignore`
 - `docs/tasks/2026-05-class-trial-theme-mode-foundation.md`
+- `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`
 - `feature_list.json`
 - `progress.md`
 - `session-handoff.md`
@@ -74,6 +78,8 @@
 - The first slice is visual/entry foundation only; no rules, server, room, real asset, or TTS routing changes.
 - The hidden role identity remains hidden in the themed shell.
 - Private asset packs should live in ignored local paths and be loaded by convention later.
+- Fixed-persona mode uses fixed seats and local-only `personas.json`, not random seats and not AI-pool skinning.
+- Dialogue remains Chinese; future GPT-SoVITS should use separately generated Japanese voice text with light adaptation.
 
 ## Blockers / Risks
 
@@ -81,6 +87,7 @@
 - Local portraits/avatars are copyright/reference assets for local private testing only; do not publish them in Public Alpha or commit them to Git.
 - 黑白熊 remains a special case because the best available fullbody source is much shorter than human characters.
 - First slice now proves local image display, but still does not prove voice playback, typewriter sync, or character-persona prompting.
+- Fixed-persona design is not implemented yet; no `personas.json` route, fixed AI lineup replacement, or prompt injection has been added.
 - The themed shell should be expanded later for human action controls, asset-manifest loading, and the 9 GPT-SoVITS voice routes.
 - Browser verification used the main local SQLite `DATABASE_URL` because this isolated worktree has no `.env`; repository `.env` and database files were not edited.
 
@@ -89,9 +96,10 @@
 1. Read `AGENTS.md`.
 2. Read `progress.md`, `feature_list.json`, and this handoff.
 3. Read `docs/tasks/2026-05-class-trial-theme-mode-foundation.md`.
-4. Use the verification evidence above before deciding whether to merge.
-5. Continue from `D:\ai-werewolf\.worktrees\class-trial-theme-foundation` on branch `codex/class-trial-theme-foundation`.
+4. Read `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`.
+5. Use the verification evidence above before deciding whether to merge.
+6. Continue from `D:\ai-werewolf\.worktrees\class-trial-theme-foundation` on branch `codex/class-trial-theme-foundation`.
 
 ## Recommended Next Step
 
-- Choose whether to merge the worktree branch or keep it isolated for the next slice.
+- If the user approves the fixed-persona spec, write the implementation plan next.

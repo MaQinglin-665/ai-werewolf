@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-27 21:30 Asia/Shanghai
-**Session ID:** class-trial theme mode foundation
-**Active Feature:** class-trial-theme-mode-foundation - Class Trial Theme Mode Foundation
+**Last Updated:** 2026-05-27 21:42 Asia/Shanghai
+**Session ID:** class-trial fixed personas design
+**Active Feature:** class-trial-fixed-personas - Class Trial Fixed Personas
 
 ## Status
 
@@ -26,15 +26,17 @@
 - [x] Theme table maps seats to the fixed 9-character class-trial roster and displays pack avatars/portraits when present.
 - [x] Speaking portraits were switched from mixed half-body crops to closer-size fullbody transparent PNGs, roughly matching `千早爱音` height; the old half-body downloads are backed up in ignored `local-assets/class-trial-pack/portraits-halfbody-backup`.
 - [x] Default rooms/Public Alpha surfaces were not edited.
+- [x] Fixed 9-character persona design recorded in `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`.
 
 ### What's In Progress
 
-- [ ] Awaiting integration choice for `codex/class-trial-theme-foundation`.
+- [ ] Awaiting user review of `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`.
 
 ### What's Next
 
-1. Choose whether to merge this branch locally, push/create PR, or keep the worktree as-is.
-2. Next feature slice should add local manifest/asset preview before GPT-SoVITS routing.
+1. If the fixed-persona spec is approved, write the implementation plan.
+2. Then implement local `personas.json`, fixed 9-person AI lineup replacement, and prompt injection.
+3. Keep GPT-SoVITS and Japanese voice-line generation as a later slice.
 
 ## Blockers / Risks
 
@@ -52,11 +54,14 @@
 - Keep existing werewolf rules unchanged; the theme only changes presentation and later voice/persona routing.
 - Store private images and voice assets under ignored local paths, not in git.
 - Wait for all 9 role voices before implementing full GPT-SoVITS routing.
+- Fixed persona slice uses fixed seats and local-only `personas.json`, overriding the earlier open idea of random seats for this theme.
+- The dialogue box remains Chinese; later GPT-SoVITS should speak Japanese from a separately generated, lightly adapted voice script.
 
 ## Files Modified This Session
 
 - `.gitignore`
 - `docs/tasks/2026-05-class-trial-theme-mode-foundation.md`
+- `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`
 - `feature_list.json`
 - `progress.md`
 - `session-handoff.md`
@@ -89,8 +94,10 @@
 - [x] Local pack HTTP checks: `GET /class-trial-pack/manifest.json` and `GET /class-trial-pack/portraits/苗木诚.png` returned 200.
 - [x] Browser/manual asset flow: 9 seat avatars rendered, then after advancing to speech the active portrait rendered for `江之岛盾子`.
 - [x] Browser/manual sizing check: after continuing through speech, `苗木诚`, `雾切响子`, `腐川冬子`, `江之岛盾子`, `塞蕾丝缇雅`, and `十神白夜` used the same visible portrait box height; source heights are now close to `千早爱音` except `黑白熊`.
+- [x] Fixed persona spec self-review: no TODO/TBD placeholders; local-only, fixed seats, Public Alpha exclusion, and future Japanese voice-line boundary are explicit.
 
 ## Notes for Next Session
 
 Use `AGENTS.md` first. Then read this file, `feature_list.json`, `session-handoff.md`,
-and `docs/tasks/2026-05-class-trial-theme-mode-foundation.md`.
+`docs/tasks/2026-05-class-trial-theme-mode-foundation.md`, and
+`docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`.
