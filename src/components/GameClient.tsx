@@ -910,7 +910,7 @@ export function GameClient() {
       }}
     >
       <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-4 px-3 py-3 sm:px-5 lg:px-7">
-        <div className={game ? "hidden sm:block" : ""}>
+        <div className={game ? (classTrialThemeActive ? "hidden" : "hidden sm:block") : ""}>
           <RoomHeader
             game={game}
             loading={loading}

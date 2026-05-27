@@ -106,14 +106,42 @@ If a check cannot be run, record the reason in the handoff.
 
 ```text
 Completed:
-- ...
+- Added ignored local asset convention via /local-assets/.
+- Added class trial theme model, roster metadata, pack status helper, and focused tests.
+- Added homepage 学级裁判主题局 selector with missing-pack status and localStorage mode persistence.
+- Added first class-trial ring-table shell with central phase/speaker info, foreground speaker placeholder, dialogue box, and hidden identity.
+- Hid the global identity button while the class-trial theme shell is active.
+- Left rooms/Public Alpha and rules/server code untouched.
 
 Changed files:
-- ...
+- .gitignore
+- src/components/GameClient.tsx
+- src/components/game/LandingPanel.tsx
+- src/components/game/GamePanels.tsx
+- src/components/game/ClassTrialGameTable.tsx
+- src/components/game/classTrialTheme.ts
+- src/components/game/classTrialTheme.test.ts
+- src/components/game/classTrialGameTable.test.ts
+- src/components/game/gamePanelsMobile.test.ts
+- src/app/globals.css
+- feature_list.json
+- progress.md
+- session-handoff.md
+- docs/tasks/2026-05-class-trial-theme-mode-foundation.md
 
 Verification:
-- ...
+- Passed: npm run test -- src/components/game/classTrialTheme.test.ts
+- Passed: npm run test -- src/components/game/gamePanelsMobile.test.ts
+- Passed: npm run test -- src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts
+- Passed: npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts
+- Passed: npm run lint
+- Passed: npm run harness:task-card -- docs/tasks/2026-05-class-trial-theme-mode-foundation.md
+- Passed: npm run harness:check
+- Passed: browser/manual flow at http://127.0.0.1:3012, homepage -> 学级裁判主题局 -> 9 人预女猎 -> 无真人 -> themed shell.
+- Passed: browser/manual /rooms check did not expose 学级裁判主题局.
+- Known unrelated failure: npx tsc --noEmit fails at src/server/gameService.ts(739,36) for an implicit-any tx parameter.
 
 Remaining risks:
-- ...
+- First slice uses placeholder visuals and does not include real portraits, GPT-SoVITS routing, typewriter voice sync, or LLM persona behavior.
+- Themed shell is optimized for local spectator/continue flow first; richer human action controls should be a later slice.
 ```
