@@ -2,10 +2,21 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { AiPoolClient } from "./AiPoolClient";
+import { AiPoolClient, reconcileRoleRosterSelection } from "./AiPoolClient";
 
 function renderAiPoolClientHtml(): string {
   return renderToStaticMarkup(createElement(AiPoolClient));
+}
+
+function expectHtmlOrder(html: string, ...anchors: string[]): void {
+  const positions = anchors.map((anchor) => {
+    const index = html.indexOf(anchor);
+    expect(index, `expected HTML anchor to exist: ${anchor}`).toBeGreaterThanOrEqual(0);
+    return index;
+  });
+  for (let index = 1; index < positions.length; index += 1) {
+    expect(positions[index - 1]!, `${anchors[index - 1]} should render before ${anchors[index]}`).toBeLessThan(positions[index]!);
+  }
 }
 
 describe("AiPoolClient mobile layout", () => {
@@ -41,10 +52,8 @@ describe("AiPoolClient mobile layout", () => {
   it("puts AI mode before the pool and keeps quick add behind an overlay entry", () => {
     const html = renderAiPoolClientHtml();
 
-    expect(html.indexOf("对局 AI 模式")).toBeLessThan(html.indexOf("角色名册</h2>"));
-    expect(html.indexOf("对局 AI 模式")).toBeLessThan(html.indexOf("批量 LLM 配置"));
-    expect(html.indexOf("批量 LLM 配置")).toBeLessThan(html.indexOf("角色名册</h2>"));
-    expect(html.indexOf("对局 AI 模式")).toBeLessThan(html.indexOf("快速新增AI"));
+    expectHtmlOrder(html, "对局 AI 模式", "批量 LLM 配置", "角色名册</h2>");
+    expectHtmlOrder(html, "对局 AI 模式", "快速新增AI");
     expect(html).toContain("LLM 预设");
     expect(html).toContain("只补齐还没配置模型的 AI");
     expect(html).toContain("替换所有已勾选 AI 的 LLM 配置");
@@ -112,5 +121,25 @@ describe("AiPoolClient mobile layout", () => {
     const html = renderAiPoolClientHtml();
 
     expect(html).toContain("人设和打法扮演只在真实 LLM 生效");
+  });
+
+  it("replaces stale selected ids with overwritten imported role ids", () => {
+    expect(
+      reconcileRoleRosterSelection({
+        mode: "overwrite",
+        currentSelectedIds: ["default:deepseek", "friend-old-custom"],
+        importedRoleIds: ["friend-imported-1", "friend-imported-2"],
+      }),
+    ).toEqual(["friend-imported-1", "friend-imported-2"]);
+  });
+
+  it("appends imported role ids to the existing selection without duplicates", () => {
+    expect(
+      reconcileRoleRosterSelection({
+        mode: "append",
+        currentSelectedIds: ["default:deepseek", "friend-imported-1"],
+        importedRoleIds: ["friend-imported-1", "friend-imported-2"],
+      }),
+    ).toEqual(["default:deepseek", "friend-imported-1", "friend-imported-2"]);
   });
 });

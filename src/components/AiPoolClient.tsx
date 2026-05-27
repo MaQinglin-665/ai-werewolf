@@ -317,6 +317,20 @@ function updateRoleCardField(
   return { roleCard };
 }
 
+export function reconcileRoleRosterSelection({
+  mode,
+  currentSelectedIds,
+  importedRoleIds,
+}: {
+  mode: "append" | "overwrite";
+  currentSelectedIds: string[];
+  importedRoleIds: string[];
+}): string[] {
+  const uniqueImportedIds = importedRoleIds.filter((id, index, values) => values.indexOf(id) === index);
+  if (mode === "overwrite") return uniqueImportedIds;
+  return [...currentSelectedIds, ...uniqueImportedIds].filter((id, index, values) => values.indexOf(id) === index);
+}
+
 export function AiPoolClient() {
   const [loaded, setLoaded] = useState(false);
   const [customAiFriends, setCustomAiFriends] = useState<AiFriendConfig[]>([]);
@@ -610,8 +624,18 @@ export function AiPoolClient() {
     (mode: "append" | "overwrite") => {
       try {
         const imported = parseAiFriendRoleRosterExport(roleRosterImportText);
-        setCustomAiFriends((current) =>
-          mode === "append" ? appendImportedRoleRoster(current, imported) : overwriteImportedRoleRoster(imported),
+        const previousCustomCount = customAiFriends.length;
+        const nextCustomAiFriends =
+          mode === "append" ? appendImportedRoleRoster(customAiFriends, imported) : overwriteImportedRoleRoster(imported);
+        const importedRoleIds =
+          mode === "append" ? nextCustomAiFriends.slice(previousCustomCount).map((friend) => friend.id) : nextCustomAiFriends.map((friend) => friend.id);
+        setCustomAiFriends(nextCustomAiFriends);
+        setSelectedAiFriendIds((current) =>
+          reconcileRoleRosterSelection({
+            mode,
+            currentSelectedIds: current,
+            importedRoleIds,
+          }),
         );
         setRoleRosterError(mode === "append" ? "已追加导入角色。" : "已覆盖当前本地角色。");
         setRoleRosterImportOpen(false);
@@ -619,7 +643,7 @@ export function AiPoolClient() {
         setRoleRosterError(error instanceof Error ? error.message : "角色名册导入失败。");
       }
     },
-    [roleRosterImportText],
+    [customAiFriends, roleRosterImportText],
   );
 
   const saveAiFriendLlmConfig = useCallback((friend: AiFriendOption, llmConfig: AiFriendLlmConfig, apiKey: string) => {
