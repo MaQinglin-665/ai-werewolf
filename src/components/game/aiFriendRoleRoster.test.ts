@@ -50,6 +50,7 @@ describe("ai friend role roster", () => {
   });
 
   it("parses role roster exports and sanitizes long fields", () => {
+    const defaultPersonaId = getDefaultAiFriends()[0]!.basePersonaId;
     const raw = JSON.stringify({
       version: 1,
       exportedAt: "2026-05-27T01:00:00.000Z",
@@ -57,7 +58,7 @@ describe("ai friend role roster", () => {
         {
           nickname: "  侦探角色  ",
           avatarDataUrl: "data:image/webp;base64,AAAA",
-          basePersonaId: "deepseek",
+          basePersonaId: defaultPersonaId,
           roleCard: {
             source: "x".repeat(100),
             speakingStyle: "y".repeat(300),
@@ -76,6 +77,29 @@ describe("ai friend role roster", () => {
     expect(roles[0]!.roleCard?.speakingStyle).toHaveLength(240);
     expect(roles[0]!.roleCard?.reasoningStyle).toHaveLength(240);
     expect(roles[0]!.roleCard?.avoid).toHaveLength(240);
+  });
+
+  it("filters imported roles with unsupported base persona ids", () => {
+    const raw = JSON.stringify({
+      version: 1,
+      exportedAt: "2026-05-27T01:00:00.000Z",
+      roles: [
+        {
+          nickname: "无效模板",
+          basePersonaId: "missing-persona",
+          roleCard: {
+            source: "角色来源",
+            speakingStyle: "像角色说话。",
+            reasoningStyle: "像角色推理。",
+            avoid: "不要出戏。",
+          },
+        },
+      ],
+    });
+
+    const roles = parseAiFriendRoleRosterExport(raw);
+
+    expect(roles).toEqual([]);
   });
 
   it("appends imported roles with new ids and preserves existing roles", () => {

@@ -1,7 +1,6 @@
 import {
   AI_FRIENDS_EXPORT_VERSION,
   createAiFriendId,
-  getDefaultAiFriends,
   sanitizeAiFriendConfig,
   sanitizeAiFriendRoleCard,
 } from "@/game/aiFriends";
@@ -93,8 +92,7 @@ function roleOnlyCopies(imported: AiFriendConfig[], options: RoleRosterImportOpt
 
 function toRoleOnlyFriend(value: unknown, index: number): AiFriendConfig | undefined {
   if (!isRecord(value)) return undefined;
-  const fallbackPersonaId = getDefaultAiFriends()[0]?.basePersonaId;
-  const roleOnlyConfig = {
+  return sanitizeAiFriendConfig({
     id: `role-import:${index}`,
     nickname: value.nickname,
     basePersonaId: value.basePersonaId,
@@ -105,8 +103,7 @@ function toRoleOnlyFriend(value: unknown, index: number): AiFriendConfig | undef
     preferences: {},
     createdAt: "import",
     updatedAt: "import",
-  };
-  return sanitizeAiFriendConfig(roleOnlyConfig) ?? sanitizeAiFriendConfig({ ...roleOnlyConfig, basePersonaId: fallbackPersonaId });
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
