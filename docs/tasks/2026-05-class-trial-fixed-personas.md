@@ -123,20 +123,44 @@ If a check cannot be run, record the reason in the handoff.
 
 ```text
 Completed:
-- Planning only so far.
+- Implemented local-only fixed 9-character role cards for 学级裁判主题局.
+- Added safe role-card persistence from AI friend config through seats, setup snapshots, human view, and AgentView.
+- Added local personas parsing/status, fixed lineup construction, fixed spectator-game startup, and role-card prompt injection for speech/action.
+- Created ignored local-assets/class-trial-pack/personas.json and confirmed it remains ignored.
 
 Changed files:
-- docs/superpowers/plans/2026-05-27-class-trial-fixed-personas.md
 - docs/tasks/2026-05-class-trial-fixed-personas.md
 - feature_list.json
 - progress.md
 - session-handoff.md
+- src/game/types.ts
+- src/game/aiFriends.ts
+- src/game/engine.ts
+- src/game/projection.ts
+- src/app/api/games/route.ts
+- src/app/api/games/aiFriends.test.ts
+- src/components/GameClient.tsx
+- src/components/game/classTrialTheme.ts
+- src/components/game/classTrialTheme.test.ts
+- src/components/game/gameClientRequests.ts
+- src/components/game/gameClientRequests.test.ts
+- src/components/game/LandingPanel.tsx
+- src/components/game/gamePanelsMobile.test.ts
+- src/ai/speechProviders.ts
+- src/ai/speechProviders.test.ts
+- src/ai/actionProviders.ts
+- src/ai/actionProviders.test.ts
+- local-assets/class-trial-pack/personas.json (ignored local file, not committed)
 
 Verification:
-- Pending implementation execution.
+- npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/gameClientRequests.test.ts src/components/game/gamePanelsMobile.test.ts src/app/api/games/aiFriends.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts src/app/class-trial-pack/[...assetPath]/route.test.ts
+- npm run lint
+- npx tsc --noEmit
+- npm run harness:task-card -- docs/tasks/2026-05-class-trial-fixed-personas.md
+- npm run harness:check
+- Playwright browser flow at http://127.0.0.1:51624 confirmed fixed 9-character spectator table, AI speech, and no /rooms theme entry.
 
 Remaining risks:
-- Local role-card prompts still need implementation and browser verification.
-- local-assets/class-trial-pack/personas.json must remain ignored and uncommitted.
-- Public Alpha and /rooms must remain unaffected.
+- GPT-SoVITS Japanese voice routing, voice-text rewrite, and typewriter sync remain future work.
+- local-assets/class-trial-pack/personas.json and local portraits/avatars must remain ignored and private.
 ```

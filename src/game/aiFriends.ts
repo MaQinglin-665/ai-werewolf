@@ -1,6 +1,6 @@
 import { getAiPersonaById, getAiRoster } from "./personas";
 import { formatAiFriendLlmModelLabel, sanitizeAiFriendLlmConfig, sanitizeAiFriendTtsConfig } from "./llmConfig";
-import type { AiFriendConfig, AiFriendSeatSetup, AiPersona, AiPersonaPreferences } from "./types";
+import type { AiCharacterRoleCard, AiFriendConfig, AiFriendSeatSetup, AiPersona, AiPersonaPreferences } from "./types";
 
 export const AI_FRIENDS_STORAGE_KEY = "ai-werewolf-ai-friends-v1";
 export const AI_FRIEND_SELECTION_STORAGE_KEY = "ai-werewolf-selected-ai-friends-v1";
@@ -132,6 +132,7 @@ export function sanitizeAiFriendConfig(value: unknown): AiFriendConfig | undefin
     llmConfig: sanitizeAiFriendLlmConfig(value.llmConfig),
     ttsVoice: sanitizeTtsVoice(readString(value.ttsVoice, 80)),
     ttsConfig: sanitizeAiFriendTtsConfig(value.ttsConfig),
+    roleCard: sanitizeAiCharacterRoleCard(value.roleCard),
     riskTolerance: clampUnit(value.riskTolerance, basePersona.riskTolerance),
     bluffing: clampUnit(value.bluffing, basePersona.bluffing),
     preferences: normalizePreferences(isRecord(value.preferences) ? value.preferences : basePersona.preferences),
@@ -176,6 +177,7 @@ export function resolveAiFriendsForGame(selectedFriends: AiFriendConfig[] | unde
         avatarDataUrl: config.avatarDataUrl,
         ttsVoice: config.ttsVoice,
         ttsConfig: config.ttsConfig,
+        roleCard: config.roleCard,
         isDefault: isDefaultAiFriend(config),
       },
     });
@@ -233,6 +235,56 @@ function sanitizeTtsVoice(value: string | undefined): string | undefined {
   return clean || undefined;
 }
 
+export function sanitizeAiCharacterRoleCard(value: unknown): AiCharacterRoleCard | undefined {
+  if (!isRecord(value)) return undefined;
+  const id = readString(value.id, 80);
+  const displayName = readString(value.displayName, 40);
+  const theme = readString(value.theme, 60);
+  const speechStyleZh = readString(value.speechStyleZh, 260);
+  const reasoningBias = readString(value.reasoningBias, 220);
+  const voteBias = readString(value.voteBias, 220);
+  const nightActionBias = readString(value.nightActionBias, 220);
+  const asVillager = readString(value.asVillager, 220);
+  const asWerewolf = readString(value.asWerewolf, 220);
+  const pressureResponse = readString(value.pressureResponse, 220);
+  const catchphrasePolicy = readString(value.catchphrasePolicy, 220);
+  if (
+    !id ||
+    !displayName ||
+    !theme ||
+    !speechStyleZh ||
+    !reasoningBias ||
+    !voteBias ||
+    !nightActionBias ||
+    !asVillager ||
+    !asWerewolf ||
+    !pressureResponse ||
+    !catchphrasePolicy
+  ) {
+    return undefined;
+  }
+
+  return {
+    id,
+    displayName,
+    theme,
+    styleTags: readStringArray(value.styleTags, 8, 40),
+    speechStyleZh,
+    reasoningBias,
+    voteBias,
+    nightActionBias,
+    asVillager,
+    asWerewolf,
+    pressureResponse,
+    relationshipHints: readStringArray(value.relationshipHints, 12, 120),
+    catchphrasePolicy,
+    forbidden: readStringArray(value.forbidden, 12, 120),
+    voiceProfileId: sanitizeOptionalIdentifier(readString(value.voiceProfileId, 80)),
+    voiceLocale: sanitizeOptionalIdentifier(readString(value.voiceLocale, 20)),
+    voiceRewritePolicy: readString(value.voiceRewritePolicy, 180),
+  };
+}
+
 function sanitizeAiFriendAvatarDataUrl(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const clean = value.trim();
@@ -249,6 +301,19 @@ function clampUnit(value: unknown, fallback: number): number {
 
 function readString(value: unknown, maxLength: number): string | undefined {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : undefined;
+}
+
+function readStringArray(value: unknown, maxItems: number, maxLength: number): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => readString(item, maxLength))
+    .filter((item): item is string => Boolean(item))
+    .slice(0, maxItems);
+}
+
+function sanitizeOptionalIdentifier(value: string | undefined): string | undefined {
+  const clean = value?.replace(/\s+/g, "-");
+  return clean || undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

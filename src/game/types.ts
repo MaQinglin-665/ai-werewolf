@@ -126,6 +126,7 @@ export type Seat = {
   llmConfig?: AiFriendLlmConfig;
   ttsVoice?: string;
   ttsConfig?: AiFriendTtsConfig;
+  roleCard?: AiCharacterRoleCard;
 };
 
 export type SeerCheck = {
@@ -232,6 +233,26 @@ export type AiPersonaPreferences = {
   caution: number;
 };
 
+export type AiCharacterRoleCard = {
+  id: string;
+  displayName: string;
+  theme: string;
+  styleTags: string[];
+  speechStyleZh: string;
+  reasoningBias: string;
+  voteBias: string;
+  nightActionBias: string;
+  asVillager: string;
+  asWerewolf: string;
+  pressureResponse: string;
+  relationshipHints: string[];
+  catchphrasePolicy: string;
+  forbidden: string[];
+  voiceProfileId?: string;
+  voiceLocale?: string;
+  voiceRewritePolicy?: string;
+};
+
 export type AiFriendLlmConfig = {
   provider: "openai-compatible";
   label?: string;
@@ -268,6 +289,7 @@ export type AiFriendConfig = {
   llmConfig?: AiFriendLlmConfig;
   ttsVoice?: string;
   ttsConfig?: AiFriendTtsConfig;
+  roleCard?: AiCharacterRoleCard;
   riskTolerance: number;
   bluffing: number;
   preferences: AiPersonaPreferences;
@@ -285,6 +307,7 @@ export type AiFriendSeatSetup = {
   avatarDataUrl?: string;
   ttsVoice?: string;
   ttsConfig?: AiFriendTtsConfig;
+  roleCard?: AiCharacterRoleCard;
   isDefault: boolean;
 };
 
@@ -982,6 +1005,7 @@ export type HumanGameView = {
     avatarDataUrl?: string;
     ttsVoice?: string;
     ttsConfig?: AiFriendTtsConfig;
+    roleCard?: AiCharacterRoleCard;
   }>;
   publicEvents: Array<Pick<GameEvent, "seq" | "type" | "day" | "phase" | "actorSeatId" | "message" | "payload">>;
   privateEvents: Array<Pick<GameEvent, "seq" | "type" | "day" | "phase" | "actorSeatId" | "message" | "payload">>;
@@ -1032,6 +1056,7 @@ export type AgentView = {
   myRole: Role;
   persona?: AiPersona;
   llmConfig?: AiFriendRuntimeLlmConfig;
+  roleCard?: AiCharacterRoleCard;
   aliveSeats: ActionTarget[];
   daySpeechOrder?: {
     queue: ActionTarget[];

@@ -158,7 +158,7 @@ export function LandingPanel({
                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d8c36d]/72">Local Theme</div>
                   <h3 className="mt-1 text-base font-semibold text-[#fff2be]">学级裁判主题局</h3>
                   <p className="mt-1 text-xs leading-5 text-[#c9bec7]">
-                    本地限定主题，只影响单机/观战局的角色、视觉和演出，不进入公网房间。
+                    本地限定主题，只影响单机/观战局的固定角色、视觉和演出，不进入公网房间。
                   </p>
                 </div>
                 <span className="rounded-full border border-[#f04b67]/35 bg-[#2d1018]/70 px-2 py-1 text-xs font-semibold text-[#ffd6dd]">

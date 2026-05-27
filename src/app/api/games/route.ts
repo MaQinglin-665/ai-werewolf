@@ -5,6 +5,26 @@ import { z } from "zod";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const roleCardSchema = z.object({
+  id: z.string().min(1).max(80),
+  displayName: z.string().min(1).max(40),
+  theme: z.string().min(1).max(60),
+  styleTags: z.array(z.string().min(1).max(40)).max(8).default([]),
+  speechStyleZh: z.string().min(1).max(260),
+  reasoningBias: z.string().min(1).max(220),
+  voteBias: z.string().min(1).max(220),
+  nightActionBias: z.string().min(1).max(220),
+  asVillager: z.string().min(1).max(220),
+  asWerewolf: z.string().min(1).max(220),
+  pressureResponse: z.string().min(1).max(220),
+  relationshipHints: z.array(z.string().min(1).max(120)).max(12).default([]),
+  catchphrasePolicy: z.string().min(1).max(220),
+  forbidden: z.array(z.string().min(1).max(120)).max(12).default([]),
+  voiceProfileId: z.string().min(1).max(80).optional(),
+  voiceLocale: z.string().min(1).max(20).optional(),
+  voiceRewritePolicy: z.string().min(1).max(180).optional(),
+});
+
 const createGameSchema = z
   .object({
     boardId: z.string().min(1).max(80).optional(),
@@ -37,6 +57,7 @@ const createGameSchema = z
               authHeader: z.string().min(1).max(80).optional(),
             })
             .optional(),
+          roleCard: roleCardSchema.optional(),
           riskTolerance: z.number().min(0).max(1),
           bluffing: z.number().min(0).max(1),
           preferences: z.object({

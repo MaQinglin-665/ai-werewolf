@@ -69,10 +69,16 @@ import {
   submitGameCommand,
 } from "./game/gameClientRequests";
 import {
+  CLASS_TRIAL_DEFAULT_BOARD_ID,
   CLASS_TRIAL_THEME_MODE_STORAGE_KEY,
+  buildClassTrialAiFriends,
   getClassTrialPackStatus,
+  getClassTrialPersonasStatus,
+  getClassTrialThemeStatusMessage,
   parseClassTrialThemeMode,
+  sanitizeClassTrialPersonas,
   type ClassTrialPackManifest,
+  type ClassTrialPersonasFile,
   type ClassTrialThemeMode,
 } from "./game/classTrialTheme";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
@@ -144,6 +150,7 @@ export function GameClient() {
   const [aiRuntimeMode, setAiRuntimeMode] = useState<AiRuntimeMode>("mock");
   const [classTrialThemeMode, setClassTrialThemeMode] = useState<ClassTrialThemeMode>("default");
   const [classTrialPackManifest, setClassTrialPackManifest] = useState<ClassTrialPackManifest | undefined>();
+  const [classTrialPersonas, setClassTrialPersonas] = useState<ClassTrialPersonasFile | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roleIntroGameId, setRoleIntroGameId] = useState<string | null>(null);
@@ -208,6 +215,12 @@ export function GameClient() {
     [humanSeatMode, selectedAiFriends, selectedBoard?.seatCount, selectedHumanSeatId],
   );
   const classTrialPackStatus = useMemo(() => getClassTrialPackStatus(classTrialPackManifest), [classTrialPackManifest]);
+  const classTrialPersonasStatus = useMemo(() => getClassTrialPersonasStatus(classTrialPersonas), [classTrialPersonas]);
+  const classTrialStatusMessage = useMemo(
+    () => getClassTrialThemeStatusMessage(classTrialPackStatus, classTrialPersonasStatus),
+    [classTrialPackStatus, classTrialPersonasStatus],
+  );
+  const classTrialAiFriends = useMemo(() => buildClassTrialAiFriends(classTrialPersonas), [classTrialPersonas]);
 
   const selectBoard = useCallback(
     (boardId: string) => {
@@ -268,6 +281,21 @@ export function GameClient() {
       })
       .catch(() => {
         if (!cancelled) setClassTrialPackManifest(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/class-trial-pack/personas.json")
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((raw: unknown) => {
+        if (!cancelled) setClassTrialPersonas(sanitizeClassTrialPersonas(raw));
+      })
+      .catch(() => {
+        if (!cancelled) setClassTrialPersonas(undefined);
       });
     return () => {
       cancelled = true;
@@ -529,12 +557,17 @@ export function GameClient() {
     setLoading(true);
     setError(null);
     try {
+      const useFixedClassTrialLineup =
+        classTrialThemeMode === "class-trial" && classTrialPersonasStatus.available && classTrialAiFriends.length === 9;
       const view = await createGameView({
         boardId,
         selectedBoardId,
         humanSeatMode,
         selectedHumanSeatId,
         selectedAiFriends,
+        boardIdOverride: useFixedClassTrialLineup ? CLASS_TRIAL_DEFAULT_BOARD_ID : undefined,
+        humanSeatModeOverride: useFixedClassTrialLineup ? "none" : undefined,
+        aiFriendsOverride: useFixedClassTrialLineup ? classTrialAiFriends : undefined,
       });
       rememberGame(view.id);
       setRoleIntroGameId(view.humanSeatId === null ? null : view.id);
@@ -544,7 +577,16 @@ export function GameClient() {
     } finally {
       setLoading(false);
     }
-  }, [humanSeatMode, rememberGame, selectedAiFriends, selectedBoardId, selectedHumanSeatId]);
+  }, [
+    classTrialAiFriends,
+    classTrialPersonasStatus.available,
+    classTrialThemeMode,
+    humanSeatMode,
+    rememberGame,
+    selectedAiFriends,
+    selectedBoardId,
+    selectedHumanSeatId,
+  ]);
 
   const returnHome = useCallback(() => {
     setGame(null);
@@ -950,8 +992,8 @@ export function GameClient() {
             onLoadGame={loadGameById}
             onStartGame={() => startGame(selectedBoardId ?? undefined)}
             classTrialThemeMode={classTrialThemeMode}
-            classTrialPackAvailable={classTrialPackStatus.available}
-            classTrialPackMessage={classTrialPackStatus.message}
+            classTrialPackAvailable={classTrialPackStatus.available && classTrialPersonasStatus.available}
+            classTrialPackMessage={classTrialStatusMessage}
             onSelectClassTrialThemeMode={selectClassTrialThemeMode}
           />
         ) : (

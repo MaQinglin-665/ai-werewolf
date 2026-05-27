@@ -20,15 +20,21 @@ export async function createGameView(options: {
   humanSeatMode: HumanSeatMode;
   selectedHumanSeatId: number | null;
   selectedAiFriends: AiFriendConfig[];
+  boardIdOverride?: string;
+  humanSeatModeOverride?: HumanSeatMode;
+  aiFriendsOverride?: AiFriendConfig[];
   fetcher?: Fetcher;
 }): Promise<HumanGameView> {
   const response = await (options.fetcher ?? fetch)("/api/games", {
     method: "POST",
     headers: jsonHeaders(),
     body: JSON.stringify({
-      boardId: options.boardId ?? options.selectedBoardId ?? undefined,
-      humanSeatId: options.humanSeatMode === "none" ? null : options.selectedHumanSeatId ?? undefined,
-      aiFriends: options.selectedAiFriends,
+      boardId: options.boardIdOverride ?? options.boardId ?? options.selectedBoardId ?? undefined,
+      humanSeatId:
+        (options.humanSeatModeOverride ?? options.humanSeatMode) === "none"
+          ? null
+          : options.selectedHumanSeatId ?? undefined,
+      aiFriends: options.aiFriendsOverride ?? options.selectedAiFriends,
     }),
   });
   if (!response.ok) throw new Error("创建对局失败。");

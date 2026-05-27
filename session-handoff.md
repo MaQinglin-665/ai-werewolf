@@ -2,109 +2,84 @@
 
 ## Current Objective
 
-- Goal: Prepare the next local-only `学级裁判主题局` fixed-persona slice for single-player AI Werewolf.
-- Current status: Theme foundation is complete. Fixed 9-character persona behavior has an approved spec, an implementation plan at `docs/superpowers/plans/2026-05-27-class-trial-fixed-personas.md`, and a task card at `docs/tasks/2026-05-class-trial-fixed-personas.md`; next step is choosing execution mode, then implementation.
+- Goal: Finish the local-only `学级裁判主题局` fixed 9-character AI persona layer.
+- Current status: Complete. Role cards are stored safely, fixed class-trial AI lineups can start local spectator games, speech/action prompts receive role-card guidance, and harness/browser verification passed.
 - Branch / worktree: `codex/class-trial-theme-foundation` at `D:\ai-werewolf\.worktrees\class-trial-theme-foundation`.
 - Base note: this worktree was created from `c75b4f5`; the main worktree had unrelated dirty changes and should be merged carefully.
 
 ## Completed This Session
 
-- [x] Created `docs/superpowers/specs/2026-05-27-class-trial-theme-mode-design.md`.
-- [x] Created `docs/superpowers/plans/2026-05-27-class-trial-theme-mode-foundation.md`.
-- [x] Created and validated `docs/tasks/2026-05-class-trial-theme-mode-foundation.md`.
-- [x] Added `/local-assets/` to `.gitignore` for private portraits, manifests, and voice assets.
-- [x] Added `src/components/game/classTrialTheme.ts` and focused tests for roster metadata, asset pack probe behavior, and mode storage keys.
-- [x] Added a homepage `学级裁判主题局` local theme selector to `src/components/game/LandingPanel.tsx`.
-- [x] Wired theme mode and missing-pack status in `src/components/GameClient.tsx`.
-- [x] Added `src/components/game/ClassTrialGameTable.tsx` and CSS for the first ring-table visual shell.
-- [x] Exported the themed table through `src/components/game/GamePanels.tsx`.
-- [x] Added/updated focused UI tests for theme entry and themed table rendering.
-- [x] Updated `feature_list.json`, `progress.md`, and this handoff for restartability.
-- [x] Hid the global identity button while the class-trial theme shell is active.
-- [x] Verified the local browser flow and confirmed `/rooms` does not expose the theme.
-- [x] Downloaded local private test portraits and generated avatars under ignored `local-assets/class-trial-pack`.
-- [x] Added a local-only `/class-trial-pack/...` route that serves files from `local-assets/class-trial-pack`.
-- [x] Wired the theme table to show the fixed 9-character roster, seat avatars, and active speaker portrait.
-- [x] Replaced mixed-size speaking portraits with closer-size fullbody transparent PNGs, roughly matching `千早爱音`; old half-body downloads are backed up in ignored `local-assets/class-trial-pack/portraits-halfbody-backup`.
-- [x] Created `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md` for local-only fixed 9-character AI behavior.
-- [x] Recorded `class-trial-fixed-personas` in `feature_list.json` as the next not-started feature.
-- [x] Created `docs/superpowers/plans/2026-05-27-class-trial-fixed-personas.md` with task-by-task implementation steps.
-- [x] Created `docs/tasks/2026-05-class-trial-fixed-personas.md` for the fixed-persona execution gate.
+- [x] Added shared `AiCharacterRoleCard` metadata across game types, AI friend configs, setup snapshots, human views, and agent views.
+- [x] Added API validation for safe role-card payloads in `/api/games`.
+- [x] Added tests proving role cards survive API game creation without leaking secret/api-key style data.
+- [x] Added local class-trial `personas.json` parsing, status reporting, combined readiness messaging, and fixed 9-character AI friend construction.
+- [x] Wired `GameClient` to fetch `/class-trial-pack/personas.json` and start complete theme games as fixed 9-AI spectator games on `9p-seer-witch-hunter`.
+- [x] Updated landing copy/status so missing local role cards degrade to visual-only mode instead of blocking the theme.
+- [x] Injected role-card guidance into real LLM speech input as soft table-player style and forbidden boundaries.
+- [x] Injected role-card guidance into real LLM action input as soft decision constraints that cannot override legal candidates, public evidence, hidden-information boundaries, or camp win condition.
+- [x] Created ignored local role-card data at `local-assets/class-trial-pack/personas.json` and confirmed it remains untracked.
+- [x] Updated `feature_list.json`, `progress.md`, this handoff, and the fixed-persona task card.
 
 ## Verification Evidence
 
 | Check | Command | Result | Notes |
 |---|---|---|---|
-| Theme model focused test | `npm run test -- src/components/game/classTrialTheme.test.ts` | passed | Covers roster, pack status, and mode key basics. |
-| Landing panel regression test | `npm run test -- src/components/game/gamePanelsMobile.test.ts` | passed | Covers homepage theme entry and existing panel behavior. |
-| Themed table focused test | `npm run test -- src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts` | passed | Covers shell rendering and no visible role identity. |
-| Combined focused tests | `npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts` | passed | 3 files, 18 tests. |
-| Lint | `npm run lint` | passed | Confirms ESLint state after UI changes. |
-| TypeScript | `npx tsc --noEmit` | failed | Pre-existing unrelated `src/server/gameService.ts(739,36)` implicit-any issue. |
-| Task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-class-trial-theme-mode-foundation.md` | passed | Confirms required task-card fields. |
-| Harness check | `npm run harness:check` | passed | Confirms mechanical harness files and package scripts. |
-| Feature list JSON | `node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"` | passed | Confirms feature tracker JSON remains valid. |
-| Diff whitespace | `git diff --check` | passed | Exit 0 with CRLF replacement warnings only. |
-| Browser/manual theme flow | in-app Browser at `http://127.0.0.1:3012`, homepage -> theme -> 9p spectator -> themed shell | passed | Shell rendered; global visible identity button count was 0; shell role words were absent. |
-| Browser/manual rooms check | in-app Browser at `http://127.0.0.1:3012/rooms` | passed | `/rooms` did not contain `学级裁判主题局`. |
-| Asset route focused tests | `npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialGameTable.test.ts src/app/class-trial-pack/[...assetPath]/route.test.ts` | passed | 3 files, 10 tests. |
-| Local asset HTTP checks | `GET /class-trial-pack/manifest.json`; `GET /class-trial-pack/portraits/苗木诚.png` | passed | Both returned 200; portrait content type was `image/png`. |
-| Browser/manual asset flow | in-app Browser at `http://127.0.0.1:3012` | passed | 9 seat avatars rendered; after continuing into speech, active portrait rendered for `江之岛盾子`. |
-| Browser/manual portrait sizing | in-app Browser at `http://127.0.0.1:3012` | passed | Continued through speech samples; human character portraits used the same visible 352px image box and closer source heights. |
-| Fixed persona spec self-review | `Select-String ... TBD|TODO|待定` and manual consistency readback | passed | No placeholders; fixed seats, local-only scope, Public Alpha exclusion, and Japanese voice-line boundary are explicit. |
+| Focused task tests | `npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/gameClientRequests.test.ts src/components/game/gamePanelsMobile.test.ts src/app/api/games/aiFriends.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts src/app/class-trial-pack/[...assetPath]/route.test.ts` | passed | 7 files, 123 tests. API test used a temp copy of `D:\ai-werewolf\prisma\dev.db`. |
+| Lint | `npm run lint` | passed | ESLint clean. |
+| TypeScript | `npx tsc --noEmit` | passed | Type-level confidence for changed contracts. |
+| Task-card gate | `npm run harness:task-card -- docs/tasks/2026-05-class-trial-fixed-personas.md` | passed | Confirms task card remains complete. |
+| Harness check | `npm run harness:check` | passed | Mechanical harness checks passed. |
+| Ignored persona file | `git status --short --ignored local-assets/class-trial-pack/personas.json` | passed | Output: `!! local-assets/`; file remains ignored. |
+| Browser/manual theme flow | Playwright at `http://127.0.0.1:51624` | passed | Homepage -> `学级裁判主题局` -> fixed 9-character spectator table -> AI speech. |
+| Browser/manual rooms check | Playwright at `http://127.0.0.1:51624/rooms` | passed | `/rooms` did not contain `学级裁判主题局`. |
 
 ## Files Changed
 
-- `.gitignore`
-- `docs/tasks/2026-05-class-trial-theme-mode-foundation.md`
-- `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`
-- `docs/superpowers/plans/2026-05-27-class-trial-fixed-personas.md`
 - `docs/tasks/2026-05-class-trial-fixed-personas.md`
 - `feature_list.json`
 - `progress.md`
 - `session-handoff.md`
-- `src/app/globals.css`
-- `src/app/class-trial-pack/[...assetPath]/route.ts`
-- `src/app/class-trial-pack/[...assetPath]/route.test.ts`
+- `src/ai/actionProviders.test.ts`
+- `src/ai/actionProviders.ts`
+- `src/ai/speechProviders.test.ts`
+- `src/ai/speechProviders.ts`
+- `src/app/api/games/aiFriends.test.ts`
+- `src/app/api/games/route.ts`
 - `src/components/GameClient.tsx`
-- `src/components/game/ClassTrialGameTable.tsx`
-- `src/components/game/GamePanels.tsx`
 - `src/components/game/LandingPanel.tsx`
-- `src/components/game/classTrialGameTable.test.ts`
 - `src/components/game/classTrialTheme.test.ts`
 - `src/components/game/classTrialTheme.ts`
+- `src/components/game/gameClientRequests.test.ts`
+- `src/components/game/gameClientRequests.ts`
 - `src/components/game/gamePanelsMobile.test.ts`
-- `local-assets/class-trial-pack/**` - ignored local private test assets, not committed.
+- `src/game/aiFriends.ts`
+- `src/game/engine.ts`
+- `src/game/projection.ts`
+- `src/game/types.ts`
+- `local-assets/class-trial-pack/personas.json` - ignored local private role-card data, not committed.
 
 ## Decisions Made
 
-- This mode is local-only and not exposed in rooms or Public Alpha.
-- The first slice is visual/entry foundation only; no rules, server, room, real asset, or TTS routing changes.
-- The hidden role identity remains hidden in the themed shell.
-- Private asset packs should live in ignored local paths and be loaded by convention later.
-- Fixed-persona mode uses fixed seats and local-only `personas.json`, not random seats and not AI-pool skinning.
-- Dialogue remains Chinese; future GPT-SoVITS should use separately generated Japanese voice text with light adaptation.
+- Fixed-persona mode uses a local ignored `personas.json` and fixed seat order.
+- Role cards are soft style/strategy guidance only; the rules engine, legal candidates, public evidence, hidden-information boundaries, and camp win condition remain authoritative.
+- Missing or malformed role cards do not break the visual theme; they fall back to ordinary AI behavior.
+- This feature remains local-only and is not exposed through `/rooms` or Public Alpha.
+- Future Japanese voice output should be a separate GPT-SoVITS/text-rewrite slice.
 
 ## Blockers / Risks
 
-- `npx tsc --noEmit` is blocked by an unrelated pre-existing server typing issue at `src/server/gameService.ts(739,36)`.
-- Local portraits/avatars are copyright/reference assets for local private testing only; do not publish them in Public Alpha or commit them to Git.
-- 黑白熊 remains a special case because the best available fullbody source is much shorter than human characters.
-- First slice now proves local image display, but still does not prove voice playback, typewriter sync, or character-persona prompting.
-- Fixed-persona design is planned but not implemented yet; no `personas.json` role-card loader, fixed AI lineup replacement, or prompt injection has been added.
-- The themed shell should be expanded later for human action controls, asset-manifest loading, and the 9 GPT-SoVITS voice routes.
-- Browser verification used the main local SQLite `DATABASE_URL` because this isolated worktree has no `.env`; repository `.env` and database files were not edited.
+- Local role cards, portraits, and avatars are private testing material and must not be committed or published.
+- This slice does not implement GPT-SoVITS routing, Japanese rewrite generation, audio fallback, or typewriter sync.
+- Browser verification used `DATABASE_URL=file:D:/ai-werewolf/prisma/dev.db` because the isolated worktree has no `.env`; no `.env` or database files were edited.
 
 ## Next Session Startup
 
 1. Read `AGENTS.md`.
 2. Read `progress.md`, `feature_list.json`, and this handoff.
-3. Read `docs/tasks/2026-05-class-trial-theme-mode-foundation.md`.
-4. Read `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`.
-5. Read `docs/superpowers/plans/2026-05-27-class-trial-fixed-personas.md` and `docs/tasks/2026-05-class-trial-fixed-personas.md`.
-6. Use the verification evidence above before deciding whether to merge.
-7. Continue from `D:\ai-werewolf\.worktrees\class-trial-theme-foundation` on branch `codex/class-trial-theme-foundation`.
+3. Read `docs/tasks/2026-05-class-trial-fixed-personas.md`.
+4. Check `git status --short --ignored local-assets/class-trial-pack/personas.json`.
+5. Decide whether to commit the implementation or continue into the GPT-SoVITS voice-routing slice.
 
 ## Recommended Next Step
 
-- Ask the user whether to execute the fixed-persona plan with Subagent-Driven or Inline Execution, then implement the approved path.
+- Commit/integrate this fixed-persona slice, then plan the Japanese voice text + GPT-SoVITS routing slice.

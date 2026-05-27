@@ -6,9 +6,13 @@ import {
   CLASS_TRIAL_LOCAL_ASSET_ROOT,
   CLASS_TRIAL_THEME_MODE_STORAGE_KEY,
   CLASS_TRIAL_THEME_MODES,
+  buildClassTrialAiFriends,
   getClassTrialCharacterForSeat,
   getClassTrialPackStatus,
+  getClassTrialPersonasStatus,
+  getClassTrialThemeStatusMessage,
   parseClassTrialThemeMode,
+  sanitizeClassTrialPersonas,
   type ClassTrialPackManifest,
 } from "./classTrialTheme";
 
@@ -86,4 +90,86 @@ describe("class trial theme model", () => {
       missingCharacterIds: CLASS_TRIAL_CHARACTER_IDS.filter((id) => id !== "kirigiri"),
     });
   });
+
+  it("validates a complete local personas file for the fixed 9-character roster", () => {
+    const personas = makeCompletePersonas();
+    const status = getClassTrialPersonasStatus(personas);
+
+    expect(status).toEqual({
+      available: true,
+      message: "本地角色卡已就绪。",
+      missingCharacterIds: [],
+      invalidCharacterIds: [],
+    });
+  });
+
+  it("reports missing and malformed local personas without blocking visual theme mode", () => {
+    expect(getClassTrialPersonasStatus(undefined)).toEqual({
+      available: false,
+      message: "未找到本地角色卡。视觉主题可继续，AI 将使用普通行为。",
+      missingCharacterIds: CLASS_TRIAL_CHARACTER_IDS,
+      invalidCharacterIds: [],
+    });
+
+    const partial = sanitizeClassTrialPersonas({
+      id: "class-trial-personas",
+      version: "local-test",
+      characters: [{ id: "naegi", displayName: "苗木诚", seatId: 1, basePersonaId: "gpt-balanced-organizer" }],
+    });
+
+    expect(getClassTrialPersonasStatus(partial).message).toBe("本地角色卡缺少 8 个角色。");
+  });
+
+  it("builds fixed class-trial AI friends in the approved seat order", () => {
+    const friends = buildClassTrialAiFriends(makeCompletePersonas(), "2026-05-27T00:00:00.000Z");
+
+    expect(friends).toHaveLength(9);
+    expect(friends.map((friend) => friend.nickname)).toEqual([
+      "苗木诚",
+      "雾切响子",
+      "腐川冬子",
+      "黑白熊",
+      "江之岛盾子",
+      "塞蕾丝缇雅",
+      "十神白夜",
+      "叶隐康比吕",
+      "千早爱音",
+    ]);
+    expect(friends[3]?.id).toBe("class-trial:monokuma");
+    expect(friends[3]?.basePersonaId).toBe("doubao-pressure-bluffer");
+    expect(friends[3]?.roleCard?.displayName).toBe("黑白熊");
+    expect(friends[3]?.roleCard?.forbidden.join(" ")).toContain("不能以主持人身份干预规则");
+  });
+
+  it("combines asset and role-card status for the landing page", () => {
+    const packStatus = getClassTrialPackStatus(undefined);
+    const personaStatus = getClassTrialPersonasStatus(makeCompletePersonas());
+
+    expect(getClassTrialThemeStatusMessage(packStatus, personaStatus)).toContain("素材包");
+    expect(getClassTrialThemeStatusMessage(packStatus, personaStatus)).toContain("角色卡已就绪");
+  });
 });
+
+function makeCompletePersonas() {
+  return sanitizeClassTrialPersonas({
+    id: "class-trial-personas",
+    version: "local-test",
+    characters: CLASS_TRIAL_CHARACTER_ROSTER.map((character, index) => ({
+      id: character.id,
+      displayName: character.displayName,
+      seatId: index + 1,
+      basePersonaId: character.id === "monokuma" ? "doubao-pressure-bluffer" : "gpt-balanced-organizer",
+      styleTags: ["class-trial"],
+      speechStyleZh: `${character.displayName} 的中文狼人杀发言风格。`,
+      reasoningBias: "优先依据公开桌面推理。",
+      voteBias: "认真服务阵营胜利。",
+      nightActionBias: "夜晚行动遵守合法候选。",
+      asVillager: "作为好人时按公开证据找狼。",
+      asWerewolf: "作为狼人时只用公开理由伪装。",
+      pressureResponse: "被怀疑时解释公开逻辑。",
+      relationshipHints: [],
+      catchphrasePolicy: "允许极短口癖，不复刻大段原台词。",
+      forbidden: character.id === "monokuma" ? ["不能以主持人身份干预规则。"] : ["不能泄露隐藏身份。"],
+    })),
+  })!;
+}

@@ -42,6 +42,41 @@ describe("routed action provider", () => {
     expect(input.constraints.join("\n")).toContain("White wolf king self-explosion is optional");
   });
 
+  it("includes local character role-card guidance in real LLM action input", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_VOTE";
+    const actor = state.seats.find((seat) => seat.isAi)!;
+    actor.name = "雾切响子";
+    actor.roleCard = {
+      id: "kirigiri",
+      displayName: "雾切响子",
+      theme: "class-trial",
+      styleTags: ["calm", "deductive"],
+      speechStyleZh: "冷静、简短、抓证据。",
+      reasoningBias: "优先审查证据链和发言矛盾。",
+      voteBias: "更愿意投公开证据闭合的位置。",
+      nightActionBias: "夜晚行动谨慎，优先高信息收益。",
+      asVillager: "作为好人时保持事实边界。",
+      asWerewolf: "作为狼人时用冷静逻辑伪装。",
+      pressureResponse: "被怀疑时要求对方给出证据链。",
+      relationshipHints: [],
+      catchphrasePolicy: "允许极短角色感，不复刻大段原台词。",
+      forbidden: ["不能泄露隐藏身份。"],
+    };
+    const view = buildAgentView(state, actor.seatId);
+    const tableRead = buildAiTableRead(view);
+    const votePlan = createVotePlan(view, tableRead);
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      votePlan,
+      fallbackCommand: createMockCommand(view, tableRead, votePlan),
+    });
+
+    expect(input.characterRole?.displayName).toBe("雾切响子");
+    expect(input.constraints.join("\n")).toContain("role card is soft guidance");
+    expect(JSON.stringify(input.characterRole)).not.toContain("真实身份");
+  });
+
   it("offers wolf beauty charm as a night action candidate", () => {
     const state = createGame({ boardId: "12p-sheriff-wolf-beauty-knight", seed: 95, humanSeatId: null });
     const wolfBeauty = state.seats.find((seat) => seat.role === "WOLF_BEAUTY")!;

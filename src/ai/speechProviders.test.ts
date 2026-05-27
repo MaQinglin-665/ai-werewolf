@@ -300,6 +300,38 @@ describe("routed speech provider", () => {
     expect(result.provider).toBe("custom-speech:deepseek-chat");
     expect(result.speech).toContain("自定义模型deepseek-chat");
   });
+
+  it("includes local character role-card guidance in real LLM speech input", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    const monokuma = state.seats.find((seat) => seat.isAi)!;
+    monokuma.name = "黑白熊";
+    monokuma.roleCard = {
+      id: "monokuma",
+      displayName: "黑白熊",
+      theme: "class-trial",
+      styleTags: ["taunting", "chaotic"],
+      speechStyleZh: "强烈嘲讽、挑拨，但仍像狼人杀玩家。",
+      reasoningBias: "放大矛盾，逼迫他人站边。",
+      voteBias: "推动高互动票口。",
+      nightActionBias: "夜晚偏激进但不送局。",
+      asVillager: "作为好人时用公开证据施压。",
+      asWerewolf: "作为狼人时只用公开理由伪装。",
+      pressureResponse: "被怀疑时反咬对方逻辑漏洞。",
+      relationshipHints: ["不能以主持人身份说话。"],
+      catchphrasePolicy: "允许极短口癖，不复刻大段原台词。",
+      forbidden: ["不能泄露隐藏身份。", "不能以主持人身份干预规则。"],
+    };
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [monokuma.seatId];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, monokuma.seatId);
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "guided");
+
+    expect(input.characterRole?.displayName).toBe("黑白熊");
+    expect(input.playerSpeechGuide.tablePlayerStyle.join("\n")).toContain("强烈嘲讽");
+    expect(input.playerSpeechGuide.avoid.join("\n")).toContain("不能以主持人身份干预规则");
+  });
 });
 
 describe("mock speech provider", () => {

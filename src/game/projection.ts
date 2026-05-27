@@ -85,6 +85,7 @@ export function buildPlayerView(
         avatarDataUrl: seat.isAi ? seat.avatarDataUrl : undefined,
         ttsVoice: seat.isAi ? seat.ttsVoice : undefined,
         ttsConfig: seat.isAi ? seat.ttsConfig : undefined,
+        roleCard: seat.isAi ? seat.roleCard : undefined,
       };
     }),
     publicEvents: state.events.filter((event) => isVisiblePublicEvent(state, event)).map(toEventView),
@@ -151,6 +152,7 @@ export function buildAgentView(
     myRole: seat.role,
     persona: seat.persona,
     llmConfig: resolveSeatRuntimeLlmConfig(seat, runtimeAiLlmConfigs),
+    roleCard: seat.roleCard,
     aliveSeats: getAliveSeats(state).map(toTarget),
     daySpeechOrder: buildDaySpeechOrderView(state),
     publicEvents: state.events.filter((event) => isVisiblePublicEvent(state, event)).map(toEventView),
