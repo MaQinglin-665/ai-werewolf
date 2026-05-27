@@ -304,7 +304,7 @@ describe("routed speech provider", () => {
   it("passes role-card guidance to routed speech models", async () => {
     process.env.AI_LLM_MAX_RETRIES = "0";
 
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) =>
       new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ message: "我先按证据链压一手2号。" }) } }] }), {
         status: 200,
         headers: { "content-type": "application/json" },
