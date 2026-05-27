@@ -98,9 +98,6 @@ function toRoleOnlyFriend(value: unknown, index: number): AiFriendConfig | undef
     basePersonaId: value.basePersonaId,
     avatarDataUrl: value.avatarDataUrl,
     roleCard: value.roleCard,
-    riskTolerance: 0.5,
-    bluffing: 0.5,
-    preferences: {},
     createdAt: "import",
     updatedAt: "import",
   });

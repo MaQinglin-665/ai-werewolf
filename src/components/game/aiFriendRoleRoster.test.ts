@@ -102,6 +102,33 @@ describe("ai friend role roster", () => {
     expect(roles).toEqual([]);
   });
 
+  it("preserves base persona tuning when parsing role-only imports", () => {
+    const baseFriend = getDefaultAiFriends().find((friend) => friend.basePersonaId === "doubao-pressure-bluffer")!;
+    const raw = JSON.stringify({
+      version: 1,
+      exportedAt: "2026-05-27T01:00:00.000Z",
+      roles: [
+        {
+          nickname: "压迫角色",
+          basePersonaId: baseFriend.basePersonaId,
+          roleCard: {
+            source: "角色来源",
+            speakingStyle: "像角色说话。",
+            reasoningStyle: "像角色推理。",
+            avoid: "不要出戏。",
+          },
+        },
+      ],
+    });
+
+    const roles = parseAiFriendRoleRosterExport(raw);
+
+    expect(roles).toHaveLength(1);
+    expect(roles[0]!.riskTolerance).toBe(baseFriend.riskTolerance);
+    expect(roles[0]!.bluffing).toBe(baseFriend.bluffing);
+    expect(roles[0]!.preferences).toEqual(baseFriend.preferences);
+  });
+
   it("appends imported roles with new ids and preserves existing roles", () => {
     const existing = [
       {
