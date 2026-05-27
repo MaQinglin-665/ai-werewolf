@@ -1026,7 +1026,7 @@ function BulkLlmPresetCard({
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-[#e4efff]">批量 LLM 配置</h2>
           <p className="mt-1 text-xs leading-5 text-[#b8d6ff]/72">
-            管理 LLM 预设，测试连接可能产生少量费用；可对当前勾选的 {selectedCount} 位 AI 执行只填空白或覆盖所选。
+            给当前勾选的 {selectedCount} 位 AI 批量套用 LLM 预设。可只补齐还没配置模型的 AI，也可以替换所有已勾选 AI 的 LLM 配置。
           </p>
         </div>
         <button
@@ -1148,6 +1148,7 @@ function BulkLlmPresetCard({
             </button>
           </div>
           <p className="text-[11px] leading-5 text-[#ad9c7d]">测试连接会调用一次模型，可能产生少量费用；保存和套用不强制要求测试通过。</p>
+          <p className="text-[11px] leading-5 text-[#ad9c7d]">补齐配置只会修改还没有自定义 LLM 的 AI；覆盖配置会替换当前勾选 AI 的 LLM 设置。</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -1155,7 +1156,7 @@ function BulkLlmPresetCard({
               disabled={selectedCount === 0}
               className="rounded-full border border-[#77d898]/25 bg-[#0f2118]/55 px-4 py-2 text-xs font-semibold text-[#a8f0b6] disabled:opacity-45"
             >
-              只填空白
+              补齐未配置 AI
             </button>
             <button
               type="button"
@@ -1163,7 +1164,7 @@ function BulkLlmPresetCard({
               disabled={selectedCount === 0}
               className="rounded-full bg-[#2f8157] px-4 py-2 text-xs font-semibold text-white disabled:opacity-45"
             >
-              覆盖所选
+              覆盖已勾选 AI
             </button>
           </div>
           {results.length > 0 && (
@@ -1172,7 +1173,7 @@ function BulkLlmPresetCard({
                 <div key={`${result.friendId}:${result.nextFriendId ?? result.friendId}`} className="flex items-center justify-between gap-3 text-xs">
                   <span className="min-w-0 truncate text-[#f7ead5]">{result.friendName}</span>
                   <span className="shrink-0 text-[#a8f0b6]">
-                    {result.status === "filled" ? "已填空白" : result.status === "overwritten" ? "已覆盖" : "已跳过"}
+                    {result.status === "filled" ? "已补齐配置" : result.status === "overwritten" ? "已覆盖配置" : "已有配置，已跳过"}
                   </span>
                 </div>
               ))}

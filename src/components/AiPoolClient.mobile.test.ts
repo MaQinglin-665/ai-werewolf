@@ -42,10 +42,8 @@ describe("AiPoolClient mobile layout", () => {
     expect(html.indexOf("批量 LLM 配置")).toBeLessThan(html.indexOf("AI池</h2>"));
     expect(html.indexOf("对局 AI 模式")).toBeLessThan(html.indexOf("快速新增AI"));
     expect(html).toContain("LLM 预设");
-    expect(html).toContain("只填空白");
-    expect(html).toContain("覆盖所选");
-    expect(html).toContain("测试连接");
-    expect(html).toContain("可能产生少量费用");
+    expect(html).toContain("只补齐还没配置模型的 AI");
+    expect(html).toContain("替换所有已勾选 AI 的 LLM 配置");
     expect(html).toContain("快速新增AI");
     expect(html).toContain("新增");
     expect(html).not.toContain("例如：冷静票型位");
