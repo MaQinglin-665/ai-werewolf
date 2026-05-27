@@ -2,8 +2,8 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-27 21:42 Asia/Shanghai
-**Session ID:** class-trial fixed personas design
+**Last Updated:** 2026-05-27 22:38 Asia/Shanghai
+**Session ID:** class-trial fixed personas plan
 **Active Feature:** class-trial-fixed-personas - Class Trial Fixed Personas
 
 ## Status
@@ -27,15 +27,17 @@
 - [x] Speaking portraits were switched from mixed half-body crops to closer-size fullbody transparent PNGs, roughly matching `千早爱音` height; the old half-body downloads are backed up in ignored `local-assets/class-trial-pack/portraits-halfbody-backup`.
 - [x] Default rooms/Public Alpha surfaces were not edited.
 - [x] Fixed 9-character persona design recorded in `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`.
+- [x] Fixed 9-character persona implementation plan recorded in `docs/superpowers/plans/2026-05-27-class-trial-fixed-personas.md`.
+- [x] Fixed persona task card created at `docs/tasks/2026-05-class-trial-fixed-personas.md`.
 
 ### What's In Progress
 
-- [ ] Awaiting user review of `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`.
+- [ ] Awaiting user choice of execution mode for the fixed-persona implementation plan.
 
 ### What's Next
 
-1. If the fixed-persona spec is approved, write the implementation plan.
-2. Then implement local `personas.json`, fixed 9-person AI lineup replacement, and prompt injection.
+1. Choose execution mode for `docs/superpowers/plans/2026-05-27-class-trial-fixed-personas.md`.
+2. Implement local `personas.json`, fixed 9-person AI lineup replacement, and prompt injection.
 3. Keep GPT-SoVITS and Japanese voice-line generation as a later slice.
 
 ## Blockers / Risks
@@ -61,6 +63,8 @@
 
 - `.gitignore`
 - `docs/tasks/2026-05-class-trial-theme-mode-foundation.md`
+- `docs/tasks/2026-05-class-trial-fixed-personas.md`
+- `docs/superpowers/plans/2026-05-27-class-trial-fixed-personas.md`
 - `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`
 - `feature_list.json`
 - `progress.md`
@@ -95,9 +99,12 @@
 - [x] Browser/manual asset flow: 9 seat avatars rendered, then after advancing to speech the active portrait rendered for `江之岛盾子`.
 - [x] Browser/manual sizing check: after continuing through speech, `苗木诚`, `雾切响子`, `腐川冬子`, `江之岛盾子`, `塞蕾丝缇雅`, and `十神白夜` used the same visible portrait box height; source heights are now close to `千早爱音` except `黑白熊`.
 - [x] Fixed persona spec self-review: no TODO/TBD placeholders; local-only, fixed seats, Public Alpha exclusion, and future Japanese voice-line boundary are explicit.
+- [x] Fixed persona plan/task-card written: `docs/superpowers/plans/2026-05-27-class-trial-fixed-personas.md`; `docs/tasks/2026-05-class-trial-fixed-personas.md`.
 
 ## Notes for Next Session
 
 Use `AGENTS.md` first. Then read this file, `feature_list.json`, `session-handoff.md`,
 `docs/tasks/2026-05-class-trial-theme-mode-foundation.md`, and
-`docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`.
+`docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`, then
+`docs/superpowers/plans/2026-05-27-class-trial-fixed-personas.md` and
+`docs/tasks/2026-05-class-trial-fixed-personas.md`.
