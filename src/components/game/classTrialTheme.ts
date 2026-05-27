@@ -18,11 +18,26 @@ export const CLASS_TRIAL_CHARACTER_IDS = [
 
 export type ClassTrialCharacterId = (typeof CLASS_TRIAL_CHARACTER_IDS)[number];
 
+export const CLASS_TRIAL_CHARACTER_ROSTER: Array<{ id: ClassTrialCharacterId; displayName: string }> = [
+  { id: "naegi", displayName: "苗木诚" },
+  { id: "kirigiri", displayName: "雾切响子" },
+  { id: "fukawa", displayName: "腐川冬子" },
+  { id: "monokuma", displayName: "黑白熊" },
+  { id: "enoshima", displayName: "江之岛盾子" },
+  { id: "celestia", displayName: "塞蕾丝缇雅" },
+  { id: "togami", displayName: "十神白夜" },
+  { id: "hagakure", displayName: "叶隐康比吕" },
+  { id: "anon", displayName: "千早爱音" },
+];
+
 export type ClassTrialPackCharacter = {
   id: string;
   displayName: string;
+  portraitUrl?: string;
+  avatarUrl?: string;
   hasPortrait?: boolean;
   hasAvatar?: boolean;
+  sourcePage?: string;
 };
 
 export type ClassTrialPackManifest = {
@@ -39,6 +54,20 @@ export type ClassTrialPackStatus = {
 
 export function parseClassTrialThemeMode(value: unknown): ClassTrialThemeMode {
   return value === "class-trial" ? "class-trial" : "default";
+}
+
+export function getClassTrialCharacterForSeat(
+  seatIndex: number,
+  manifest: ClassTrialPackManifest | undefined,
+): ClassTrialPackCharacter {
+  const fallback = CLASS_TRIAL_CHARACTER_ROSTER[seatIndex % CLASS_TRIAL_CHARACTER_ROSTER.length];
+  const packed = manifest?.characters.find((character) => character.id === fallback.id);
+
+  return {
+    ...fallback,
+    ...packed,
+    displayName: packed?.displayName ?? fallback.displayName,
+  };
 }
 
 export function getClassTrialPackStatus(manifest: ClassTrialPackManifest | undefined): ClassTrialPackStatus {

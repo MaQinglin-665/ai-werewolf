@@ -957,7 +957,13 @@ export function GameClient() {
         ) : (
           <div className="grid flex-1 gap-4">
             {classTrialThemeActive ? (
-              <ClassTrialGameTable game={game} loading={loading} onReturnHome={returnHome} onSubmit={submitCommand} />
+              <ClassTrialGameTable
+                game={game}
+                loading={loading}
+                manifest={classTrialPackManifest}
+                onReturnHome={returnHome}
+                onSubmit={submitCommand}
+              />
             ) : (
               <MobileGameTable
                 game={game}

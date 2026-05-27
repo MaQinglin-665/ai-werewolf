@@ -89,6 +89,25 @@
   place-items: center;
 }
 
+.class-trial-seat-avatar {
+  width: 3.4rem;
+  height: 3.4rem;
+  object-fit: cover;
+  object-position: top center;
+  background: rgba(10, 10, 16, 0.55);
+  border: 1px solid rgba(216, 195, 109, 0.58);
+  border-radius: 999px;
+}
+
+.class-trial-seat-name {
+  display: block;
+  max-width: 4.2rem;
+  overflow: hidden;
+  color: #fff2be;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .class-trial-seat-active {
   border-color: rgba(240, 75, 103, 0.96);
   box-shadow: 0 0 24px rgba(240, 75, 103, 0.38);
@@ -138,16 +157,25 @@
 }
 
 .class-trial-portrait-placeholder {
+  position: relative;
   display: grid;
   min-height: 22rem;
-  padding-top: 1.25rem;
+  overflow: hidden;
   color: #fff2be;
   font-weight: 900;
   background: linear-gradient(140deg, #2c3345 0 22%, #171b29 22% 48%, #4f2734 48% 70%, #14131a 70%);
   border: 2px solid rgba(238, 207, 123, 0.72);
   border-radius: 1.5rem 1.5rem 0 0;
   box-shadow: 0 0 60px rgba(238, 207, 123, 0.2);
-  place-items: start center;
+  place-items: end center;
+}
+
+.class-trial-portrait-image {
+  width: 100%;
+  height: 22rem;
+  object-fit: contain;
+  object-position: bottom center;
+  filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.46));
 }
 
 .class-trial-dialogue {
@@ -189,6 +217,10 @@
   .class-trial-portrait-placeholder {
     min-height: 12rem;
     opacity: 0.62;
+  }
+
+  .class-trial-portrait-image {
+    height: 12rem;
   }
 }
 

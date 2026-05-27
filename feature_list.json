@@ -194,12 +194,12 @@
     {
       "id": "class-trial-theme-mode-foundation",
       "name": "Class Trial Theme Mode Foundation",
-      "description": "Add a local-only class trial theme entry, ignored private asset-pack convention, missing-pack status, and first ring-table visual shell without changing rules, rooms, or Public Alpha behavior.",
+      "description": "Add a local-only class trial theme entry, ignored private asset-pack convention, missing-pack status, local asset serving route, and first ring-table visual shell without changing rules, rooms, or Public Alpha behavior.",
       "dependencies": [
         "ai-pool-character-roster"
       ],
       "status": "done",
-      "evidence": "docs/superpowers/specs/2026-05-27-class-trial-theme-mode-design.md; docs/superpowers/plans/2026-05-27-class-trial-theme-mode-foundation.md; docs/tasks/2026-05-class-trial-theme-mode-foundation.md; npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts; npm run lint; npm run harness:task-card -- docs/tasks/2026-05-class-trial-theme-mode-foundation.md; npm run harness:check; browser http://127.0.0.1:3012 homepage -> 学级裁判主题局 -> 9p spectator -> themed shell; browser /rooms has no theme entry"
+      "evidence": "docs/superpowers/specs/2026-05-27-class-trial-theme-mode-design.md; docs/superpowers/plans/2026-05-27-class-trial-theme-mode-foundation.md; docs/tasks/2026-05-class-trial-theme-mode-foundation.md; local ignored local-assets/class-trial-pack with 9 avatars and closer-size fullbody speaking portraits; npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialGameTable.test.ts src/app/class-trial-pack/[...assetPath]/route.test.ts src/components/game/gamePanelsMobile.test.ts; npm run lint; npm run harness:task-card -- docs/tasks/2026-05-class-trial-theme-mode-foundation.md; npm run harness:check; browser http://127.0.0.1:3012 homepage -> 学级裁判主题局 -> 9p spectator -> themed shell with 9 avatars and speaker portrait; browser /rooms has no theme entry"
     }
   ]
 }

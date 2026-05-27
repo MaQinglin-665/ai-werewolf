@@ -2,7 +2,7 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-27 20:34 Asia/Shanghai
+**Last Updated:** 2026-05-27 21:30 Asia/Shanghai
 **Session ID:** class-trial theme mode foundation
 **Active Feature:** class-trial-theme-mode-foundation - Class Trial Theme Mode Foundation
 
@@ -21,6 +21,10 @@
 - [x] Theme mode selection is stored in localStorage.
 - [x] A first themed table shell renders a 9-player ring, central phase/speaker panel, foreground speaker portrait placeholder, and dialogue box.
 - [x] Theme game mode hides the global identity button so identities are not exposed during play.
+- [x] Local ignored asset pack created at `local-assets/class-trial-pack` with 9 portraits and 9 generated avatars using the user's Chinese filename preference.
+- [x] Local route `/class-trial-pack/...` serves ignored manifest/image files from `local-assets/class-trial-pack`.
+- [x] Theme table maps seats to the fixed 9-character class-trial roster and displays pack avatars/portraits when present.
+- [x] Speaking portraits were switched from mixed half-body crops to closer-size fullbody transparent PNGs, roughly matching `千早爱音` height; the old half-body downloads are backed up in ignored `local-assets/class-trial-pack/portraits-halfbody-backup`.
 - [x] Default rooms/Public Alpha surfaces were not edited.
 
 ### What's In Progress
@@ -35,7 +39,9 @@
 ## Blockers / Risks
 
 - [ ] `npx tsc --noEmit` currently fails on a pre-existing unrelated server issue: `src/server/gameService.ts(739,36): Parameter 'tx' implicitly has an 'any' type`.
-- [ ] This first slice intentionally uses placeholders; it does not include real portraits, GPT-SoVITS routing, or LLM character behavior.
+- [ ] The local pack now has downloaded test portraits/avatars, but they are copyright/reference assets for local private testing only and must not be published in Public Alpha.
+- [ ] 黑白熊 uses a much shorter source image than the human characters; keep it if the stylized size feels right, or replace it with another render later.
+- [ ] This slice still does not include GPT-SoVITS routing, typewriter voice sync, or LLM character behavior.
 - [ ] The themed table shell is aimed at local spectator/continue flow first; richer human-action controls belong in a later slice.
 - [ ] This worktree was created from `c75b4f5`, while the main worktree already had unrelated dirty changes. Merge back carefully.
 - [ ] Browser verification used the main local SQLite `DATABASE_URL` because this isolated worktree has no `.env`; repository `.env` and database files were not edited.
@@ -55,6 +61,8 @@
 - `progress.md`
 - `session-handoff.md`
 - `src/app/globals.css`
+- `src/app/class-trial-pack/[...assetPath]/route.ts`
+- `src/app/class-trial-pack/[...assetPath]/route.test.ts`
 - `src/components/GameClient.tsx`
 - `src/components/game/ClassTrialGameTable.tsx`
 - `src/components/game/GamePanels.tsx`
@@ -78,6 +86,9 @@
 - [x] Final feature-list JSON check: `node -e "JSON.parse(require('fs').readFileSync('feature_list.json','utf8')); console.log('feature_list ok')"`
 - [x] Diff whitespace check: `git diff --check` exited 0 with CRLF replacement warnings only.
 - [x] TypeScript check attempted: `npx tsc --noEmit` failed on pre-existing `src/server/gameService.ts(739,36)` implicit-any issue.
+- [x] Local pack HTTP checks: `GET /class-trial-pack/manifest.json` and `GET /class-trial-pack/portraits/苗木诚.png` returned 200.
+- [x] Browser/manual asset flow: 9 seat avatars rendered, then after advancing to speech the active portrait rendered for `江之岛盾子`.
+- [x] Browser/manual sizing check: after continuing through speech, `苗木诚`, `雾切响子`, `腐川冬子`, `江之岛盾子`, `塞蕾丝缇雅`, and `十神白夜` used the same visible portrait box height; source heights are now close to `千早爱音` except `黑白熊`.
 
 ## Notes for Next Session
 

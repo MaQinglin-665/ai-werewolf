@@ -75,10 +75,35 @@ describe("ClassTrialGameTable", () => {
 
     expect(html).toContain("class-trial-table");
     expect(html).toContain("白天发言");
-    expect(html).toContain("角色3 发言中");
+    expect(html).toContain("腐川冬子 发言中");
     expect(html).toContain("先不要急着归票。");
     expect(html).not.toContain("预言家");
     expect(html).not.toContain("狼人");
+  });
+
+  it("uses local pack avatars and portraits when a manifest is present", () => {
+    const html = renderToStaticMarkup(
+      createElement(ClassTrialGameTable, {
+        game: makeGame(),
+        loading: false,
+        manifest: {
+          id: "class-trial-pack",
+          version: "local",
+          characters: [
+            { id: "naegi", displayName: "苗木诚", avatarUrl: "/class-trial-pack/avatars/苗木诚.png", portraitUrl: "/class-trial-pack/portraits/苗木诚.png" },
+            { id: "kirigiri", displayName: "雾切响子", avatarUrl: "/class-trial-pack/avatars/雾切响子.png", portraitUrl: "/class-trial-pack/portraits/雾切响子.png" },
+            { id: "fukawa", displayName: "腐川冬子", avatarUrl: "/class-trial-pack/avatars/腐川冬子.png", portraitUrl: "/class-trial-pack/portraits/腐川冬子.png" },
+          ],
+        },
+        onReturnHome: () => undefined,
+        onSubmit: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain('class="class-trial-seat-avatar"');
+    expect(html).toContain('src="/class-trial-pack/avatars/苗木诚.png"');
+    expect(html).toContain('alt="腐川冬子"');
+    expect(html).toContain('src="/class-trial-pack/portraits/腐川冬子.png"');
   });
 
   it("keeps a visible way back to the default table flow", () => {

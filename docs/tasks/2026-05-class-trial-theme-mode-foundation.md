@@ -59,6 +59,7 @@ Files or directories the agent may edit:
 - `src/components/game/GamePanels.tsx`
 - `src/components/game/ClassTrialGameTable.tsx`
 - `src/components/game/classTrialTheme.ts`
+- `src/app/class-trial-pack/[...assetPath]/route.ts`
 - `src/components/game/*.test.ts`
 - `src/app/globals.css`
 - `docs/tasks/2026-05-class-trial-theme-mode-foundation.md`
@@ -74,7 +75,7 @@ Files or directories the agent should not edit:
 - `src/server/**`
 - `src/app/api/**`
 - `src/app/rooms/**`
-- `local-assets/**` real private assets
+- `local-assets/**` real private assets, unless the user explicitly asks to place local-only private test material.
 
 ## Definition Of Done
 
@@ -111,6 +112,9 @@ Completed:
 - Added homepage 学级裁判主题局 selector with missing-pack status and localStorage mode persistence.
 - Added first class-trial ring-table shell with central phase/speaker info, foreground speaker placeholder, dialogue box, and hidden identity.
 - Hid the global identity button while the class-trial theme shell is active.
+- Added ignored local asset pack files under local-assets/class-trial-pack with 9 portraits and 9 generated avatars.
+- Added local-only class-trial-pack route and wired the theme shell to display roster avatars and active speaker portrait.
+- Replaced mixed-size speaking portraits with closer-size fullbody transparent PNGs, roughly matching 千早爱音.
 - Left rooms/Public Alpha and rules/server code untouched.
 
 Changed files:
@@ -120,6 +124,8 @@ Changed files:
 - src/components/game/GamePanels.tsx
 - src/components/game/ClassTrialGameTable.tsx
 - src/components/game/classTrialTheme.ts
+- src/app/class-trial-pack/[...assetPath]/route.ts
+- src/app/class-trial-pack/[...assetPath]/route.test.ts
 - src/components/game/classTrialTheme.test.ts
 - src/components/game/classTrialGameTable.test.ts
 - src/components/game/gamePanelsMobile.test.ts
@@ -134,14 +140,19 @@ Verification:
 - Passed: npm run test -- src/components/game/gamePanelsMobile.test.ts
 - Passed: npm run test -- src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts
 - Passed: npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts
+- Passed: npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialGameTable.test.ts src/app/class-trial-pack/[...assetPath]/route.test.ts
 - Passed: npm run lint
 - Passed: npm run harness:task-card -- docs/tasks/2026-05-class-trial-theme-mode-foundation.md
 - Passed: npm run harness:check
 - Passed: browser/manual flow at http://127.0.0.1:3012, homepage -> 学级裁判主题局 -> 9 人预女猎 -> 无真人 -> themed shell.
 - Passed: browser/manual /rooms check did not expose 学级裁判主题局.
+- Passed: browser/manual asset check rendered 9 seat avatars and an active speaker portrait.
+- Passed: browser/manual portrait sizing check kept sampled human character portraits in the same visible image box height.
 - Known unrelated failure: npx tsc --noEmit fails at src/server/gameService.ts(739,36) for an implicit-any tx parameter.
 
 Remaining risks:
-- First slice uses placeholder visuals and does not include real portraits, GPT-SoVITS routing, typewriter voice sync, or LLM persona behavior.
+- Local portraits/avatars are copyright/reference assets for local private testing only; do not publish or commit them.
+- 黑白熊 is still a special-size source asset compared with human characters.
+- First slice does not include GPT-SoVITS routing, typewriter voice sync, or LLM persona behavior.
 - Themed shell is optimized for local spectator/continue flow first; richer human action controls should be a later slice.
 ```
