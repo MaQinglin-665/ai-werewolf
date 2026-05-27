@@ -19,6 +19,9 @@
 /.superpowers/
 /promo-ai-werewolf/
 
+# private local-only theme assets
+/local-assets/
+
 # local database and generated prisma client
 /prisma/dev.db
 /prisma/dev.db-journal
