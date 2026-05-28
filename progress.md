@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-28 00:15 Asia/Shanghai
-**Session ID:** main merge cleanup
-**Active Feature:** class-trial-fixed-personas - Class Trial Fixed Personas
+**Last Updated:** 2026-05-28 10:40 Asia/Shanghai
+**Session ID:** class-trial UI polish and Tomori design
+**Active Feature:** class-trial-ui-polish-tomori - Class Trial UI Polish And Tomori Replacement
 
 ## Status
 
@@ -20,18 +20,21 @@
 - [x] Complete role cards start theme games as fixed 9-AI spectator games on `9p-seer-witch-hunter`; missing role cards degrade to ordinary AI behavior with the visual theme still available.
 - [x] Real LLM speech/action inputs include local role-card guidance as soft style and decision hints while preserving legal action constraints.
 - [x] Browser-level smoke verified homepage theme readiness, fixed 9-character seat order, AI speech progression, no visible hidden-role leak, and no `/rooms` theme entry.
+- [x] Class Trial UI polish direction approved: left halfbody portrait plus right large dialogue box, hybrid typewriter, and seat 8 replacement from 叶隐康比吕 to 高松灯.
+- [x] Design spec written at `docs/superpowers/specs/2026-05-28-class-trial-ui-polish-tomori-design.md`.
 
 ### What's In Progress
 
-- [ ] Finish local merge/stash cleanup.
-  - Details: `docs/tasks/2026-05-ai-pool-character-roster.md`, `feature_list.json`, and this progress file are staged for the AI Pool completion record.
-  - Blockers: none after resolving this file.
+- [ ] Await user review of the written UI polish spec before writing the implementation plan.
+  - Details: Implementation has not started. The next step is a plan and task card after spec approval.
+  - Blockers: none.
 
 ### What's Next
 
-1. Commit the resolved AI Pool completion record.
-2. Commit `scripts/harness-check.mjs` separately as the state-health gate enhancement.
-3. Later slice: GPT-SoVITS Japanese voice routing, Chinese dialogue/Japanese voice text separation, typewriter sync, and per-character voice fallback.
+1. User reviews `docs/superpowers/specs/2026-05-28-class-trial-ui-polish-tomori-design.md`.
+2. Write the implementation plan and task card for `class-trial-ui-polish-tomori`.
+3. Implement roster replacement, local Tomori assets, left-portrait dialogue layout, and hybrid typewriter.
+4. Later slice: GPT-SoVITS Japanese voice routing, Chinese dialogue/Japanese voice text separation, and per-character voice fallback.
 
 ## Blockers / Risks
 
@@ -55,6 +58,7 @@
 - `feature_list.json` - marks `ai-pool-character-roster` done with verification evidence.
 - `progress.md` - resolves merge/stash progress state.
 - `scripts/harness-check.mjs` - unstaged follow-up: state-health gate enhancement.
+- `docs/superpowers/specs/2026-05-28-class-trial-ui-polish-tomori-design.md` - approved design for the next class-trial UI slice.
 
 ## Evidence of Completion
 
@@ -65,7 +69,8 @@
 - [x] Class Trial focused tests: `npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/gameClientRequests.test.ts src/components/game/gamePanelsMobile.test.ts src/app/api/games/aiFriends.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts src/app/class-trial-pack/[...assetPath]/route.test.ts`
 - [x] Class Trial post-merge full tests on `main`: `npm run test` passed, 60 files / 546 tests.
 - [x] Class Trial post-merge lint/type/harness on `main`: `npm run lint`; `npx tsc --noEmit`; `npm run harness:task-card -- docs/tasks/2026-05-class-trial-fixed-personas.md`; `npm run harness:check` passed.
+- [x] Class Trial UI polish design approved in chat: B experience polish, A layout, C hybrid typewriter, seat 8 高松灯 replacement, confirmed transparent PNG candidate.
 
 ## Notes for Next Session
 
-Use `AGENTS.md` first. Then read this file, `feature_list.json`, `session-handoff.md`, `docs/tasks/2026-05-ai-pool-character-roster.md`, and `docs/tasks/2026-05-class-trial-fixed-personas.md`.
+Use `AGENTS.md` first. Then read this file, `feature_list.json`, `session-handoff.md`, and `docs/superpowers/specs/2026-05-28-class-trial-ui-polish-tomori-design.md`. Do not implement until the written spec is reviewed and an implementation plan/task card exists.
