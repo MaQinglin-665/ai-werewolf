@@ -1,7 +1,8 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { HumanGameView } from "@/game/types";
+import { buildClassTrialDialogueTimeline, getClassTrialDialogueFrame } from "./classTrialDialogue";
 import { getClassTrialCharacterForSeat, type ClassTrialPackCharacter, type ClassTrialPackManifest } from "./classTrialTheme";
 import type { CommandPayload } from "./clientTypes";
 
@@ -44,7 +45,42 @@ export function ClassTrialGameTable({
   const speakerCharacter = getSpeakerCharacter(game, seatCharacters);
   const speakerName = speakerCharacter?.displayName ?? "等待发言";
   const message = getLatestSpeakerMessage(game);
+  const [animationEnabled, setAnimationEnabled] = useState(false);
+  const [dialogueFrameIndex, setDialogueFrameIndex] = useState(0);
+  const timeline = useMemo(
+    () => buildClassTrialDialogueTimeline(message, { reducedMotion: !animationEnabled }),
+    [animationEnabled, message],
+  );
+  const displayedMessage = getClassTrialDialogueFrame(timeline, dialogueFrameIndex);
   const continueAction = game.availableActions.find((action) => action.type === "continue");
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateAnimationPreference = () => setAnimationEnabled(!reducedMotionQuery.matches);
+    updateAnimationPreference();
+    reducedMotionQuery.addEventListener("change", updateAnimationPreference);
+    return () => reducedMotionQuery.removeEventListener("change", updateAnimationPreference);
+  }, []);
+
+  useEffect(() => {
+    setDialogueFrameIndex(animationEnabled ? -1 : 0);
+  }, [animationEnabled, message, speakerName]);
+
+  useEffect(() => {
+    if (!animationEnabled || timeline.mode === "full") {
+      setDialogueFrameIndex(0);
+      return;
+    }
+    if (dialogueFrameIndex >= timeline.frames.length - 1) return;
+
+    const delay = dialogueFrameIndex < 0 ? 650 : timeline.mode === "characters" ? 32 : 680;
+    const timer = window.setTimeout(() => {
+      setDialogueFrameIndex((current) => Math.min(current + 1, timeline.frames.length - 1));
+    }, delay);
+
+    return () => window.clearTimeout(timer);
+  }, [animationEnabled, dialogueFrameIndex, timeline]);
 
   return (
     <section className="class-trial-table">
@@ -93,9 +129,11 @@ export function ClassTrialGameTable({
             <span>{speakerName}</span>
           )}
         </div>
-        <div className="class-trial-dialogue">
+        <div className="class-trial-dialogue" data-dialogue-mode={timeline.mode}>
           <h3>{speakerName}</h3>
-          <p>{message}</p>
+          <p className="class-trial-dialogue-text" aria-live="polite" data-dialogue-state={dialogueFrameIndex < 0 ? "thinking" : "speaking"}>
+            {displayedMessage}
+          </p>
         </div>
       </section>
 

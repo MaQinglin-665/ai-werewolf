@@ -106,6 +106,56 @@ describe("ClassTrialGameTable", () => {
     expect(html).toContain('src="/class-trial-pack/portraits/腐川冬子.png"');
   });
 
+  it("renders Tomori at seat eight without identity labels", () => {
+    const html = renderToStaticMarkup(
+      createElement(ClassTrialGameTable, {
+        game: makeGame({
+          currentSpeakerSeatId: 8,
+          tableSummary: {
+            ...makeGame().tableSummary,
+            recentSpeeches: [{ seq: 11, day: 2, speaker: { seatId: 8, name: "高松灯" }, message: "我、我想再确认一下。" }],
+          },
+        }),
+        loading: false,
+        manifest: {
+          id: "class-trial-pack",
+          version: "local",
+          characters: [
+            {
+              id: "tomori",
+              displayName: "高松灯",
+              avatarUrl: "/class-trial-pack/avatars/高松灯.png",
+              portraitUrl: "/class-trial-pack/portraits/高松灯.png",
+            },
+          ],
+        },
+        onReturnHome: () => undefined,
+        onSubmit: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain("高松灯 发言中");
+    expect(html).toContain('src="/class-trial-pack/portraits/高松灯.png"');
+    expect(html).toContain("我、我想再确认一下。");
+    expect(html).not.toContain("预言家");
+    expect(html).not.toContain("狼人");
+  });
+
+  it("marks the dialogue box as typewriter-ready with a plain-text fallback", () => {
+    const html = renderToStaticMarkup(
+      createElement(ClassTrialGameTable, {
+        game: makeGame(),
+        loading: false,
+        onReturnHome: () => undefined,
+        onSubmit: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain("class-trial-dialogue-text");
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain("先不要急着归票。");
+  });
+
   it("keeps a visible way back to the default table flow", () => {
     const html = renderToStaticMarkup(
       createElement(ClassTrialGameTable, {
