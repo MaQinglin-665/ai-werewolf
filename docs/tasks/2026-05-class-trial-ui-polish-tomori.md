@@ -127,3 +127,29 @@ Verification:
 Remaining risks:
 - ...
 ```
+
+## Completion Evidence
+
+Completed on: 2026-05-28 11:59 Asia/Shanghai
+
+Completed:
+- Replaced seat 8 Hagakure with Takamatsu Tomori in the fixed class-trial roster.
+- Updated ignored local manifest, personas, avatar, and portrait files for 高松灯.
+- Added hybrid dialogue timeline helper and focused tests.
+- Wired left portrait plus right large dialogue box into `ClassTrialGameTable`.
+- Fixed latest-speaker fallback so post-speech UI does not show `等待发言` beside a real speech.
+- Wrapped class-trial CSS in `@layer components` so Tailwind preserves the visual layout.
+- Confirmed `/rooms` remains unchanged.
+
+Verification:
+- `npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialDialogue.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts` passed.
+- `npm run lint` passed.
+- `npx tsc --noEmit` passed.
+- `npm run harness:task-card -- docs/tasks/2026-05-class-trial-ui-polish-tomori.md` passed.
+- `npm run harness:check` passed.
+- `git diff --check` passed.
+- Browser smoke at `http://127.0.0.1:51624` passed for local readiness, Tomori seat 8, left portrait/right dialogue, typewriter mode, no hidden role labels in dialogue, and no theme entry on `/rooms`.
+
+Remaining risks:
+- GPT-SoVITS routing, Japanese rewrite generation, and audio-synced typewriter remain future work.
+- Local assets are private ignored files and must not be committed or published.

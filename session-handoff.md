@@ -2,82 +2,68 @@
 
 ## Current Objective
 
-- Goal: Main has locally merged the class-trial theme foundation and fixed-persona slices.
-- Current status: Local merge verification passed on `main`. The feature implementation is committed on `codex/class-trial-theme-foundation`; main conflict resolution keeps both long-running task registry records and class-trial feature records.
-- Branch / worktree: `main` at `D:\ai-werewolf`.
-- Local note: pre-existing main work on the `/ai-pool` character roster was protected in stash `codex-preserve-main-local-changes-before-class-trial-merge` before this merge.
+- Goal: Finish the local-only `学级裁判主题局` UI polish slice and replace seat 8 with 高松灯.
+- Current status: Implementation is complete on branch `codex/class-trial-ui-polish-tomori`; automated checks and browser smoke passed.
+- Branch / worktree: `codex/class-trial-ui-polish-tomori` at `D:\ai-werewolf`.
+- Local note: `local-assets/class-trial-pack` and `tmp/class-trial-ui-polish-tomori-smoke.png` are ignored local evidence and must not be committed.
 
 ## Completed This Session
 
-- [x] Preserved pre-existing main tracked edits in a named stash before merging.
-- [x] Created implementation commit `097dd40 feat: add class trial fixed personas` on `codex/class-trial-theme-foundation`.
-- [x] Merged `codex/class-trial-theme-foundation` into `main` with manual conflict resolution.
-- [x] Kept the long-running task registry feature record while adding `class-trial-theme-mode-foundation` and `class-trial-fixed-personas`.
-- [x] Kept class-trial implementation docs, local asset route, class-trial table shell, role-card propagation, prompt guidance, and focused tests.
-- [x] Re-ran full tests, lint, typecheck, task-card gate, and harness check on the merged `main` result.
+- [x] Replaced fixed roster id `hagakure` with `tomori` and display name `高松灯`.
+- [x] Updated ignored local manifest/personas and copied ignored 高松灯 avatar/portrait PNG files.
+- [x] Added `classTrialDialogue.ts` for short-text character reveal, long-text segment reveal, thinking text, and reduced-motion fallback.
+- [x] Wired `ClassTrialGameTable` to the dialogue helper and fixed latest-speaker fallback after browser smoke found a `等待发言` mismatch.
+- [x] Polished class-trial CSS for weakened ring background, active speaker highlight, left portrait, right dialogue, mobile stacking, and reduced-motion transition suppression.
+- [x] Wrapped class-trial CSS in `@layer components` after browser smoke showed Tailwind was not preserving the top-level class-trial rules.
+- [x] Confirmed `/rooms` still has no class-trial theme entry.
 
 ## Verification Evidence
 
 | Check | Command | Result | Notes |
 |---|---|---|---|
-| Class-trial focused tests | `npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/gameClientRequests.test.ts src/components/game/gamePanelsMobile.test.ts src/app/api/games/aiFriends.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts src/app/class-trial-pack/[...assetPath]/route.test.ts` | passed before merge | 7 files, 123 tests in the feature worktree. |
-| Full test suite | `npm run test` | passed after merge | 60 files, 546 tests on local `main`. |
-| Lint | `npm run lint` | passed after merge | ESLint clean on local `main`. |
-| TypeScript | `npx tsc --noEmit` | passed after merge | Type-level confidence for changed contracts on local `main`. |
-| Harness task card | `npm run harness:task-card -- docs/tasks/2026-05-class-trial-fixed-personas.md` | passed after merge | Fixed-persona task card complete. |
-| Harness check | `npm run harness:check` | passed after merge | Mechanical harness checks passed. |
-| Browser/manual theme flow | Playwright at `http://127.0.0.1:51624` | passed before merge | Homepage -> `学级裁判主题局` -> fixed 9-character spectator table -> AI speech; `/rooms` did not expose the theme. |
+| Focused tests | `npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialDialogue.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts` | passed | 4 files, 31 tests. |
+| Lint | `npm run lint` | passed | Caught and then verified React effect/compiler fixes. |
+| TypeScript | `npx tsc --noEmit` | passed | No type errors. |
+| Task card | `npm run harness:task-card -- docs/tasks/2026-05-class-trial-ui-polish-tomori.md` | passed | Task gate complete. |
+| Harness | `npm run harness:check` | passed | Mechanical harness checks clean. |
+| Whitespace | `git diff --check` | passed | No whitespace errors. |
+| Browser smoke | `http://127.0.0.1:51624` | passed | Homepage readiness, theme game, Tomori seat 8, left portrait/right dialogue, typewriter mode, no hidden role labels in dialogue, `/rooms` absent of theme entry. |
 
 ## Files Changed
 
-- `.gitignore`
 - `feature_list.json`
 - `progress.md`
 - `session-handoff.md`
-- `docs/superpowers/specs/2026-05-27-class-trial-fixed-personas-design.md`
-- `docs/superpowers/plans/2026-05-27-class-trial-fixed-personas.md`
-- `docs/tasks/2026-05-class-trial-fixed-personas.md`
-- `docs/tasks/2026-05-class-trial-theme-mode-foundation.md`
-- `src/app/class-trial-pack/[...assetPath]/route.ts`
-- `src/app/class-trial-pack/[...assetPath]/route.test.ts`
+- `docs/tasks/2026-05-class-trial-ui-polish-tomori.md`
+- `src/app/globals.css`
 - `src/components/game/ClassTrialGameTable.tsx`
+- `src/components/game/classTrialDialogue.ts`
+- `src/components/game/classTrialDialogue.test.ts`
 - `src/components/game/classTrialGameTable.test.ts`
 - `src/components/game/classTrialTheme.ts`
 - `src/components/game/classTrialTheme.test.ts`
-- `src/components/game/gameClientRequests.ts`
-- `src/components/GameClient.tsx`
-- `src/game/types.ts`
-- `src/game/aiFriends.ts`
-- `src/game/engine.ts`
-- `src/game/projection.ts`
-- `src/ai/speechProviders.ts`
-- `src/ai/actionProviders.ts`
+
+Ignored local files updated:
+
+- `local-assets/class-trial-pack/manifest.json`
+- `local-assets/class-trial-pack/personas.json`
+- `local-assets/class-trial-pack/avatars/高松灯.png`
+- `local-assets/class-trial-pack/portraits/高松灯.png`
+- `tmp/class-trial-ui-polish-tomori-smoke.png`
 
 ## Decisions Made
 
-- Fixed-persona mode uses a local ignored `personas.json` and fixed seat order.
-- Role cards are soft style/strategy guidance only; rules, legal candidates, public evidence, hidden-information boundaries, and camp win condition remain authoritative.
-- Missing or malformed role cards do not break the visual theme; they fall back to ordinary AI behavior.
-- This feature remains local-only and is not exposed through `/rooms` or Public Alpha.
-- Future Japanese voice output should be a separate GPT-SoVITS/text-rewrite slice.
+- Tomori uses stable local id `tomori`; old Hagakure semantics are not retained in active roster/source.
+- The current slice remains local-only and does not change rules, room flow, or Public Alpha behavior.
+- The dialogue UI hides identity labels; only normal speech text and speaker name are visible.
+- SSR/reduced-motion fallback renders full plain text; browser motion mode uses thinking pause and hybrid typewriter.
 
 ## Blockers / Risks
 
-- Local role cards, portraits, and avatars are private testing material and must not be committed or published.
-- This slice does not implement GPT-SoVITS routing, Japanese rewrite generation, audio fallback, or typewriter sync.
-- The pre-existing `/ai-pool` main edits need to be restored from stash after the merge commit is validated.
-- `git pull --ff-only` failed because local `main` and `origin/main` are not a simple fast-forward; remote synchronization remains a separate task.
-
-## Next Session Startup
-
-1. Read `AGENTS.md`.
-2. Read `progress.md`, `feature_list.json`, and this handoff.
-3. Check `git status --short --branch`.
-4. Check `git stash list` for `codex-preserve-main-local-changes-before-class-trial-merge` if the pre-existing `/ai-pool` edits have not yet been restored.
-5. Run `npm run harness:check` before editing.
+- Local character assets remain private testing material and must not be published.
+- GPT-SoVITS routing, Japanese rewrite generation, and audio-synced typewriter are still future work.
+- The dev-server startup command emitted a PowerShell quoting warning for `DATABASE_URL`, but browser/API checks confirmed the app served correctly.
 
 ## Recommended Next Step
 
-1. Restore the protected `/ai-pool` main edits from stash.
-2. Stop the old class-trial dev server and remove the merged feature worktree if safe.
-3. Start the GPT-SoVITS Japanese voice-routing slice when ready.
+Start the GPT-SoVITS Japanese voice-routing slice when the remaining character models are ready, or do a smaller visual pass if recorded video shows a specific portrait still needs crop/scale tuning.
