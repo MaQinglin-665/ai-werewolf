@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { HumanGameView } from "@/game/types";
 import { buildClassTrialDialogueTimeline, getClassTrialDialogueFrame } from "./classTrialDialogue";
 import { getClassTrialCharacterForSeat, type ClassTrialPackCharacter, type ClassTrialPackManifest } from "./classTrialTheme";
@@ -10,13 +10,24 @@ function buildSeatCharacters(game: HumanGameView, manifest: ClassTrialPackManife
   return new Map(game.seats.map((seat, index) => [seat.seatId, getClassTrialCharacterForSeat(index, manifest)]));
 }
 
-function getSpeakerCharacter(game: HumanGameView, seatCharacters: Map<number, ClassTrialPackCharacter>): ClassTrialPackCharacter | undefined {
-  const seatId = game.currentSpeakerSeatId ?? game.currentActorSeatId;
+function getDisplaySpeakerSeatId(game: HumanGameView): number | undefined {
+  return (
+    game.currentSpeakerSeatId ??
+    game.currentActorSeatId ??
+    [...game.tableSummary.recentSpeeches].reverse().find((item) => item.speaker?.seatId)?.speaker?.seatId
+  );
+}
+
+function getSpeakerCharacter(
+  speakerSeatId: number | undefined,
+  seatCharacters: Map<number, ClassTrialPackCharacter>,
+): ClassTrialPackCharacter | undefined {
+  const seatId = speakerSeatId;
   return seatId ? seatCharacters.get(seatId) : undefined;
 }
 
-function getLatestSpeakerMessage(game: HumanGameView): string {
-  const seatId = game.currentSpeakerSeatId ?? game.currentActorSeatId;
+function getLatestSpeakerMessage(game: HumanGameView, speakerSeatId: number | undefined): string {
+  const seatId = speakerSeatId;
   const speech = [...game.tableSummary.recentSpeeches].reverse().find((item) => !seatId || item.speaker?.seatId === seatId);
   return speech?.message ?? "正在思考/准备发言。";
 }
@@ -42,18 +53,18 @@ export function ClassTrialGameTable({
   onSubmit: (payload: CommandPayload) => Promise<void>;
 }) {
   const seatCharacters = buildSeatCharacters(game, manifest);
-  const speakerCharacter = getSpeakerCharacter(game, seatCharacters);
+  const displaySpeakerSeatId = getDisplaySpeakerSeatId(game);
+  const speakerCharacter = getSpeakerCharacter(displaySpeakerSeatId, seatCharacters);
   const speakerName = speakerCharacter?.displayName ?? "等待发言";
-  const message = getLatestSpeakerMessage(game);
+  const message = getLatestSpeakerMessage(game, displaySpeakerSeatId);
   const [animationEnabled, setAnimationEnabled] = useState(false);
   const dialogueKey = `${speakerName}\n${message}\n${animationEnabled ? "animated" : "static"}`;
   const [dialogueProgress, setDialogueProgress] = useState({ frameIndex: 0, key: dialogueKey });
-  const timeline = useMemo(
-    () => buildClassTrialDialogueTimeline(message, { reducedMotion: !animationEnabled }),
-    [animationEnabled, message],
-  );
+  const timeline = buildClassTrialDialogueTimeline(message, { reducedMotion: !animationEnabled });
+  const dialogueMode = timeline.mode;
+  const dialogueFrameCount = timeline.frames.length;
   const dialogueFrameIndex =
-    dialogueProgress.key === dialogueKey ? dialogueProgress.frameIndex : animationEnabled && timeline.mode !== "full" ? -1 : 0;
+    dialogueProgress.key === dialogueKey ? dialogueProgress.frameIndex : animationEnabled && dialogueMode !== "full" ? -1 : 0;
   const displayedMessage = getClassTrialDialogueFrame(timeline, dialogueFrameIndex);
   const continueAction = game.availableActions.find((action) => action.type === "continue");
 
@@ -67,19 +78,19 @@ export function ClassTrialGameTable({
   }, []);
 
   useEffect(() => {
-    if (!animationEnabled || timeline.mode === "full") return;
-    if (dialogueFrameIndex >= timeline.frames.length - 1) return;
+    if (!animationEnabled || dialogueMode === "full") return;
+    if (dialogueFrameIndex >= dialogueFrameCount - 1) return;
 
-    const delay = dialogueFrameIndex < 0 ? 650 : timeline.mode === "characters" ? 32 : 680;
+    const delay = dialogueFrameIndex < 0 ? 650 : dialogueMode === "characters" ? 32 : 680;
     const timer = window.setTimeout(() => {
       setDialogueProgress({
-        frameIndex: Math.min(dialogueFrameIndex + 1, timeline.frames.length - 1),
+        frameIndex: Math.min(dialogueFrameIndex + 1, dialogueFrameCount - 1),
         key: dialogueKey,
       });
     }, delay);
 
     return () => window.clearTimeout(timer);
-  }, [animationEnabled, dialogueFrameIndex, dialogueKey, timeline]);
+  }, [animationEnabled, dialogueFrameCount, dialogueFrameIndex, dialogueKey, dialogueMode]);
 
   return (
     <section className="class-trial-table">
@@ -101,7 +112,7 @@ export function ClassTrialGameTable({
           return (
             <div
               key={seat.seatId}
-              className={["class-trial-seat", seat.seatId === game.currentSpeakerSeatId ? "class-trial-seat-active" : ""].join(" ")}
+              className={["class-trial-seat", seat.seatId === displaySpeakerSeatId ? "class-trial-seat-active" : ""].join(" ")}
               style={getSeatStyle(index, game.seats.length)}
             >
               {character.avatarUrl && (

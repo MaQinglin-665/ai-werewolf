@@ -156,6 +156,34 @@ describe("ClassTrialGameTable", () => {
     expect(html).toContain("先不要急着归票。");
   });
 
+  it("uses the latest speech speaker when the phase no longer has an active speaker id", () => {
+    const html = renderToStaticMarkup(
+      createElement(ClassTrialGameTable, {
+        game: makeGame({
+          currentSpeakerSeatId: undefined,
+          currentActorSeatId: undefined,
+          tableSummary: {
+            ...makeGame().tableSummary,
+            recentSpeeches: [{ seq: 12, day: 2, speaker: { seatId: 8, name: "高松灯" }, message: "我会把这句话说清楚。" }],
+          },
+        }),
+        loading: false,
+        manifest: {
+          id: "class-trial-pack",
+          version: "local",
+          characters: [{ id: "tomori", displayName: "高松灯", portraitUrl: "/class-trial-pack/portraits/高松灯.png" }],
+        },
+        onReturnHome: () => undefined,
+        onSubmit: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain("高松灯 发言中");
+    expect(html).toContain('src="/class-trial-pack/portraits/高松灯.png"');
+    expect(html).toContain("我会把这句话说清楚。");
+    expect(html).not.toContain("等待发言 发言中");
+  });
+
   it("keeps a visible way back to the default table flow", () => {
     const html = renderToStaticMarkup(
       createElement(ClassTrialGameTable, {
