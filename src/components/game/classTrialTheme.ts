@@ -16,7 +16,7 @@ export const CLASS_TRIAL_CHARACTER_IDS = [
   "enoshima",
   "celestia",
   "togami",
-  "hagakure",
+  "tomori",
   "anon",
 ] as const;
 
@@ -30,7 +30,7 @@ export const CLASS_TRIAL_CHARACTER_ROSTER: Array<{ id: ClassTrialCharacterId; di
   { id: "enoshima", displayName: "江之岛盾子" },
   { id: "celestia", displayName: "塞蕾丝缇雅" },
   { id: "togami", displayName: "十神白夜" },
-  { id: "hagakure", displayName: "叶隐康比吕" },
+  { id: "tomori", displayName: "高松灯" },
   { id: "anon", displayName: "千早爱音" },
 ];
 

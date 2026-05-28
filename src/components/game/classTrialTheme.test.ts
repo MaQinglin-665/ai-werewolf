@@ -53,9 +53,11 @@ describe("class trial theme model", () => {
       "江之岛盾子",
       "塞蕾丝缇雅",
       "十神白夜",
-      "叶隐康比吕",
+      "高松灯",
       "千早爱音",
     ]);
+    expect(CLASS_TRIAL_CHARACTER_IDS).toContain("tomori");
+    expect(CLASS_TRIAL_CHARACTER_IDS).not.toContain("hagakure");
 
     const manifest: ClassTrialPackManifest = {
       id: "class-trial-pack",
@@ -69,6 +71,7 @@ describe("class trial theme model", () => {
       portraitUrl: "/p.png",
       avatarUrl: "/a.png",
     });
+    expect(getClassTrialCharacterForSeat(7, undefined)).toMatchObject({ id: "tomori", displayName: "高松灯" });
     expect(getClassTrialCharacterForSeat(8, undefined)).toMatchObject({ id: "anon", displayName: "千早爱音" });
   });
 
@@ -132,9 +135,11 @@ describe("class trial theme model", () => {
       "江之岛盾子",
       "塞蕾丝缇雅",
       "十神白夜",
-      "叶隐康比吕",
+      "高松灯",
       "千早爱音",
     ]);
+    expect(friends[7]?.id).toBe("class-trial:tomori");
+    expect(friends[7]?.roleCard?.displayName).toBe("高松灯");
     expect(friends[3]?.id).toBe("class-trial:monokuma");
     expect(friends[3]?.basePersonaId).toBe("doubao-pressure-bluffer");
     expect(friends[3]?.roleCard?.displayName).toBe("黑白熊");
