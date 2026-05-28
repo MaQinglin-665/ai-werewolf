@@ -6,6 +6,7 @@
   --foreground: #161812;
 }
 
+@layer components {
 .class-trial-table {
   position: relative;
   min-height: calc(100svh - 6rem);
@@ -238,6 +239,7 @@
     min-height: 10rem;
     padding: 1rem;
   }
+}
 }
 
 @theme inline {
