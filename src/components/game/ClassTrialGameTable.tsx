@@ -46,11 +46,14 @@ export function ClassTrialGameTable({
   const speakerName = speakerCharacter?.displayName ?? "等待发言";
   const message = getLatestSpeakerMessage(game);
   const [animationEnabled, setAnimationEnabled] = useState(false);
-  const [dialogueFrameIndex, setDialogueFrameIndex] = useState(0);
+  const dialogueKey = `${speakerName}\n${message}\n${animationEnabled ? "animated" : "static"}`;
+  const [dialogueProgress, setDialogueProgress] = useState({ frameIndex: 0, key: dialogueKey });
   const timeline = useMemo(
     () => buildClassTrialDialogueTimeline(message, { reducedMotion: !animationEnabled }),
     [animationEnabled, message],
   );
+  const dialogueFrameIndex =
+    dialogueProgress.key === dialogueKey ? dialogueProgress.frameIndex : animationEnabled && timeline.mode !== "full" ? -1 : 0;
   const displayedMessage = getClassTrialDialogueFrame(timeline, dialogueFrameIndex);
   const continueAction = game.availableActions.find((action) => action.type === "continue");
 
@@ -64,23 +67,19 @@ export function ClassTrialGameTable({
   }, []);
 
   useEffect(() => {
-    setDialogueFrameIndex(animationEnabled ? -1 : 0);
-  }, [animationEnabled, message, speakerName]);
-
-  useEffect(() => {
-    if (!animationEnabled || timeline.mode === "full") {
-      setDialogueFrameIndex(0);
-      return;
-    }
+    if (!animationEnabled || timeline.mode === "full") return;
     if (dialogueFrameIndex >= timeline.frames.length - 1) return;
 
     const delay = dialogueFrameIndex < 0 ? 650 : timeline.mode === "characters" ? 32 : 680;
     const timer = window.setTimeout(() => {
-      setDialogueFrameIndex((current) => Math.min(current + 1, timeline.frames.length - 1));
+      setDialogueProgress({
+        frameIndex: Math.min(dialogueFrameIndex + 1, timeline.frames.length - 1),
+        key: dialogueKey,
+      });
     }, delay);
 
     return () => window.clearTimeout(timer);
-  }, [animationEnabled, dialogueFrameIndex, timeline]);
+  }, [animationEnabled, dialogueFrameIndex, dialogueKey, timeline]);
 
   return (
     <section className="class-trial-table">
