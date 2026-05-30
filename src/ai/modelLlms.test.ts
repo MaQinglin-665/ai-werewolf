@@ -254,6 +254,64 @@ describe("model LLM routing", () => {
     expect(result).toEqual({ text: "{\"speech\":\"我继续盘公开信息。\"}", providerId: "custom-speech:deepseek-reasoner" });
   });
 
+  it("disables DeepSeek action thinking to avoid reasoning-token empty JSON attempts", async () => {
+    process.env.AI_LLM_API_KEY = "test-key";
+    process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";
+    delete process.env.DEEPSEEK_ACTION_MAX_TOKENS;
+    delete process.env.DEEPSEEK_MAX_TOKENS;
+    delete process.env.AI_LLM_ACTION_MAX_TOKENS;
+
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "{\"candidateId\":\"vote:2\"}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await callRoutedModelJson({
+      personaName: "DeepSeek",
+      task: "action",
+      system: "Return JSON.",
+      input: { candidates: [{ id: "vote:2" }] },
+      maxTokens: 220,
+    });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[string | URL | Request, RequestInit | undefined]>;
+    const request = JSON.parse(String(calls[0]![1]?.body)) as { max_tokens: number; thinking?: { type?: string } };
+    expect(request.max_tokens).toBeGreaterThanOrEqual(900);
+    expect(request.thinking).toEqual({ type: "disabled" });
+  });
+
+  it("disables DeepSeek speech thinking so speech can use the normal response budget", async () => {
+    process.env.AI_LLM_API_KEY = "test-key";
+    process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";
+    delete process.env.DEEPSEEK_SPEECH_MAX_TOKENS;
+    delete process.env.DEEPSEEK_MAX_TOKENS;
+    delete process.env.AI_LLM_SPEECH_MAX_TOKENS;
+
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "{\"speech\":\"我继续盘公开信息。\"}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await callRoutedModelJson({
+      personaName: "DeepSeek",
+      task: "speech",
+      system: "Return JSON.",
+      input: { seat: 2 },
+      maxTokens: 900,
+    });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[string | URL | Request, RequestInit | undefined]>;
+    const request = JSON.parse(String(calls[0]![1]?.body)) as { max_tokens: number; thinking?: { type?: string } };
+    expect(request.max_tokens).toBeGreaterThanOrEqual(900);
+    expect(request.thinking).toEqual({ type: "disabled" });
+  });
+
   it("can route action requests to another persona when the primary provider fails", async () => {
     process.env.AI_LLM_API_KEY = "test-key";
     process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";

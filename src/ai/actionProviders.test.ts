@@ -73,8 +73,174 @@ describe("routed action provider", () => {
     });
 
     expect(input.characterRole?.displayName).toBe("雾切响子");
+    expect(input.characterLens).toMatchObject({
+      roleId: "kirigiri",
+      displayName: "雾切响子",
+    });
     expect(input.constraints.join("\n")).toContain("role card is soft guidance");
+    expect(input.constraints.join("\n")).toContain("学级裁判角色投票理由透镜：雾切响子");
+    expect(input.constraints.join("\n")).toContain("证据链断点");
     expect(JSON.stringify(input.characterRole)).not.toContain("真实身份");
+  });
+
+  it("applies class-trial werewolf strategy to private night action input", () => {
+    const state = createGame({ seed: 47, humanSeatId: null });
+    state.phase = "NIGHT_WOLVES";
+    const wolf = state.seats.find((seat) => seat.isAi && seat.role === "WEREWOLF")!;
+    wolf.name = "江之岛盾子";
+    wolf.roleCard = {
+      id: "enoshima",
+      displayName: "江之岛盾子",
+      theme: "class-trial",
+      styleTags: [],
+      speechStyleZh: "戏剧化、挑衅。",
+      reasoningBias: "放大公开反差。",
+      voteBias: "喜欢把压力推向能制造反应的位置。",
+      nightActionBias: "夜晚行动激进。",
+      asVillager: "作为好人时用公开证据施压。",
+      asWerewolf: "作为狼人时把混乱包装成公开推理。",
+      pressureResponse: "被怀疑时反向挑衅。",
+      relationshipHints: [],
+      catchphrasePolicy: "允许极短绝望感，不复刻长台词。",
+      forbidden: [],
+    };
+    const view = buildAgentView(state, wolf.seatId);
+    const tableRead = buildAiTableRead(view);
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      fallbackCommand: createMockCommand(view, tableRead),
+    });
+
+    expect(input.characterRole?.displayName).toBe("江之岛盾子");
+    expect(input.characterLens).toMatchObject({
+      roleId: "enoshima",
+      displayName: "江之岛盾子",
+    });
+    expect(input.constraints.join("\n")).toContain("学级裁判狼人杀行动策略：江之岛盾子");
+    expect(input.constraints.join("\n")).toContain("夜晚行动倾向");
+    expect(input.constraints.join("\n")).toContain("狼队打法");
+  });
+
+  it("offers class-trial last words with role-specific emotion", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "LAST_WORDS";
+    const enoshima = state.seats.find((seat) => seat.isAi)!;
+    enoshima.name = "江之岛盾子";
+    enoshima.roleCard = {
+      id: "enoshima",
+      displayName: "江之岛盾子",
+      theme: "class-trial",
+      styleTags: ["dramatic"],
+      speechStyleZh: "戏剧化、挑衅、愤怒。",
+      reasoningBias: "放大公开裂口。",
+      voteBias: "把裂口压成票口。",
+      nightActionBias: "夜晚行动偏进攻。",
+      asVillager: "作为好人时高压逼反应。",
+      asWerewolf: "作为狼人时煽动互踩。",
+      pressureResponse: "被怀疑时戏剧化反打。",
+      relationshipHints: [],
+      catchphrasePolicy: "允许极短戏剧化感叹。",
+      forbidden: ["不能泄露隐藏身份。"],
+    };
+    state.lastWordsSeatId = enoshima.seatId;
+    const view = buildAgentView(state, enoshima.seatId);
+    const tableRead = buildAiTableRead(view);
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      fallbackCommand: createMockCommand(view, tableRead),
+    });
+    const messages = input.candidates
+      .filter((candidate) => candidate.command.type === "lastWords")
+      .map((candidate) => (candidate.command.type === "lastWords" ? candidate.command.message : ""))
+      .join("\n");
+
+    expect(messages).toContain("江之岛盾子");
+    expect(messages).toMatch(/生气|愤怒|裂口|绝望/);
+    expect(messages).not.toContain("我是江之岛盾子");
+    expect(messages).not.toContain("我出局前留核心视角");
+  });
+
+  it("offers Kirigiri last words as resigned but rational analysis", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "LAST_WORDS";
+    const kirigiri = state.seats.find((seat) => seat.isAi)!;
+    kirigiri.name = "雾切响子";
+    kirigiri.roleCard = {
+      id: "kirigiri",
+      displayName: "雾切响子",
+      theme: "class-trial",
+      styleTags: ["calm"],
+      speechStyleZh: "冷静、无奈、理性。",
+      reasoningBias: "优先审查证据链。",
+      voteBias: "投证据链最完整的可疑位。",
+      nightActionBias: "夜晚行动谨慎。",
+      asVillager: "作为好人时保持事实边界。",
+      asWerewolf: "作为狼人时冷静伪装。",
+      pressureResponse: "被怀疑时逐条拆解。",
+      relationshipHints: [],
+      catchphrasePolicy: "允许极短冷静收束句。",
+      forbidden: ["不能泄露隐藏身份。"],
+    };
+    state.lastWordsSeatId = kirigiri.seatId;
+    const view = buildAgentView(state, kirigiri.seatId);
+    const tableRead = buildAiTableRead(view);
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      fallbackCommand: createMockCommand(view, tableRead),
+    });
+    const messages = input.candidates
+      .filter((candidate) => candidate.command.type === "lastWords")
+      .map((candidate) => (candidate.command.type === "lastWords" ? candidate.command.message : ""))
+      .join("\n");
+
+    expect(messages).toContain("雾切响子");
+    expect(messages).toMatch(/无奈|遗憾|证据链|理性/);
+    expect(messages).not.toContain("我是雾切响子");
+    expect(messages).not.toContain("我出局前留核心视角");
+  });
+
+  it("rejects class-trial last words that reintroduce the speaker by name", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "LAST_WORDS";
+    const monokuma = state.seats.find((seat) => seat.isAi)!;
+    monokuma.name = "黑白熊";
+    monokuma.roleCard = {
+      id: "monokuma",
+      displayName: "黑白熊",
+      theme: "class-trial",
+      styleTags: ["taunting"],
+      speechStyleZh: "嘲弄、夸张、像裁判长一样煽风点火。",
+      reasoningBias: "用公开票型和死讯制造压迫感。",
+      voteBias: "把公开裂口推成处刑压力。",
+      nightActionBias: "夜晚行动偏制造混乱。",
+      asVillager: "作为好人时用夸张语气逼反应。",
+      asWerewolf: "作为狼人时用玩笑掩盖推动。",
+      pressureResponse: "被怀疑时嘲弄反打。",
+      relationshipHints: [],
+      catchphrasePolicy: "保留短促的噗噗语气词。",
+      forbidden: ["不能泄露隐藏身份。"],
+    };
+    state.lastWordsSeatId = monokuma.seatId;
+    const view = buildAgentView(state, monokuma.seatId);
+    const tableRead = buildAiTableRead(view);
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      fallbackCommand: createMockCommand(view, tableRead),
+    });
+
+    const selfIntroErrors = validateActionDecision(view, input, {
+      candidateId: "lastWords:custom",
+      reason: "公开遗言补充票型判断",
+      message: "噗噗，我是黑白熊。别以为我退场这场闹剧就结束了。",
+    });
+    const characterBeatErrors = validateActionDecision(view, input, {
+      candidateId: "lastWords:custom",
+      reason: "公开遗言补充票型判断",
+      message: "噗噗，别以为我退场这场闹剧就结束了。明天继续互相审判吧。",
+    });
+
+    expect(selfIntroErrors).toContain("学级裁判遗言不要自我介绍");
+    expect(characterBeatErrors).not.toContain("学级裁判遗言不要自我介绍");
   });
 
   it("offers wolf beauty charm as a night action candidate", () => {
@@ -514,6 +680,79 @@ describe("routed action provider", () => {
     expect(requestedModels).toEqual(["deepseek-v4-flash", "gpt-5.4"]);
     expect(result.isFallback).toBe(false);
     expect(result.provider).toBe("gpt-action:gpt-5.4");
+    expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
+  });
+
+  it("keeps class-trial action repair attempts on DeepSeek instead of persona fallbacks", async () => {
+    process.env.AI_LLM_API_KEY = "test-key";
+    process.env.AI_LLM_MAX_RETRIES = "1";
+    process.env.AI_LLM_ACTION_FALLBACK_PERSONAS = "GPT";
+    process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";
+    process.env.AI_MODEL_GPT = "gpt-5.4";
+
+    let requestCount = 0;
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      requestCount += 1;
+      const requestBody = JSON.parse(String(init?.body)) as {
+        model: string;
+        messages: Array<{ content: string }>;
+      };
+      if (requestCount === 1) {
+        return new Response(JSON.stringify({ choices: [{ message: { content: "not json" } }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      const content = requestBody.messages.at(-1)?.content ?? "{}";
+      const inputJson = content.includes("输入：") ? content.slice(content.indexOf("输入：") + "输入：".length) : content;
+      const input = JSON.parse(inputJson) as {
+        candidates: Array<{ id: string; command: { type: string } }>;
+      };
+      const candidate = input.candidates.find((item) => item.command.type === "vote") ?? input.candidates[0];
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ candidateId: candidate?.id, reason: "公开证据更清楚，先压这里。" }) } }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const state = createGame({ seed: 91 });
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    voter.name = "雾切响子";
+    voter.roleCard = {
+      id: "kirigiri",
+      displayName: "雾切响子",
+      theme: "class-trial",
+      styleTags: ["calm", "deductive"],
+      speechStyleZh: "冷静、简短、抓证据。",
+      reasoningBias: "优先审查证据链和发言矛盾。",
+      voteBias: "更愿意投公开证据闭合的位置。",
+      nightActionBias: "夜晚行动谨慎，优先高信息收益。",
+      asVillager: "作为好人时保持事实边界。",
+      asWerewolf: "作为狼人时用冷静逻辑伪装。",
+      pressureResponse: "被怀疑时要求对方给出证据链。",
+      relationshipHints: [],
+      catchphrasePolicy: "允许极短角色感，不复刻大段原台词。",
+      forbidden: ["不能泄露隐藏身份。"],
+    };
+    state.phase = "DAY_VOTE";
+    const view = buildAgentView(state, voter.seatId);
+    const tableRead = buildAiTableRead(view);
+    const votePlan = createVotePlan(view, tableRead);
+    const fallbackCommand = createMockCommand(view, tableRead, votePlan);
+
+    const result = await routedModelActionProvider.generateCommand(view, { tableRead, votePlan, fallbackCommand });
+
+    const requestedModels = fetchMock.mock.calls.map((call) => {
+      const body = JSON.parse(String(call[1]?.body)) as { model: string };
+      return body.model;
+    });
+    expect(requestedModels).toEqual(["deepseek-v4-flash", "deepseek-v4-flash"]);
+    expect(result.isFallback).toBe(false);
+    expect(result.provider).toBe("deepseek-action:deepseek-v4-flash");
     expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
   });
 

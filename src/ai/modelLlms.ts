@@ -547,6 +547,7 @@ function readThinkingMode(route: ModelRoute): "disabled" | "enabled" | undefined
 
   const globalDisable = readOptionalEnv("AI_LLM_DISABLE_THINKING")?.toLowerCase();
   if (globalDisable === "false" || globalDisable === "off" || globalDisable === "0") return undefined;
+  if (route.id === "deepseek") return "disabled";
   return route.id === "kimi" || route.id === "mimo" ? "disabled" : undefined;
 }
 
@@ -649,6 +650,10 @@ function readRouteMaxTokens(route: ModelRoute, task: RoutedJsonOptions["task"], 
 }
 
 function reasoningModelTokenFloor(route: ModelRoute, task: RoutedJsonOptions["task"]): number {
+  if (route.id === "deepseek") {
+    if (task === "speech") return 900;
+    if (task === "action") return 900;
+  }
   if (route.id !== "kimi" && route.id !== "mimo") return 0;
   if (task === "speech") return 2400;
   if (task === "action") return 1800;

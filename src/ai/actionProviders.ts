@@ -33,6 +33,12 @@ import { buildReasoningFrame, type AiReasoningFrame } from "./reasoningFrame";
 import { buildRolePlaybook, type AiRolePlaybook } from "./rolePlaybook";
 import { isProtectedDeadSeerGoldSeat } from "./protectedGold";
 import { buildPublicInferenceLayers, type PublicInferenceLayers } from "./inferenceLayers";
+import {
+  buildClassTrialLensFallbackSpeech,
+  formatClassTrialLensForAction,
+  getClassTrialCharacterLens,
+  type ClassTrialCharacterLens,
+} from "./classTrialCharacterLens";
 import type { AiActionProvider, AiActionProviderContext, AiActionResult } from "./types";
 
 const ActionDecisionSchema = z
@@ -61,6 +67,7 @@ export type LlmActionInput = {
   myRole: Role;
   persona?: AgentView["persona"];
   characterRole?: NonNullable<AgentView["roleCard"]>;
+  characterLens?: ClassTrialCharacterLens;
   aliveSeats: ActionTarget[];
   publicContext: {
     recentSpeeches: AgentView["publicSummary"]["recentSpeeches"];
@@ -279,6 +286,7 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
     myRole: view.myRole,
     persona: view.persona,
     characterRole: view.roleCard,
+    characterLens: shouldUseClassTrialActionLens(view) ? getClassTrialCharacterLens(view.roleCard) : undefined,
     aliveSeats: view.aliveSeats,
     publicContext: {
       recentSpeeches: view.publicSummary.recentSpeeches.slice(-8),
@@ -671,6 +679,9 @@ export function validateActionDecision(view: AgentView, input: LlmActionInput, d
 
   if (candidate.command.type === "lastWords" && message && containsActionPrivateLeak(message)) {
     errors.push("last words leak private or system context");
+  }
+  if (candidate.command.type === "lastWords" && message && hasClassTrialLastWordsSelfIntro(view, message)) {
+    errors.push("学级裁判遗言不要自我介绍");
   }
 
   return errors;
@@ -1189,6 +1200,10 @@ function protectedDeadSeerGoldReasonHint(tableRead: AiTableRead, target: ActionT
 }
 
 function buildLastWordsCandidates(view: AgentView, tableRead: AiTableRead): string[] {
+  if (view.roleCard?.theme === "class-trial") {
+    return buildClassTrialLastWordsCandidates(view, tableRead);
+  }
+
   const focus = tableRead.focus;
   const backup = tableRead.backupFocus;
   const latestSpeech = tableRead.recentSpeeches.find((speech) => speech.speaker?.seatId !== view.mySeatId);
@@ -1226,6 +1241,69 @@ function buildLastWordsCandidates(view: AgentView, tableRead: AiTableRead): stri
   return [...new Set(messages.map((message) => compactLastWords(message)))].slice(0, 5);
 }
 
+function buildClassTrialLastWordsCandidates(view: AgentView, tableRead: AiTableRead): string[] {
+  const roleCard = view.roleCard!;
+  const focus = tableRead.focus;
+  const backup = tableRead.backupFocus;
+  const latestSpeech = tableRead.recentSpeeches.find((speech) => speech.speaker?.seatId !== view.mySeatId);
+  const voteLead = tableRead.voteSnapshot.leaders[0];
+  const focusText = focus ? `${focus.seatId}号${focus.name}` : latestSpeech?.speaker ? `${latestSpeech.speaker.seatId}号${latestSpeech.speaker.name}` : "当前焦点位";
+  const backupText = backup ? `${backup.seatId}号${backup.name}` : "外置位";
+  const voteText = voteLead ? `${voteLead.seatId}号${voteLead.name}` : focusText;
+  const lens = getClassTrialCharacterLens(roleCard);
+  const gap = latestSpeech?.message ? describeLastWordsGap(latestSpeech.message) : "公开证据还没有闭合";
+  const roleLine = classTrialLastWordsRoleLine(roleCard.id, roleCard.displayName, focusText, gap, voteText);
+
+  const messages = [
+    roleLine,
+    lens
+      ? buildClassTrialLensFallbackSpeech(lens, { focusText, gap })
+      : `${roleCard.displayName}。${focusText}这段最后只留一个公开缺口：${gap}。`,
+    `${roleCard.displayName}。如果明天还开庭，别只看我出局这个结果；复盘${voteText}的起票、补票和最后跟票。`,
+    `${roleCard.displayName}。${backupText}不要被轻放，谁借我的遗言转移${focusText}，谁就要被重新审判。`,
+  ];
+
+  if (view.myRole === "SEER" && view.privateKnowledge.seerChecks?.length) {
+    const check = view.privateKnowledge.seerChecks.at(-1)!;
+    messages.unshift(
+      `${roleCard.displayName}。最后把验人钉住：${check.targetSeatId}号${check.result === "WEREWOLF" ? "查杀" : "金水"}，我出局以后按这条证据链回看站边和票型。`,
+    );
+  }
+
+  return [...new Set(messages.map((message) => compactLastWords(message)))].slice(0, 5);
+}
+
+function classTrialLastWordsRoleLine(roleId: string, displayName: string, focusText: string, gap: string, voteText: string): string {
+  switch (roleId) {
+    case "enoshima":
+      return `${displayName}。我当然生气，生气到想把这张审判桌掀翻；${focusText}留下的裂口就是${gap}，明天谁替它遮过去，谁就一起掉进绝望里。`;
+    case "kirigiri":
+      return `${displayName}。有些无奈，但证据链还在；${focusText}没有闭合的是${gap}，明天请理性复盘${voteText}这条票线。`;
+    case "monokuma":
+      return `噗噗，${displayName}。别以为我退场这场闹剧就结束了，${focusText}的缺口是${gap}，明天继续互相审判吧。`;
+    case "fukawa":
+      return `${displayName}。别、别把我的出局当成你们轻松翻篇的借口，${focusText}含过去的${gap}，明天必须有人正面拆开。`;
+    case "celestia":
+      return `${displayName}。这次下注并不优雅，${focusText}的筹码缺口是${gap}；明天请看清谁急着跟注。`;
+    case "togami":
+      return `${displayName}。我退场不代表你们达标了，${focusText}的推理标准缺在${gap}，明天按这个标准清人。`;
+    case "tomori":
+      return `${displayName}。我还有点不甘心，${focusText}那句话里的${gap}一直没接上；明天请先听这个停顿。`;
+    case "anon":
+      return `${displayName}。这局面真的有点绕，但${focusText}的${gap}还没接上；明天别跟着气氛跑票。`;
+    default:
+      return `${displayName}。我最后只留下${focusText}的公开缺口：${gap}，明天按这个点继续审判。`;
+  }
+}
+
+function describeLastWordsGap(message: string): string {
+  if (/票|投|归票|跟票|补票/.test(message)) return "票型理由和发言前后连接";
+  if (/查杀|金水|预言家|查验|验人/.test(message)) return "查验线和回应顺序";
+  if (/平安夜|死亡|死讯|女巫|药/.test(message)) return "死讯解释边界";
+  if (/解释|理由|逻辑|闭合|前后|矛盾|缺口/.test(message)) return "理由没有和前后发言闭合";
+  return "公开证据还没有闭合";
+}
+
 function buildActionConstraints(view: AgentView, votePlan?: VotePlan): string[] {
   const constraints = [
     "Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\",\"message\":\"optional for last words\"}.",
@@ -1254,6 +1332,13 @@ function buildActionConstraints(view: AgentView, votePlan?: VotePlan): string[] 
       "The role card is soft guidance; it must not override legal candidates, public evidence, hidden-information boundaries, or the player's camp win condition.",
       ...view.roleCard.forbidden,
     );
+    const classTrialLens = shouldUseClassTrialActionLens(view) ? getClassTrialCharacterLens(view.roleCard) : undefined;
+    if (classTrialLens) {
+      constraints.push(
+        formatClassTrialLensForAction(classTrialLens),
+        "Use the class-trial werewolf strategy only to choose between legal candidates and public-safe reasons; do not mention private knowledge or change illegal actions.",
+      );
+    }
   }
 
   if (
@@ -1311,6 +1396,12 @@ function buildActionConstraints(view: AgentView, votePlan?: VotePlan): string[] 
   if (view.phase === "LAST_WORDS") {
     constraints.push("For last words, prefer candidateId \"lastWords:custom\" and provide a natural message field with the actual final public speech.");
     constraints.push("Last words should leave one or two concrete table reads, vote-shape reads, claim reads, or warnings for tomorrow; do not use a fixed generic line.");
+    if (shouldUseClassTrialActionLens(view)) {
+      const displayName = view.roleCard?.displayName?.trim() || "the speaker";
+      constraints.push(
+        `Class-trial last words continue the current trial after the verdict; do not reintroduce yourself with "我是${displayName}", "我叫${displayName}", or similar. Keep signature particles if natural, then give an emotional public read.`,
+      );
+    }
   }
 
   if (isWolfRole(view.myRole, view.rules.wolfRoles)) {
@@ -1505,6 +1596,23 @@ function withReason(command: Command, reason: string | undefined): Command {
 function cleanLastWordsMessage(message: string | undefined): string | undefined {
   const clean = (message ?? "").trim().replace(/\s+/g, " ");
   return clean ? clean.slice(0, 800) : undefined;
+}
+
+function hasClassTrialLastWordsSelfIntro(view: AgentView, message: string): boolean {
+  if (!shouldUseClassTrialActionLens(view)) return false;
+  const displayName = view.roleCard?.displayName?.trim();
+  if (!displayName) return false;
+
+  const compactMessage = message.replace(/\s+/g, "");
+  const compactName = displayName.replace(/\s+/g, "");
+  if (!compactName) return false;
+
+  const namePattern = escapeRegExp(compactName);
+  return new RegExp(`(?:我(?:是|叫)|这里是|这边是|本席是|本熊是)(?:[0-9０-９]+号?)?${namePattern}`).test(compactMessage);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function cleanActionReason(reason: string | undefined): string {
@@ -1706,7 +1814,7 @@ async function callRoutedModelAction(input: LlmActionInput): Promise<RoutedLlmRe
   const modelInput = stripActionRuntimeLlm(input);
   return callRoutedModelJsonWithFallbacks({
     personaName: primaryPersonaName,
-    fallbackPersonaNames: readActionFallbackPersonaNames(primaryPersonaName),
+    fallbackPersonaNames: readActionFallbackPersonaNames(primaryPersonaName, input),
     task: "action",
     system:
       "You are the decision brain for an AI Werewolf player. Choose exactly one legal candidate action from candidates using inferenceLayers, persona.preferences, expertStrategy, advancedReasoning, and publicContext.decisionSummary as soft strategy guidance. Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\"}. Do not reveal private/system context.",
@@ -1723,24 +1831,28 @@ function stripActionRuntimeLlm(input: LlmActionInput): Omit<LlmActionInput, "llm
 }
 
 function readActionPrimaryPersonaName(input: LlmActionInput): string | undefined {
+  if (isClassTrialActionInput(input)) return "DeepSeek";
+
   const primary = input.persona?.name;
   const previousIssue = input.stability?.previousIssue ?? "";
   if (!/not valid JSON|did not pass constraints|missing candidate|selected a missing candidate|candidateId/i.test(previousIssue)) {
     return primary;
   }
 
-  const fallbackPersonaNames = readActionFallbackPersonaNames(primary);
+  const fallbackPersonaNames = readActionFallbackPersonaNames(primary, input);
   const fallbackIndex = Math.max(0, (input.stability?.attempt ?? 2) - 2);
   return fallbackPersonaNames[fallbackIndex] ?? fallbackPersonaNames.at(-1) ?? primary;
 }
 
 function readRoutedActionOutputMaxAttempts(input: LlmActionInput): number {
   const baseAttempts = readLlmOutputMaxAttempts();
-  const fallbackPersonaCount = readActionFallbackPersonaNames(input.persona?.name).length;
+  const fallbackPersonaCount = readActionFallbackPersonaNames(input.persona?.name, input).length;
   return Math.min(5, Math.max(baseAttempts, 1 + fallbackPersonaCount));
 }
 
-function readActionFallbackPersonaNames(primaryPersonaName: string | undefined): string[] {
+function readActionFallbackPersonaNames(primaryPersonaName: string | undefined, input?: LlmActionInput): string[] {
+  if (input && isClassTrialActionInput(input)) return [];
+
   const configured = process.env.AI_LLM_ACTION_FALLBACK_PERSONAS?.trim();
   const values =
     configured && !/^(off|none|false|0)$/i.test(configured)
@@ -1752,6 +1864,14 @@ function readActionFallbackPersonaNames(primaryPersonaName: string | undefined):
     .filter(Boolean)
     .filter((value, index, array) => array.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index)
     .filter((value) => value.toLowerCase() !== primary);
+}
+
+function isClassTrialActionInput(input: Pick<LlmActionInput, "characterRole">): boolean {
+  return input.characterRole?.theme === "class-trial";
+}
+
+function shouldUseClassTrialActionLens(view: AgentView): boolean {
+  return view.roleCard?.theme === "class-trial";
 }
 
 function extractResponseText(data: unknown): string {
