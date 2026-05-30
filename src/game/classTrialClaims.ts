@@ -30,7 +30,7 @@ const SEER_HARD_CLAIM_PATTERNS = [
 
 const HUNTER_HARD_CLAIM_PATTERNS = [
   /(?:猎人|枪)[^。！？；\n]{0,18}(?:在这里|明牌|摊开|拍出来)/,
-  /(?:别|不要)[^。！？；\n]{0,12}逼我[^。！？；\n]{0,12}(?:开枪|带人)/,
+  /(?:别|不要)[^。！？；\n]{0,12}逼我[^。！？；\n]{0,12}开枪/,
 ];
 
 export function extractClassTrialRoleClaimSignal(message: string): ClassTrialRoleClaimSignal | undefined {
@@ -39,7 +39,6 @@ export function extractClassTrialRoleClaimSignal(message: string): ClassTrialRol
   if (hasWitchHardClaim && !hasClassTrialWitchSelfClaimDenial(normalized)) {
     return { claimedRole: "WITCH", strength: "hard", reason: "class-trial-dramatic-witch" };
   }
-  if (hasClassTrialWitchReasoningNegation(normalized)) return undefined;
   if (SEER_HARD_CLAIM_PATTERNS.some((pattern) => pattern.test(normalized))) {
     return { claimedRole: "SEER", strength: "hard", reason: "class-trial-dramatic-seer" };
   }
@@ -54,12 +53,12 @@ export function hasClassTrialHunterHardClaimSignal(message: string): boolean {
   return HUNTER_HARD_CLAIM_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
-export function hasClassTrialWitchReasoningNegation(message: string): boolean {
+function hasClassTrialWitchReasoningNegation(message: string): boolean {
   const normalized = normalizeDigits(message);
   return WITCH_REASONING_NEGATIONS.some((pattern) => pattern.test(normalized));
 }
 
-function hasClassTrialWitchSelfClaimDenial(message: string): boolean {
+export function hasClassTrialWitchSelfClaimDenial(message: string): boolean {
   const normalized = normalizeDigits(message);
   return WITCH_SELF_CLAIM_DENIALS.some((pattern) => pattern.test(normalized));
 }

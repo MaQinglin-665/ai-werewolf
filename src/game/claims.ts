@@ -1,7 +1,7 @@
 import {
   extractClassTrialRoleClaimSignal,
   hasClassTrialHunterHardClaimSignal,
-  hasClassTrialWitchReasoningNegation,
+  hasClassTrialWitchSelfClaimDenial,
 } from "./classTrialClaims";
 import { ROLE_LABELS } from "./labels";
 import type { ClaimCheck, ClaimStrength, Role, RoleClaim } from "./types";
@@ -85,10 +85,9 @@ export function extractRoleClaimFromSpeech(params: {
   const normalized = normalizeDigits(message);
   const isClassTrial = params.roleCard?.theme === "class-trial";
   const classTrialSignal = isClassTrial ? extractClassTrialRoleClaimSignal(normalized) : undefined;
-  const suppressExplicitWitchRole = isClassTrial && hasClassTrialWitchReasoningNegation(normalized);
-  const explicitRole = suppressExplicitWitchRole
-    ? undefined
-    : ROLE_PATTERNS.find((item) => item.pattern.test(normalized))?.role;
+  const explicitRole = ROLE_PATTERNS.find((item) => item.pattern.test(normalized))?.role;
+  const supportedExplicitRole =
+    isClassTrial && explicitRole === "WITCH" && hasClassTrialWitchSelfClaimDenial(normalized) ? undefined : explicitRole;
   const checks = extractClaimChecks({
     day: params.day,
     claimantSeatId: params.claimantSeatId,
@@ -97,7 +96,7 @@ export function extractRoleClaimFromSpeech(params: {
     sourceSpeechSeq: params.sourceSpeechSeq,
   });
   const claimedRole =
-    explicitRole ?? classTrialSignal?.claimedRole ?? (checks.length > 0 && hasSelfCheckCue(normalized) ? "SEER" : undefined);
+    supportedExplicitRole ?? classTrialSignal?.claimedRole ?? (checks.length > 0 && hasSelfCheckCue(normalized) ? "SEER" : undefined);
   if (!claimedRole) return undefined;
   const classTrialStrength = classTrialSignal?.claimedRole === claimedRole ? classTrialSignal.strength : undefined;
 

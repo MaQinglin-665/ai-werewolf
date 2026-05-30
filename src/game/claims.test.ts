@@ -134,6 +134,19 @@ describe("role claim extraction", () => {
     expect(claim?.strength).toBe("hard");
   });
 
+  it("does not let witch reasoning suppress explicit class-trial seer claims", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 1,
+      message: "我跳预言家，平安夜更像女巫用药结果。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+  });
+
   it("supports dramatic class-trial hunter gun claims", () => {
     const claim = extractRoleClaimFromSpeech({
       day: 1,
@@ -153,6 +166,18 @@ describe("role claim extraction", () => {
       day: 1,
       claimantSeatId: 4,
       message: "今天谁带人冲票都要解释。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim).toBeUndefined();
+  });
+
+  it("does not treat generic forced vote-lead wording as a hunter gun claim", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 4,
+      message: "别逼我带人冲票。",
       validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
       roleCard: { theme: "class-trial" },
     });
