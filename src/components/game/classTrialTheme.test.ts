@@ -8,10 +8,12 @@ import {
   CLASS_TRIAL_THEME_MODES,
   buildClassTrialAiFriends,
   getClassTrialCharacterForSeat,
+  getClassTrialCourtBackgroundUrl,
   getClassTrialPackStatus,
   getClassTrialPersonasStatus,
   getClassTrialThemeStatusMessage,
   parseClassTrialThemeMode,
+  sanitizeClassTrialPackManifest,
   sanitizeClassTrialPersonas,
   type ClassTrialPackManifest,
 } from "./classTrialTheme";
@@ -34,7 +36,13 @@ describe("class trial theme model", () => {
     const manifest: ClassTrialPackManifest = {
       id: "class-trial-pack",
       version: "0.1.0-local",
-      characters: CLASS_TRIAL_CHARACTER_IDS.map((id) => ({ id, displayName: id, hasPortrait: true, hasAvatar: true })),
+      characters: CLASS_TRIAL_CHARACTER_IDS.map((id) => ({
+        id,
+        displayName: id,
+        hasPortrait: true,
+        hasThinkingPortrait: true,
+        hasAvatar: true,
+      })),
     };
 
     expect(getClassTrialPackStatus(manifest)).toEqual({
@@ -42,6 +50,29 @@ describe("class trial theme model", () => {
       message: "本地主题素材包已就绪。",
       missingCharacterIds: [],
     });
+  });
+
+  it("reads an optional class-trial court background from the manifest", () => {
+    const manifest = sanitizeClassTrialPackManifest({
+      id: "class-trial-pack",
+      version: "local-test",
+      backgrounds: { courtMain: "/class-trial-pack/backgrounds/court-main.png" },
+      characters: [],
+    });
+
+    expect(manifest?.backgrounds?.courtMain).toBe("/class-trial-pack/backgrounds/court-main.png");
+    expect(getClassTrialCourtBackgroundUrl(manifest)).toBe("/class-trial-pack/backgrounds/court-main.png");
+  });
+
+  it("keeps old class-trial manifests valid when backgrounds are absent", () => {
+    const manifest = sanitizeClassTrialPackManifest({
+      id: "class-trial-pack",
+      version: "local-test",
+      characters: [],
+    });
+
+    expect(manifest?.backgrounds).toBeUndefined();
+    expect(getClassTrialCourtBackgroundUrl(manifest)).toBeUndefined();
   });
 
   it("maps table seats to the fixed class-trial roster and local pack URLs", () => {
@@ -62,17 +93,113 @@ describe("class trial theme model", () => {
     const manifest: ClassTrialPackManifest = {
       id: "class-trial-pack",
       version: "0.1.0-local",
-      characters: [{ id: "kirigiri", displayName: "雾切响子", portraitUrl: "/p.png", avatarUrl: "/a.png", hasPortrait: true, hasAvatar: true }],
+      characters: [
+        {
+          id: "kirigiri",
+          displayName: "雾切响子",
+          portraitUrl: "/p.png",
+          thinkingPortraitUrl: "/thinking.png",
+          avatarUrl: "/a.png",
+          hasPortrait: true,
+          hasThinkingPortrait: true,
+          hasAvatar: true,
+        },
+      ],
     };
 
     expect(getClassTrialCharacterForSeat(1, manifest)).toMatchObject({
       id: "kirigiri",
       displayName: "雾切响子",
       portraitUrl: "/p.png",
+      thinkingPortraitUrl: "/thinking.png",
       avatarUrl: "/a.png",
     });
     expect(getClassTrialCharacterForSeat(7, undefined)).toMatchObject({ id: "tomori", displayName: "高松灯" });
     expect(getClassTrialCharacterForSeat(8, undefined)).toMatchObject({ id: "anon", displayName: "千早爱音" });
+  });
+
+  it("requires thinking portraits as part of a complete local theme pack", () => {
+    const completeManifest: ClassTrialPackManifest = {
+      id: "class-trial-pack",
+      version: "0.1.0-local",
+      characters: CLASS_TRIAL_CHARACTER_IDS.map((id) => ({
+        id,
+        displayName: id,
+        portraitUrl: `/portraits/${id}.png`,
+        thinkingPortraitUrl: `/thinking-portraits/${id}.png`,
+        avatarUrl: `/avatars/${id}.png`,
+        hasPortrait: true,
+        hasThinkingPortrait: true,
+        hasAvatar: true,
+      })),
+    };
+    const missingThinkingManifest: ClassTrialPackManifest = {
+      id: "class-trial-pack",
+      version: "0.1.0-local",
+      characters: CLASS_TRIAL_CHARACTER_IDS.map((id) => ({
+        id,
+        displayName: id,
+        portraitUrl: `/portraits/${id}.png`,
+        avatarUrl: `/avatars/${id}.png`,
+        hasPortrait: true,
+        hasAvatar: true,
+      })),
+    };
+
+    expect(getClassTrialPackStatus(completeManifest).available).toBe(true);
+    expect(getClassTrialPackStatus(missingThinkingManifest)).toMatchObject({
+      available: false,
+      missingCharacterIds: CLASS_TRIAL_CHARACTER_IDS,
+    });
+  });
+
+  it("calibrates Chihaya Anon larger and higher after replacing her portrait", () => {
+    const layouts = CLASS_TRIAL_CHARACTER_ROSTER.map((_, index) => getClassTrialCharacterForSeat(index, undefined).portraitLayout);
+
+    expect(layouts).toHaveLength(9);
+    expect(layouts.every(Boolean)).toBe(true);
+    expect(getClassTrialCharacterForSeat(8, undefined).portraitLayout).toEqual({
+      scale: 1.28,
+      x: 0,
+      y: -4,
+    });
+    expect(getClassTrialCharacterForSeat(7, undefined).portraitLayout).toMatchObject({
+      scale: expect.any(Number),
+      x: expect.any(Number),
+      y: expect.any(Number),
+    });
+  });
+
+  it("keeps Chihaya Anon's thinking portrait framed with extra headroom", () => {
+    const anon = getClassTrialCharacterForSeat(8, undefined);
+
+    expect(anon.portraitLayout).toEqual({
+      scale: 1.28,
+      x: 0,
+      y: -4,
+    });
+    expect(anon.thinkingPortraitLayout).toEqual({
+      scale: 1,
+      x: 0,
+      y: 3,
+    });
+  });
+
+  it("reserves top headroom for non-baseline speaking portraits", () => {
+    for (const [index, character] of CLASS_TRIAL_CHARACTER_ROSTER.entries()) {
+      const layout = getClassTrialCharacterForSeat(index, undefined).portraitLayout!;
+
+      if (character.id === "anon") {
+        expect(layout.y).toBeLessThan(0);
+      } else {
+        expect(layout.y).toBeGreaterThan(0);
+      }
+    }
+
+    expect(getClassTrialCharacterForSeat(2, undefined).portraitLayout?.scale).toBeLessThan(1);
+    expect(getClassTrialCharacterForSeat(5, undefined).portraitLayout?.scale).toBeLessThan(1);
+    expect(getClassTrialCharacterForSeat(2, undefined).portraitLayout?.scale).toBeGreaterThanOrEqual(0.98);
+    expect(getClassTrialCharacterForSeat(5, undefined).portraitLayout?.scale).toBeGreaterThanOrEqual(0.98);
   });
 
   it("explains missing local pack data without enabling public use", () => {
@@ -90,7 +217,7 @@ describe("class trial theme model", () => {
 
     expect(getClassTrialPackStatus(manifest)).toMatchObject({
       available: false,
-      missingCharacterIds: CLASS_TRIAL_CHARACTER_IDS.filter((id) => id !== "kirigiri"),
+      missingCharacterIds: CLASS_TRIAL_CHARACTER_IDS,
     });
   });
 
@@ -141,7 +268,8 @@ describe("class trial theme model", () => {
     expect(friends[7]?.id).toBe("class-trial:tomori");
     expect(friends[7]?.roleCard?.displayName).toBe("高松灯");
     expect(friends[3]?.id).toBe("class-trial:monokuma");
-    expect(friends[3]?.basePersonaId).toBe("doubao-pressure-bluffer");
+    expect(friends.every((friend) => friend.basePersonaId === "deepseek-calm-analyst")).toBe(true);
+    expect(friends.every((friend) => friend.roleCard?.displayName)).toBe(true);
     expect(friends[3]?.roleCard?.displayName).toBe("黑白熊");
     expect(friends[3]?.roleCard?.forbidden.join(" ")).toContain("不能以主持人身份干预规则");
   });

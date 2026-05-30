@@ -460,3 +460,12 @@ export function buildHostAudioCue(game: HumanGameView, completedKeys: ReadonlySe
     clips: [hostClip(phaseClips[game.phase] ?? "flow-next")],
   };
 }
+
+export function buildThemedHostAudioCue(
+  game: HumanGameView,
+  completedKeys: ReadonlySet<string> = new Set(),
+  options: { classTrialThemeActive: boolean },
+): HostAudioCue {
+  const cue = buildHostAudioCue(game, completedKeys);
+  return options.classTrialThemeActive ? { ...cue, key: `class-trial:${cue.key}` } : cue;
+}

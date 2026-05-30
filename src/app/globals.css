@@ -7,15 +7,91 @@
 }
 
 @layer components {
+.class-trial-app-shell {
+  position: relative;
+  overflow: hidden;
+  background: #050509;
+  isolation: isolate;
+}
+
+.class-trial-app-shell::before,
+.class-trial-app-shell::after {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+}
+
+.class-trial-app-shell::before {
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(213, 48, 73, 0.28), transparent 30%),
+    radial-gradient(ellipse at 50% 68%, rgba(91, 31, 52, 0.5), transparent 36%),
+    linear-gradient(112deg, rgba(20, 27, 44, 0.72) 0 18%, transparent 18% 74%, rgba(79, 35, 49, 0.52) 74% 100%),
+    linear-gradient(180deg, #07070e 0%, #11101b 42%, #050509 100%);
+}
+
+.class-trial-app-shell::after {
+  opacity: 0.5;
+  background:
+    linear-gradient(90deg, rgba(216, 195, 109, 0.18), transparent 12% 88%, rgba(216, 195, 109, 0.18)),
+    repeating-linear-gradient(90deg, transparent 0 78px, rgba(216, 195, 109, 0.06) 79px 80px),
+    radial-gradient(ellipse at 50% 56%, transparent 0 42%, rgba(5, 5, 9, 0.68) 72%);
+}
+
+.class-trial-app-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
 .class-trial-table {
   position: relative;
   min-height: calc(100svh - 6rem);
   overflow: hidden;
   border: 1px solid rgba(216, 195, 109, 0.28);
   border-radius: 24px;
-  background: radial-gradient(circle at 50% 42%, rgba(190, 42, 66, 0.34), transparent 24%),
-    radial-gradient(circle at 50% 52%, #211925 0 24%, #0f1018 58%, #050508 100%);
+  background: #07070d;
   color: #f8fafc;
+}
+
+.class-trial-court-stage {
+  box-shadow: inset 0 0 0 1px rgba(216, 195, 109, 0.18), 0 32px 90px rgba(0, 0, 0, 0.48);
+}
+
+.class-trial-table-background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(3, 3, 7, 0.28), rgba(3, 3, 7, 0.78)),
+    radial-gradient(ellipse at 50% 45%, rgba(224, 51, 82, 0.22), transparent 28%),
+    radial-gradient(ellipse at 50% 52%, rgba(216, 195, 109, 0.13) 0 20%, transparent 43%),
+    var(--class-trial-court-background, conic-gradient(from 225deg at 50% 58%, rgba(44, 53, 76, 0.72), rgba(10, 12, 23, 0.82), rgba(89, 36, 50, 0.68), rgba(10, 10, 17, 0.9), rgba(44, 53, 76, 0.72))),
+    linear-gradient(180deg, #06070d 0%, #11111d 46%, #060609 100%);
+  background-position: center;
+  background-size: cover;
+}
+
+.class-trial-table-background::before,
+.class-trial-table-background::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+}
+
+.class-trial-table-background::before {
+  background:
+    linear-gradient(120deg, transparent 0 29%, rgba(216, 195, 109, 0.16) 29.1% 29.4%, transparent 29.6%),
+    linear-gradient(60deg, transparent 0 70%, rgba(216, 195, 109, 0.12) 70.1% 70.4%, transparent 70.6%),
+    radial-gradient(ellipse at 50% 55%, transparent 0 29%, rgba(216, 195, 109, 0.16) 29.4% 29.8%, transparent 30.2%);
+}
+
+.class-trial-table-background::after {
+  opacity: 0.7;
+  background:
+    radial-gradient(ellipse at 50% 36%, transparent 0 45%, rgba(0, 0, 0, 0.52) 82%),
+    repeating-linear-gradient(90deg, transparent 0 96px, rgba(216, 195, 109, 0.04) 97px 98px);
 }
 
 .class-trial-table-topbar {
@@ -42,6 +118,27 @@
   font-weight: 800;
 }
 
+.class-trial-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.class-trial-table-runtime {
+  display: inline-flex;
+  min-height: 2.35rem;
+  align-items: center;
+  border: 1px solid rgba(119, 216, 152, 0.32);
+  border-radius: 999px;
+  background: rgba(10, 37, 25, 0.72);
+  padding: 0.55rem 0.85rem;
+  color: #a8f0b6;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 .class-trial-table-secondary,
 .class-trial-table-primary {
   min-height: 2.5rem;
@@ -56,7 +153,15 @@
 
 .class-trial-ring {
   position: absolute;
+  z-index: 2;
   inset: 8% 7% 18%;
+  opacity: 0.82;
+  transition:
+    filter 280ms ease,
+    opacity 280ms ease;
+}
+
+.class-trial-table-speaking .class-trial-ring {
   filter: blur(2.4px);
   opacity: 0.28;
 }
@@ -100,6 +205,23 @@
   border-radius: 999px;
 }
 
+.class-trial-seat-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.35rem;
+  height: 1.1rem;
+  margin-bottom: 0.2rem;
+  color: #17161c;
+  font-size: 0.66rem;
+  font-weight: 900;
+  line-height: 1;
+  background: #fff2be;
+  border: 1px solid rgba(216, 195, 109, 0.86);
+  border-radius: 0.35rem;
+  box-shadow: 0 0 14px rgba(216, 195, 109, 0.22);
+}
+
 .class-trial-seat-name {
   display: block;
   max-width: 4.2rem;
@@ -110,9 +232,42 @@
 }
 
 .class-trial-seat-active {
+  animation: class-trial-seat-callout 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
   opacity: 1;
   border-color: rgba(240, 75, 103, 0.96);
   box-shadow: 0 0 24px rgba(240, 75, 103, 0.48);
+}
+
+.class-trial-seat-dead {
+  color: rgba(224, 215, 203, 0.74);
+  background: linear-gradient(180deg, rgba(44, 43, 48, 0.9), rgba(12, 11, 15, 0.94));
+  border-color: rgba(167, 78, 83, 0.66);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.48);
+}
+
+.class-trial-seat-dead .class-trial-seat-avatar {
+  opacity: 0.48;
+  filter: grayscale(1) contrast(0.82);
+}
+
+.class-trial-seat-dead .class-trial-seat-name {
+  color: rgba(231, 219, 196, 0.72);
+}
+
+.class-trial-seat-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1rem;
+  margin-top: 0.15rem;
+  padding: 0.08rem 0.32rem;
+  color: #f2b4aa;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1;
+  background: rgba(67, 17, 22, 0.84);
+  border: 1px solid rgba(242, 180, 170, 0.36);
+  border-radius: 999px;
 }
 
 .class-trial-info-table {
@@ -156,12 +311,25 @@
   grid-template-columns: minmax(230px, 30%) minmax(0, 1fr);
   gap: 1.25rem;
   align-items: end;
+  pointer-events: none;
+}
+
+.class-trial-focus-enter {
+  animation: class-trial-focus-enter 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.class-trial-focus-exit {
+  animation: class-trial-focus-exit 280ms ease both;
 }
 
 .class-trial-portrait-placeholder {
   position: relative;
   display: grid;
-  min-height: 24rem;
+  justify-self: center;
+  width: min(100%, 22rem);
+  height: min(68svh, 38rem);
+  min-height: 0;
+  aspect-ratio: 11 / 15;
   overflow: hidden;
   color: #fff2be;
   font-weight: 900;
@@ -172,12 +340,30 @@
   place-items: end center;
 }
 
+.class-trial-focus-enter .class-trial-portrait-placeholder {
+  animation: class-trial-portrait-enter 420ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+}
+
+.class-trial-focus-exit .class-trial-portrait-placeholder {
+  animation: class-trial-portrait-exit 260ms ease both;
+}
+
 .class-trial-portrait-image {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: 24rem;
+  height: 100%;
   object-fit: contain;
   object-position: bottom center;
   filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.46));
+  transform: translate(var(--class-trial-portrait-x, 0%), var(--class-trial-portrait-y, 0%))
+    scale(var(--class-trial-portrait-scale, 1));
+  transform-origin: bottom center;
+}
+
+.class-trial-portrait-image[data-portrait-state="thinking"] {
+  opacity: 0.94;
+  filter: saturate(0.84) contrast(1.05) drop-shadow(0 24px 30px rgba(0, 0, 0, 0.5));
 }
 
 .class-trial-dialogue {
@@ -189,6 +375,15 @@
   border: 2px solid #f04b67;
   border-radius: 1.1rem;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45), 0 0 0 8px rgba(240, 75, 103, 0.12);
+  transform-origin: left bottom;
+}
+
+.class-trial-focus-enter .class-trial-dialogue {
+  animation: class-trial-dialogue-enter 320ms cubic-bezier(0.18, 0.9, 0.2, 1) 180ms both;
+}
+
+.class-trial-focus-exit .class-trial-dialogue {
+  animation: class-trial-dialogue-exit 240ms ease both;
 }
 
 .class-trial-dialogue h3 {
@@ -206,6 +401,38 @@
   line-height: 1.68;
 }
 
+.class-trial-dialogue-audio-action {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1rem;
+  color: #5b2330;
+  font-size: 0.88rem;
+  font-weight: 750;
+}
+
+.class-trial-dialogue-audio-action button {
+  min-height: 2.4rem;
+  padding: 0 1rem;
+  color: #fff7d8;
+  font: inherit;
+  font-weight: 900;
+  background: #be263f;
+  border: 1px solid rgba(190, 38, 63, 0.72);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 18px rgba(190, 38, 63, 0.22);
+  cursor: pointer;
+}
+
+.class-trial-dialogue-audio-action button:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.class-trial-focus-enter .class-trial-dialogue-text {
+  animation: class-trial-dialogue-text-enter 200ms ease 430ms both;
+}
+
 .class-trial-table-primary {
   position: absolute;
   right: 1rem;
@@ -213,11 +440,268 @@
   z-index: 6;
 }
 
+.class-trial-table-review {
+  display: grid;
+  align-items: start;
+  padding: clamp(1rem, 2vw, 1.75rem);
+}
+
+.class-trial-verdict-review {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  color: #f7ead5;
+}
+
+.class-trial-verdict-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  background: rgba(7, 7, 12, 0.82);
+  border: 1px solid rgba(216, 195, 109, 0.34);
+  border-radius: 0.75rem;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.36);
+}
+
+.class-trial-verdict-kicker {
+  color: rgba(216, 195, 109, 0.78);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.class-trial-verdict-header h2 {
+  margin-top: 0.2rem;
+  font-size: clamp(1.6rem, 3vw, 2.5rem);
+  font-weight: 900;
+}
+
+.class-trial-verdict-header p,
+.class-trial-verdict-hero p,
+.class-trial-verdict-card p {
+  color: #dcc9a7;
+}
+
+.class-trial-verdict-hero {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1.35rem;
+  background:
+    linear-gradient(90deg, rgba(85, 18, 27, 0.88), rgba(11, 11, 18, 0.92)),
+    radial-gradient(ellipse at 12% 0%, rgba(240, 75, 103, 0.25), transparent 44%);
+  border: 1px solid rgba(240, 75, 103, 0.42);
+  border-radius: 0.75rem;
+}
+
+.class-trial-verdict-hero span,
+.class-trial-verdict-card span {
+  color: #d8c36d;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.class-trial-verdict-hero strong {
+  color: #fff2be;
+  font-size: clamp(2rem, 5vw, 4.4rem);
+  font-weight: 950;
+  line-height: 1;
+}
+
+.class-trial-verdict-section {
+  padding: 1rem;
+  background: rgba(8, 8, 14, 0.84);
+  border: 1px solid rgba(216, 195, 109, 0.24);
+  border-radius: 0.75rem;
+}
+
+.class-trial-verdict-section h3,
+.class-trial-verdict-details summary {
+  color: #fff2be;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.class-trial-verdict-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.8rem;
+}
+
+.class-trial-verdict-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem;
+  background: rgba(34, 22, 22, 0.72);
+  border: 1px solid rgba(216, 195, 109, 0.18);
+  border-radius: 0.5rem;
+}
+
+.class-trial-verdict-card strong {
+  color: #f7ead5;
+}
+
+.class-trial-verdict-card-danger {
+  background: rgba(52, 13, 18, 0.72);
+  border-color: rgba(240, 75, 103, 0.26);
+}
+
+.class-trial-verdict-empty,
+.class-trial-verdict-row {
+  margin-top: 0.65rem;
+  padding: 0.7rem 0.8rem;
+  color: #dcc9a7;
+  background: rgba(0, 0, 0, 0.24);
+  border-left: 2px solid rgba(216, 195, 109, 0.62);
+}
+
+.class-trial-verdict-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.class-trial-role-reveal {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.class-trial-role-chip {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem 0.75rem;
+  color: #dff4df;
+  background: rgba(12, 33, 24, 0.64);
+  border: 1px solid rgba(143, 210, 154, 0.22);
+  border-radius: 0.5rem;
+}
+
+.class-trial-role-chip-wolf {
+  color: #ffd8cf;
+  background: rgba(52, 13, 18, 0.66);
+  border-color: rgba(240, 75, 103, 0.26);
+}
+
+.class-trial-role-chip span {
+  font-size: 0.82rem;
+  opacity: 0.9;
+}
+
+.class-trial-verdict-details summary {
+  cursor: pointer;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .class-trial-ring,
   .class-trial-portrait-image,
   .class-trial-dialogue {
     transition: none;
+  }
+
+  .class-trial-seat-active,
+  .class-trial-focus-enter,
+  .class-trial-focus-exit,
+  .class-trial-focus-enter .class-trial-portrait-placeholder,
+  .class-trial-focus-exit .class-trial-portrait-placeholder,
+  .class-trial-focus-enter .class-trial-dialogue,
+  .class-trial-focus-exit .class-trial-dialogue,
+  .class-trial-focus-enter .class-trial-dialogue-text {
+    animation: none;
+  }
+}
+
+@keyframes class-trial-seat-callout {
+  0% {
+    box-shadow: 0 0 0 rgba(240, 75, 103, 0);
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  55% {
+    box-shadow: 0 0 34px rgba(240, 75, 103, 0.64);
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  100% {
+    box-shadow: 0 0 24px rgba(240, 75, 103, 0.48);
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes class-trial-focus-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes class-trial-focus-exit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes class-trial-portrait-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-1.4rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes class-trial-portrait-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-0.7rem) scale(0.985);
+  }
+}
+
+@keyframes class-trial-dialogue-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.8rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes class-trial-dialogue-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(0.4rem) scale(0.99);
+  }
+}
+
+@keyframes class-trial-dialogue-text-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
@@ -227,12 +711,14 @@
   }
 
   .class-trial-portrait-placeholder {
-    min-height: 12rem;
+    width: min(72vw, 18rem);
+    height: 17rem;
+    min-height: 0;
     opacity: 0.72;
   }
 
   .class-trial-portrait-image {
-    height: 12rem;
+    height: 100%;
   }
 
   .class-trial-dialogue {
@@ -1030,6 +1516,191 @@ button:disabled {
   margin-right: 12px;
   transform: translateY(-4px);
   width: 42px;
+}
+
+.class-trial-phase-scene {
+  --curtain-duration: 3000ms;
+  --trial-scene-bg: #07070c;
+  --trial-scene-panel: rgba(13, 10, 18, 0.92);
+  --trial-scene-red: rgba(112, 24, 39, 0.62);
+  --trial-scene-gold: #bfa967;
+  --trial-scene-gold-soft: rgba(191, 169, 103, 0.28);
+  --trial-scene-ivory: #fff4da;
+  animation: class-trial-scene-fade var(--curtain-duration) cubic-bezier(0.2, 0.86, 0.24, 1) both;
+  background: var(--trial-scene-bg);
+  color: var(--trial-scene-ivory);
+  isolation: isolate;
+}
+
+.phase-curtain-night.class-trial-phase-scene {
+  --trial-scene-red: rgba(44, 38, 70, 0.42);
+  --trial-scene-gold: #9fb5dc;
+  --trial-scene-gold-soft: rgba(159, 181, 220, 0.24);
+}
+
+.phase-curtain-day.class-trial-phase-scene {
+  --trial-scene-red: rgba(126, 71, 46, 0.46);
+  --trial-scene-gold: #d9bf73;
+  --trial-scene-gold-soft: rgba(217, 191, 115, 0.28);
+}
+
+.phase-curtain-vote.class-trial-phase-scene {
+  --trial-scene-red: rgba(122, 29, 35, 0.64);
+  --trial-scene-gold: #e1c46c;
+  --trial-scene-gold-soft: rgba(225, 196, 108, 0.32);
+}
+
+.phase-curtain-danger.class-trial-phase-scene {
+  --trial-scene-red: rgba(154, 30, 42, 0.72);
+  --trial-scene-gold: #f2cf78;
+  --trial-scene-gold-soft: rgba(242, 207, 120, 0.36);
+}
+
+.phase-curtain-end.class-trial-phase-scene {
+  --trial-scene-red: rgba(45, 92, 71, 0.5);
+  --trial-scene-gold: #d7c777;
+  --trial-scene-gold-soft: rgba(215, 199, 119, 0.34);
+}
+
+.class-trial-phase-backdrop,
+.class-trial-phase-grid,
+.class-trial-phase-orbit,
+.class-trial-phase-spotlight,
+.class-trial-phase-slasher {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.class-trial-phase-backdrop {
+  animation: class-trial-scene-backdrop var(--curtain-duration) cubic-bezier(0.2, 0.86, 0.24, 1) both;
+  background:
+    radial-gradient(ellipse at 50% 58%, var(--trial-scene-red), transparent 46%),
+    radial-gradient(ellipse at 72% 18%, var(--trial-scene-gold-soft), transparent 30%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 17% 42%, rgba(137, 34, 55, 0.34) 42% 53%, transparent 53%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.72)),
+    #07070c;
+  z-index: -5;
+}
+
+.class-trial-phase-grid {
+  background:
+    linear-gradient(90deg, transparent 0 49.7%, rgba(191, 169, 103, 0.22) 49.7% 50.3%, transparent 50.3%),
+    linear-gradient(0deg, transparent 0 49.7%, rgba(191, 169, 103, 0.16) 49.7% 50.3%, transparent 50.3%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 92px);
+  mask-image: radial-gradient(ellipse at center, black 0 58%, transparent 76%);
+  opacity: 0.6;
+  z-index: -4;
+}
+
+.class-trial-phase-orbit {
+  animation: class-trial-scene-orbit var(--curtain-duration) cubic-bezier(0.2, 0.86, 0.24, 1) both;
+  border: 2px solid color-mix(in srgb, var(--trial-scene-gold) 64%, transparent);
+  border-radius: 50%;
+  height: min(74vw, 780px);
+  left: 50%;
+  opacity: 0.74;
+  top: 54%;
+  transform: translate(-50%, -50%) rotate(-4deg);
+  width: min(86vw, 980px);
+  z-index: -3;
+}
+
+.class-trial-phase-orbit::before,
+.class-trial-phase-orbit::after {
+  border: 1px solid color-mix(in srgb, var(--trial-scene-gold) 40%, transparent);
+  border-radius: inherit;
+  content: "";
+  inset: 9%;
+  position: absolute;
+}
+
+.class-trial-phase-orbit::after {
+  inset: 22%;
+}
+
+.class-trial-phase-spotlight {
+  animation: class-trial-scene-spotlight var(--curtain-duration) cubic-bezier(0.2, 0.86, 0.24, 1) both;
+  background:
+    linear-gradient(105deg, transparent 0 32%, rgba(255, 244, 218, 0.12) 39%, transparent 48%),
+    linear-gradient(73deg, transparent 0 48%, rgba(191, 169, 103, 0.1) 53%, transparent 62%);
+  mix-blend-mode: screen;
+  z-index: -2;
+}
+
+.class-trial-phase-slasher {
+  animation: class-trial-scene-slasher var(--curtain-duration) cubic-bezier(0.2, 0.86, 0.24, 1) both;
+  background:
+    linear-gradient(122deg, transparent 0 42%, rgba(154, 30, 42, 0.66) 42.4% 48%, transparent 48.4%),
+    linear-gradient(122deg, transparent 0 49%, color-mix(in srgb, var(--trial-scene-gold) 66%, transparent) 49% 49.5%, transparent 49.8%);
+  z-index: -1;
+}
+
+.class-trial-phase-stage {
+  align-items: center;
+  display: grid;
+  min-height: 100%;
+  padding: clamp(28px, 5vw, 72px);
+  place-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+.class-trial-phase-copy {
+  animation: class-trial-scene-copy var(--curtain-duration) cubic-bezier(0.2, 0.86, 0.24, 1) both;
+  max-width: min(880px, 92vw);
+  text-align: center;
+  text-shadow: 0 22px 58px rgba(0, 0, 0, 0.7);
+}
+
+.class-trial-phase-eyebrow {
+  color: var(--trial-scene-gold);
+  font-size: clamp(12px, 1.6vw, 17px);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.class-trial-phase-title {
+  color: var(--trial-scene-ivory);
+  font-size: clamp(42px, 8.5vw, 112px);
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 0.96;
+  margin-top: 14px;
+}
+
+.class-trial-phase-subtitle {
+  color: rgba(255, 244, 218, 0.78);
+  font-size: clamp(16px, 2.2vw, 26px);
+  font-weight: 750;
+  line-height: 1.45;
+  margin: 22px auto 0;
+  max-width: 760px;
+}
+
+.class-trial-phase-verdict {
+  align-items: center;
+  background:
+    linear-gradient(90deg, rgba(8, 8, 13, 0.34), rgba(11, 9, 16, 0.86), rgba(8, 8, 13, 0.34)),
+    linear-gradient(90deg, transparent, var(--trial-scene-red), transparent);
+  border-block: 1px solid color-mix(in srgb, var(--trial-scene-gold) 54%, transparent);
+  box-shadow: 0 20px 90px rgba(0, 0, 0, 0.52), inset 0 1px rgba(255, 255, 255, 0.08);
+  color: #fff7df;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: clamp(14px, 1.8vw, 20px);
+  font-weight: 850;
+  gap: 8px 18px;
+  justify-content: center;
+  line-height: 1.4;
+  margin: clamp(22px, 4vw, 44px) auto 0;
+  max-width: 900px;
+  padding: 13px 22px;
+}
+
+.class-trial-phase-verdict span {
+  min-width: 0;
 }
 
 .phase-signal {
@@ -1953,6 +2624,110 @@ button:disabled {
   100% {
     opacity: 0;
     transform: translateY(-14px);
+  }
+}
+
+@keyframes class-trial-scene-fade {
+  0% {
+    opacity: 0;
+  }
+  9% {
+    opacity: 1;
+  }
+  86% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes class-trial-scene-backdrop {
+  0% {
+    filter: saturate(0.84) brightness(0.72);
+    transform: scale(1.06);
+  }
+  34% {
+    filter: saturate(1.05) brightness(0.92);
+  }
+  100% {
+    filter: saturate(1.1) brightness(0.84);
+    transform: scale(1.01);
+  }
+}
+
+@keyframes class-trial-scene-orbit {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-12deg) scale(0.9);
+  }
+  22% {
+    opacity: 0.78;
+  }
+  80% {
+    opacity: 0.68;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(2deg) scale(1.06);
+  }
+}
+
+@keyframes class-trial-scene-spotlight {
+  0% {
+    opacity: 0;
+    transform: translateX(-6%);
+  }
+  26% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.25;
+    transform: translateX(5%);
+  }
+}
+
+@keyframes class-trial-scene-slasher {
+  0% {
+    opacity: 0;
+    transform: translateX(-18%) scaleX(0.84);
+  }
+  25% {
+    opacity: 0;
+  }
+  42% {
+    opacity: 1;
+    transform: translateX(0) scaleX(1);
+  }
+  82% {
+    opacity: 0.74;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(13%) scaleX(1.08);
+  }
+}
+
+@keyframes class-trial-scene-copy {
+  0% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+  20% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+  36% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px) scale(1.01);
   }
 }
 
@@ -4777,6 +5552,12 @@ button:disabled {
   .phase-curtain-panel-bottom,
   .phase-curtain-sweep,
   .phase-curtain-copy,
+  .class-trial-phase-scene,
+  .class-trial-phase-backdrop,
+  .class-trial-phase-orbit,
+  .class-trial-phase-spotlight,
+  .class-trial-phase-slasher,
+  .class-trial-phase-copy,
   .phase-signal,
   .phase-signal-card,
   .phase-signal-card::before,

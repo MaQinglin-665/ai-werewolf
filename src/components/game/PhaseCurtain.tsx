@@ -9,10 +9,43 @@ export type PhaseCurtainCue = {
   subtitle: string;
   tone: "night" | "day" | "vote" | "danger" | "end";
   durationMs: number;
-  presentation?: "curtain" | "ribbon";
+  presentation?: "curtain" | "ribbon" | "class-trial";
+  resultLines?: string[];
 };
 
 export function PhaseCurtain({ cue }: { cue: PhaseCurtainCue }) {
+  if (cue.presentation === "class-trial") {
+    const resultLines = cue.resultLines?.filter(Boolean) ?? [];
+
+    return (
+      <div
+        className={`${phaseCurtainToneClass(cue.tone)} class-trial-phase-scene pointer-events-none fixed inset-0 z-40 overflow-hidden`}
+        style={{ "--curtain-duration": `${cue.durationMs}ms` } as React.CSSProperties}
+      >
+        <div className="class-trial-phase-backdrop" aria-hidden="true" />
+        <div className="class-trial-phase-grid" aria-hidden="true" />
+        <div className="class-trial-phase-orbit" aria-hidden="true" />
+        <div className="class-trial-phase-spotlight" aria-hidden="true" />
+        <div className="class-trial-phase-slasher" aria-hidden="true" />
+
+        <div className="class-trial-phase-stage">
+          <div className="class-trial-phase-copy">
+            <div className="class-trial-phase-eyebrow">{cue.eyebrow}</div>
+            <h2 className="class-trial-phase-title">{cue.title}</h2>
+            <p className="class-trial-phase-subtitle">{cue.subtitle}</p>
+            {resultLines.length > 0 && (
+              <div className="class-trial-phase-verdict" aria-label="阶段结果">
+                {resultLines.map((line) => (
+                  <span key={line}>{line}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (cue.presentation === "ribbon") {
     return (
       <div

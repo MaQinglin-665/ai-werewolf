@@ -4,6 +4,7 @@ import type { AiCharacterRoleCard, AiFriendConfig } from "@/game/types";
 export const CLASS_TRIAL_THEME_MODE_STORAGE_KEY = "ai-werewolf-class-trial-theme-mode";
 export const CLASS_TRIAL_LOCAL_ASSET_ROOT = "local-assets/class-trial-pack";
 export const CLASS_TRIAL_DEFAULT_BOARD_ID = "9p-seer-witch-hunter";
+export const CLASS_TRIAL_GAME_BRAIN_PERSONA_ID = "deepseek-calm-analyst";
 
 export const CLASS_TRIAL_THEME_MODES = ["default", "class-trial"] as const;
 export type ClassTrialThemeMode = (typeof CLASS_TRIAL_THEME_MODES)[number];
@@ -38,15 +39,50 @@ export type ClassTrialPackCharacter = {
   id: string;
   displayName: string;
   portraitUrl?: string;
+  thinkingPortraitUrl?: string;
   avatarUrl?: string;
   hasPortrait?: boolean;
+  hasThinkingPortrait?: boolean;
   hasAvatar?: boolean;
   sourcePage?: string;
+  portraitLayout?: ClassTrialPortraitLayout;
+  thinkingPortraitLayout?: ClassTrialPortraitLayout;
+};
+
+export type ClassTrialPortraitLayout = {
+  scale: number;
+  x: number;
+  y: number;
+};
+
+export const CLASS_TRIAL_DEFAULT_PORTRAIT_LAYOUT: ClassTrialPortraitLayout = {
+  scale: 1,
+  x: 0,
+  y: 0,
+};
+
+export const CLASS_TRIAL_PORTRAIT_LAYOUTS: Record<ClassTrialCharacterId, ClassTrialPortraitLayout> = {
+  naegi: { scale: 1, x: 0, y: 3 },
+  kirigiri: { scale: 0.99, x: 0, y: 3 },
+  fukawa: { scale: 0.98, x: 0, y: 4 },
+  monokuma: { scale: 0.99, x: 0, y: 3 },
+  enoshima: { scale: 0.99, x: 0, y: 3 },
+  celestia: { scale: 0.98, x: 0, y: 4 },
+  togami: { scale: 0.98, x: 0, y: 4 },
+  tomori: { scale: 1, x: 0, y: 3 },
+  anon: { scale: 1.28, x: 0, y: -4 },
+};
+
+export const CLASS_TRIAL_THINKING_PORTRAIT_LAYOUTS: Partial<Record<ClassTrialCharacterId, ClassTrialPortraitLayout>> = {
+  anon: { scale: 1, x: 0, y: 3 },
 };
 
 export type ClassTrialPackManifest = {
   id: string;
   version: string;
+  backgrounds?: {
+    courtMain?: string;
+  };
   characters: ClassTrialPackCharacter[];
 };
 
@@ -94,17 +130,65 @@ export function parseClassTrialThemeMode(value: unknown): ClassTrialThemeMode {
   return value === "class-trial" ? "class-trial" : "default";
 }
 
+export function sanitizeClassTrialPackManifest(value: unknown): ClassTrialPackManifest | undefined {
+  if (!isRecord(value) || !Array.isArray(value.characters)) return undefined;
+  const backgrounds = sanitizeClassTrialBackgrounds(value.backgrounds);
+  return {
+    id: readString(value.id, 80) || "class-trial-pack",
+    version: readString(value.version, 80) || "local",
+    ...(backgrounds ? { backgrounds } : {}),
+    characters: value.characters.map(sanitizeClassTrialPackCharacter).filter((character): character is ClassTrialPackCharacter => Boolean(character)),
+  };
+}
+
+export function getClassTrialCourtBackgroundUrl(manifest: ClassTrialPackManifest | undefined): string | undefined {
+  return readString(manifest?.backgrounds?.courtMain, 240);
+}
+
 export function getClassTrialCharacterForSeat(
   seatIndex: number,
   manifest: ClassTrialPackManifest | undefined,
 ): ClassTrialPackCharacter {
   const fallback = CLASS_TRIAL_CHARACTER_ROSTER[seatIndex % CLASS_TRIAL_CHARACTER_ROSTER.length];
   const packed = manifest?.characters.find((character) => character.id === fallback.id);
+  const fallbackLayout = CLASS_TRIAL_PORTRAIT_LAYOUTS[fallback.id];
+  const fallbackThinkingLayout = CLASS_TRIAL_THINKING_PORTRAIT_LAYOUTS[fallback.id];
 
   return {
     ...fallback,
     ...packed,
     displayName: packed?.displayName ?? fallback.displayName,
+    portraitLayout: readPortraitLayout(packed?.portraitLayout, fallbackLayout),
+    thinkingPortraitLayout: fallbackThinkingLayout
+      ? readPortraitLayout(packed?.thinkingPortraitLayout, fallbackThinkingLayout)
+      : readOptionalPortraitLayout(packed?.thinkingPortraitLayout),
+  };
+}
+
+function sanitizeClassTrialBackgrounds(value: unknown): ClassTrialPackManifest["backgrounds"] | undefined {
+  if (!isRecord(value)) return undefined;
+  const courtMain = readString(value.courtMain, 240);
+  return courtMain ? { courtMain } : undefined;
+}
+
+function sanitizeClassTrialPackCharacter(value: unknown): ClassTrialPackCharacter | undefined {
+  if (!isRecord(value)) return undefined;
+  const id = readString(value.id, 80);
+  const displayName = readString(value.displayName, 24);
+  if (!id || !displayName) return undefined;
+
+  return {
+    id,
+    displayName,
+    portraitUrl: readString(value.portraitUrl, 240),
+    thinkingPortraitUrl: readString(value.thinkingPortraitUrl, 240),
+    avatarUrl: readString(value.avatarUrl, 240),
+    hasPortrait: readBoolean(value.hasPortrait),
+    hasThinkingPortrait: readBoolean(value.hasThinkingPortrait),
+    hasAvatar: readBoolean(value.hasAvatar),
+    sourcePage: readString(value.sourcePage, 240),
+    portraitLayout: readPortraitLayout(value.portraitLayout, CLASS_TRIAL_DEFAULT_PORTRAIT_LAYOUT),
+    thinkingPortraitLayout: readOptionalPortraitLayout(value.thinkingPortraitLayout),
   };
 }
 
@@ -163,16 +247,16 @@ export function buildClassTrialAiFriends(personas: ClassTrialPersonasFile | unde
 
   const defaults = getDefaultAiFriends(now);
   const defaultByPersonaId = new Map(defaults.map((friend) => [friend.basePersonaId, friend]));
+  const deepseekBase = defaultByPersonaId.get(CLASS_TRIAL_GAME_BRAIN_PERSONA_ID) ?? defaults[0]!;
   const byId = new Map(personas.characters.map((character) => [character.id, character]));
 
   return CLASS_TRIAL_CHARACTER_ROSTER.map((rosterCharacter) => {
     const character = byId.get(rosterCharacter.id)!;
-    const base = defaultByPersonaId.get(character.basePersonaId) ?? defaults[0]!;
     return {
-      ...base,
+      ...deepseekBase,
       id: `class-trial:${character.id}`,
       nickname: character.displayName.slice(0, 16),
-      basePersonaId: base.basePersonaId,
+      basePersonaId: deepseekBase.basePersonaId,
       roleCard: toAiCharacterRoleCard(character),
       createdAt: now,
       updatedAt: now,
@@ -257,6 +341,30 @@ function readNumber(value: unknown, fallback: number): number {
   return Number.isInteger(number) && number >= 1 && number <= 9 ? number : fallback;
 }
 
+function readBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function readPortraitLayout(value: unknown, fallback: ClassTrialPortraitLayout): ClassTrialPortraitLayout {
+  if (!isRecord(value)) return fallback;
+
+  return {
+    scale: readBoundedNumber(value.scale, fallback.scale, 0.72, 1.55),
+    x: readBoundedNumber(value.x, fallback.x, -18, 18),
+    y: readBoundedNumber(value.y, fallback.y, -12, 12),
+  };
+}
+
+function readOptionalPortraitLayout(value: unknown): ClassTrialPortraitLayout | undefined {
+  return isRecord(value) ? readPortraitLayout(value, CLASS_TRIAL_DEFAULT_PORTRAIT_LAYOUT) : undefined;
+}
+
+function readBoundedNumber(value: unknown, fallback: number, min: number, max: number): number {
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -272,7 +380,7 @@ export function getClassTrialPackStatus(manifest: ClassTrialPackManifest | undef
 
   const completeIds = new Set(
     manifest.characters
-      .filter((character) => character.hasPortrait && character.hasAvatar)
+      .filter((character) => character.hasPortrait && character.hasThinkingPortrait && character.hasAvatar)
       .map((character) => character.id),
   );
   const missingCharacterIds = CLASS_TRIAL_CHARACTER_IDS.filter((id) => !completeIds.has(id));

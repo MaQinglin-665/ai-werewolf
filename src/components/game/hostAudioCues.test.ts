@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HumanGameView } from "@/game/types";
-import { buildHostAudioCue, hostClipPreDelayMs, hostClipSrc } from "./hostAudioCues";
+import { buildHostAudioCue, buildThemedHostAudioCue, hostClipPreDelayMs, hostClipSrc } from "./hostAudioCues";
 
 describe("hostAudioCues", () => {
   it("prompts the human speaker during day speech", () => {
@@ -42,6 +42,20 @@ describe("hostAudioCues", () => {
       key: "game-1:1:dawn:2",
       clips: ["/audio/host/dawn-report.mp3", "/audio/host/dawn-deaths.mp3", "/audio/host/seat-2.mp3", "/audio/host/dead.mp3"],
     });
+  });
+
+  it("keeps class-trial host/system cues on the Werewolf broadcast clips with a themed key", () => {
+    const game = gameView({
+      phase: "DAY_SPEECH",
+      currentSpeakerSeatId: 2,
+      seats: [seat(1, true), seat(2, false)],
+    });
+
+    expect(buildThemedHostAudioCue(game, new Set(), { classTrialThemeActive: true })).toEqual({
+      key: "class-trial:game-1:1:speech:2",
+      clips: ["/audio/host/seat-2.mp3", { src: "/audio/host/please-speak.mp3", playbackRate: 1.16, volume: 0.88 }],
+    });
+    expect(buildThemedHostAudioCue(game, new Set(), { classTrialThemeActive: false })).toEqual(buildHostAudioCue(game));
   });
 
   it("resolves clip source and pre-delay for playback orchestration", () => {

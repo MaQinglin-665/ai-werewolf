@@ -274,6 +274,7 @@ describe("mobile game panels", () => {
         onLoadGame: async () => undefined,
         onStartGame: async () => undefined,
         classTrialThemeMode: "class-trial",
+        classTrialAiRuntimeMode: "llm",
         classTrialPackAvailable: false,
         classTrialPackMessage:
           "未找到本地主题素材包。请将素材放在 local-assets/class-trial-pack，并保持该目录不提交到 Git。 未找到本地角色卡。视觉主题可继续，AI 将使用普通行为。",
@@ -283,6 +284,8 @@ describe("mobile game panels", () => {
 
     expect(html).toContain("学级裁判主题局");
     expect(html).toContain("本地限定");
+    expect(html).toContain("真实 LLM");
+    expect(html).toContain("DeepSeek-v4");
     expect(html).toContain("未找到本地主题素材包");
     expect(html).toContain("未找到本地角色卡");
     expect(html).toContain("/rooms");

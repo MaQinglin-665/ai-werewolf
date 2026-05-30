@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { AiRuntimeMode } from "@/game/types";
 import type { AiLineupPreviewItem, BoardOption, HumanSeatMode } from "./clientTypes";
 import type { ClassTrialThemeMode } from "./classTrialTheme";
 import { StatusPill } from "./PanelPrimitives";
@@ -30,6 +31,7 @@ export function LandingPanel({
   onLoadGame,
   onStartGame,
   classTrialThemeMode = "default",
+  classTrialAiRuntimeMode = "mock",
   classTrialPackAvailable = false,
   classTrialPackMessage = "未找到本地主题素材包。请将素材放在 local-assets/class-trial-pack，并保持该目录不提交到 Git。",
   onSelectClassTrialThemeMode = () => undefined,
@@ -50,6 +52,7 @@ export function LandingPanel({
   onLoadGame: (gameId: string) => Promise<void>;
   onStartGame: () => Promise<void>;
   classTrialThemeMode?: ClassTrialThemeMode;
+  classTrialAiRuntimeMode?: AiRuntimeMode;
   classTrialPackAvailable?: boolean;
   classTrialPackMessage?: string;
   onSelectClassTrialThemeMode?: (mode: ClassTrialThemeMode) => void;
@@ -64,6 +67,7 @@ export function LandingPanel({
         : "随机真人座位";
   const boardSummaryLabel = selectedBoard ? `${selectedBoard.name} · ${selectedBoard.seatCount}人` : "待选板子";
   const aiSummaryLabel = selectedAiFriendCount > 0 ? `${selectedAiFriendCount} 位 AI 入局` : "默认 AI 阵容";
+  const classTrialAiRuntimeLabel = classTrialAiRuntimeMode === "llm" ? "真实 LLM · DeepSeek-v4 主脑" : "Mock 试玩";
   const lobbySeatIds = buildMobileLobbySeatIds(selectedBoard?.seatCount ?? 6);
   const lobbySeatDensityClass = getMobileLobbySeatDensityClass(lobbySeatIds.length);
   const lobbyLineupBySeatId = new Map(aiLineupPreview.map((friend) => [friend.seatId, friend]));
@@ -163,6 +167,9 @@ export function LandingPanel({
                 </div>
                 <span className="rounded-full border border-[#f04b67]/35 bg-[#2d1018]/70 px-2 py-1 text-xs font-semibold text-[#ffd6dd]">
                   本地限定
+                </span>
+                <span className="rounded-full border border-[#77d898]/30 bg-[#10271d]/74 px-2 py-1 text-xs font-semibold text-[#a8f0b6]">
+                  {classTrialAiRuntimeLabel}
                 </span>
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">

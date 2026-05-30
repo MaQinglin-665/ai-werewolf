@@ -1,21 +1,47 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
-import type { HumanGameView } from "@/game/types";
-import { buildClassTrialDialogueTimeline, getClassTrialDialogueFrame } from "./classTrialDialogue";
-import { getClassTrialCharacterForSeat, type ClassTrialPackCharacter, type ClassTrialPackManifest } from "./classTrialTheme";
-import type { CommandPayload } from "./clientTypes";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import type { AiRuntimeMode, HumanGameView } from "@/game/types";
+import {
+  buildClassTrialDialogueTimeline,
+  getClassTrialDialogueFrame,
+  getClassTrialDialogueFrameByProgress,
+} from "./classTrialDialogue";
+import { ClassTrialVerdictReview } from "./ClassTrialVerdictReview";
+import {
+  getClassTrialCharacterForSeat,
+  getClassTrialCourtBackgroundUrl,
+  type ClassTrialPackCharacter,
+  type ClassTrialPackManifest,
+} from "./classTrialTheme";
+import type { ClassTrialAudioTypewriterState, ClassTrialManualAudioPlayback, CommandPayload, LiveAiSpeech } from "./clientTypes";
+
+type PortraitCssVariables = CSSProperties & {
+  "--class-trial-portrait-scale": number;
+  "--class-trial-portrait-x": string;
+  "--class-trial-portrait-y": string;
+};
+
+type CourtStageCssVariables = CSSProperties & {
+  "--class-trial-court-background"?: string;
+};
+
+type SpeakingFocusView = {
+  character: ClassTrialPackCharacter;
+  key: string;
+  message: string;
+  speakerName: string;
+  stage: "enter" | "exit";
+};
+
+type MotionPreference = "pending" | "enabled" | "reduced";
 
 function buildSeatCharacters(game: HumanGameView, manifest: ClassTrialPackManifest | undefined): Map<number, ClassTrialPackCharacter> {
   return new Map(game.seats.map((seat, index) => [seat.seatId, getClassTrialCharacterForSeat(index, manifest)]));
 }
 
-function getDisplaySpeakerSeatId(game: HumanGameView): number | undefined {
-  return (
-    game.currentSpeakerSeatId ??
-    game.currentActorSeatId ??
-    [...game.tableSummary.recentSpeeches].reverse().find((item) => item.speaker?.seatId)?.speaker?.seatId
-  );
+function getActiveSeatId(game: HumanGameView): number | undefined {
+  return game.currentSpeakerSeatId ?? game.currentActorSeatId;
 }
 
 function getSpeakerCharacter(
@@ -26,10 +52,56 @@ function getSpeakerCharacter(
   return seatId ? seatCharacters.get(seatId) : undefined;
 }
 
-function getLatestSpeakerMessage(game: HumanGameView, speakerSeatId: number | undefined): string {
+function getLatestSpeakerMessage(
+  game: HumanGameView,
+  speakerSeatId: number | undefined,
+  liveAiSpeech: LiveAiSpeech | null | undefined,
+): string {
   const seatId = speakerSeatId;
+  const liveText =
+    liveAiSpeech && seatId && liveAiSpeech.speaker.seatId === seatId ? liveAiSpeech.text.trim() : undefined;
+  if (liveText) return liveText;
   const speech = [...game.tableSummary.recentSpeeches].reverse().find((item) => !seatId || item.speaker?.seatId === seatId);
   return speech?.message ?? "正在思考/准备发言。";
+}
+
+function isMatchingAudioTypewriter(
+  audioTypewriter: ClassTrialAudioTypewriterState | undefined,
+  speakerSeatId: number | undefined,
+): audioTypewriter is ClassTrialAudioTypewriterState {
+  return Boolean(audioTypewriter && speakerSeatId && audioTypewriter.speaker.seatId === speakerSeatId);
+}
+
+function getAudioWaitingText(audioTypewriter: ClassTrialAudioTypewriterState | undefined, fallback: string): string {
+  if (audioTypewriter?.state === "paused") return "请点击播放语音。";
+  if (audioTypewriter?.preparationStage === "generating") return "正在生成语音。";
+  if (audioTypewriter?.preparationStage === "ready") return "准备播放。";
+  if (audioTypewriter?.preparationStage === "queued") return "正在调取证言。";
+  return fallback;
+}
+
+function getPortraitCssVariables(
+  character: ClassTrialPackCharacter | undefined,
+  portraitState: "thinking" | "speaking",
+): PortraitCssVariables {
+  const layout =
+    portraitState === "thinking"
+      ? character?.thinkingPortraitLayout ?? character?.portraitLayout ?? { scale: 1, x: 0, y: 0 }
+      : character?.portraitLayout ?? { scale: 1, x: 0, y: 0 };
+  return {
+    "--class-trial-portrait-scale": layout.scale,
+    "--class-trial-portrait-x": `${layout.x}%`,
+    "--class-trial-portrait-y": `${layout.y}%`,
+  };
+}
+
+function getRingFocusStyle(hasSpeakingFocus: boolean): CSSProperties {
+  return hasSpeakingFocus ? { filter: "blur(2.4px)", opacity: 0.28 } : { filter: "none", opacity: 0.82 };
+}
+
+function getCourtStageStyle(manifest: ClassTrialPackManifest | undefined): CourtStageCssVariables | undefined {
+  const courtBackgroundUrl = getClassTrialCourtBackgroundUrl(manifest);
+  return courtBackgroundUrl ? { "--class-trial-court-background": `url(${courtBackgroundUrl})` } : undefined;
 }
 
 function getSeatStyle(index: number, total: number): CSSProperties {
@@ -43,45 +115,208 @@ export function ClassTrialGameTable({
   game,
   loading,
   manifest,
+  audioTypewriter,
+  manualAudioPlayback,
+  liveAiSpeech,
+  aiRuntimeMode = "mock",
   onReturnHome,
   onSubmit,
 }: {
   game: HumanGameView;
   loading: boolean;
   manifest?: ClassTrialPackManifest;
+  audioTypewriter?: ClassTrialAudioTypewriterState;
+  manualAudioPlayback?: ClassTrialManualAudioPlayback | null;
+  liveAiSpeech?: LiveAiSpeech | null;
+  aiRuntimeMode?: AiRuntimeMode;
   onReturnHome: () => void;
   onSubmit: (payload: CommandPayload) => Promise<void>;
 }) {
+  const courtStageStyle = getCourtStageStyle(manifest);
   const seatCharacters = buildSeatCharacters(game, manifest);
-  const displaySpeakerSeatId = getDisplaySpeakerSeatId(game);
-  const speakerCharacter = getSpeakerCharacter(displaySpeakerSeatId, seatCharacters);
+  const activeAudioTypewriter =
+    audioTypewriter?.state === "loading" || audioTypewriter?.state === "playing" || audioTypewriter?.state === "paused"
+      ? audioTypewriter
+      : undefined;
+  const audioSpeakerSeatId = activeAudioTypewriter?.speaker.seatId;
+  const speakerSeatId = audioSpeakerSeatId ?? game.currentSpeakerSeatId;
+  const activeSeatId = audioSpeakerSeatId ?? getActiveSeatId(game);
+  const activeCharacter = getSpeakerCharacter(activeSeatId, seatCharacters);
+  const speakerCharacter = getSpeakerCharacter(speakerSeatId, seatCharacters);
   const speakerName = speakerCharacter?.displayName ?? "等待发言";
-  const message = getLatestSpeakerMessage(game, displaySpeakerSeatId);
-  const [animationEnabled, setAnimationEnabled] = useState(false);
-  const dialogueKey = `${speakerName}\n${message}\n${animationEnabled ? "animated" : "static"}`;
+  const centerStatus = speakerCharacter
+    ? `${speakerCharacter.displayName} 发言中`
+    : activeCharacter
+      ? `${activeCharacter.displayName} 行动中`
+      : "等待发言";
+  const message = speakerCharacter ? getLatestSpeakerMessage(game, speakerSeatId, liveAiSpeech) : "";
+  const speakerCharacterId = speakerCharacter?.id;
+  const speakerCharacterName = speakerCharacter?.displayName;
+  const speakerAvatarUrl = speakerCharacter?.avatarUrl;
+  const speakerPortraitUrl = speakerCharacter?.portraitUrl;
+  const speakerThinkingPortraitUrl = speakerCharacter?.thinkingPortraitUrl;
+  const speakerHasAvatar = speakerCharacter?.hasAvatar;
+  const speakerHasPortrait = speakerCharacter?.hasPortrait;
+  const speakerHasThinkingPortrait = speakerCharacter?.hasThinkingPortrait;
+  const speakerSourcePage = speakerCharacter?.sourcePage;
+  const speakerPortraitScale = speakerCharacter?.portraitLayout?.scale;
+  const speakerPortraitX = speakerCharacter?.portraitLayout?.x;
+  const speakerPortraitY = speakerCharacter?.portraitLayout?.y;
+  const speakerThinkingPortraitScale = speakerCharacter?.thinkingPortraitLayout?.scale;
+  const speakerThinkingPortraitX = speakerCharacter?.thinkingPortraitLayout?.x;
+  const speakerThinkingPortraitY = speakerCharacter?.thinkingPortraitLayout?.y;
+  const currentSpeakingFocusKey = speakerCharacterId ? `${speakerCharacterId}\n${speakerSeatId ?? ""}\n${message}` : "";
+  const currentSpeakingFocus: SpeakingFocusView | undefined = speakerCharacter
+    ? {
+        character: speakerCharacter,
+        key: currentSpeakingFocusKey,
+        message,
+        speakerName,
+        stage: "enter",
+      }
+    : undefined;
+  const previousSpeakingFocusRef = useRef<SpeakingFocusView | undefined>(currentSpeakingFocus);
+  const [exitingFocus, setExitingFocus] = useState<SpeakingFocusView | undefined>();
+  const visibleFocus = currentSpeakingFocus ?? exitingFocus;
+  const focusSpeakerName = visibleFocus?.speakerName ?? speakerName;
+  const focusCharacter = visibleFocus?.character;
+  const hasSpeakingFocus = Boolean(visibleFocus);
+  const matchingAudioTypewriter = isMatchingAudioTypewriter(activeAudioTypewriter, speakerSeatId)
+    ? activeAudioTypewriter
+    : undefined;
+  const waitingForSpeechAudioStart = loading && hasSpeakingFocus && !matchingAudioTypewriter;
+  const audioFocusMessage =
+    matchingAudioTypewriter?.state === "playing" && matchingAudioTypewriter.text.trim()
+      ? matchingAudioTypewriter.text.trim()
+      : undefined;
+  const focusMessage = audioFocusMessage ?? visibleFocus?.message ?? "";
+  const [motionPreference, setMotionPreference] = useState<MotionPreference>("pending");
+  const animationEnabled = motionPreference === "enabled";
+  const shouldUseAudioSyncedTimeline =
+    matchingAudioTypewriter?.state === "playing" &&
+    matchingAudioTypewriter.syncedTypewriter &&
+    motionPreference !== "reduced";
+  const dialogueKey = `${visibleFocus?.key ?? "no-focus"}\n${animationEnabled ? "animated" : "static"}`;
   const [dialogueProgress, setDialogueProgress] = useState({ frameIndex: 0, key: dialogueKey });
-  const timeline = buildClassTrialDialogueTimeline(message, { reducedMotion: !animationEnabled });
+  const timeline = buildClassTrialDialogueTimeline(focusMessage, {
+    reducedMotion: !animationEnabled && !shouldUseAudioSyncedTimeline,
+  });
   const dialogueMode = timeline.mode;
   const dialogueFrameCount = timeline.frames.length;
   const dialogueFrameIndex =
     dialogueProgress.key === dialogueKey ? dialogueProgress.frameIndex : animationEnabled && dialogueMode !== "full" ? -1 : 0;
-  const displayedMessage = getClassTrialDialogueFrame(timeline, dialogueFrameIndex);
+  const syncedDialogueFrame = shouldUseAudioSyncedTimeline
+    ? getClassTrialDialogueFrameByProgress(timeline, matchingAudioTypewriter.playbackProgress ?? Number.NaN)
+    : undefined;
+  const displayedMessage =
+    matchingAudioTypewriter?.state === "loading" || matchingAudioTypewriter?.state === "paused" || waitingForSpeechAudioStart
+      ? getAudioWaitingText(matchingAudioTypewriter, timeline.thinkingText)
+      : syncedDialogueFrame ?? getClassTrialDialogueFrame(timeline, dialogueFrameIndex);
+  const isDialogueThinking =
+    matchingAudioTypewriter?.state === "loading" ||
+    matchingAudioTypewriter?.state === "paused" ||
+    waitingForSpeechAudioStart ||
+    dialogueFrameIndex < 0;
   const continueAction = game.availableActions.find((action) => action.type === "continue");
+  const aiRuntimeLabel = aiRuntimeMode === "llm" ? "真实 LLM · DeepSeek-v4" : "Mock AI";
+  const matchingManualAudioPlayback =
+    manualAudioPlayback &&
+    manualAudioPlayback.speechKey === matchingAudioTypewriter?.speechKey &&
+    manualAudioPlayback.speakerSeatId === speakerSeatId
+      ? manualAudioPlayback
+      : undefined;
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
     const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const updateAnimationPreference = () => setAnimationEnabled(!reducedMotionQuery.matches);
+    const updateAnimationPreference = () => setMotionPreference(reducedMotionQuery.matches ? "reduced" : "enabled");
     updateAnimationPreference();
     reducedMotionQuery.addEventListener("change", updateAnimationPreference);
     return () => reducedMotionQuery.removeEventListener("change", updateAnimationPreference);
   }, []);
 
   useEffect(() => {
+    if (!currentSpeakingFocusKey || !speakerCharacterId || !speakerCharacterName) return;
+
+    previousSpeakingFocusRef.current = {
+      character: {
+        id: speakerCharacterId,
+        displayName: speakerCharacterName,
+        avatarUrl: speakerAvatarUrl,
+        portraitUrl: speakerPortraitUrl,
+        thinkingPortraitUrl: speakerThinkingPortraitUrl,
+        hasAvatar: speakerHasAvatar,
+        hasPortrait: speakerHasPortrait,
+        hasThinkingPortrait: speakerHasThinkingPortrait,
+        sourcePage: speakerSourcePage,
+        portraitLayout:
+          typeof speakerPortraitScale === "number" && typeof speakerPortraitX === "number" && typeof speakerPortraitY === "number"
+            ? { scale: speakerPortraitScale, x: speakerPortraitX, y: speakerPortraitY }
+            : undefined,
+        thinkingPortraitLayout:
+          typeof speakerThinkingPortraitScale === "number" &&
+          typeof speakerThinkingPortraitX === "number" &&
+          typeof speakerThinkingPortraitY === "number"
+            ? { scale: speakerThinkingPortraitScale, x: speakerThinkingPortraitX, y: speakerThinkingPortraitY }
+            : undefined,
+      },
+      key: currentSpeakingFocusKey,
+      message,
+      speakerName,
+      stage: "enter",
+    };
+  }, [
+    currentSpeakingFocusKey,
+    message,
+    speakerAvatarUrl,
+    speakerCharacterId,
+    speakerCharacterName,
+    speakerHasAvatar,
+    speakerHasPortrait,
+    speakerHasThinkingPortrait,
+    speakerPortraitScale,
+    speakerPortraitUrl,
+    speakerThinkingPortraitUrl,
+    speakerPortraitX,
+    speakerPortraitY,
+    speakerSourcePage,
+    speakerThinkingPortraitScale,
+    speakerThinkingPortraitX,
+    speakerThinkingPortraitY,
+    speakerName,
+  ]);
+
+  useEffect(() => {
+    if (currentSpeakingFocusKey) return;
+
+    const previousFocus = previousSpeakingFocusRef.current;
+    if (!previousFocus) return;
+
+    const showExitTimer = window.setTimeout(() => {
+      setExitingFocus({ ...previousFocus, stage: "exit" });
+    }, 0);
+    const clearExitTimer = window.setTimeout(() => {
+      setExitingFocus((focus) => (focus?.key === previousFocus.key ? undefined : focus));
+      if (previousSpeakingFocusRef.current?.key === previousFocus.key) {
+        previousSpeakingFocusRef.current = undefined;
+      }
+    }, 280);
+
+    return () => {
+      window.clearTimeout(showExitTimer);
+      window.clearTimeout(clearExitTimer);
+    };
+  }, [currentSpeakingFocusKey]);
+
+  useEffect(() => {
+    if (!hasSpeakingFocus) return;
+    if (waitingForSpeechAudioStart) return;
+    if (matchingAudioTypewriter?.state === "loading") return;
+    if (matchingAudioTypewriter?.state === "playing" && matchingAudioTypewriter.syncedTypewriter) return;
     if (!animationEnabled || dialogueMode === "full") return;
     if (dialogueFrameIndex >= dialogueFrameCount - 1) return;
 
-    const delay = dialogueFrameIndex < 0 ? 650 : dialogueMode === "characters" ? 32 : 680;
+    const delay = dialogueFrameIndex < 0 ? 520 : dialogueMode === "characters" ? 32 : 260;
     const timer = window.setTimeout(() => {
       setDialogueProgress({
         frameIndex: Math.min(dialogueFrameIndex + 1, dialogueFrameCount - 1),
@@ -90,36 +325,71 @@ export function ClassTrialGameTable({
     }, delay);
 
     return () => window.clearTimeout(timer);
-  }, [animationEnabled, dialogueFrameCount, dialogueFrameIndex, dialogueKey, dialogueMode]);
+  }, [
+    animationEnabled,
+    dialogueFrameCount,
+    dialogueFrameIndex,
+    dialogueKey,
+    dialogueMode,
+    hasSpeakingFocus,
+    matchingAudioTypewriter?.state,
+    matchingAudioTypewriter?.syncedTypewriter,
+    waitingForSpeechAudioStart,
+  ]);
+
+  if (game.result) {
+    return (
+      <section className="class-trial-table class-trial-court-stage class-trial-table-review" style={courtStageStyle}>
+        <div className="class-trial-table-background" aria-hidden="true" />
+        <ClassTrialVerdictReview game={game} onReturnHome={onReturnHome} />
+      </section>
+    );
+  }
 
   return (
-    <section className="class-trial-table">
+    <section
+      className={["class-trial-table", "class-trial-court-stage", hasSpeakingFocus ? "class-trial-table-speaking" : ""]
+        .filter(Boolean)
+        .join(" ")}
+      style={courtStageStyle}
+    >
       <div className="class-trial-table-background" aria-hidden="true" />
       <header className="class-trial-table-topbar">
         <div>
           <span className="class-trial-table-kicker">Local Theme</span>
           <h2>学级裁判主题局</h2>
         </div>
-        <button type="button" onClick={onReturnHome} className="class-trial-table-secondary">
-          返回首页
-        </button>
+        <div className="class-trial-table-actions">
+          <span className="class-trial-table-runtime">{aiRuntimeLabel}</span>
+          <button type="button" onClick={onReturnHome} className="class-trial-table-secondary">
+            返回首页
+          </button>
+        </div>
       </header>
 
-      <div className="class-trial-ring" aria-label="9人环形裁判席">
+      <div className="class-trial-ring" aria-label="9人环形裁判席" style={getRingFocusStyle(hasSpeakingFocus)}>
         {game.seats.map((seat, index) => {
           const character = seatCharacters.get(seat.seatId) ?? getClassTrialCharacterForSeat(index, manifest);
 
           return (
             <div
               key={seat.seatId}
-              className={["class-trial-seat", seat.seatId === displaySpeakerSeatId ? "class-trial-seat-active" : ""].join(" ")}
+              className={[
+                "class-trial-seat",
+                seat.alive ? "" : "class-trial-seat-dead",
+                seat.seatId === activeSeatId ? "class-trial-seat-active" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
               style={getSeatStyle(index, game.seats.length)}
             >
+              <span className="class-trial-seat-number">{seat.seatId}号</span>
               {character.avatarUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={character.avatarUrl} alt="" className="class-trial-seat-avatar" aria-hidden="true" />
               )}
               <span className="class-trial-seat-name">{character.displayName}</span>
+              {!seat.alive && <span className="class-trial-seat-status">已退场</span>}
             </div>
           );
         })}
@@ -127,25 +397,53 @@ export function ClassTrialGameTable({
 
       <section className="class-trial-info-table" aria-label="当前阶段">
         <span>{game.phaseLabel}</span>
-        <strong>{speakerName} 发言中</strong>
+        <strong>{centerStatus}</strong>
       </section>
 
-      <section className="class-trial-focus" aria-label="当前发言者">
-        <div className="class-trial-portrait-placeholder">
-          {speakerCharacter?.portraitUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={speakerCharacter.portraitUrl} alt={speakerName} className="class-trial-portrait-image" />
-          ) : (
-            <span>{speakerName}</span>
-          )}
-        </div>
-        <div className="class-trial-dialogue" data-dialogue-mode={timeline.mode}>
-          <h3>{speakerName}</h3>
-          <p className="class-trial-dialogue-text" aria-live="polite" data-dialogue-state={dialogueFrameIndex < 0 ? "thinking" : "speaking"}>
-            {displayedMessage}
-          </p>
-        </div>
-      </section>
+      {focusCharacter && (
+        <section
+          className={["class-trial-focus", visibleFocus?.stage === "exit" ? "class-trial-focus-exit" : "class-trial-focus-enter"].join(" ")}
+          aria-hidden={visibleFocus?.stage === "exit" ? true : undefined}
+          aria-label="当前发言者"
+        >
+          <div className="class-trial-portrait-placeholder">
+            {(() => {
+              const portraitState = isDialogueThinking ? "thinking" : "speaking";
+              const portraitUrl =
+                portraitState === "thinking"
+                  ? focusCharacter.thinkingPortraitUrl ?? focusCharacter.portraitUrl
+                  : focusCharacter.portraitUrl;
+              return portraitUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={portraitUrl}
+                  alt={focusSpeakerName}
+                  className="class-trial-portrait-image"
+                  data-portrait-id={focusCharacter.id}
+                  data-portrait-state={portraitState}
+                  style={getPortraitCssVariables(focusCharacter, portraitState)}
+                />
+              ) : (
+                <span>{focusSpeakerName}</span>
+              );
+            })()}
+          </div>
+          <div className="class-trial-dialogue" data-dialogue-mode={timeline.mode}>
+            <h3>{focusSpeakerName}</h3>
+            <p className="class-trial-dialogue-text" aria-live="polite" data-dialogue-state={isDialogueThinking ? "thinking" : "speaking"}>
+              {displayedMessage}
+            </p>
+            {matchingManualAudioPlayback && (
+              <div className="class-trial-dialogue-audio-action">
+                <button type="button" onClick={matchingManualAudioPlayback.onPlay} disabled={matchingManualAudioPlayback.playing}>
+                  {matchingManualAudioPlayback.playing ? "正在播放语音" : "点击播放语音"}
+                </button>
+                <span>{matchingManualAudioPlayback.errorMessage ?? "浏览器拦截了自动播放，需要手动点一下。"}</span>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {continueAction && (
         <button
