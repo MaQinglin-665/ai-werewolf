@@ -1,4 +1,8 @@
-import { extractClassTrialRoleClaimSignal, hasClassTrialWitchReasoningNegation } from "./classTrialClaims";
+import {
+  extractClassTrialRoleClaimSignal,
+  hasClassTrialHunterHardClaimSignal,
+  hasClassTrialWitchReasoningNegation,
+} from "./classTrialClaims";
 import { ROLE_LABELS } from "./labels";
 import type { ClaimCheck, ClaimStrength, Role, RoleClaim } from "./types";
 
@@ -110,7 +114,8 @@ export function extractRoleClaimFromSpeech(params: {
 
 export function isSupportedRoleClaim(claim: Pick<RoleClaim, "claimedRole" | "message">): boolean {
   if (claim.claimedRole !== "HUNTER") return true;
-  return /猎人/.test(normalizeDigits(claim.message));
+  const normalized = normalizeDigits(claim.message);
+  return /猎人/.test(normalized) || hasClassTrialHunterHardClaimSignal(normalized);
 }
 
 export function upsertRoleClaim(existingClaims: RoleClaim[], draft: SpeechClaimDraft): RoleClaim {

@@ -19,6 +19,10 @@ const WITCH_REASONING_NEGATIONS = [
   /(?:更像|像是|按|当成|视作)[^。！？；\n]{0,18}(?:女巫用药|药线|死亡形态)/,
 ];
 
+const WITCH_SELF_CLAIM_DENIALS = [
+  /(?:不是|不等于|并非)我?(?:明牌女巫|拍女巫|女巫声明|自称女巫)/,
+];
+
 const SEER_HARD_CLAIM_PATTERNS = [
   /(?:我|这边|这里)[^。！？；\n]{0,18}(?:把|将)[^。！？；\n]{0,12}(?:预言家牌|查验牌)[^。！？；\n]{0,12}(?:摊开|亮出|拍出来)/,
   /(?:这不是暗示|我不藏了)[^。！？；\n]{0,18}(?:预言家|查验)/,
@@ -31,22 +35,33 @@ const HUNTER_HARD_CLAIM_PATTERNS = [
 
 export function extractClassTrialRoleClaimSignal(message: string): ClassTrialRoleClaimSignal | undefined {
   const normalized = normalizeDigits(message);
-  if (hasClassTrialWitchReasoningNegation(normalized)) return undefined;
-  if (WITCH_HARD_CLAIM_PATTERNS.some((pattern) => pattern.test(normalized))) {
+  const hasWitchHardClaim = WITCH_HARD_CLAIM_PATTERNS.some((pattern) => pattern.test(normalized));
+  if (hasWitchHardClaim && !hasClassTrialWitchSelfClaimDenial(normalized)) {
     return { claimedRole: "WITCH", strength: "hard", reason: "class-trial-dramatic-witch" };
   }
+  if (hasClassTrialWitchReasoningNegation(normalized)) return undefined;
   if (SEER_HARD_CLAIM_PATTERNS.some((pattern) => pattern.test(normalized))) {
     return { claimedRole: "SEER", strength: "hard", reason: "class-trial-dramatic-seer" };
   }
-  if (HUNTER_HARD_CLAIM_PATTERNS.some((pattern) => pattern.test(normalized))) {
+  if (hasClassTrialHunterHardClaimSignal(normalized)) {
     return { claimedRole: "HUNTER", strength: "hard", reason: "class-trial-dramatic-hunter" };
   }
   return undefined;
 }
 
+export function hasClassTrialHunterHardClaimSignal(message: string): boolean {
+  const normalized = normalizeDigits(message);
+  return HUNTER_HARD_CLAIM_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 export function hasClassTrialWitchReasoningNegation(message: string): boolean {
   const normalized = normalizeDigits(message);
   return WITCH_REASONING_NEGATIONS.some((pattern) => pattern.test(normalized));
+}
+
+function hasClassTrialWitchSelfClaimDenial(message: string): boolean {
+  const normalized = normalizeDigits(message);
+  return WITCH_SELF_CLAIM_DENIALS.some((pattern) => pattern.test(normalized));
 }
 
 function normalizeDigits(value: string): string {

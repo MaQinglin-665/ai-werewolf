@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractRoleClaimFromSpeech } from "./claims";
+import { extractRoleClaimFromSpeech, isSupportedRoleClaim } from "./claims";
 
 describe("role claim extraction", () => {
   it("parses seer checks when a model display name follows the seat number", () => {
@@ -92,6 +92,67 @@ describe("role claim extraction", () => {
       day: 1,
       claimantSeatId: 1,
       message: "平安夜在我这里更像女巫用药结果，但这不是我明牌女巫。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim).toBeUndefined();
+  });
+
+  it("lets hard class-trial witch reveals win over negation-like wording", () => {
+    const directReveal = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 6,
+      message: "这不是暗示，我明牌女巫。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+    const revealWithReasoning = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 6,
+      message: "女巫在这里，平安夜更像女巫用药结果。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(directReveal?.claimedRole).toBe("WITCH");
+    expect(directReveal?.strength).toBe("hard");
+    expect(revealWithReasoning?.claimedRole).toBe("WITCH");
+    expect(revealWithReasoning?.strength).toBe("hard");
+  });
+
+  it("treats dramatic class-trial seer reveals as hard seer claims", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 1,
+      message: "我把预言家牌摊开，2号是金水。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+  });
+
+  it("supports dramatic class-trial hunter gun claims", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 4,
+      message: "枪在这里，别逼我开枪。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim?.claimedRole).toBe("HUNTER");
+    expect(claim?.strength).toBe("hard");
+    expect(isSupportedRoleClaim({ claimedRole: "HUNTER", message: "枪在这里，别逼我开枪。" })).toBe(true);
+  });
+
+  it("does not treat generic class-trial lead-the-vote wording as a hunter claim", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 4,
+      message: "今天谁带人冲票都要解释。",
       validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
       roleCard: { theme: "class-trial" },
     });
