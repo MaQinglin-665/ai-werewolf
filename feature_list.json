@@ -231,6 +231,166 @@
       ],
       "status": "done",
       "evidence": "docs/superpowers/specs/2026-05-28-class-trial-ui-polish-tomori-design.md; docs/superpowers/plans/2026-05-28-class-trial-ui-polish-tomori.md; docs/tasks/2026-05-class-trial-ui-polish-tomori.md; src/components/game/classTrialTheme.ts; src/components/game/classTrialDialogue.ts; src/components/game/ClassTrialGameTable.tsx; src/app/globals.css; local ignored Tomori avatar/portrait/personas/manifest update; npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialDialogue.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts; npm run lint; npx tsc --noEmit; npm run harness:task-card -- docs/tasks/2026-05-class-trial-ui-polish-tomori.md; npm run harness:check; git diff --check; browser http://127.0.0.1:51624 local theme smoke confirmed ready pack, Tomori seat 8, left portrait/right dialogue typewriter, no hidden role labels in dialogue, and /rooms no theme entry; tmp/class-trial-ui-polish-tomori-smoke.png ignored screenshot"
+    },
+    {
+      "id": "class-trial-portrait-calibration",
+      "name": "Class Trial Portrait Calibration",
+      "description": "Stabilize local class-trial speaking portraits with fixed frame dimensions, per-character scale/offset metadata, accepted local portrait replacements, and a dedicated class-trial court background.",
+      "dependencies": [
+        "class-trial-ui-polish-tomori"
+      ],
+      "status": "done",
+      "evidence": "docs/tasks/2026-05-class-trial-portrait-calibration.md; src/components/game/classTrialTheme.ts; src/components/game/ClassTrialGameTable.tsx; src/components/GameClient.tsx; src/app/globals.css; local ignored final cropped Mygo_anime_tomori full-body portrait accepted for Tomori; local ignored Mygo_anime_anon transparent standing portrait replaces Anon scene/card image and is tuned to scale 1.28 y -4; speech focus appears only during speaking turns with staged enter/exit animation; class-trial games use class-trial-app-shell and class-trial-court-stage instead of default werewolf table background; npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialDialogue.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts; npm run lint; npx tsc --noEmit; npm run build; npm run harness:task-card -- docs/tasks/2026-05-class-trial-portrait-calibration.md; npm run harness:check; git diff --check; browser http://127.0.0.1:51625 class-trial spectator flow confirmed court background and sampled stable portraits"
+    },
+    {
+      "id": "class-trial-flow-scenes",
+      "name": "Class Trial Flow Scenes",
+      "description": "Add local-only class-trial full-screen phase scenes for dawn, voting, exile resolution, and final settlement, while keeping hidden night actions on the table view and showing the revealed vote ledger.",
+      "dependencies": [
+        "class-trial-portrait-calibration"
+      ],
+      "status": "done",
+      "evidence": "docs/tasks/2026-05-class-trial-flow-scenes.md; src/components/game/classTrialPhaseScenes.ts; src/components/game/PhaseCurtain.tsx; src/components/game/phaseCurtainModel.ts; src/components/GameClient.tsx; src/app/globals.css; npm run test -- src/components/game/classTrialPhaseScenes.test.ts src/components/game/PhaseCurtain.test.ts src/components/game/phaseCurtainModel.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/classTrialTheme.test.ts src/components/game/classTrialDialogue.test.ts src/components/game/gamePanelsMobile.test.ts; npm run lint; npx tsc --noEmit; npm run build; browser http://127.0.0.1:51625 confirmed 狼人行动/预言家查验/女巫行动 have no full-screen scene and vote resolution shows 票型汇总 plus 逐票 ledger"
+    },
+    {
+      "id": "class-trial-verdict-review",
+      "name": "Class Trial Verdict Review",
+      "description": "Add a local-only generated red/black court background, persistent departed-seat markers, and automatic class-trial verdict review after game over.",
+      "dependencies": [
+        "class-trial-flow-scenes"
+      ],
+      "status": "done",
+      "evidence": "docs/superpowers/specs/2026-05-28-class-trial-verdict-review-design.md; docs/superpowers/plans/2026-05-28-class-trial-verdict-review.md; docs/tasks/2026-05-class-trial-verdict-review.md; src/components/game/classTrialTheme.ts; src/components/game/ClassTrialGameTable.tsx; src/components/game/ClassTrialVerdictReview.tsx; src/app/globals.css; local ignored local-assets/class-trial-pack/backgrounds/court-main.png and manifest backgrounds.courtMain update; npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/classTrialVerdictReview.test.ts src/components/game/gamePanelsMobile.test.ts; npm run lint; npx tsc --noEmit; npm run build; browser http://127.0.0.1:51625 confirmed generated court background, live 已退场 marker with no role/death leak, automatic visible terminal verdict review, and /rooms no theme entry; ignored screenshots tmp/class-trial-dead-marker-smoke.png and tmp/class-trial-verdict-review-smoke.png"
+    },
+    {
+      "id": "class-trial-gpt-sovits-voice",
+      "name": "Class Trial GPT-SoVITS Voice",
+      "description": "Route local-only class-trial AI speech through GPT-SoVITS Japanese per-character voices while preserving Chinese visible text and Mimo fallback.",
+      "dependencies": [
+        "class-trial-verdict-review"
+      ],
+      "status": "done",
+      "evidence": "docs/superpowers/specs/2026-05-28-class-trial-gpt-sovits-voice-design.md; docs/superpowers/plans/2026-05-28-class-trial-gpt-sovits-voice.md; docs/tasks/2026-05-class-trial-gpt-sovits-voice.md; src/server/gptSoVitsTts.ts; src/ai/classTrialVoiceProfiles.ts; src/ai/classTrialSpeechRewrite.ts; src/app/api/ai-speech-audio/route.ts; npm run test -- src/server/gptSoVitsTts.test.ts src/ai/classTrialVoiceProfiles.test.ts src/ai/classTrialSpeechRewrite.test.ts src/app/api/ai-speech-audio/route.test.ts src/components/game/aiSpeechAudio.test.ts src/ai/voiceProfiles.test.ts; npm run lint; npx tsc --noEmit; npm run build; Invoke-WebRequest http://127.0.0.1:9880/openapi.json returned 200; direct route smoke returned provider gpt-sovits wav for Tomori; browser http://127.0.0.1:51625 homepage -> 学级裁判主题局 -> AI speech on -> 9p AI-only spectator -> played 2号 and 3号 speech and advanced to later speakers; generated wav cache included tomori, naegi, kirigiri, and fukawa files"
+    },
+    {
+      "id": "class-trial-audio-synced-typewriter",
+      "name": "Class Trial Audio-Synced Typewriter",
+      "description": "Drive local-only class-trial dialogue reveal from real AI speech audio playback progress, with fixed-speed and thinking-state fallbacks while GPT-SoVITS audio is generating.",
+      "dependencies": [
+        "class-trial-gpt-sovits-voice"
+      ],
+      "status": "done",
+      "evidence": "docs/superpowers/specs/2026-05-28-class-trial-audio-synced-typewriter-design.md; docs/superpowers/plans/2026-05-28-class-trial-audio-synced-typewriter.md; docs/tasks/2026-05-class-trial-audio-synced-typewriter.md; src/components/game/classTrialDialogue.ts; src/components/game/aiSpeechAudio.ts; src/components/game/clientTypes.ts; src/components/game/ClassTrialGameTable.tsx; src/components/GameClient.tsx; npm run test -- src/components/game/classTrialDialogue.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/aiSpeechAudio.test.ts; npm run lint; npx tsc --noEmit; npm run build; browser http://127.0.0.1:51625 clean class-trial tab confirmed dialogue stays on full thinking text while GPT-SoVITS audio is generating and generated wav files continue to appear under ignored public/audio/ai-speech; follow-up 2026-05-29 tests npm run test -- src/components/game/classTrialGameTable.test.ts src/components/game/classTrialDialogue.test.ts src/components/game/aiSpeechAudio.test.ts src/components/game/autoAdvance.test.ts passed 4 files / 54 tests; npx tsc --noEmit, npm run lint, and npm run build passed; browser http://127.0.0.1:51627 confirmed audio/text typewriter blocks auto-advance, AI-speech-off text fallback prevents silent skip, and dead seats still show 已退场; follow-up 2026-05-29 readable-sync tests npm run test -- src/components/game/aiSpeechAudio.test.ts src/components/game/classTrialDialogue.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/classTrialAudioLookahead.test.ts passed 4 files / 58 tests; npm run lint, npx tsc --noEmit, npm run build, npm run harness:task-card -- docs/tasks/2026-05-class-trial-audio-synced-typewriter.md, npm run harness:check, and git diff --check passed; browser http://127.0.0.1:51629 game bb78bcca-e25b-4ea5-a1a5-363bb2f3846b confirmed 4-char cumulative reveal and complete normalized 69-char 苗木诚 first speech before handoff to 雾切响子; no-sound follow-up added src/app/audio/ai-speech/[fileName]/route.ts and route.test.ts after generated audio URLs returned 404 under next start; npm run test -- src/app/audio/ai-speech/[fileName]/route.test.ts src/components/game/aiSpeechAudio.test.ts src/components/game/classTrialDialogue.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/classTrialAudioLookahead.test.ts passed 5 files / 61 tests; restarted next start -p 51629 and confirmed latest generated wav returned 200 audio/wav"
+    },
+    {
+      "id": "class-trial-audio-latency",
+      "name": "Class Trial Audio Wait And Preload",
+      "description": "Reduce perceived local GPT-SoVITS wait by showing stage-specific class-trial audio preparation text and reusing a small prepared-audio promise cache before playback.",
+      "dependencies": [
+        "class-trial-audio-synced-typewriter"
+      ],
+      "status": "done",
+      "evidence": "docs/superpowers/plans/2026-05-28-class-trial-audio-latency.md; docs/tasks/2026-05-class-trial-audio-latency.md; src/components/game/aiSpeechAudio.ts; src/components/game/aiSpeechAudio.test.ts; src/components/game/clientTypes.ts; src/components/game/ClassTrialGameTable.tsx; src/components/game/classTrialGameTable.test.ts; src/components/GameClient.tsx; npm run test -- src/components/game/classTrialDialogue.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/aiSpeechAudio.test.ts; npm run lint; npx tsc --noEmit; npm run build; npm run harness:task-card -- docs/tasks/2026-05-class-trial-audio-latency.md; npm run harness:check; git diff --check; Invoke-WebRequest http://127.0.0.1:9880/openapi.json returned 200; browser http://127.0.0.1:51625 class-trial AI-only flow showed 正在调取证言/正在生成语音 preparation text and generated new naegi/kirigiri wav cache files"
+    },
+    {
+      "id": "class-trial-audio-lookahead",
+      "name": "Class Trial Audio Lookahead",
+      "description": "Start one background class-trial continue step and next speech-audio preparation while the current GPT-SoVITS speech audio is playing.",
+      "dependencies": [
+        "class-trial-audio-latency"
+      ],
+      "status": "done",
+      "evidence": "docs/superpowers/plans/2026-05-28-class-trial-audio-lookahead.md; docs/tasks/2026-05-class-trial-audio-lookahead.md; src/components/game/classTrialAudioLookahead.ts; src/components/game/classTrialAudioLookahead.test.ts; src/components/game/gameClientRequests.ts; src/components/game/gameClientRequests.test.ts; src/components/GameClient.tsx; npm run test -- src/components/game/classTrialAudioLookahead.test.ts src/components/game/gameClientRequests.test.ts src/components/game/classTrialDialogue.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/aiSpeechAudio.test.ts; npm run lint; npx tsc --noEmit; npm run build; npm run harness:task-card -- docs/tasks/2026-05-class-trial-audio-lookahead.md; npm run harness:check; git diff --check; Invoke-WebRequest http://127.0.0.1:9880/openapi.json returned 200; browser http://127.0.0.1:51625 class-trial AI-only flow confirmed longer current speech can prewarm the next speaker to enter directly with full dialogue; screenshot tmp/class-trial-audio-lookahead-smoke.png"
+    },
+    {
+      "id": "class-trial-gpt-sovits-latency",
+      "name": "Class Trial GPT-SoVITS Latency",
+      "description": "Instrument class-trial GPT-SoVITS stages and skip redundant GPT/SoVITS weight switch calls when the same weights are already active.",
+      "dependencies": [
+        "class-trial-audio-lookahead"
+      ],
+      "status": "done",
+      "evidence": "docs/superpowers/plans/2026-05-28-class-trial-gpt-sovits-latency.md; docs/tasks/2026-05-class-trial-gpt-sovits-latency.md; src/server/gptSoVitsTts.ts; src/server/gptSoVitsTts.test.ts; src/app/api/ai-speech-audio/route.ts; src/app/api/ai-speech-audio/route.test.ts; npm run test -- src/server/gptSoVitsTts.test.ts src/app/api/ai-speech-audio/route.test.ts passed 2 files / 7 tests; npm run lint passed with 3 existing warnings; npx tsc --noEmit passed; npm run build passed with existing Turbopack NFT trace warning; npm run harness:task-card -- docs/tasks/2026-05-class-trial-gpt-sovits-latency.md passed; npm run harness:check passed; git diff --check passed with CRLF warnings only; GPT-SoVITS health returned StatusCode 200; direct route smoke posted two same-role Tomori requests and both returned provider gpt-sovits wav URLs"
+    },
+    {
+      "id": "class-trial-rewrite-fast-path",
+      "name": "Class Trial Rewrite Fast Path",
+      "description": "Skip slow LLM rewrite for safe high-frequency short class-trial public speech lines and expose rewriteMode in GPT-SoVITS timing logs.",
+      "dependencies": [
+        "class-trial-gpt-sovits-latency"
+      ],
+      "status": "done",
+      "evidence": "docs/superpowers/specs/2026-05-28-class-trial-rewrite-fast-path-design.md; docs/superpowers/plans/2026-05-28-class-trial-rewrite-fast-path.md; docs/tasks/2026-05-class-trial-rewrite-fast-path.md; src/ai/classTrialSpeechRewrite.ts; src/ai/classTrialSpeechRewrite.test.ts; src/app/api/ai-speech-audio/route.ts; src/app/api/ai-speech-audio/route.test.ts; npm run test -- src/ai/classTrialSpeechRewrite.test.ts src/app/api/ai-speech-audio/route.test.ts passed 2 files / 8 tests; npm run lint passed with 3 existing warnings; npx tsc --noEmit passed; npm run build passed with existing Turbopack NFT trace warning; direct route smoke rewrite-fast-smoke:20260528235235:tomori logged rewriteMode fast rewriteMs 0 totalMs 2806; direct route smoke rewrite-fast-smoke:20260528235311:tomori-cache logged rewriteMode cache rewriteMs 1 switchMs 0 totalMs 968"
+    },
+    {
+      "id": "class-trial-llm-runtime",
+      "name": "Class Trial LLM Runtime",
+      "description": "Force local class-trial themed games onto real LLM runtime and surface DeepSeek-v4 status on the home card and themed table.",
+      "dependencies": [
+        "class-trial-rewrite-fast-path"
+      ],
+      "status": "done",
+      "evidence": "docs/tasks/2026-05-class-trial-llm-runtime.md; src/components/game/aiFriendStorage.ts; src/components/game/aiFriendStorage.test.ts; src/components/game/LandingPanel.tsx; src/components/game/ClassTrialGameTable.tsx; src/components/GameClient.tsx; npm run test -- src/components/game/aiFriendStorage.test.ts src/components/game/gamePanelsMobile.test.ts src/components/game/classTrialGameTable.test.ts passed 3 files / 37 tests; npm run lint passed with 3 existing warnings; npx tsc --noEmit passed; npm run build passed with existing Turbopack NFT trace warning; browser http://127.0.0.1:51625 confirmed real LLM / DeepSeek-v4 status on home card and themed table; live smoke game 8943cd42-566f-411f-8c78-6795cc4cefdd logged deepseek-action:deepseek-v4-flash model attempt; npm run harness:task-card -- docs/tasks/2026-05-class-trial-llm-runtime.md passed; npm run harness:check passed; git diff --check passed with CRLF warnings only"
+    },
+    {
+      "id": "class-trial-deepseek-brain",
+      "name": "Class Trial DeepSeek Brain",
+      "description": "Make local class-trial fixed characters use DeepSeek-v4 as the exclusive game reasoning model and keep class-trial action/speech repair attempts on DeepSeek instead of persona fallbacks.",
+      "dependencies": [
+        "class-trial-llm-runtime"
+      ],
+      "status": "done",
+      "evidence": "docs/superpowers/plans/2026-05-29-class-trial-deepseek-brain.md; docs/tasks/2026-05-class-trial-deepseek-brain.md; src/components/game/classTrialTheme.ts; src/ai/actionProviders.ts; src/ai/speechProviders.ts; red-green tests added for fixed DeepSeek brain persona and class-trial action/speech DeepSeek-only repair attempts; npm run test -- src/components/game/classTrialTheme.test.ts src/ai/actionProviders.test.ts src/ai/speechProviders.test.ts passed 3 files / 104 tests; npm run lint passed with 3 existing warnings; npx tsc --noEmit passed; npm run build passed with existing Turbopack NFT trace warning; npm run harness:task-card -- docs/tasks/2026-05-class-trial-deepseek-brain.md passed; npm run harness:check passed; git diff --check passed with CRLF warnings only; browser http://127.0.0.1:51625 showed 真实 LLM · DeepSeek-v4 主脑 and live smoke game 6010e73b-e191-4d53-a3ca-9efc2f939c95 logged observed class-trial action repair providers as deepseek-action:deepseek-v4-flash only and observed speech repair providers as deepseek-speech:deepseek-v4-flash only"
+    },
+    {
+      "id": "class-trial-deepseek-token-budget",
+      "name": "Class Trial DeepSeek Thinking Budget",
+      "description": "Tune DeepSeek thinking and completion-token defaults so action and speech calls produce non-empty JSON quickly instead of exhausting reasoning tokens before final text.",
+      "dependencies": [
+        "class-trial-deepseek-brain"
+      ],
+      "status": "done",
+      "evidence": "docs/tasks/2026-05-class-trial-deepseek-token-budget.md; src/ai/modelLlms.ts; src/ai/modelLlms.test.ts; root-cause probe showed max_tokens 220/500 action and 900/1200 speech could return finish_reason length with all completion tokens in reasoning_tokens and empty content; A/B probes showed DeepSeek action with thinking disabled returned non-empty JSON in about 3s and real class-trial speech with thinking disabled plus 900 tokens returned non-empty speech in about 4.5s; red-green npm run test -- src/ai/modelLlms.test.ts failed first because DeepSeek action/speech did not both send thinking disabled then passed; npm run test -- src/ai/modelLlms.test.ts src/ai/actionProviders.test.ts src/ai/speechProviders.test.ts passed 3 files / 102 tests; narrow class-trial real loop before thinking change ran 8 LLM calls with fallback count 0 and 3 empty first attempts; follow-up 5-call real loop after disabling DeepSeek thinking had fallback count 0, empty attempt count 0, retry count 1 for speech validation, and duration about 29s; npm run lint passed with 3 existing warnings; npx tsc --noEmit passed; npm run build passed with existing Turbopack NFT trace warning; npm run harness:task-card -- docs/tasks/2026-05-class-trial-deepseek-token-budget.md passed; npm run harness:check passed; git diff --check passed with CRLF warnings only"
+    },
+    {
+      "id": "class-trial-gpt-sovits-prewarm",
+      "name": "Class Trial GPT-SoVITS Prewarm",
+      "description": "Reduce new-role local voice wait by prewarming the current class-trial speaker and serializing GPT-SoVITS switch/TTS work against its global active weights.",
+      "dependencies": [
+        "class-trial-deepseek-token-budget"
+      ],
+      "status": "done",
+      "evidence": "docs/tasks/2026-05-class-trial-gpt-sovits-prewarm.md; src/server/gptSoVitsTts.ts; src/server/gptSoVitsTts.test.ts; src/app/api/ai-speech-audio/route.ts; src/app/api/ai-speech-audio/route.test.ts; src/components/game/aiSpeechAudio.ts; src/components/game/aiSpeechAudio.test.ts; src/components/GameClient.tsx; red-green npm run test -- src/server/gptSoVitsTts.test.ts failed first because runGptSoVitsSynthesisExclusive did not exist then passed; red-green npm run test -- src/components/game/aiSpeechAudio.test.ts failed first because buildClassTrialVoicePrewarmCue and deferred chunk loading did not exist then passed; npm run test -- src/server/gptSoVitsTts.test.ts src/app/api/ai-speech-audio/route.test.ts src/components/game/aiSpeechAudio.test.ts passed 3 files / 22 tests; npx tsc --noEmit passed; npm run lint passed with 3 existing warnings in src/server/gptSoVitsTts.test.ts; npm run build passed with existing Turbopack NFT trace warning; npm run harness:task-card -- docs/tasks/2026-05-class-trial-gpt-sovits-prewarm.md passed; npm run harness:check passed; git diff --check passed with CRLF warnings only; GPT-SoVITS health returned StatusCode 200; direct route smoke with Tomori and Kirigiri class-trial role cards returned provider gpt-sovits wav URLs and timing logs showed serialized completion at about 2.5s and 5.1s total"
+    },
+    {
+      "id": "class-trial-speech-persona-audio-gap",
+      "name": "Class Trial Whole-Speech Audio And Persona Speech",
+      "description": "Remove mid-speech class-trial GPT-SoVITS gaps by generating one final whole-speech audio chunk, reduce class-trial rewrite waits, and strengthen role-card speech guidance/fallback against generic Werewolf templates.",
+      "dependencies": [
+        "class-trial-gpt-sovits-prewarm"
+      ],
+      "status": "done",
+      "evidence": "docs/tasks/2026-05-class-trial-speech-persona-audio-gap.md; src/components/game/aiSpeechAudio.ts; src/components/game/aiSpeechAudio.test.ts; src/components/GameClient.tsx; src/components/game/classTrialDialogue.ts; src/components/game/classTrialDialogue.test.ts; src/ai/speechProviders.ts; src/ai/speechProviders.test.ts; src/ai/classTrialSpeechRewrite.ts; src/ai/classTrialSpeechRewrite.test.ts; src/app/api/ai-speech-audio/route.ts; src/app/api/ai-speech-audio/route.test.ts; red-green no-skip/typewriter/persona tests first failed for missing compact frames, class-trial text fallback helpers, anti-template contract, Anon filler guard, and dropped route role-card fields then passed; follow-up tests covered deterministic local rewrite, tuned 3 sentence / 260 char class-trial contract, and role-specific class-trial fallback; live API/log regression game 68d9b996-e4f3-4518-b0e0-e146ac7c6328 showed 苗木诚 TTS about 76.3s with rewriteMode llm rewriteMs 63779 before local rewrite and about 6.3s with rewriteMode local rewriteMs 0 after local rewrite; 江之岛盾子 generated GPT-SoVITS audio in about 5.1s; npm run test -- src/components/game/classTrialDialogue.test.ts src/components/game/aiSpeechAudio.test.ts src/ai/speechProviders.test.ts src/ai/classTrialSpeechRewrite.test.ts src/app/api/ai-speech-audio/route.test.ts passed; npx tsc --noEmit passed; npm run lint passed with existing warnings in src/server/gptSoVitsTts.test.ts; npm run build passed with existing Turbopack NFT trace warning; local app health GET / and /alpha-health on http://127.0.0.1:51625 returned 200 OK"
+    },
+    {
+      "id": "class-trial-character-lens",
+      "name": "Class Trial Character Lens",
+      "description": "Give local class-trial characters distinct public reasoning, pressure, and vote-rationale behavior through a reusable soft LLM director lens.",
+      "dependencies": [
+        "class-trial-speech-persona-audio-gap"
+      ],
+      "status": "done",
+      "evidence": "docs/superpowers/specs/2026-05-29-class-trial-character-lens-design.md; docs/superpowers/plans/2026-05-29-class-trial-character-lens.md; docs/tasks/2026-05-class-trial-character-lens.md; src/ai/classTrialCharacterLens.ts; src/ai/classTrialCharacterLens.test.ts; src/ai/speechProviders.ts; src/ai/speechProviders.test.ts; src/ai/actionProviders.ts; src/ai/actionProviders.test.ts; character lens is soft LLM director guidance rather than required-keyword validation; repair prompt preserves class-trial LLM freeplay while fixing only validation issues; speech prompt includes soft anti-repeat plus dynamic repeated-focus director cues; lens includes role-specific transformation examples instead of fixed scripts; dynamic repeated-focus motifs cover no-conclusion, no-stance-ticket, mirror-attack, clean-template-responsibility, and peace-night loops; red-green director tests first failed then passed; npm run test -- src/ai/classTrialCharacterLens.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts passed 3 files / 110 tests; npx tsc --noEmit passed; npm run lint passed with 0 errors and 3 existing warnings; npm run build passed with existing Turbopack NFT trace warning; LLM freeplay smoke game e38aeb06-a684-40f3-88ba-a41035a32d0a generated 5 Day 1 speeches with 4 of 5 non-fallback DeepSeek speech outputs and no character-lens validation fallback; full Day 1 LLM sample game 60f17301-15c4-41a9-a134-7c2adba47c92 generated 9 of 9 non-fallback DeepSeek speeches; production-preview text samples 64183909-65b9-44f2-9c35-4a3b89692904 and 309698cb-5ffc-40d6-af6d-c349b849fbd2 generated 9 Day 1 speeches each and drove the latest repeated-motif expansion; anti-repeat smoke game ca0d5a71-261c-4d47-87b1-877c7336a77a showed later fallbacks were transient DeepSeek fetch failures, not lens validation; follow-up speech-order red-green guards cover unspoken-seat trust/vote labels, low-info opener hooks, and direct process demands to already-spoken seats; npm run test -- src/ai/classTrialCharacterLens.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts passed 3 files / 112 tests; production-preview sample game 89c345c8-b272-457f-b4f1-244a53c8c597 on http://127.0.0.1:51629 generated first four Day 1 speeches in about 39s without the earlier no-hook opener, already-spoken direct demand, or premature 9号 trust issue; app /, app /alpha-health, and GPT-SoVITS /openapi.json health checks returned 200; npm run harness:task-card -- docs/tasks/2026-05-class-trial-character-lens.md passed; npm run harness:check passed; git diff --check passed with CRLF warnings only"
+    },
+    {
+      "id": "class-trial-thinking-persona-polish",
+      "name": "Class Trial Thinking Portrait And Persona Polish",
+      "description": "Add per-character thinking portraits before voice playback, visible table seat numbers, themed host-cue keys, stronger class-trial role/last-words wording, per-role Werewolf strategy cards, Monokuma laugh preservation, and Day 2+ no-self-introduction guards.",
+      "dependencies": [
+        "class-trial-character-lens"
+      ],
+      "status": "done",
+      "evidence": "docs/tasks/2026-05-class-trial-thinking-persona-polish.md; src/components/game/classTrialTheme.ts; src/components/game/ClassTrialGameTable.tsx; src/components/game/hostAudioCues.ts; src/components/GameClient.tsx; src/app/globals.css; src/ai/classTrialCharacterLens.ts; src/ai/classTrialSpeechRewrite.ts; src/ai/speechProviders.ts; src/ai/actionProviders.ts; local ignored local-assets/class-trial-pack/manifest.json and thinking-portraits/*.png; generated 9 chroma-key thinking portraits and removed background to transparent PNG; npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/hostAudioCues.test.ts src/ai/classTrialCharacterLens.test.ts src/ai/classTrialSpeechRewrite.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts passed 7 files / 172 tests; manifest asset smoke passed 9 characters; npx tsc --noEmit passed; npm run lint passed with 3 existing warnings in src/server/gptSoVitsTts.test.ts; npm run build passed with existing Turbopack NFT trace warning; npm run harness:task-card -- docs/tasks/2026-05-class-trial-thinking-persona-polish.md passed; npm run harness:check passed; git diff --check passed with CRLF warnings only; Chrome headless smoke on http://localhost:51625 confirmed ready local pack/personas, 9 visible seat numbers, 9 local avatars, and a real Day 1 speech preparation DOM state with /class-trial-pack/thinking-portraits/%E8%8B%97%E6%9C%A8%E8%AF%9A.png and data-portrait-state thinking"
     }
   ]
 }

@@ -131,3 +131,49 @@ Verification:
 Remaining risks:
 - ...
 ```
+
+## Completion Evidence
+
+Completed on: 2026-05-28 17:46 Asia/Shanghai
+
+Completed:
+- Generated a local-only red/black court background with the built-in image generation tool and copied it to ignored `local-assets/class-trial-pack/backgrounds/court-main.png`.
+- Updated ignored local `local-assets/class-trial-pack/manifest.json` with `backgrounds.courtMain`.
+- Added optional class-trial manifest background parsing and a court background URL helper.
+- Added `ClassTrialVerdictReview` for terminal `GAME_OVER` review using existing `GameReview` data.
+- Wired `ClassTrialGameTable` to use the generated court background when present.
+- Added persistent `已退场` markers for dead class-trial seats without exposing identity, camp, or death reason during live play.
+- Switched class-trial terminal games directly into the verdict review surface.
+
+Changed files:
+- `docs/tasks/2026-05-class-trial-verdict-review.md`
+- `feature_list.json`
+- `progress.md`
+- `session-handoff.md`
+- `src/app/globals.css`
+- `src/components/game/ClassTrialGameTable.tsx`
+- `src/components/game/ClassTrialVerdictReview.tsx`
+- `src/components/game/classTrialGameTable.test.ts`
+- `src/components/game/classTrialTheme.test.ts`
+- `src/components/game/classTrialTheme.ts`
+- `src/components/game/classTrialVerdictReview.test.ts`
+- `local-assets/class-trial-pack/backgrounds/court-main.png` (ignored local file, not committed)
+- `local-assets/class-trial-pack/manifest.json` (ignored local file, not committed)
+
+Verification:
+- `npm run test -- src/components/game/classTrialTheme.test.ts` first failed on missing manifest helpers, then passed.
+- `npm run test -- src/components/game/classTrialVerdictReview.test.ts` first failed on missing component, then passed.
+- `npm run test -- src/components/game/classTrialGameTable.test.ts` first failed on missing background/death/review wiring, then passed.
+- `npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/classTrialVerdictReview.test.ts src/components/game/gamePanelsMobile.test.ts` passed, 4 files / 40 tests.
+- `npm run lint` passed.
+- `npx tsc --noEmit` passed.
+- `npm run build` passed with the existing Turbopack NFT trace warning for `next.config.ts -> src/server/roomService.ts -> src/app/api/rooms/debug-cleanup/route.ts`.
+- Browser flow on restarted dev server `http://127.0.0.1:51625` passed: homepage -> 学级裁判主题局 -> 9人预女猎 -> 无真人观战 rendered the generated court background from `backgrounds.courtMain`.
+- Browser flow confirmed a live dead seat displayed only `已退场` (`黑白熊已退场`) with no role, camp, or death-reason leak in the seat text.
+- Browser flow advanced to `GAME_OVER` and automatically rendered the visible themed verdict review with final verdict, key evidence, vote fog, departure list, and role reveal.
+- Browser flow confirmed `/rooms` did not expose the local-only `学级裁判主题局` entry.
+- Browser screenshots saved as ignored local evidence: `tmp/class-trial-dead-marker-smoke.png` and `tmp/class-trial-verdict-review-smoke.png`.
+
+Remaining risks:
+- Local generated background and character assets are private ignored data and must not be committed or published.
+- GPT-SoVITS routing, Japanese rewrite, audio sync, and recording-clean controls remain future work.

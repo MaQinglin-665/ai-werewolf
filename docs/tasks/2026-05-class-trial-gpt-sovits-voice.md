@@ -26,7 +26,7 @@ Browser/manual verification:
 
 - Required? yes
 - If yes, flow or URL: Start GPT-SoVITS `api_v2.py` at `http://127.0.0.1:9880`, start local ai-werewolf, open homepage -> 学级裁判主题局 -> enable AI speech -> 无真人观战 -> advance through at least two different AI speakers -> confirm Japanese audio plays while Chinese text remains visible; confirm fallback by stopping GPT-SoVITS or forcing one unavailable profile.
-- If skipped, reason:
+- If skipped, reason: Screenshot capture was skipped after two browser-channel timeouts; DOM/manual flow and generated wav cache evidence were collected. Live GPT outage fallback was not forced because stopping the user's GPT-SoVITS service would disrupt the running local service and this environment has no Mimo key; route-level fallback is covered by automated tests.
 
 State updates required:
 
@@ -126,15 +126,42 @@ If a check cannot be run, record the reason in the handoff.
 
 ```text
 Completed:
-- ...
+- Passed class-trial roleCard from browser speech cues and streaming chunks to /api/ai-speech-audio.
+- Added GPT-SoVITS transport, class-trial local voice-profile resolver, and Chinese-to-Japanese TTS-only rewrite helper.
+- Routed class-trial ja-JP role cards through GPT-SoVITS first, with existing Mimo/no-audio fallback preserved.
+- Verified direct Tomori route smoke returned provider gpt-sovits and a wav URL.
+- Verified browser flow entered 学级裁判主题局, enabled AI speech, played 2号 and 3号 AI speech, and advanced normally.
 
 Changed files:
-- ...
+- src/server/gptSoVitsTts.ts
+- src/server/gptSoVitsTts.test.ts
+- src/ai/classTrialVoiceProfiles.ts
+- src/ai/classTrialVoiceProfiles.test.ts
+- src/ai/classTrialSpeechRewrite.ts
+- src/ai/classTrialSpeechRewrite.test.ts
+- src/app/api/ai-speech-audio/route.ts
+- src/app/api/ai-speech-audio/route.test.ts
+- src/components/game/clientTypes.ts
+- src/components/game/aiSpeechAudio.ts
+- src/components/game/aiSpeechAudio.test.ts
+- src/components/GameClient.tsx
+- feature_list.json
+- progress.md
+- session-handoff.md
+- docs/tasks/2026-05-class-trial-gpt-sovits-voice.md
 
 Verification:
-- ...
+- npm run test -- src/server/gptSoVitsTts.test.ts src/ai/classTrialVoiceProfiles.test.ts src/ai/classTrialSpeechRewrite.test.ts src/app/api/ai-speech-audio/route.test.ts src/components/game/aiSpeechAudio.test.ts src/ai/voiceProfiles.test.ts passed.
+- npm run lint passed.
+- npx tsc --noEmit passed.
+- npm run build passed with the existing Turbopack NFT trace warning for next.config.ts -> src/app/class-trial-pack/[...assetPath]/route.ts.
+- Invoke-WebRequest http://127.0.0.1:9880/openapi.json returned 200.
+- Direct POST http://127.0.0.1:51625/api/ai-speech-audio returned /audio/ai-speech/tomori-0de13fdbea63e9dc125365fd.wav with provider gpt-sovits.
+- Browser smoke at http://127.0.0.1:51625 played two class-trial AI speakers and generated wav cache files for tomori, naegi, kirigiri, and fukawa.
 
 Remaining risks:
-- ...
+- GPT-SoVITS paths and role weights are local/private and must not be treated as public deployment support.
+- Live GPT outage fallback was not forced; automated route tests cover fallback to Mimo, and this machine currently has no Mimo key for a live fallback sample.
+- Browser screenshot capture timed out twice, so no screenshot artifact was saved for this slice.
+- Audio-synced typewriter timing remains future work.
 ```
-
