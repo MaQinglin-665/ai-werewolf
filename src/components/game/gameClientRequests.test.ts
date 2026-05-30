@@ -4,6 +4,7 @@ import {
   buildStreamingContinueContext,
   createGameView,
   loadGameView,
+  submitContinueCommand,
   submitGameCommand,
 } from "./gameClientRequests";
 import type { AiFriendConfig, AiFriendRuntimeLlmConfig } from "@/game/types";
@@ -105,6 +106,27 @@ describe("gameClientRequests", () => {
     expect(JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body))).toEqual({
       type: "vote",
       targetSeatId: 4,
+      aiRuntimeMode: "llm",
+      aiLlmConfigs: { friend: { model: "demo" } },
+    });
+  });
+
+  it("submits a non-streaming continue command for background lookahead", async () => {
+    const view = { id: "game-lookahead" } as HumanGameView;
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(view));
+
+    await expect(
+      submitContinueCommand({
+        gameId: "game-lookahead",
+        aiRuntimeMode: "llm",
+        aiLlmConfigs: { friend: { model: "demo" } as AiFriendRuntimeLlmConfig },
+        fetcher: fetchMock,
+      }),
+    ).resolves.toEqual(view);
+
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/games/game-lookahead/commands");
+    expect(JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body))).toEqual({
+      type: "continue",
       aiRuntimeMode: "llm",
       aiLlmConfigs: { friend: { model: "demo" } },
     });

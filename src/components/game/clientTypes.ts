@@ -34,7 +34,24 @@ export type AiSpeechAudioStatus = {
   speechKey: string;
   speaker: NonNullable<SpeechItem["speaker"]>;
   state: "loading" | "playing" | "paused";
+  preparationStage?: "queued" | "generating" | "ready";
   text: string;
+  playbackProgress?: number;
+  playbackDurationSec?: number;
+  syncedTypewriter?: boolean;
+};
+
+export type ClassTrialAudioTypewriterState = Pick<
+  AiSpeechAudioStatus,
+  "speechKey" | "speaker" | "state" | "preparationStage" | "text" | "playbackProgress" | "syncedTypewriter"
+>;
+
+export type ClassTrialManualAudioPlayback = {
+  speechKey: string;
+  speakerSeatId: number;
+  errorMessage?: string;
+  playing?: boolean;
+  onPlay: () => void;
 };
 
 export type SeatVoiceState = AiSpeechAudioStatus["state"] | "generating";
@@ -55,6 +72,7 @@ export type AiSpeechAudioTextCue = {
   voicePersonaName?: string;
   ttsVoice?: string;
   ttsConfig?: AiFriendRuntimeTtsConfig;
+  roleCard?: HumanGameView["seats"][number]["roleCard"];
   text: string;
 };
 

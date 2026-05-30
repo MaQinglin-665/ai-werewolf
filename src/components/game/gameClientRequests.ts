@@ -60,6 +60,24 @@ export async function submitGameCommand(options: {
   return data as HumanGameView;
 }
 
+export async function submitContinueCommand(options: {
+  gameId: string;
+  aiRuntimeMode: AiRuntimeMode;
+  aiLlmConfigs: Record<string, AiFriendRuntimeLlmConfig> | undefined;
+  fetcher?: Fetcher;
+}): Promise<HumanGameView> {
+  const response = await (options.fetcher ?? fetch)(`/api/games/${options.gameId}/commands`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify({ type: "continue", aiRuntimeMode: options.aiRuntimeMode, aiLlmConfigs: options.aiLlmConfigs }),
+  });
+  const data = (await response.json().catch(() => ({}))) as HumanGameView | { error?: string };
+  if (!response.ok) {
+    throw new Error("error" in data && data.error ? data.error : "继续流程失败。");
+  }
+  return data as HumanGameView;
+}
+
 export function buildStreamingContinueContext(game: HumanGameView, aiSpeechAudioEnabled: boolean) {
   const previousSpeechKeys = new Set(game.tableSummary.recentSpeeches.map((speech) => speechStreamKey(game.id, speech)));
   const streamingSpeaker = game.currentSpeakerSeatId ? game.seats.find((seat) => seat.seatId === game.currentSpeakerSeatId) : undefined;

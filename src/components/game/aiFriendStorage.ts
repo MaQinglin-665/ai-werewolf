@@ -97,6 +97,13 @@ export function writeStoredAiRuntimeMode(mode: AiRuntimeMode): void {
   window.localStorage.setItem(AI_RUNTIME_MODE_STORAGE_KEY, mode);
 }
 
+export function resolveEffectiveAiRuntimeMode(
+  selectedMode: AiRuntimeMode,
+  classTrialThemeMode: "default" | "class-trial",
+): AiRuntimeMode {
+  return classTrialThemeMode === "class-trial" ? "llm" : selectedMode;
+}
+
 export function buildRuntimeAiLlmConfigs(
   friends: AiFriendConfig[],
   secrets: AiFriendLlmSecretMap,
