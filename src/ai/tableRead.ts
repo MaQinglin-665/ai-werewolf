@@ -1087,11 +1087,15 @@ function buildSpeechTableTask(
     (item) => item.day === view.day && item.direction === "pressure" && item.followupCount >= 1,
   );
   const mentionedFocus = inferCurrentDayMentionFocus(view, tableRead, spokenThisDay);
-  const focusTarget =
+  const rawFocusTarget =
     focus ??
     (plan.target ? tableRead.seats.find((seat) => seat.seatId === plan.target?.seatId) : undefined) ??
     (pressureInfluence ? tableRead.seats.find((seat) => seat.seatId === pressureInfluence.target.seatId) : undefined) ??
     mentionedFocus;
+  const focusTarget =
+    rawFocusTarget && isHiddenDramaticClassTrialGoodCheckTarget(view, tableRead, rawFocusTarget.seatId)
+      ? undefined
+      : rawFocusTarget;
   const repeatedPressure = focusTarget
     ? tableRead.tableMemory.speechInfluence.find(
         (item) =>
@@ -1164,6 +1168,13 @@ function buildSpeechTableTask(
   }
 
   return undefined;
+}
+
+function isHiddenDramaticClassTrialGoodCheckTarget(view: AgentView, tableRead: AiTableRead, seatId: number): boolean {
+  if (!isDramaticClassTrialView(view) || view.myRole !== "SEER") return false;
+  const latestCheck = view.privateKnowledge.seerChecks?.at(-1);
+  if (!latestCheck || latestCheck.result !== "GOOD" || latestCheck.targetSeatId !== seatId) return false;
+  return !shouldRevealSeerCheck(view, tableRead, latestCheck);
 }
 
 function inferCurrentDayMentionFocus(
