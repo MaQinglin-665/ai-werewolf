@@ -68,6 +68,25 @@ function createPressure(
   };
 }
 
+function classTrialRoleCard(id: string, displayName: string): NonNullable<AgentView["roleCard"]> {
+  return {
+    id,
+    displayName,
+    theme: "class-trial",
+    styleTags: [],
+    speechStyleZh: "真诚但戏剧化。",
+    reasoningBias: "共同验证。",
+    voteBias: "先看公开矛盾。",
+    nightActionBias: "稳健。",
+    asVillager: "组织桌面。",
+    asWerewolf: "伪装组织桌面。",
+    pressureResponse: "承认疑点再解释。",
+    relationshipHints: [],
+    catchphrasePolicy: "短句。",
+    forbidden: [],
+  };
+}
+
 function createView(tableMemory: TableMemory): AgentView {
   return {
     gameId: "test-game",
@@ -978,5 +997,158 @@ describe("createSpeechPlan", () => {
     const plan = createSpeechPlan(view, tableRead);
 
     expect(plan.target?.seatId).toBe(gold.seatId);
+  });
+});
+
+describe("class-trial dramatic speech planning", () => {
+  it("replaces vague hidden seer-check wording in class-trial mode", () => {
+    const view = {
+      ...createView(createTableMemory()),
+      phase: "DAY_SPEECH",
+      myRole: "SEER",
+      roleCard: classTrialRoleCard("naegi", "苗木诚"),
+      privateKnowledge: {
+        aiMemory: { seatId: 1, day: 1, beliefs: [] },
+        seerChecks: [{ day: 1, seerSeatId: 1, targetSeatId: 2, result: "GOOD" }],
+      },
+    } as AgentView;
+
+    const tableRead: AiTableRead = {
+      mySeatId: 1,
+      myRole: "SEER",
+      day: 1,
+      personaLabel: "苗木诚",
+      seats: [
+        createSeat({ seatId: 1, isSelf: true, suspicion: 0, trust: 100 }),
+        createSeat({ seatId: 2, name: "雾切响子", suspicion: 38, trust: 62 }),
+        createSeat({ seatId: 3, name: "腐川冬子", suspicion: 49, trust: 42, pressure: ["解释还没接上"] }),
+      ],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [2],
+      wolfTeammateSeatIds: [],
+      focus: createSeat({ seatId: 3, name: "腐川冬子", suspicion: 49, trust: 42, pressure: ["解释还没接上"] }),
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches: [],
+      recentDeaths: [],
+      tableMemory: createTableMemory(),
+      tableMood: "首日学级裁判低信息",
+    };
+
+    const plan = createSpeechPlan(view, tableRead);
+    const planText = [plan.stance, ...plan.talkingPoints].join("\n");
+
+    expect(planText).not.toContain("偏好信息");
+    expect(planText).not.toContain("2号");
+    expect(planText).not.toContain("雾切响子");
+    expect(planText).toContain("验人线");
+    expect(planText).toContain("裁判席");
+  });
+
+  it("keeps ordinary hidden seer-check wording outside class-trial mode", () => {
+    const view = {
+      ...createView(createTableMemory()),
+      phase: "DAY_SPEECH",
+      myRole: "SEER",
+      privateKnowledge: {
+        aiMemory: { seatId: 1, day: 1, beliefs: [] },
+        seerChecks: [{ day: 1, seerSeatId: 1, targetSeatId: 2, result: "GOOD" }],
+      },
+    } as AgentView;
+    const tableRead = {
+      mySeatId: 1,
+      myRole: "SEER",
+      day: 1,
+      seats: [createSeat({ seatId: 1, isSelf: true }), createSeat({ seatId: 2, name: "P2", suspicion: 35, trust: 65 })],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [2],
+      wolfTeammateSeatIds: [],
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches: [],
+      recentDeaths: [],
+      tableMemory: createTableMemory(),
+      tableMood: "ordinary",
+    } as AiTableRead;
+
+    const plan = createSpeechPlan(view, tableRead);
+
+    expect(plan.talkingPoints.join("\n")).toContain("偏好信息");
+  });
+
+  it("uses class-trial witch hard-claim wording only in class-trial mode", () => {
+    const tableMemory = createTableMemory();
+    const classTrialView = {
+      ...createView(tableMemory),
+      phase: "DAY_SPEECH",
+      myRole: "WITCH",
+      roleCard: classTrialRoleCard("celestia", "塞蕾丝缇雅"),
+      privateKnowledge: { aiMemory: { seatId: 1, day: 1, beliefs: [] } },
+    } as AgentView;
+    const ordinaryView = {
+      ...classTrialView,
+      roleCard: undefined,
+    } as AgentView;
+    const tableRead: AiTableRead = {
+      mySeatId: 1,
+      myRole: "WITCH",
+      day: 1,
+      seats: [
+        createSeat({ seatId: 1, isSelf: true, suspicion: 65, trust: 40 }),
+        createSeat({ seatId: 2, name: "P2", suspicion: 50, trust: 42 }),
+      ],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [],
+      wolfTeammateSeatIds: [],
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches: [],
+      recentDeaths: [],
+      tableMemory,
+      tableMood: "self pressure",
+    };
+
+    const classTrialPlan = createSpeechPlan(classTrialView, tableRead);
+    const ordinaryPlan = createSpeechPlan(ordinaryView, tableRead);
+
+    expect(classTrialPlan.talkingPoints.join("\n")).toContain("女巫在这里");
+    expect(classTrialPlan.talkingPoints.join("\n")).toContain("裁判席");
+    expect(ordinaryPlan.talkingPoints.join("\n")).toContain("我拍女巫");
+    expect(ordinaryPlan.talkingPoints.join("\n")).not.toContain("裁判席");
+  });
+
+  it("uses class-trial hunter hard-claim wording only in class-trial mode", () => {
+    const tableMemory = createTableMemory();
+    const classTrialView = {
+      ...createView(tableMemory),
+      phase: "DAY_SPEECH",
+      myRole: "HUNTER",
+      roleCard: classTrialRoleCard("togami", "十神白夜"),
+      privateKnowledge: { aiMemory: { seatId: 1, day: 1, beliefs: [] } },
+    } as AgentView;
+    const ordinaryView = {
+      ...classTrialView,
+      roleCard: undefined,
+    } as AgentView;
+    const tableRead: AiTableRead = {
+      mySeatId: 1,
+      myRole: "HUNTER",
+      day: 1,
+      seats: [
+        createSeat({ seatId: 1, isSelf: true, suspicion: 65, trust: 40 }),
+        createSeat({ seatId: 2, name: "P2", suspicion: 50, trust: 42 }),
+      ],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [],
+      wolfTeammateSeatIds: [],
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches: [],
+      recentDeaths: [],
+      tableMemory,
+      tableMood: "self pressure",
+    };
+
+    const classTrialPlan = createSpeechPlan(classTrialView, tableRead);
+    const ordinaryPlan = createSpeechPlan(ordinaryView, tableRead);
+
+    expect(classTrialPlan.talkingPoints.join("\n")).toContain("猎人的枪就在这里");
+    expect(ordinaryPlan.talkingPoints.join("\n")).toContain("我拍猎人，今天不要再分票");
   });
 });

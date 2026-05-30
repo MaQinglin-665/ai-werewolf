@@ -21,6 +21,7 @@ import {
   hasHardOverrideAgainstDeadSeerGold,
   isProtectedDeadSeerGoldSeat,
 } from "./protectedGold";
+import { isDramaticClassTrialView } from "./classTrialDramaticMode";
 
 const GOD_ROLES: Role[] = ["SEER", "WITCH", "HUNTER", "IDIOT", "KNIGHT", "GUARD"];
 const NON_SEER_POWER_ROLES = new Set<Role>(["WITCH", "HUNTER", "IDIOT", "KNIGHT", "GUARD"]);
@@ -351,12 +352,13 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
     const target = toTargetFromRead(tableRead, latestCheck.targetSeatId);
     const shouldRevealCheck = shouldRevealSeerCheck(view, tableRead, latestCheck);
     if (!shouldRevealCheck) {
+      const hiddenTarget = isDramaticClassTrialView(view) ? undefined : target;
       return attachDynamics({
         kind: "defend",
-        target,
+        target: hiddenTarget,
         stance: "首日金水先藏验人，保留预言家生存空间",
         talkingPoints: [
-          "我手里有一张偏好信息，今天先不把身份线打满",
+          buildHiddenSeerCheckPoint(view, hiddenTarget),
           memoryPoint ?? (focus ? `${focus.name} 的发言和票型先继续验` : "先让外置位充分发言"),
         ],
         risk: 0.42,
@@ -498,7 +500,7 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
         target: focus,
         stance: "女巫拍身份带队收票型",
         talkingPoints: [
-          savedTarget ? `我女巫，平安夜救了${savedTarget.seatId}号，${savedTarget.seatId}号是银水` : "我拍女巫，今天票型不能再散",
+          buildDramaticWitchLeadPoint(view, savedTarget),
           memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 先正面解释` : "先按公开身份线归票"),
         ],
         risk: Math.max(0.64, personaRisk),
@@ -545,7 +547,7 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
         target: focus,
         stance: "猎人拍身份压住归票",
         talkingPoints: [
-          "我拍猎人，今天不要再分票",
+          buildDramaticHunterLeadPoint(view),
           memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 如果只给结论我会压票` : "先按公开疑点归票"),
         ],
         risk: Math.max(0.66, personaRisk),
@@ -1002,6 +1004,27 @@ function buildSpeechPlayMotive(view: AgentView, plan: SpeechPlan): SpeechPlan["p
     line: "拍身份是为了抢节奏或钓反应，必须同时给公开逻辑。",
     allowIdentityClaim: true,
   };
+}
+
+function buildHiddenSeerCheckPoint(view: AgentView, target: ActionTarget | undefined): string {
+  if (isDramaticClassTrialView(view)) {
+    const targetText = target ? `${target.seatId}号这条验人线` : "我手里的验人线";
+    return `${targetText}我暂时不白白交给夜刀；这是我压在裁判席上的可追问边界`;
+  }
+  return "我手里有一张偏好信息，今天先不把身份线打满";
+}
+
+function buildDramaticWitchLeadPoint(view: AgentView, savedTarget: ActionTarget | undefined): string {
+  if (!isDramaticClassTrialView(view)) {
+    return savedTarget ? `我女巫，平安夜救了${savedTarget.seatId}号，${savedTarget.seatId}号是银水` : "我拍女巫，今天票型不能再散";
+  }
+  return savedTarget
+    ? `女巫在这里，昨晚我把${savedTarget.seatId}号从刀口边上拽回来了；这枚银水筹码现在摊在裁判席上`
+    : "女巫在这里，药线我不再藏；今天谁想借混乱散票，就把理由摊到裁判席上";
+}
+
+function buildDramaticHunterLeadPoint(view: AgentView): string {
+  return isDramaticClassTrialView(view) ? "猎人的枪就在这里；谁要把票乱推到我身上，就先把公开理由说完整" : "我拍猎人，今天不要再分票";
 }
 
 function buildHardIdentityPoint(plan: SpeechPlan): string | undefined {
