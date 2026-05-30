@@ -61,4 +61,41 @@ describe("role claim extraction", () => {
 
     expect(claim).toBeUndefined();
   });
+
+  it("treats dramatic class-trial witch reveals as hard witch claims", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 6,
+      message: "6号塞蕾丝缇雅。女巫在这里。药还握在我手上，谁要下注请现在开口。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim?.claimedRole).toBe("WITCH");
+    expect(claim?.strength).toBe("hard");
+  });
+
+  it("does not turn dramatic class-trial witch wording on for ordinary games", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 6,
+      message: "女巫在这里这个说法我不认可，我只是按平安夜做死亡形态推理。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "default" },
+    });
+
+    expect(claim).toBeUndefined();
+  });
+
+  it("keeps peaceful-night public reasoning distinct from a class-trial witch claim", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 1,
+      message: "平安夜在我这里更像女巫用药结果，但这不是我明牌女巫。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim).toBeUndefined();
+  });
 });

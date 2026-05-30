@@ -766,6 +766,7 @@ function recordPublicSpeechMemory(
     message: cleanMessage,
     validSeatIds,
     sourceSpeechSeq: speechEventSeq,
+    roleCard: actor.roleCard,
   });
 
   if (claimDraft) {

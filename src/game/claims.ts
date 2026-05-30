@@ -1,3 +1,4 @@
+import { extractClassTrialRoleClaimSignal, hasClassTrialWitchReasoningNegation } from "./classTrialClaims";
 import { ROLE_LABELS } from "./labels";
 import type { ClaimCheck, ClaimStrength, Role, RoleClaim } from "./types";
 
@@ -74,10 +75,16 @@ export function extractRoleClaimFromSpeech(params: {
   message: string;
   validSeatIds: Set<number>;
   sourceSpeechSeq?: number;
+  roleCard?: { theme?: string };
 }): SpeechClaimDraft | undefined {
   const message = params.message.trim();
   const normalized = normalizeDigits(message);
-  const explicitRole = ROLE_PATTERNS.find((item) => item.pattern.test(normalized))?.role;
+  const isClassTrial = params.roleCard?.theme === "class-trial";
+  const classTrialSignal = isClassTrial ? extractClassTrialRoleClaimSignal(normalized) : undefined;
+  const suppressExplicitWitchRole = isClassTrial && hasClassTrialWitchReasoningNegation(normalized);
+  const explicitRole = suppressExplicitWitchRole
+    ? undefined
+    : ROLE_PATTERNS.find((item) => item.pattern.test(normalized))?.role;
   const checks = extractClaimChecks({
     day: params.day,
     claimantSeatId: params.claimantSeatId,
@@ -85,14 +92,16 @@ export function extractRoleClaimFromSpeech(params: {
     validSeatIds: params.validSeatIds,
     sourceSpeechSeq: params.sourceSpeechSeq,
   });
-  const claimedRole = explicitRole ?? (checks.length > 0 && hasSelfCheckCue(normalized) ? "SEER" : undefined);
+  const claimedRole =
+    explicitRole ?? classTrialSignal?.claimedRole ?? (checks.length > 0 && hasSelfCheckCue(normalized) ? "SEER" : undefined);
   if (!claimedRole) return undefined;
+  const classTrialStrength = classTrialSignal?.claimedRole === claimedRole ? classTrialSignal.strength : undefined;
 
   return {
     day: params.day,
     claimantSeatId: params.claimantSeatId,
     claimedRole,
-    strength: inferClaimStrength(normalized, claimedRole),
+    strength: classTrialStrength ?? inferClaimStrength(normalized, claimedRole),
     checks,
     message,
     sourceSpeechSeq: params.sourceSpeechSeq,

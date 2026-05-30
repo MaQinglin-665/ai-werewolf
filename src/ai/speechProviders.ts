@@ -1324,6 +1324,7 @@ export function validateRenderedSpeech(
     claimantSeatId: view.mySeatId,
     message: normalized,
     validSeatIds,
+    roleCard: view.roleCard,
   });
   errors.push(...validateDeathCauseBoundaries(view, normalized));
   errors.push(...validateWitchClaimAttribution(view, normalized));
