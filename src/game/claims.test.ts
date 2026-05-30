@@ -99,6 +99,18 @@ describe("role claim extraction", () => {
     expect(claim).toBeUndefined();
   });
 
+  it("does not treat refusing to confirm public medicine as a witch claim", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 2,
+      message: "我不替女巫确认解药，只按平安夜盘。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim).toBeUndefined();
+  });
+
   it("lets hard class-trial witch reveals win over negation-like wording", () => {
     const directReveal = extractRoleClaimFromSpeech({
       day: 1,

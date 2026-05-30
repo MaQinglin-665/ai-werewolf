@@ -14,11 +14,6 @@ const WITCH_HARD_CLAIM_PATTERNS = [
   /(?:不是暗示|不是绕话|不是试探)[^。！？；\n]{0,16}(?:女巫|明牌)/,
 ];
 
-const WITCH_REASONING_NEGATIONS = [
-  /(?:不是|不等于|并非)[^。！？；\n]{0,16}(?:我明牌女巫|我拍女巫|女巫声明|自称女巫)/,
-  /(?:更像|像是|按|当成|视作)[^。！？；\n]{0,18}(?:女巫用药|药线|死亡形态)/,
-];
-
 const WITCH_SELF_CLAIM_DENIALS = [
   /(?:不是|不等于|并非)我?(?:明牌女巫|拍女巫|女巫声明|自称女巫)/,
 ];
@@ -51,11 +46,6 @@ export function extractClassTrialRoleClaimSignal(message: string): ClassTrialRol
 export function hasClassTrialHunterHardClaimSignal(message: string): boolean {
   const normalized = normalizeDigits(message);
   return HUNTER_HARD_CLAIM_PATTERNS.some((pattern) => pattern.test(normalized));
-}
-
-function hasClassTrialWitchReasoningNegation(message: string): boolean {
-  const normalized = normalizeDigits(message);
-  return WITCH_REASONING_NEGATIONS.some((pattern) => pattern.test(normalized));
 }
 
 export function hasClassTrialWitchSelfClaimDenial(message: string): boolean {

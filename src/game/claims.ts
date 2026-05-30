@@ -19,6 +19,16 @@ type SpeechClaimDraft = {
 const ROLE_CLAIM_GAP = "[^，,。！？!?；;：:\\n]{0,8}";
 const CLAIM_TARGET_LABEL = "(?:玩家|位|AI|[A-Za-z0-9_\\-\\u4e00-\\u9fa5]{0,24}?)?";
 const SELF_CHECK_RESULT_PREFIX = "[，,：:\\s]*(?:是|为|出)?\\s*(?:我(?:昨晚|昨夜|夜里|今晚)?(?:查验|验|查|摸)(?:出来)?的?|我的)?\\s*";
+const WITCH_DIRECT_ROLE_PATTERN = new RegExp(
+  `(?:我是|我拍|(?<!在)我这里是|我底牌是|明牌|我这张|我作为)${ROLE_CLAIM_GAP}(?:女巫|女巫牌)`,
+);
+
+const WITCH_PUBLIC_MEDICINE_CONTEXT_PATTERNS = [
+  /(?:不替|不能替|没法替|无法替|不帮|不能帮)[^。！？；\n]{0,18}(?:女巫)?[^。！？；\n]{0,18}(?:确认|报|认|定)[^。！？；\n]{0,12}(?:解药|毒药|药|银水)/,
+  /(?:只按|按|当作|视作|看成|盘成)[^。！？；\n]{0,18}(?:平安夜|死亡形态|公开信息|公开形态|药线)[^。！？；\n]{0,18}(?:盘|推理|处理)?/,
+  /(?:平安夜|死亡形态|公开药线|药线|女巫用药)[^。！？；\n]{0,24}(?:不等于|不是|并非|不能算|不能当成)[^。！？；\n]{0,18}(?:女巫声明|身份声明|我(?:明牌|拍)?女巫|自称女巫)/,
+  /(?:我不|我没|我没有)[^。！？；\n]{0,10}(?:确认|报|认|定|知道)[^。！？；\n]{0,18}(?:解药|毒药|药线|银水|女巫)/,
+];
 
 const ROLE_PATTERNS: Array<{ role: Role; pattern: RegExp }> = [
   {
@@ -30,7 +40,7 @@ const ROLE_PATTERNS: Array<{ role: Role; pattern: RegExp }> = [
   {
     role: "WITCH",
     pattern: new RegExp(
-      `(?:我是|我拍|(?<!在)我这里是|我底牌是|明牌|我这张|我作为)${ROLE_CLAIM_GAP}(?:女巫|女巫牌)|我[^。！？!?\\n]{0,18}(?:药还在|解药|毒药|救过|银水)|(?:^|[，,。；;：:\\s])(?:药还在|解药还在|毒药还在)`,
+      `${WITCH_DIRECT_ROLE_PATTERN.source}|我[^。！？!?\\n]{0,18}(?:药还在|解药|毒药|救过|银水)|(?:^|[，,。；;：:\\s])(?:药还在|解药还在|毒药还在)`,
     ),
   },
   {
@@ -87,7 +97,7 @@ export function extractRoleClaimFromSpeech(params: {
   const classTrialSignal = isClassTrial ? extractClassTrialRoleClaimSignal(normalized) : undefined;
   const explicitRole = ROLE_PATTERNS.find((item) => item.pattern.test(normalized))?.role;
   const supportedExplicitRole =
-    isClassTrial && explicitRole === "WITCH" && hasClassTrialWitchSelfClaimDenial(normalized) ? undefined : explicitRole;
+    explicitRole === "WITCH" && shouldSuppressWitchExplicitRoleClaim(normalized, classTrialSignal) ? undefined : explicitRole;
   const checks = extractClaimChecks({
     day: params.day,
     claimantSeatId: params.claimantSeatId,
@@ -115,6 +125,16 @@ export function isSupportedRoleClaim(claim: Pick<RoleClaim, "claimedRole" | "mes
   if (claim.claimedRole !== "HUNTER") return true;
   const normalized = normalizeDigits(claim.message);
   return /猎人/.test(normalized) || hasClassTrialHunterHardClaimSignal(normalized);
+}
+
+function shouldSuppressWitchExplicitRoleClaim(
+  message: string,
+  classTrialSignal: ReturnType<typeof extractClassTrialRoleClaimSignal>,
+): boolean {
+  if (classTrialSignal?.claimedRole === "WITCH") return false;
+  if (hasClassTrialWitchSelfClaimDenial(message)) return true;
+  if (WITCH_DIRECT_ROLE_PATTERN.test(message)) return false;
+  return WITCH_PUBLIC_MEDICINE_CONTEXT_PATTERNS.some((pattern) => pattern.test(message));
 }
 
 export function upsertRoleClaim(existingClaims: RoleClaim[], draft: SpeechClaimDraft): RoleClaim {
