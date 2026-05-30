@@ -1172,9 +1172,11 @@ function buildSpeechTableTask(
 
 function isHiddenDramaticClassTrialGoodCheckTarget(view: AgentView, tableRead: AiTableRead, seatId: number): boolean {
   if (!isDramaticClassTrialView(view) || view.myRole !== "SEER") return false;
-  const latestCheck = view.privateKnowledge.seerChecks?.at(-1);
-  if (!latestCheck || latestCheck.result !== "GOOD" || latestCheck.targetSeatId !== seatId) return false;
-  return !shouldRevealSeerCheck(view, tableRead, latestCheck);
+  return Boolean(
+    view.privateKnowledge.seerChecks?.some(
+      (check) => check.result === "GOOD" && check.targetSeatId === seatId && !shouldRevealSeerCheck(view, tableRead, check),
+    ),
+  );
 }
 
 function inferCurrentDayMentionFocus(

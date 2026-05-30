@@ -1113,6 +1113,82 @@ describe("class-trial dramatic speech planning", () => {
     expect(talkingPointText).toContain("裁判席");
   });
 
+  it("protects earlier hidden class-trial good checks from repeated pressure table tasks", () => {
+    const hiddenEarlierGood = target(2, "雾切响子");
+    const hiddenLatestGood = target(5, "江之岛盾子");
+    const pressureSpeaker = target(3, "腐川冬子");
+    const tableMemory = createTableMemory({
+      speechInfluence: [
+        {
+          sourceSpeechSeq: 2,
+          day: 1,
+          speaker: pressureSpeaker,
+          target: hiddenEarlierGood,
+          direction: "pressure",
+          summary: "多人接住2号压力",
+          followupActors: [target(4, "黑白熊"), target(6, "塞蕾丝缇雅")],
+          followupCount: 2,
+        },
+      ],
+    });
+    const recentSpeeches = [
+      { seq: 1, day: 1, speaker: target(1, "苗木诚"), message: "1号发言。平安夜先按女巫用药处理。" },
+      { seq: 2, day: 1, speaker: pressureSpeaker, message: "3号发言。2号这段解释还没接上。" },
+      { seq: 3, day: 1, speaker: target(4, "黑白熊"), message: "4号发言。我也接2号这个压力。" },
+    ];
+    const view = {
+      ...createView(tableMemory),
+      phase: "DAY_SPEECH",
+      myRole: "SEER",
+      roleCard: classTrialRoleCard("naegi", "苗木诚"),
+      publicSummary: {
+        ...createView(tableMemory).publicSummary,
+        recentSpeeches,
+        tableMemory,
+      },
+      privateKnowledge: {
+        aiMemory: { seatId: 1, day: 1, beliefs: [] },
+        seerChecks: [
+          { day: 1, seerSeatId: 1, targetSeatId: hiddenEarlierGood.seatId, result: "GOOD" },
+          { day: 1, seerSeatId: 1, targetSeatId: hiddenLatestGood.seatId, result: "GOOD" },
+        ],
+      },
+    } as AgentView;
+    const tableRead: AiTableRead = {
+      mySeatId: 1,
+      myRole: "SEER",
+      day: 1,
+      personaLabel: "苗木诚",
+      seats: [
+        createSeat({ seatId: 1, isSelf: true, suspicion: 0, trust: 100 }),
+        createSeat({ seatId: hiddenEarlierGood.seatId, name: hiddenEarlierGood.name, suspicion: 62, trust: 38 }),
+        createSeat({ seatId: pressureSpeaker.seatId, name: pressureSpeaker.name, suspicion: 49, trust: 42 }),
+        createSeat({ seatId: 4, name: "黑白熊", suspicion: 45, trust: 45 }),
+        createSeat({ seatId: hiddenLatestGood.seatId, name: hiddenLatestGood.name, suspicion: 50, trust: 50 }),
+        createSeat({ seatId: 6, name: "塞蕾丝缇雅", suspicion: 44, trust: 45 }),
+      ],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [hiddenEarlierGood.seatId, hiddenLatestGood.seatId],
+      wolfTeammateSeatIds: [],
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches,
+      recentDeaths: [],
+      tableMemory,
+      tableMood: "earlier hidden good check under repeated public pressure",
+    };
+
+    const plan = createSpeechPlan(view, tableRead);
+    const talkingPointText = plan.talkingPoints.join("\n");
+
+    expect(plan.tableTask?.target?.seatId).not.toBe(hiddenEarlierGood.seatId);
+    expect(plan.tableTask?.line ?? "").not.toContain("2号");
+    expect(talkingPointText).not.toContain("偏好信息");
+    expect(talkingPointText).not.toContain("2号");
+    expect(talkingPointText).not.toContain("雾切响子");
+    expect(talkingPointText).toContain("验人线");
+    expect(talkingPointText).toContain("裁判席");
+  });
+
   it("keeps ordinary hidden seer-check wording outside class-trial mode", () => {
     const view = {
       ...createView(createTableMemory()),
