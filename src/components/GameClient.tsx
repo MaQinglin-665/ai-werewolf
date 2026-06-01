@@ -401,19 +401,26 @@ export function GameClient() {
   useEffect(() => {
     let cancelled = false;
     if (classTrialThemeMode !== "class-trial" || !classTrialIntroConfig) {
-      setClassTrialIntroAudioPreparation(null);
+      void Promise.resolve().then(() => {
+        if (!cancelled) setClassTrialIntroAudioPreparation(null);
+      });
       return () => {
         cancelled = true;
       };
     }
 
-    setClassTrialIntroAudioPreparation({
-      ready: false,
-      message: "开场片头音频准备中。",
-      readyCharacterIds: [],
-      failedCharacterIds: [],
-    });
-    void prepareClassTrialIntroAudio(classTrialIntroConfig)
+    void Promise.resolve()
+      .then(() => {
+        if (!cancelled) {
+          setClassTrialIntroAudioPreparation({
+            ready: false,
+            message: "开场片头音频准备中。",
+            readyCharacterIds: [],
+            failedCharacterIds: [],
+          });
+        }
+        return prepareClassTrialIntroAudio(classTrialIntroConfig);
+      })
       .then((preparation) => {
         if (!cancelled) setClassTrialIntroAudioPreparation(preparation);
       })
