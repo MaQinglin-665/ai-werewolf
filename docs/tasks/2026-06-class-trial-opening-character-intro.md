@@ -174,14 +174,41 @@ If a check cannot be run, record the reason in the handoff.
 
 ```text
 Completed:
-- ...
+- Implemented local-only class-trial opening intro config, audio prep, local asset routes, GPT-SoVITS generation endpoint, player UI, landing readiness copy, GameClient gating, and opening visual CSS.
+- Prepared ignored local intro assets under local-assets/class-trial-pack/intro: intro.json, 9 transparent portrait PNGs, and 9 WAV clips.
+- Browser-smoked homepage -> 学级裁判主题局 -> audio ready -> opening intro -> auto-finish court table, skip -> court table, and /rooms no intro entry.
 
 Changed files:
-- ...
+- src/app/api/class-trial-intro/audio/route.ts
+- src/app/api/class-trial-intro/audio/route.test.ts
+- src/app/class-trial-pack/[...assetPath]/route.ts
+- src/app/class-trial-pack/[...assetPath]/route.test.ts
+- src/components/GameClient.tsx
+- src/components/game/ClassTrialOpeningIntro.tsx
+- src/components/game/ClassTrialOpeningIntro.test.tsx
+- src/components/game/GamePanels.tsx
+- src/components/game/LandingPanel.tsx
+- src/components/game/classTrialIntro.ts
+- src/components/game/classTrialIntro.test.ts
+- src/components/game/classTrialIntroAudio.ts
+- src/components/game/classTrialIntroAudio.test.ts
+- src/components/game/gamePanelsMobile.test.ts
+- src/app/globals.css
+- vitest.config.ts
+- docs/tasks/2026-06-class-trial-opening-character-intro.md
 
 Verification:
-- ...
+- PASS: npx vitest run src/components/game/classTrialIntro.test.ts src/components/game/classTrialIntroAudio.test.ts src/components/game/ClassTrialOpeningIntro.test.tsx src/app/api/class-trial-intro/audio/route.test.ts src/app/class-trial-pack/[...assetPath]/route.test.ts src/components/game/gamePanelsMobile.test.ts
+- PASS: npx vitest run src/app/class-trial-pack/[...assetPath]/route.test.ts
+- PASS: npm run lint
+- PASS: npx tsc --noEmit --pretty false
+- PASS: npm run build
+- PASS: local asset route checks returned 200 for all 9 intro PNGs and all 9 intro WAVs.
+- PASS: ffprobe durations for all 9 WAVs; Bilibili clips are 3.0s each.
+- PASS: alpha validation for all 9 PNGs; transparent corner pixels confirmed.
+- PASS: git check-ignore -v for intro.json, sample intro PNG/WAV, and tmp generated files.
 
 Remaining risks:
-- ...
+- Build still reports one Turbopack NFT warning through src/app/api/rooms/debug-cleanup/route.ts -> src/server/roomService.ts; it is outside this intro feature route.
+- progress.md, session-handoff.md, feature_list.json, and other class-trial files already had unrelated dirty changes in the shared worktree, so this handoff records the task evidence without overwriting those parallel edits.
 ```
