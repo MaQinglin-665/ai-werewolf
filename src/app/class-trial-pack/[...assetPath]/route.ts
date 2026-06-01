@@ -12,6 +12,9 @@ const CONTENT_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
+  ".wav": "audio/wav",
+  ".mp3": "audio/mpeg",
+  ".ogg": "audio/ogg",
 };
 
 export async function GET(_request: Request, { params }: { params: Promise<{ assetPath: string[] }> }) {
