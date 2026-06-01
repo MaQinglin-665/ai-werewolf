@@ -3,6 +3,7 @@
 export { RoomHeader } from "./RoomHeader";
 export { LandingPanel } from "./LandingPanel";
 export { ClassTrialGameTable } from "./ClassTrialGameTable";
+export { ClassTrialOpeningIntro, getNextClassTrialIntroIndex } from "./ClassTrialOpeningIntro";
 export { SeatBoard } from "./SeatBoard";
 export { ActionPanel } from "./ActionPanel";
 export { ReviewPanel } from "./ReviewPanel";
