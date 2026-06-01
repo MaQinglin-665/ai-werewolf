@@ -4,7 +4,7 @@ import path from "node:path";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ASSET_ROOT = path.resolve(process.cwd(), "local-assets", "class-trial-pack");
+const ASSET_ROOT = path.resolve(/*turbopackIgnore: true*/ process.cwd(), "local-assets", "class-trial-pack");
 
 const CONTENT_TYPES: Record<string, string> = {
   ".json": "application/json; charset=utf-8",
@@ -23,7 +23,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ass
   if (!filePath) return new Response("Not found", { status: 404 });
 
   try {
-    const data = await readFile(filePath);
+    const data = await readFile(/*turbopackIgnore: true*/ filePath);
     const contentType = CONTENT_TYPES[path.extname(filePath).toLowerCase()] ?? "application/octet-stream";
     return new Response(data, {
       headers: {
