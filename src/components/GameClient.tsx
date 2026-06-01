@@ -296,6 +296,12 @@ export function GameClient() {
   const classTrialAiFriends = useMemo(() => buildClassTrialAiFriends(classTrialPersonas), [classTrialPersonas]);
   const classTrialLocalThemeSelected = classTrialThemeMode === "class-trial";
   const classTrialThemeActive = classTrialThemeMode === "class-trial" && Boolean(game);
+  const classTrialIntroPending = Boolean(
+    classTrialThemeActive &&
+      game &&
+      classTrialIntroGameId === game.id &&
+      completedClassTrialIntroGameId !== game.id,
+  );
 
   const selectBoard = useCallback(
     (boardId: string) => {
@@ -1256,6 +1262,7 @@ export function GameClient() {
 
   useEffect(() => {
     if (!game || loading || error || game.result || roleIntroGameId === game.id || phaseCurtainActive || idiotRevealActive) return;
+    if (classTrialIntroPending) return;
     if (findLatestUnplayedPublicEvent(game, completedIdiotRevealKeysRef.current, IDIOT_REVEAL_EVENT_TYPES)) return;
 
     const currentSpeechKeys = new Set(game.tableSummary.recentSpeeches.map((speech) => speechStreamKey(game.id, speech)));
@@ -1302,6 +1309,7 @@ export function GameClient() {
   }, [
     aiSpeechAudioCompletionTick,
     aiSpeechAudioStatus,
+    classTrialIntroPending,
     classTrialThemeActive,
     effectiveAiSpeechAudioEnabled,
     error,
@@ -1355,6 +1363,7 @@ export function GameClient() {
   useEffect(() => {
     if (!game || !classTrialThemeActive || !effectiveAiSpeechAudioEnabled || loading || aiSpeechAudioStatus) return;
     if (roleIntroGameId === game.id) return;
+    if (classTrialIntroPending) return;
 
     const cue = buildClassTrialVoicePrewarmCue(game, prewarmedClassTrialVoiceKeysRef.current, runtimeAiTtsConfigs);
     if (!cue) return;
@@ -1366,6 +1375,7 @@ export function GameClient() {
     });
   }, [
     aiSpeechAudioStatus,
+    classTrialIntroPending,
     classTrialThemeActive,
     effectiveAiSpeechAudioEnabled,
     game,
@@ -1377,6 +1387,7 @@ export function GameClient() {
 
   useEffect(() => {
     if (!game || !hostAudioEnabled || roleIntroGameId === game.id) return;
+    if (classTrialIntroPending) return;
 
     if (effectiveAiSpeechAudioEnabled && game.phase !== "DAY_ANNOUNCEMENT") {
       const pendingAiSpeechCue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current, runtimeAiTtsConfigs);
@@ -1413,6 +1424,7 @@ export function GameClient() {
     game,
     hostAudioCompletionTick,
     hostAudioEnabled,
+    classTrialIntroPending,
     classTrialThemeActive,
     playHostAudioCue,
     roleIntroGameId,
@@ -1422,6 +1434,7 @@ export function GameClient() {
 
   useEffect(() => {
     if (!game || !effectiveAiSpeechAudioEnabled || roleIntroGameId === game.id) return;
+    if (classTrialIntroPending) return;
 
     const cue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current, runtimeAiTtsConfigs);
     if (!cue) return;
@@ -1478,6 +1491,7 @@ export function GameClient() {
     return () => window.clearTimeout(timer);
   }, [
     aiSpeechAudioCompletionTick,
+    classTrialIntroPending,
     effectiveAiSpeechAudioEnabled,
     game,
     consumeBufferedClassTrialContinue,
@@ -1499,11 +1513,6 @@ export function GameClient() {
   }, [stopAiSpeechAudio, stopHostAudio]);
 
   const latestEvents = useMemo(() => buildTableEventFeed(game), [game]);
-  const classTrialIntroPending =
-    classTrialThemeActive &&
-    game &&
-    classTrialIntroGameId === game.id &&
-    completedClassTrialIntroGameId !== game.id;
   const classTrialIntroReady =
     Boolean(classTrialIntroConfig) && classTrialIntroStatus.available && Boolean(classTrialIntroAudioPreparation?.ready);
 
