@@ -278,6 +278,7 @@ describe("mobile game panels", () => {
         classTrialPackAvailable: false,
         classTrialPackMessage:
           "未找到本地主题素材包。请将素材放在 local-assets/class-trial-pack，并保持该目录不提交到 Git。 未找到本地角色卡。视觉主题可继续，AI 将使用普通行为。",
+        classTrialIntroMessage: "开场片头音频准备中：7 / 9",
         onSelectClassTrialThemeMode: () => undefined,
       }),
     );
@@ -288,6 +289,7 @@ describe("mobile game panels", () => {
     expect(html).toContain("DeepSeek-v4");
     expect(html).toContain("未找到本地主题素材包");
     expect(html).toContain("未找到本地角色卡");
+    expect(html).toContain("开场片头音频准备中：7 / 9");
     expect(html).toContain("/rooms");
   });
 

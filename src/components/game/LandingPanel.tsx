@@ -34,6 +34,7 @@ export function LandingPanel({
   classTrialAiRuntimeMode = "mock",
   classTrialPackAvailable = false,
   classTrialPackMessage = "未找到本地主题素材包。请将素材放在 local-assets/class-trial-pack，并保持该目录不提交到 Git。",
+  classTrialIntroMessage,
   onSelectClassTrialThemeMode = () => undefined,
 }: {
   loading: boolean;
@@ -55,6 +56,7 @@ export function LandingPanel({
   classTrialAiRuntimeMode?: AiRuntimeMode;
   classTrialPackAvailable?: boolean;
   classTrialPackMessage?: string;
+  classTrialIntroMessage?: string;
   onSelectClassTrialThemeMode?: (mode: ClassTrialThemeMode) => void;
 }) {
   const selectedBoard = selectedBoardId ? boards.find((board) => board.id === selectedBoardId) : undefined;
@@ -203,6 +205,11 @@ export function LandingPanel({
               <p className={["mt-3 text-xs leading-5", classTrialPackAvailable ? "text-[#a8f0b6]" : "text-[#ffd6dd]"].join(" ")}>
                 {classTrialPackMessage}
               </p>
+              {classTrialIntroMessage && (
+                <p className="mt-2 text-xs leading-5 text-[#b8d6ff]">
+                  {classTrialIntroMessage}
+                </p>
+              )}
             </section>
             <div className="mobile-board-strip grid gap-3 md:grid-cols-2">
               {boards.map((board) => {
