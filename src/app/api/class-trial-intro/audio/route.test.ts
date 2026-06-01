@@ -105,6 +105,8 @@ describe("/api/class-trial-intro/audio", () => {
       url: "/class-trial-pack/intro/audio/naegi.wav",
       cached: false,
     });
+    expect(mocks.runGptSoVitsSynthesisExclusive).toHaveBeenCalledTimes(1);
+    expect(mocks.switchGptSoVitsWeights).toHaveBeenCalledTimes(1);
     expect(mocks.switchGptSoVitsWeights).toHaveBeenCalledWith({
       baseUrl: "http://127.0.0.1:9880",
       gptWeightsPath: "D:\\AI\\GPT-SoVITS\\GPT_weights_v2Pro\\miao_mu-e30.ckpt",
@@ -126,17 +128,41 @@ describe("/api/class-trial-intro/audio", () => {
   it("returns 503 when the generated character voice profile is unavailable", async () => {
     mocks.resolveClassTrialGptSoVitsVoiceProfile.mockReturnValue({
       available: false,
-      reason: "缺少本地语音文件",
+      reason: "缺少本地语音文件：D:\\AI\\GPT-SoVITS\\logs\\miao_mu\\2-name2text.txt",
     });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const { POST } = await import("./route");
 
     const response = await POST(introRequest("naegi"));
     const data = (await response.json()) as { error?: string };
 
     expect(response.status).toBe(503);
-    expect(data.error).toBe("缺少本地语音文件");
+    expect(data.error).toBe("开场片头语音配置不可用。");
+    expect(data.error).not.toContain("D:\\AI");
+    expect(data.error).not.toContain("2-name2text");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("D:\\AI\\GPT-SoVITS"));
     expect(mocks.generateGptSoVitsTtsAudio).not.toHaveBeenCalled();
     expect(mocks.writeFile).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("returns a sanitized 502 when synthesis fails", async () => {
+    mocks.generateGptSoVitsTtsAudio.mockRejectedValue(
+      new Error("GPT-SoVITS TTS failed: 500 D:\\AI\\GPT-SoVITS\\logs\\miao_mu\\ref.wav backend exploded"),
+    );
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await import("./route");
+
+    const response = await POST(introRequest("naegi"));
+    const data = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(502);
+    expect(data.error).toBe("开场片头音频生成失败。");
+    expect(data.error).not.toContain("D:\\AI");
+    expect(data.error).not.toContain("backend exploded");
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("backend exploded"));
+    expect(mocks.writeFile).not.toHaveBeenCalled();
+    error.mockRestore();
   });
 
   it("returns 400 for invalid request bodies", async () => {

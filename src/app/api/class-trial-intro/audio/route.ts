@@ -101,7 +101,8 @@ export async function POST(request: Request) {
   const roleCard = buildIntroRoleCard(characterId as GeneratedClassTrialIntroCharacterId, entry.displayName);
   const resolved = resolveClassTrialGptSoVitsVoiceProfile(roleCard);
   if (!resolved.available) {
-    return Response.json({ error: resolved.reason }, { status: 503 });
+    console.warn(`[class-trial-intro-audio] voice profile unavailable for ${characterId}: ${resolved.reason}`);
+    return Response.json({ error: "开场片头语音配置不可用。" }, { status: 503 });
   }
 
   const baseUrl = readOptionalEnv("CLASS_TRIAL_GPT_SOVITS_BASE_URL") ?? "http://127.0.0.1:9880";
@@ -127,8 +128,8 @@ export async function POST(request: Request) {
     await writeFile(filePath, audio);
     return Response.json({ url, cached: false });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "开场片头音频生成失败。";
-    return Response.json({ error: `开场片头音频生成失败：${message}` }, { status: 502 });
+    console.error(`[class-trial-intro-audio] generation failed for ${characterId}: ${formatLogError(error)}`);
+    return Response.json({ error: "开场片头音频生成失败。" }, { status: 502 });
   }
 }
 
@@ -170,4 +171,11 @@ function buildIntroRoleCard(characterId: GeneratedClassTrialIntroCharacterId, di
 function readOptionalEnv(key: string): string | undefined {
   const value = process.env[key]?.trim();
   return value || undefined;
+}
+
+function formatLogError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack ?? error.message;
+  }
+  return String(error);
 }
