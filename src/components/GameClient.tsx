@@ -56,6 +56,16 @@ import {
   shouldStartClassTrialAudioLookahead,
   type ClassTrialAudioLookaheadRun,
 } from "./game/classTrialAudioLookahead";
+import { ClassTrialOpeningIntro } from "./game/ClassTrialOpeningIntro";
+import {
+  getClassTrialIntroStatus,
+  sanitizeClassTrialIntroConfig,
+  type ClassTrialIntroConfig,
+} from "./game/classTrialIntro";
+import {
+  prepareClassTrialIntroAudio,
+  type ClassTrialIntroAudioPreparation,
+} from "./game/classTrialIntroAudio";
 import {
   buildThemedHostAudioCue,
   findLatestUnplayedPublicEvent,
@@ -192,6 +202,11 @@ export function GameClient() {
   const [classTrialThemeMode, setClassTrialThemeMode] = useState<ClassTrialThemeMode>("default");
   const [classTrialPackManifest, setClassTrialPackManifest] = useState<ClassTrialPackManifest | undefined>();
   const [classTrialPersonas, setClassTrialPersonas] = useState<ClassTrialPersonasFile | undefined>();
+  const [classTrialIntroConfig, setClassTrialIntroConfig] = useState<ClassTrialIntroConfig | undefined>();
+  const [classTrialIntroAudioPreparation, setClassTrialIntroAudioPreparation] =
+    useState<ClassTrialIntroAudioPreparation | null>(null);
+  const [classTrialIntroGameId, setClassTrialIntroGameId] = useState<string | null>(null);
+  const [completedClassTrialIntroGameId, setCompletedClassTrialIntroGameId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roleIntroGameId, setRoleIntroGameId] = useState<string | null>(null);
@@ -271,6 +286,13 @@ export function GameClient() {
     () => getClassTrialThemeStatusMessage(classTrialPackStatus, classTrialPersonasStatus),
     [classTrialPackStatus, classTrialPersonasStatus],
   );
+  const classTrialIntroStatus = useMemo(
+    () => getClassTrialIntroStatus(classTrialIntroConfig),
+    [classTrialIntroConfig],
+  );
+  const classTrialIntroMessage = classTrialIntroAudioPreparation
+    ? classTrialIntroAudioPreparation.message
+    : classTrialIntroStatus.message;
   const classTrialAiFriends = useMemo(() => buildClassTrialAiFriends(classTrialPersonas), [classTrialPersonas]);
   const classTrialLocalThemeSelected = classTrialThemeMode === "class-trial";
   const classTrialThemeActive = classTrialThemeMode === "class-trial" && Boolean(game);
@@ -354,6 +376,49 @@ export function GameClient() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/class-trial-pack/intro/intro.json")
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((raw: unknown) => {
+        if (!cancelled) setClassTrialIntroConfig(sanitizeClassTrialIntroConfig(raw));
+      })
+      .catch(() => {
+        if (!cancelled) setClassTrialIntroConfig(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (classTrialThemeMode !== "class-trial" || !classTrialIntroConfig) {
+      setClassTrialIntroAudioPreparation(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setClassTrialIntroAudioPreparation({
+      ready: false,
+      message: "开场片头音频准备中。",
+      readyCharacterIds: [],
+      failedCharacterIds: [],
+    });
+    void prepareClassTrialIntroAudio(classTrialIntroConfig)
+      .then((preparation) => {
+        if (!cancelled) setClassTrialIntroAudioPreparation(preparation);
+      })
+      .catch(() => {
+        if (!cancelled) setClassTrialIntroAudioPreparation(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [classTrialIntroConfig, classTrialThemeMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -882,6 +947,8 @@ export function GameClient() {
         const view = await loadGameView(gameId);
         rememberGame(view.id);
         setRoleIntroGameId(null);
+        setClassTrialIntroGameId(null);
+        setCompletedClassTrialIntroGameId(null);
         setGame(view);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "读取对局失败。");
@@ -910,6 +977,13 @@ export function GameClient() {
       });
       rememberGame(view.id);
       setRoleIntroGameId(view.humanSeatId === null ? null : view.id);
+      if (useFixedClassTrialLineup) {
+        setClassTrialIntroGameId(view.id);
+        setCompletedClassTrialIntroGameId(null);
+      } else {
+        setClassTrialIntroGameId(null);
+        setCompletedClassTrialIntroGameId(null);
+      }
       setGame(view);
     } catch {
       setError("创建对局失败。");
@@ -932,6 +1006,8 @@ export function GameClient() {
     setLoading(false);
     setError(null);
     setRoleIntroGameId(null);
+    setClassTrialIntroGameId(null);
+    setCompletedClassTrialIntroGameId(null);
     setPhaseCurtain(null);
     setIdiotReveal(null);
     setIdentityBookOpen(false);
@@ -961,6 +1037,16 @@ export function GameClient() {
     }
     clearCurrentGameId();
   }, [clearBufferedClassTrialContinue, stopAiSpeechAudio, stopHostAudio]);
+
+  const completeClassTrialIntro = useCallback(() => {
+    if (!game) return;
+    setCompletedClassTrialIntroGameId(game.id);
+  }, [game]);
+
+  const skipClassTrialIntro = useCallback(() => {
+    if (!game) return;
+    setCompletedClassTrialIntroGameId(game.id);
+  }, [game]);
 
   const submitCommand = useCallback(async (payload: CommandPayload) => {
     if (!game) return;
@@ -1413,6 +1499,13 @@ export function GameClient() {
   }, [stopAiSpeechAudio, stopHostAudio]);
 
   const latestEvents = useMemo(() => buildTableEventFeed(game), [game]);
+  const classTrialIntroPending =
+    classTrialThemeActive &&
+    game &&
+    classTrialIntroGameId === game.id &&
+    completedClassTrialIntroGameId !== game.id;
+  const classTrialIntroReady =
+    Boolean(classTrialIntroConfig) && classTrialIntroStatus.available && Boolean(classTrialIntroAudioPreparation?.ready);
 
   return (
     <main
@@ -1474,11 +1567,29 @@ export function GameClient() {
             classTrialAiRuntimeMode={effectiveAiRuntimeMode}
             classTrialPackAvailable={classTrialPackStatus.available && classTrialPersonasStatus.available}
             classTrialPackMessage={classTrialStatusMessage}
+            classTrialIntroMessage={classTrialThemeMode === "class-trial" ? classTrialIntroMessage : undefined}
             onSelectClassTrialThemeMode={selectClassTrialThemeMode}
           />
         ) : (
           <div className="grid flex-1 gap-4">
-            {classTrialThemeActive ? (
+            {classTrialThemeActive && classTrialIntroPending && classTrialIntroReady && classTrialIntroConfig ? (
+              <ClassTrialOpeningIntro
+                config={classTrialIntroConfig}
+                onComplete={completeClassTrialIntro}
+                onSkip={skipClassTrialIntro}
+              />
+            ) : classTrialThemeActive && classTrialIntroPending ? (
+              <section className="class-trial-opening-wait class-trial-court-stage">
+                <div className="class-trial-table-background" aria-hidden="true" />
+                <div className="class-trial-opening-wait-panel">
+                  <h2>正在准备开场片头</h2>
+                  <p>{classTrialIntroMessage}</p>
+                  <button type="button" onClick={skipClassTrialIntro}>
+                    跳过片头，进入裁判席
+                  </button>
+                </div>
+              </section>
+            ) : classTrialThemeActive ? (
               <ClassTrialGameTable
                 game={game}
                 loading={loading || Boolean(aiSpeechAudioStatus) || Boolean(bufferedClassTrialContinueKey)}
