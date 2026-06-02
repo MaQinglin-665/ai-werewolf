@@ -1,7 +1,15 @@
 import type { AgentView } from "@/game/types";
 import { getClassTrialCharacterLens, type ClassTrialCharacterLens } from "./classTrialCharacterLens";
+import { buildClassTrialPersonaDirectorGuide } from "./classTrialPersonaDirector";
 
 type PublicSpeechItem = AgentView["publicSummary"]["recentSpeeches"][number];
+
+export function buildClassTrialPersonaAwareGuide(
+  view: AgentView,
+  options: { hasActionablePublicInfo: boolean },
+): string | undefined {
+  return buildClassTrialPersonaDirectorGuide(view, options);
+}
 
 export function buildClassTrialDayContinuationGuide(view: AgentView): string | undefined {
   if (view.roleCard?.theme !== "class-trial" || view.day < 2) return undefined;

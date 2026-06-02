@@ -565,6 +565,28 @@ describe("routed speech provider", () => {
     expect(avoidGuide).toContain("不能以主持人身份干预规则");
   });
 
+  it("allows low-information class-trial speech to use character texture without forced pressure", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const fukawa = state.seats.find((seat) => seat.seatId === 3)!;
+    fukawa.name = "腐川冬子";
+    fukawa.roleCard = roleCardFixture("fukawa", "腐川冬子");
+    state.speechQueue = [fukawa.seatId, 1, 2, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, fukawa.seatId);
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "guided");
+    const guideText = [...input.playerSpeechGuide.tablePlayerStyle, ...input.playerSpeechGuide.avoid].join("\n");
+
+    expect(guideText).toContain("信息很薄");
+    expect(guideText).toContain("十神");
+    expect(guideText).toContain("不必强行追问");
+    expect(guideText).toContain("不能泄露私密身份");
+    expect(guideText).not.toContain("必须追问");
+    expect(guideText).not.toContain("必须转票");
+  });
+
   it("adds class-trial behavior lens to speech input", () => {
     const state = createGame({ seed: 91, humanSeatId: null });
     const kirigiri = state.seats.find((seat) => seat.isAi)!;

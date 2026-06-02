@@ -6,6 +6,7 @@ import {
   buildClassTrialDialogueRewriteGuide,
   buildClassTrialFinalSpeakerGuide,
   buildClassTrialOpeningDirectorGuide,
+  buildClassTrialPersonaAwareGuide,
   buildClassTrialRepeatedFocusGuide,
   buildClassTrialSelfIntroductionGuide,
 } from "./classTrialSpeechDirector";
@@ -71,6 +72,16 @@ describe("class-trial speech director", () => {
     expect(guide).toContain("你是首置位");
     expect(guide).toContain("不要点名下一位做作业");
     expect(guide).toContain("苗木首置位必须留下共同验证点");
+  });
+
+  it("exposes role-first persona direction for low-information class-trial speech", () => {
+    const guide = buildClassTrialPersonaAwareGuide(makeView({ roleCard: roleCardFixture("fukawa", "腐川冬子") }), {
+      hasActionablePublicInfo: false,
+    });
+
+    expect(guide).toContain("信息很薄");
+    expect(guide).toContain("十神");
+    expect(guide).toContain("不能泄露私密身份");
   });
 
   it("guards the final speaker from waiting for future seats", () => {

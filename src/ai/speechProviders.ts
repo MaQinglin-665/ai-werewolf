@@ -48,6 +48,7 @@ import {
   buildClassTrialDialogueRewriteGuide,
   buildClassTrialFinalSpeakerGuide,
   buildClassTrialOpeningDirectorGuide,
+  buildClassTrialPersonaAwareGuide,
   buildClassTrialRepeatedFocusGuide,
   buildClassTrialSelfIntroductionGuide,
 } from "./classTrialSpeechDirector";
@@ -740,6 +741,28 @@ function hasConcreteDayOneVotePressure(message: string): boolean {
   );
 }
 
+function hasActionableClassTrialPublicInfo(view: AgentView, currentDaySpeeches: ReturnType<typeof currentDaySpeechItems>): boolean {
+  const summary = view.publicSummary;
+  const memory = summary.tableMemory;
+  return (
+    currentDaySpeeches.some((speech) => speech.speaker?.seatId !== view.mySeatId) ||
+    summary.claimBoard.length > 0 ||
+    summary.recentVotes.length > 0 ||
+    summary.voteSnapshot.votes.length > 0 ||
+    summary.voteSnapshot.tally.length > 0 ||
+    summary.voteSnapshot.revealed ||
+    summary.recentDeaths.length > 0 ||
+    summary.deathSummary.length > 0 ||
+    memory.claimBoard.length > 0 ||
+    memory.reasoningCues.length > 0 ||
+    memory.counterclaims.length > 0 ||
+    memory.focus.length > 0 ||
+    memory.voteHistory.length > 0 ||
+    memory.deathAnnouncements.length > 0 ||
+    memory.publicSignals.length > 0
+  );
+}
+
 function buildPlayerSpeechGuide(
   view: AgentView,
   plan: SpeechPlan,
@@ -776,6 +799,9 @@ function buildPlayerSpeechGuide(
   });
   const classTrialFinalSpeakerGuide = buildClassTrialFinalSpeakerGuide(view, isFinalSpeakerToday);
   const classTrialDialogueRewriteGuide = buildClassTrialDialogueRewriteGuide(view, classTrialLens);
+  const classTrialPersonaGuide = buildClassTrialPersonaAwareGuide(view, {
+    hasActionablePublicInfo: hasActionableClassTrialPublicInfo(view, currentDaySpeeches),
+  });
   const universalDeTemplateGuide = buildUniversalDeTemplateGuide(view);
   const nameAwareAddressingGuide = buildNameAwareAddressingGuide(view);
   const classTrialDayContinuationLine = buildClassTrialDayContinuationGuide(view);
@@ -791,6 +817,7 @@ function buildPlayerSpeechGuide(
               classTrialOpeningDirectorGuide,
               classTrialFinalSpeakerGuide,
               classTrialDialogueRewriteGuide,
+              classTrialPersonaGuide,
               "学级裁判主题局：不要用“身份-信息-站边-票口”的四件套开场，也不要每轮换座位号套同一句式；每轮换一个推进动作，例如证据链断点、反应差、票型收益、死亡形态或身份线。",
               classTrialDayContinuationLine,
               classTrialRepeatedFocusGuide,
