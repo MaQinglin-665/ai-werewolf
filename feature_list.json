@@ -463,8 +463,8 @@
       "dependencies": [
         "class-trial-system-architecture"
       ],
-      "status": "in-progress",
-      "evidence": "docs/superpowers/specs/2026-06-02-room-vote-and-class-trial-rules-design.md; docs/superpowers/plans/2026-06-02-room-vote-and-class-trial-rules.md; docs/tasks/2026-06-room-vote-class-trial-rules.md"
+      "status": "done",
+      "evidence": "docs/superpowers/specs/2026-06-02-room-vote-and-class-trial-rules-design.md; docs/superpowers/plans/2026-06-02-room-vote-and-class-trial-rules.md; docs/tasks/2026-06-room-vote-class-trial-rules.md; focused room/API tests passed 2 files / 23 tests; class-trial UI/model tests passed 4 files / 48 tests; class-trial AI director tests passed 3 files / 140 tests; npx tsc --noEmit passed; npm run lint passed; npm run build passed with existing Turbopack NFT trace warning; ROOM_SMOKE_BASE_URL=http://127.0.0.1:3000 npm run smoke:room-action:vote passed with coveredActionTypes seerCheck, witchAction, speak, vote and voteResolved true; ROOM_SMOKE_BASE_URL=http://127.0.0.1:3000 npm run smoke:room-sse passed; in-app browser verified class-trial main status uses 闭庭整理 during hidden night and 证言审理 during day speech; screenshot saved to tmp/class-trial-room-vote-rules-visual.png."
     }
   ]
 }

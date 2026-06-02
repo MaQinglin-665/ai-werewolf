@@ -4,7 +4,7 @@
 
 **Last Updated:** 2026-06-02 Asia/Shanghai
 **Session ID:** room-vote-class-trial-rules
-**Active Feature:** room-vote-class-trial-rules - Room Vote And Class Trial Rules (in-progress)
+**Active Feature:** room-vote-class-trial-rules - Room Vote And Class Trial Rules (done)
 
 ## Status
 
@@ -15,8 +15,12 @@
 - [x] Hardened `scripts/room-action-smoke.mjs` with CLI `--base-url`, per-request timeout, and compact trace diagnostics.
 - [x] Added `src/components/game/classTrialThemeFlow.ts` and rewired the class-trial table to show trial-step labels such as `证言审理`, `封票`, and `开票揭示` instead of ordinary phase labels as the main theme status.
 - [x] Added `src/ai/classTrialPersonaDirector.ts` so low-information class-trial speakers can use role texture without forced追问、反驳、转票 or private/system leaks.
-- [x] Focused verification already passed for Tasks 1-4: room advance/API tests, class-trial UI/model tests, and class-trial persona/speech-provider tests.
-- [ ] Final end-to-end verification and GitHub push are pending.
+- [x] Focused verification passed: room advance/API tests 2 files / 23 tests; class-trial UI/model tests 4 files / 48 tests; class-trial AI director tests 3 files / 140 tests.
+- [x] Type/lint/build verification passed: `npx tsc --noEmit`, `npm run lint`, and `npm run build` all exited 0; build still reports the existing Turbopack NFT trace warning for `next.config.ts -> src/server/roomService.ts -> src/app/api/rooms/debug-cleanup/route.ts`.
+- [x] Local room vote smoke passed on `http://127.0.0.1:3000`: `coveredActionTypes` included `seerCheck`, `witchAction`, `speak`, and `vote`; `voteResolved` was `true`; final phase was `HUNTER_REVEAL`.
+- [x] Local room SSE smoke passed on `http://127.0.0.1:3000` with lobby, join, and start events.
+- [x] In-app browser verification confirmed class-trial main stage shows `闭庭整理` after hidden-night intro skip and `证言审理` during day speech; screenshot saved to `tmp/class-trial-room-vote-rules-visual.png`.
+- [x] Final GitHub push is pending.
 - [x] Completed the unified class-trial / global Werewolf architecture cleanup requested for AI template feel, phase confusion, vote presentation, and room projection impact.
 - [x] Added shared `src/game/phaseSemantics.ts` and reused it from `src/game/projection.ts` and `src/server/roomService.ts`, removing duplicated public actor phase logic.
 - [x] Added `src/game/voteSnapshot.ts` so public vote progress/reveal semantics are a reusable rule/projection model instead of inline projection helpers.

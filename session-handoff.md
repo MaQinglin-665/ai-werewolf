@@ -3,7 +3,7 @@
 ## Current Objective
 
 - Goal: Stabilize ordinary public-room vote smoke, then separate class-trial theme flow and role-first speech direction from ordinary Werewolf rules.
-- Current status: In progress. Room advance, room vote smoke diagnostics, class-trial theme flow, and class-trial persona director are implemented and committed; final end-to-end verification is pending.
+- Current status: Done locally. Room advance, room vote smoke diagnostics, class-trial theme flow, and class-trial persona director are implemented, verified, and ready to push to GitHub.
 - Local note: This work should push to GitHub only; no Tencent Cloud or Render deployment is in scope.
 
 ## Completed This Session
@@ -13,7 +13,11 @@
 - [x] Added room API coverage proving host continue can reach speech and resolve a vote, and improved `scripts/room-action-smoke.mjs` diagnostics for base URL, timeout, and recent steps.
 - [x] Added class-trial theme flow labels/details and wired the table/flow model so hidden night labels are minimized and trial steps become the main status.
 - [x] Added class-trial persona director guidance that allows low-information character texture while preserving private-knowledge and system-prompt leak guards.
-- [x] Focused Task 1-4 tests passed; final type/lint/build/smoke/browser verification is still pending.
+- [x] Focused verification passed: room advance/API tests 2 files / 23 tests; class-trial UI/model tests 4 files / 48 tests; class-trial AI director tests 3 files / 140 tests.
+- [x] `npx tsc --noEmit`, `npm run lint`, and `npm run build` passed; build kept the existing Turbopack NFT trace warning for `next.config.ts -> src/server/roomService.ts -> src/app/api/rooms/debug-cleanup/route.ts`.
+- [x] Local room vote smoke passed on `http://127.0.0.1:3000`: `coveredActionTypes` included `seerCheck`, `witchAction`, `speak`, and `vote`; `voteResolved` was `true`.
+- [x] Local room SSE smoke passed on `http://127.0.0.1:3000` with lobby, join, and start events.
+- [x] In-app browser verification confirmed the class-trial main status uses `闭庭整理` during hidden night and `证言审理` during day speech; screenshot saved to `tmp/class-trial-room-vote-rules-visual.png`.
 - [x] Added `docs/superpowers/specs/2026-06-02-class-trial-system-architecture-design.md`, `docs/superpowers/plans/2026-06-02-class-trial-system-architecture.md`, and `docs/tasks/2026-06-class-trial-system-architecture.md`.
 - [x] Added `src/game/phaseSemantics.ts` and reused it from `src/game/projection.ts` and `src/server/roomService.ts`.
 - [x] Added `src/game/voteSnapshot.ts` and moved public recent vote, day-vote sealed progress, day-vote reveal, and sheriff vote snapshot helpers out of projection.

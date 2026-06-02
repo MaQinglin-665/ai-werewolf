@@ -1,6 +1,6 @@
 # Room Vote And Class Trial Rules
 
-Status: in-progress
+Status: done
 
 ## Task
 
@@ -40,9 +40,9 @@ State updates required:
 
 Skipped checks must record:
 
-- Check skipped: none yet.
-- Reason: final verification pending.
-- Residual risk: final smoke/browser results are not recorded yet.
+- Check skipped: production deploy/preflight.
+- Reason: user scope was GitHub push only; no Tencent Cloud or Render deployment in scope.
+- Residual risk: production host behavior still needs the documented deployment flow if this branch is deployed later.
 
 ## Context To Read First
 
@@ -124,21 +124,46 @@ If a check cannot be run, record the reason in the handoff.
 
 ## Acceptance Notes
 
-- Initial state: implementation Tasks 1-4 are committed; final end-to-end verification is pending.
-- Required final evidence: focused room/API tests, class-trial flow/UI tests, class-trial AI director tests, `smoke:room-action:vote`, `smoke:room-sse`, `npx tsc --noEmit`, `npm run lint`, and `npm run build`.
+- Focused room/API tests passed: `npm run test -- src/server/roomAdvance.test.ts src/app/api/rooms/api.test.ts` passed 2 files / 23 tests.
+- Class-trial UI/model tests passed: `npm run test -- src/components/game/classTrialThemeFlow.test.ts src/components/game/classTrialFlowModel.test.ts src/components/game/classTrialTableModel.test.ts src/components/game/classTrialGameTable.test.ts` passed 4 files / 48 tests.
+- Class-trial AI director tests passed: `npm run test -- src/ai/classTrialPersonaDirector.test.ts src/ai/classTrialSpeechDirector.test.ts src/ai/speechProviders.test.ts` passed 3 files / 140 tests.
+- `npx tsc --noEmit` passed with no output.
+- `npm run lint` passed.
+- `npm run build` passed with the existing Turbopack NFT trace warning for `next.config.ts -> src/server/roomService.ts -> src/app/api/rooms/debug-cleanup/route.ts`.
+- `ROOM_SMOKE_BASE_URL=http://127.0.0.1:3000 npm run smoke:room-action:vote` passed with `coveredActionTypes` containing `seerCheck`, `witchAction`, `speak`, and `vote`; `voteResolved` was `true`.
+- `ROOM_SMOKE_BASE_URL=http://127.0.0.1:3000 npm run smoke:room-sse` passed with lobby, join, and start events.
+- In-app browser verification confirmed `闭庭整理` as the class-trial main hidden-night status and `证言审理` as the day-speech main status. Screenshot: `tmp/class-trial-room-vote-rules-visual.png`.
 
 ## Handoff
 
 ```text
 Completed:
-- Pending final verification.
+- Stabilized public-room host continue and room vote smoke diagnostics.
+- Added class-trial theme flow labels/details and minimized ordinary hidden-night main status.
+- Added class-trial persona director guidance for low-information role texture and leak guards.
 
 Changed files:
-- Pending final verification.
+- `src/server/roomAdvance.ts`
+- `src/server/roomService.ts`
+- `scripts/room-action-smoke.mjs`
+- `src/app/api/rooms/api.test.ts`
+- `src/components/game/classTrialThemeFlow.ts`
+- `src/components/game/classTrialFlowModel.ts`
+- `src/components/game/classTrialTableModel.ts`
+- `src/components/game/ClassTrialGameTable.tsx`
+- `src/app/globals.css`
+- `src/ai/classTrialPersonaDirector.ts`
+- `src/ai/classTrialSpeechDirector.ts`
+- `src/ai/speechProviders.ts`
+- Related focused tests and project state docs.
 
 Verification:
-- Pending final verification.
+- Focused room/API, class-trial UI/model, and AI director tests passed.
+- `npx tsc --noEmit`, `npm run lint`, and `npm run build` passed.
+- `smoke:room-action:vote` and `smoke:room-sse` passed locally on `http://127.0.0.1:3000`.
+- In-app browser class-trial visual verification passed for `闭庭整理` and `证言审理`.
 
 Remaining risks:
-- Pending final verification.
+- Production deployment was intentionally skipped; verify through `docs/tencent-cloud-deploy.md` if deployed later.
+- Browser automation cannot judge subjective AI dialogue quality across a full voiced Day 1; it only verified the UI state and one visible flow.
 ```
