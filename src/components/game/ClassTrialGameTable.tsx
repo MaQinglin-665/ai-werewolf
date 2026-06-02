@@ -117,6 +117,7 @@ export function ClassTrialGameTable({
     centerStatus,
     currentSpeakingFocusKey,
     currentSpeakingFocus,
+    themeFlow,
     aiRuntimeLabel,
     classTrialVoteState,
     nightPhase,
@@ -338,8 +339,9 @@ export function ClassTrialGameTable({
       </div>
 
       <section className="class-trial-info-table" aria-label="当前阶段">
-        <span>{game.phaseLabel}</span>
+        <span className="class-trial-step-label">{themeFlow.label}</span>
         <strong>{centerStatus}</strong>
+        <p>{themeFlow.detail}</p>
       </section>
 
       {classTrialVoteState && <ClassTrialVoteStage game={game} />}

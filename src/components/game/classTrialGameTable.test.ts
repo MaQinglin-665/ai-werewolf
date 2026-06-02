@@ -82,7 +82,9 @@ describe("ClassTrialGameTable", () => {
     expect(html).toContain("class-trial-focus-enter");
     expect(html).toContain("filter:blur(2.4px)");
     expect(html).toContain("opacity:0.28");
-    expect(html).toContain("白天发言");
+    expect(html).toContain("class-trial-step-label");
+    expect(html).toContain("证言审理");
+    expect(html).toContain("依次发言，允许角色反应、保留不确定或指出公开矛盾。");
     expect(html).toContain("腐川冬子 发言中");
     expect(html).toContain("先不要急着归票。");
     expect(html).not.toContain("预言家");

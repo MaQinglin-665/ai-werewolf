@@ -1,4 +1,5 @@
 import type { HumanGameView } from "@/game/types";
+import { getClassTrialThemeFlow } from "./classTrialThemeFlow";
 import { shouldRenderClassTrialOpeningNightCurtain, shouldRenderThemedPhaseCurtain } from "./phaseCurtainModel";
 
 type ClassTrialFlowGame = Pick<HumanGameView, "id" | "day" | "phase">;
@@ -36,6 +37,9 @@ export function getClassTrialFlowModel(options: {
     };
   }
 
+  const themeFlow = options.classTrialThemeActive
+    ? getClassTrialThemeFlow({ phase: game.phase, day: game.day })
+    : undefined;
   const roleIntroPending = options.roleIntroGameId === game.id;
   const introPending = Boolean(
     options.classTrialThemeActive &&
@@ -59,9 +63,12 @@ export function getClassTrialFlowModel(options: {
     pauseHostAudio: pauseAutomation,
     pauseAiAudio: pauseAutomation,
     pauseVoicePrewarm: pauseAutomation,
-    allowThemedPhaseCurtain: shouldRenderThemedPhaseCurtain(game, {
-      classTrialIntroPending: introPending,
-      roleIntroGameId: options.roleIntroGameId,
-    }),
+    allowThemedPhaseCurtain:
+      openingNightCurtainPending ||
+      (!themeFlow?.minimizeOrdinaryPhase &&
+        shouldRenderThemedPhaseCurtain(game, {
+          classTrialIntroPending: introPending,
+          roleIntroGameId: options.roleIntroGameId,
+        })),
   };
 }

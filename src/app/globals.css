@@ -657,12 +657,18 @@
   transform: translate(-50%, -50%);
 }
 
-.class-trial-info-table span {
-  display: block;
+.class-trial-step-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.6rem;
+  padding: 0 0.65rem;
   color: rgba(216, 195, 109, 0.78);
   font-size: 0.8rem;
   font-weight: 800;
   letter-spacing: 0.08em;
+  line-height: 1;
+  background: rgba(37, 24, 20, 0.74);
+  border: 1px solid rgba(216, 195, 109, 0.4);
   text-transform: uppercase;
 }
 
@@ -670,6 +676,14 @@
   display: block;
   margin-top: 0.35rem;
   font-size: 1.35rem;
+}
+
+.class-trial-info-table p {
+  margin: 0.45rem auto 0;
+  max-width: 17rem;
+  color: rgba(255, 242, 190, 0.74);
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .class-trial-focus {

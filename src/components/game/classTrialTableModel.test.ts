@@ -71,6 +71,7 @@ describe("buildClassTrialTableModel", () => {
     expect(model.centerStatus).toBe("腐川冬子 发言中");
     expect(model.message).toBe("先不要急着归票。");
     expect(model.currentSpeakingFocus?.speakerName).toBe("腐川冬子");
+    expect(model.themeFlow.label).toBe("证言审理");
     expect(model.aiRuntimeLabel).toContain("真实 LLM");
     expect(model.hostAudioLabel).toBe("主持关");
   });
@@ -116,6 +117,7 @@ describe("buildClassTrialTableModel", () => {
     });
 
     expect(model.nightPhase).toBe(true);
+    expect(model.themeFlow.minimizeOrdinaryPhase).toBe(true);
     expect(model.activeSeatId).toBe(8);
     expect(model.speakerCharacter).toBeUndefined();
     expect(model.currentSpeakingFocus).toBeUndefined();

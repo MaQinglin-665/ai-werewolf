@@ -1,5 +1,6 @@
 import { isNightPhase } from "@/game/phaseSemantics";
 import type { AiRuntimeMode, HumanGameView } from "@/game/types";
+import { getClassTrialThemeFlow, type ClassTrialThemeFlow } from "./classTrialThemeFlow";
 import { getClassTrialVotePresentation, type ClassTrialVotePresentationState } from "./classTrialVotePresentation";
 import { getClassTrialCharacterForSeat, type ClassTrialPackCharacter, type ClassTrialPackManifest } from "./classTrialTheme";
 import type { ClassTrialAudioTypewriterState, HostAudioStatus, LiveAiSpeech } from "./clientTypes";
@@ -25,6 +26,7 @@ export type ClassTrialTableModel = {
   message: string;
   currentSpeakingFocusKey: string;
   currentSpeakingFocus?: ClassTrialSpeakingFocusView;
+  themeFlow: ClassTrialThemeFlow;
   aiRuntimeLabel: string;
   classTrialVoteState: ClassTrialVotePresentationState | null;
   nightPhase: boolean;
@@ -68,6 +70,11 @@ export function buildClassTrialTableModel(options: {
         stage: "enter",
       }
     : undefined;
+  const themeFlow = getClassTrialThemeFlow({
+    phase: game.phase,
+    day: game.day,
+    result: game.result,
+  });
   const classTrialVoteState = getClassTrialVotePresentation(game);
 
   return {
@@ -83,6 +90,7 @@ export function buildClassTrialTableModel(options: {
     message,
     currentSpeakingFocusKey,
     currentSpeakingFocus,
+    themeFlow,
     aiRuntimeLabel: options.aiRuntimeMode === "llm" ? "真实 LLM · DeepSeek-v4" : "Mock AI",
     classTrialVoteState,
     nightPhase: isNightPhase(game.phase),

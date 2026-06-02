@@ -76,7 +76,7 @@ describe("getClassTrialFlowModel", () => {
     });
 
     expect(model.openingNightCurtainPending).toBe(false);
-    expect(model.allowThemedPhaseCurtain).toBe(true);
+    expect(model.allowThemedPhaseCurtain).toBe(false);
     expect(model.pauseAutoAdvance).toBe(false);
   });
 
