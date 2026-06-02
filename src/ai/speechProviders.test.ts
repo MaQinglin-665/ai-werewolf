@@ -2189,6 +2189,45 @@ describe("routed speech provider", () => {
     ).toContain("学级裁判发言过于模板化");
   });
 
+  it("rejects class-trial fallback-flavored ordinary werewolf templates", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "我这轮按闭眼好人打，结论先留活口；平安夜只说女巫用药了。", "guided"),
+    ).toContain("学级裁判发言过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "我把能听到的点摆一下，发言顺序和票型我会一起看。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("keeps class-trial mock speech fallback away from ordinary werewolf phrasing", async () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(result.speech).not.toMatch(/闭眼好人|发言顺序和票型/);
+    expect(validateRenderedSpeech(view, plan, result.speech, "guided")).not.toContain("学级裁判发言过于模板化");
+    expect(validateRenderedSpeech(view, plan, result.speech, "guided")).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
   it("guides Chihaya Anon filler words as rare social beats instead of every clause", () => {
     const state = createGame({ seed: 91, humanSeatId: null });
     const anon = state.seats.find((seat) => seat.isAi)!;
