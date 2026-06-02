@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { advanceOneAiStep, advancePendingAiTurns, advancePendingAiVotes, createConfiguredAiOptions } from "@/ai/mockAgent";
+import { advancePendingAiTurns, advancePendingAiVotes, createConfiguredAiOptions } from "@/ai/mockAgent";
 import { getBoardPreset, toBoardSnapshot } from "@/game/boards";
 import { toHumanCommand } from "@/game/commandSchemas";
 import type { HumanCommandInput } from "@/game/commandSchemas";
@@ -11,6 +11,7 @@ import { buildPlayerView } from "@/game/projection";
 import type { AiFriendConfig, BoardSnapshot, GameState, HumanGameView, Phase, TurnRequirement } from "@/game/types";
 import { getMainGameStorageStatus } from "@/server/gameService";
 import { getRoomAnalyticsHistorySnapshot, recordRoomAnalyticsEvent } from "@/server/roomAnalytics";
+import { advanceRoomToNextStop } from "@/server/roomAdvance";
 import { getRoomRateLimitStatus } from "@/server/roomRateLimit";
 import { Pool } from "pg";
 
@@ -1715,11 +1716,16 @@ async function continueRoom(room: RoomRecord, player: RoomPlayer, idempotency?: 
     throw new RoomSessionError("正在等待真人玩家行动，不能由房主跳过。", 409);
   }
 
-  const advanced =
-    state.phase === "DAY_VOTE"
-      ? await advancePendingAiVotes(state, createConfiguredAiOptions())
-      : await advanceOneAiStep(state, createConfiguredAiOptions());
-  room.gameState = state.phase === "DAY_VOTE" ? revealCompletedVote(advanced.state) : advanced.state;
+  if (state.phase === "DAY_VOTE") {
+    const advanced = await advancePendingAiVotes(state, createConfiguredAiOptions());
+    room.gameState = revealCompletedVote(advanced.state);
+  } else {
+    const advanced = await advanceRoomToNextStop(state, {
+      maxSteps: 48,
+      forceMockAi: process.env.AI_ACTION_PROVIDER === "mock" && process.env.AI_SPEECH_PROVIDER === "mock",
+    });
+    room.gameState = advanced.state;
+  }
   if (idempotency) {
     rememberCompletedRoomIdempotentWrite(room, idempotency);
   }
