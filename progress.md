@@ -2,14 +2,21 @@
 
 ## Current State
 
-**Last Updated:** 2026-06-02 22:30 Asia/Shanghai
-**Session ID:** class-trial-system-architecture
-**Active Feature:** class-trial-system-architecture - Class Trial System Architecture (done)
+**Last Updated:** 2026-06-02 Asia/Shanghai
+**Session ID:** room-vote-class-trial-rules
+**Active Feature:** room-vote-class-trial-rules - Room Vote And Class Trial Rules (in-progress)
 
 ## Status
 
 ### What's Done
 
+- [x] Added `docs/superpowers/specs/2026-06-02-room-vote-and-class-trial-rules-design.md` and `docs/superpowers/plans/2026-06-02-room-vote-and-class-trial-rules.md`.
+- [x] Added `src/server/roomAdvance.ts` and rewired public-room host continue so ordinary AI/system flow advances to the next human or public stop instead of one brittle step.
+- [x] Hardened `scripts/room-action-smoke.mjs` with CLI `--base-url`, per-request timeout, and compact trace diagnostics.
+- [x] Added `src/components/game/classTrialThemeFlow.ts` and rewired the class-trial table to show trial-step labels such as `证言审理`, `封票`, and `开票揭示` instead of ordinary phase labels as the main theme status.
+- [x] Added `src/ai/classTrialPersonaDirector.ts` so low-information class-trial speakers can use role texture without forced追问、反驳、转票 or private/system leaks.
+- [x] Focused verification already passed for Tasks 1-4: room advance/API tests, class-trial UI/model tests, and class-trial persona/speech-provider tests.
+- [ ] Final end-to-end verification and GitHub push are pending.
 - [x] Completed the unified class-trial / global Werewolf architecture cleanup requested for AI template feel, phase confusion, vote presentation, and room projection impact.
 - [x] Added shared `src/game/phaseSemantics.ts` and reused it from `src/game/projection.ts` and `src/server/roomService.ts`, removing duplicated public actor phase logic.
 - [x] Added `src/game/voteSnapshot.ts` so public vote progress/reveal semantics are a reusable rule/projection model instead of inline projection helpers.

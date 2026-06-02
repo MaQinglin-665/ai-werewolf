@@ -2,12 +2,18 @@
 
 ## Current Objective
 
-- Goal: Complete the unified class-trial / global Werewolf architecture cleanup for AI template feel, phase confusion, vote presentation, and public-room projection impact.
-- Current status: Done. Shared phase semantics, vote snapshots, class-trial vote presentation, GameClient flow gating, class-trial table model, and class-trial speech director modules are extracted and wired.
-- Local note: This run pushed architecture boundaries and tests; it did not deploy to Tencent/Render and did not change `.env`, local assets, generated audio, database files, `.next`, or `node_modules`.
+- Goal: Stabilize ordinary public-room vote smoke, then separate class-trial theme flow and role-first speech direction from ordinary Werewolf rules.
+- Current status: In progress. Room advance, room vote smoke diagnostics, class-trial theme flow, and class-trial persona director are implemented and committed; final end-to-end verification is pending.
+- Local note: This work should push to GitHub only; no Tencent Cloud or Render deployment is in scope.
 
 ## Completed This Session
 
+- [x] Added `docs/superpowers/specs/2026-06-02-room-vote-and-class-trial-rules-design.md`, `docs/superpowers/plans/2026-06-02-room-vote-and-class-trial-rules.md`, and `docs/tasks/2026-06-room-vote-class-trial-rules.md`.
+- [x] Added `src/server/roomAdvance.ts` with bounded host advancement and trace output; `src/server/roomService.ts` now uses it outside `DAY_VOTE`.
+- [x] Added room API coverage proving host continue can reach speech and resolve a vote, and improved `scripts/room-action-smoke.mjs` diagnostics for base URL, timeout, and recent steps.
+- [x] Added class-trial theme flow labels/details and wired the table/flow model so hidden night labels are minimized and trial steps become the main status.
+- [x] Added class-trial persona director guidance that allows low-information character texture while preserving private-knowledge and system-prompt leak guards.
+- [x] Focused Task 1-4 tests passed; final type/lint/build/smoke/browser verification is still pending.
 - [x] Added `docs/superpowers/specs/2026-06-02-class-trial-system-architecture-design.md`, `docs/superpowers/plans/2026-06-02-class-trial-system-architecture.md`, and `docs/tasks/2026-06-class-trial-system-architecture.md`.
 - [x] Added `src/game/phaseSemantics.ts` and reused it from `src/game/projection.ts` and `src/server/roomService.ts`.
 - [x] Added `src/game/voteSnapshot.ts` and moved public recent vote, day-vote sealed progress, day-vote reveal, and sheriff vote snapshot helpers out of projection.
