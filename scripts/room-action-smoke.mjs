@@ -1,4 +1,5 @@
-const baseUrl = (process.env.ROOM_SMOKE_BASE_URL ?? "http://127.0.0.1:3003").replace(/\/$/, "");
+const baseUrl = readOption("base-url", process.env.ROOM_SMOKE_BASE_URL ?? "http://127.0.0.1:3003").replace(/\/$/, "");
+const requestTimeoutMs = Number(readOption("request-timeout-ms", process.env.ROOM_ACTION_SMOKE_REQUEST_TIMEOUT_MS ?? "12000"));
 const maxSteps = Number(process.env.ROOM_ACTION_SMOKE_MAX_STEPS ?? 220);
 const coverage = readOption("coverage", process.env.ROOM_ACTION_SMOKE_COVERAGE ?? "first");
 assert(["first", "vote"].includes(coverage), `Unsupported coverage "${coverage}". Use "first" or "vote".`);
@@ -144,7 +145,10 @@ async function runRoomActionSmoke() {
   }
 
   throw new Error(
-    `Could not complete ${coverage} coverage within ${maxSteps} steps. Human actions: ${JSON.stringify(humanActions)} Steps: ${JSON.stringify(steps)}`,
+    `Could not complete ${coverage} coverage within ${maxSteps} steps at ${baseUrl}. ` +
+      `Human actions: ${JSON.stringify(humanActions)} ` +
+      `Recent steps: ${summarizeRecentSteps(steps)} ` +
+      `All steps: ${JSON.stringify(steps)}`,
   );
 }
 
@@ -185,20 +189,46 @@ async function postJson(path, body) {
 }
 
 async function postJsonResponse(path, body) {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+  return withTimedRequest(`POST ${path}`, async (signal) => {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    });
+    const data = await response.json().catch(() => null);
+    return { data, ok: response.ok, status: response.status };
   });
-  const data = await response.json().catch(() => null);
-  return { data, ok: response.ok, status: response.status };
 }
 
 async function getJson(path) {
-  const response = await fetch(`${baseUrl}${path}`);
-  const data = await response.json().catch(() => null);
-  assert(response.ok, `${path} failed: ${response.status} ${JSON.stringify(data)}`);
-  return data;
+  return withTimedRequest(`GET ${path}`, async (signal) => {
+    const response = await fetch(`${baseUrl}${path}`, { signal });
+    const data = await response.json().catch(() => null);
+    assert(response.ok, `${path} failed: ${response.status} ${JSON.stringify(data)}`);
+    return data;
+  });
+}
+
+async function withTimedRequest(label, request) {
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+  try {
+    return await request(controller.signal);
+  } catch (error) {
+    const elapsedMs = Date.now() - startedAt;
+    throw new Error(`${label} failed after ${elapsedMs}ms at ${baseUrl}: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function summarizeRecentSteps(steps) {
+  return steps
+    .slice(-12)
+    .map((step) => `${step.step}:${step.phase ?? "unknown"}->${step.nextPhase ?? step.turnType ?? step.waitingFor ?? "pending"}`)
+    .join(" | ");
 }
 
 function readPlayableAction(view) {

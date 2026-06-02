@@ -814,6 +814,33 @@ describe("room api routes", () => {
     expect(submitted.game?.humanSeatId).toBe(current.view.playerSeatId);
   });
 
+  it("reaches speech and resolves a vote through host room continue", async () => {
+    const { roomId, hostPlayerId, guestPlayerId } = await createStartedTwoPlayerRoom();
+    const covered = new Set<string>();
+    let finalPhase: string | undefined;
+
+    for (let step = 0; step < 80; step += 1) {
+      const current = await findNextHumanAction(roomId, hostPlayerId, guestPlayerId);
+      const response = await submitRoomCommand(
+        new Request(`http://localhost/api/rooms/${roomId}/commands`, {
+          method: "POST",
+          body: JSON.stringify({ playerId: current.playerId, ...commandFromAction(current.action) }),
+        }),
+        { params: Promise.resolve({ roomId }) },
+      );
+      expect(response.status).toBe(200);
+      const view = (await response.json()) as RoomView;
+      covered.add(current.action.type);
+      finalPhase = view.game?.phase;
+      if (covered.has("speak") && covered.has("vote") && finalPhase !== "DAY_VOTE") {
+        expect(view.game?.tableSummary.voteSnapshot.revealed).toBe(true);
+        return;
+      }
+    }
+
+    throw new Error(`Room did not resolve vote. Covered=${[...covered].join(",")} finalPhase=${finalPhase}`);
+  });
+
   it("replays duplicate room command idempotency keys without applying twice", async () => {
     const { roomId, hostPlayerId, guestPlayerId } = await createStartedTwoPlayerRoom();
     const current = await findNextHumanAction(roomId, hostPlayerId, guestPlayerId);
