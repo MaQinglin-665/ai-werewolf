@@ -110,6 +110,7 @@ export function ClassTrialOpeningIntro({ config, onComplete, onSkip }: ClassTria
     >
       <div className="class-trial-opening-intro-bg" aria-hidden="true" />
       <div className="class-trial-opening-intro-slice" aria-hidden="true" />
+      <div className="class-trial-opening-intro-shadow" aria-hidden="true" />
       <div className="class-trial-opening-intro-character">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

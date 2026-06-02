@@ -65,10 +65,23 @@ function expectPhaseCue(cue: ReturnType<typeof getClassTrialPhaseCurtainCue>) {
 }
 
 describe("getClassTrialPhaseCurtainCue", () => {
-  it("skips full-screen scenes for hidden night role actions", () => {
-    expect(getClassTrialPhaseCurtainCue(makeGame({ phase: "NIGHT_WOLVES", phaseLabel: "狼人行动" }))).toBeNull();
-    expect(getClassTrialPhaseCurtainCue(makeGame({ phase: "NIGHT_SEER", phaseLabel: "预言家查验" }))).toBeNull();
-    expect(getClassTrialPhaseCurtainCue(makeGame({ phase: "NIGHT_WITCH", phaseLabel: "女巫行动" }))).toBeNull();
+  it("shows full-screen scenes for hidden night role actions without exposing targets", () => {
+    const wolves = expectPhaseCue(getClassTrialPhaseCurtainCue(makeGame({ phase: "NIGHT_WOLVES", phaseLabel: "狼人行动" })));
+    const seer = expectPhaseCue(getClassTrialPhaseCurtainCue(makeGame({ phase: "NIGHT_SEER", phaseLabel: "预言家查验" })));
+    const witch = expectPhaseCue(getClassTrialPhaseCurtainCue(makeGame({ phase: "NIGHT_WITCH", phaseLabel: "女巫行动" })));
+
+    expect(wolves).toMatchObject({
+      presentation: "class-trial",
+      tone: "night",
+      eyebrow: "第 2 夜",
+      title: "夜晚降临",
+      subtitle: "天黑请闭眼，狼人行动开始。",
+      resultLines: ["隐藏行动只显示阶段，不公开刀口。"],
+    });
+    expect(seer.title).toBe("预言家查验");
+    expect(seer.resultLines).toEqual(["隐藏行动只显示阶段，不公开查验。"]);
+    expect(witch.title).toBe("女巫睁眼");
+    expect(witch.resultLines).toEqual(["隐藏行动只显示阶段，不公开用药。"]);
   });
 
   it("summarizes dawn deaths from the latest day-start event", () => {
@@ -135,6 +148,24 @@ describe("getClassTrialPhaseCurtainCue", () => {
     expect(cue.resultLines).toEqual(["投票结束：6号 4票，2号 3票。"]);
   });
 
+  it("frames day vote as sealed progress without exposing targets", () => {
+    const cue = expectPhaseCue(getClassTrialPhaseCurtainCue(
+      makeGame({
+        phase: "DAY_VOTE",
+        phaseLabel: "投票",
+      }),
+    ));
+
+    expect(cue).toMatchObject({
+      presentation: "class-trial",
+      tone: "vote",
+      durationMs: 3000,
+      title: "封票审判开始",
+      subtitle: "所有人的投票已经进入票箱，目标将在开票时一次性公开。",
+    });
+    expect(cue.resultLines).toEqual(["投票阶段：当前只公开封票进度，不公开投票目标。"]);
+  });
+
   it("shows the revealed vote ledger during vote resolution", () => {
     const cue = expectPhaseCue(getClassTrialPhaseCurtainCue(
       makeGame({
@@ -182,6 +213,10 @@ describe("getClassTrialPhaseCurtainCue", () => {
       }),
     ));
 
+    expect(cue).toMatchObject({
+      title: "开票揭示",
+      subtitle: "投票结束：6号 2票，弃票 1票。",
+    });
     expect(cue.resultLines).toEqual([
       "票型汇总：6号塞蕾丝缇雅 2票，弃票 1票。",
       "逐票：1号苗木诚 → 6号塞蕾丝缇雅；2号雾切响子 → 6号塞蕾丝缇雅；3号腐川冬子 → 弃票。",

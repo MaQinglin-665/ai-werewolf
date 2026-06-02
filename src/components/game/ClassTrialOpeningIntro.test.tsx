@@ -13,7 +13,7 @@ const introConfig = {
       id: "anon",
       displayNameJa: "千早 愛音",
       titleJa: "超高校級のギタリスト",
-      subtitleJa: "あはは...",
+      subtitleJa: "あはは……あはははは……",
       portraitUrl: "/class-trial-pack/intro/portraits/anon.png",
       audioUrl: "/class-trial-pack/intro/audio/anon.wav",
       themeColor: "#f6c94a",
@@ -25,8 +25,8 @@ const introConfig = {
     {
       id: "tomori",
       displayNameJa: "高松 燈",
-      titleJa: "超高校級の詩人",
-      subtitleJa: "ペンギン、ぐーぐーがーがー。",
+      titleJa: "超高校級の湊企鹅",
+      subtitleJa: "ぐーぐーがーがー、ぐーぐーがーがー。",
       portraitUrl: "/class-trial-pack/intro/portraits/tomori.png",
       audioUrl: "/class-trial-pack/intro/audio/tomori.wav",
       themeColor: "#56b7e8",
@@ -52,6 +52,7 @@ describe("ClassTrialOpeningIntro", () => {
     expect(html).toContain("class-trial-opening-intro-shards");
     expect(html).toContain("class-trial-opening-intro-bg");
     expect(html).toContain("class-trial-opening-intro-slice");
+    expect(html).toContain("class-trial-opening-intro-shadow");
     expect(html).toContain("class-trial-opening-intro-character");
     expect(html).toContain("class-trial-opening-intro-portrait");
     expect(html).toContain("class-trial-opening-intro-title-band");
@@ -61,7 +62,7 @@ describe("ClassTrialOpeningIntro", () => {
     expect(html).toContain("class-trial-opening-intro-skip");
     expect(html).toContain("超高校級のギタリスト");
     expect(html).toContain("千早 愛音");
-    expect(html).toContain("あはは...");
+    expect(html).toContain("あはは……あはははは……");
     expect(html).toContain('src="/class-trial-pack/intro/portraits/anon.png"');
     expect(html).toContain('alt="千早 愛音"');
     expect(html).toContain("跳过");

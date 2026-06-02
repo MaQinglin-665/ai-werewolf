@@ -885,7 +885,14 @@ describe("game engine", () => {
     const voteEvent = state.events.find((event) => event.type === "VOTE_CAST")!;
 
     expect(voteEvent.visibility).toBe("private");
-    expect(buildHumanView(state).tableSummary.voteSnapshot.tally).toHaveLength(0);
+    const hiddenVoteSnapshot = buildHumanView(state).tableSummary.voteSnapshot;
+    expect(hiddenVoteSnapshot.revealed).toBe(false);
+    expect(hiddenVoteSnapshot.votes).toHaveLength(0);
+    expect(hiddenVoteSnapshot.tally).toHaveLength(0);
+    expect(hiddenVoteSnapshot.lockedSeatIds).toEqual([1]);
+    expect(hiddenVoteSnapshot.pendingSeatIds).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(JSON.stringify(hiddenVoteSnapshot)).not.toContain("测试理由");
+    expect(JSON.stringify(hiddenVoteSnapshot)).not.toContain("target");
 
     state.votes = {
       "1": 2,

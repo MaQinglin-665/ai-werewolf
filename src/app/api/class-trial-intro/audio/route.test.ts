@@ -114,11 +114,11 @@ describe("/api/class-trial-intro/audio", () => {
     });
     expect(mocks.generateGptSoVitsTtsAudio).toHaveBeenCalledWith({
       baseUrl: "http://127.0.0.1:9880",
-      text: "それは違うよ!",
+      text: "それは違うよ！",
       textLang: "ja",
       refAudioPath: "D:\\AI\\GPT-SoVITS\\logs\\miao_mu\\5-wav32k\\ref.wav",
       promptLang: "ja",
-      promptText: "それは違うよ!",
+      promptText: "それは違うよ！",
       mediaType: "wav",
     });
     expect(mocks.mkdir).toHaveBeenCalledWith(expect.stringContaining("audio"), { recursive: true });
@@ -202,7 +202,7 @@ function voiceProfile() {
     gptWeightsPath: "D:\\AI\\GPT-SoVITS\\GPT_weights_v2Pro\\miao_mu-e30.ckpt",
     sovitsWeightsPath: "D:\\AI\\GPT-SoVITS\\SoVITS_weights_v2Pro\\miao_mu_e16_s2112.pth",
     refAudioPath: "D:\\AI\\GPT-SoVITS\\logs\\miao_mu\\5-wav32k\\ref.wav",
-    promptText: "それは違うよ!",
+    promptText: "それは違うよ！",
     promptLang: "ja",
     textLang: "ja",
     mediaType: "wav",

@@ -62,6 +62,10 @@ function makeGame(overrides: Partial<HumanGameView> = {}): HumanGameView {
   };
 }
 
+function normalizeHtml(html: string): string {
+  return html.replaceAll("&gt;", ">");
+}
+
 describe("ClassTrialGameTable", () => {
   it("renders the central phase and speaker without identity labels", () => {
     const html = renderToStaticMarkup(
@@ -98,6 +102,66 @@ describe("ClassTrialGameTable", () => {
 
     expect(html).toContain("真实 LLM");
     expect(html).toContain("DeepSeek-v4");
+  });
+
+  it("renders the existing host broadcast toggle inside the class-trial table chrome", () => {
+    const html = renderToStaticMarkup(
+      createElement(ClassTrialGameTable, {
+        game: makeGame(),
+        loading: false,
+        hostAudioEnabled: false,
+        hostAudioStatus: null,
+        onToggleHostAudio: () => undefined,
+        onReturnHome: () => undefined,
+        onSubmit: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain("class-trial-host-audio-toggle");
+    expect(html).toContain('aria-pressed="false"');
+    expect(html).toContain("主持关");
+  });
+
+  it("shows when the existing host broadcast cue is playing in class-trial mode", () => {
+    const html = renderToStaticMarkup(
+      createElement(ClassTrialGameTable, {
+        game: makeGame(),
+        loading: false,
+        hostAudioEnabled: true,
+        hostAudioStatus: { key: "class-trial:game-1:1:NIGHT_WOLVES" },
+        onToggleHostAudio: () => undefined,
+        onReturnHome: () => undefined,
+        onSubmit: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain("class-trial-host-audio-toggle-active");
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain("播报中");
+  });
+
+  it("adds a shallow black haze over the upper court during class-trial night phases", () => {
+    const html = renderToStaticMarkup(
+      createElement(ClassTrialGameTable, {
+        game: makeGame({
+          phase: "NIGHT_WOLVES",
+          phaseLabel: "狼人行动",
+          currentSpeakerSeatId: undefined,
+          currentActorSeatId: 2,
+          tableSummary: {
+            ...makeGame().tableSummary,
+            recentSpeeches: [],
+          },
+        }),
+        loading: false,
+        onReturnHome: () => undefined,
+        onSubmit: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain("class-trial-table-night");
+    expect(html).toContain("class-trial-night-haze");
+    expect(html).toContain("class-trial-seat-night-dim");
   });
 
   it("uses local pack avatars and portraits when a manifest is present", () => {
@@ -196,12 +260,12 @@ describe("ClassTrialGameTable", () => {
     );
 
     expect(html).toContain('data-portrait-id="anon"');
-    expect(html).toContain("--class-trial-portrait-scale:1.28");
+    expect(html).toContain("--class-trial-portrait-scale:1.02");
     expect(html).toContain("--class-trial-portrait-x:0%");
-    expect(html).toContain("--class-trial-portrait-y:-4%");
+    expect(html).toContain("--class-trial-portrait-y:4%");
   });
 
-  it("uses Chihaya Anon's safer thinking portrait layout while her voice is preparing", () => {
+  it("keeps Chihaya Anon's speaking calibration while her thinking portrait is shown", () => {
     const baseGame = makeGame();
     const html = renderToStaticMarkup(
       createElement(ClassTrialGameTable, {
@@ -239,11 +303,10 @@ describe("ClassTrialGameTable", () => {
 
     expect(html).toContain('src="/class-trial-pack/thinking-portraits/千早爱音.png"');
     expect(html).toContain('data-portrait-state="thinking"');
-    expect(html).toContain("--class-trial-portrait-scale:1");
+    expect(html).toContain("--class-trial-portrait-scale:1.02");
     expect(html).toContain("--class-trial-portrait-x:0%");
-    expect(html).toContain("--class-trial-portrait-y:3%");
-    expect(html).not.toContain("--class-trial-portrait-scale:1.28");
-    expect(html).not.toContain("--class-trial-portrait-y:-4%");
+    expect(html).toContain("--class-trial-portrait-y:4%");
+    expect(html).not.toContain("--class-trial-portrait-y:3%");
   });
 
   it("renders Tomori at seat eight without identity labels", () => {
@@ -694,6 +757,160 @@ describe("ClassTrialGameTable", () => {
     expect(html).not.toContain("女巫");
     expect(html).not.toContain("WITCH_POISON");
     expect(html).not.toContain("被毒");
+  });
+
+  it("renders sealed vote progress on class-trial day vote without revealing targets", () => {
+    const baseGame = makeGame();
+    const html = normalizeHtml(
+      renderToStaticMarkup(
+        createElement(ClassTrialGameTable, {
+          game: makeGame({
+            currentSpeakerSeatId: undefined,
+            phase: "DAY_VOTE",
+            phaseLabel: "投票",
+            tableSummary: {
+              ...baseGame.tableSummary,
+              voteSnapshot: {
+                votes: [
+                  {
+                    seq: 10,
+                    day: 2,
+                    voter: { seatId: 1, name: "角色1" },
+                    target: { seatId: 4, name: "隐藏目标" },
+                    reason: "测试理由",
+                  },
+                ],
+                tally: [{ target: { seatId: 4, name: "隐藏目标" }, count: 1 }],
+                leaders: [{ seatId: 4, name: "隐藏目标" }],
+                revealed: false,
+                eligibleSeatIds: [1, 2, 3],
+                lockedSeatIds: [1],
+                pendingSeatIds: [2, 3],
+              },
+            },
+          }),
+          loading: false,
+          onReturnHome: () => undefined,
+          onSubmit: async () => undefined,
+        }),
+      ),
+    );
+
+    expect(html).toContain("class-trial-table-vote-active");
+    expect(html).toContain("class-trial-vote-stage-sealing");
+    expect(html).toContain("封票中");
+    expect(html).toContain("1 / 3");
+    expect(html).toContain("已锁票");
+    expect(html).toContain("等待中");
+    expect(html).toContain("class-trial-seat-vote-locked");
+    expect(html).toContain("class-trial-seat-vote-waiting");
+    expect(html).not.toContain("->");
+    expect(html).not.toContain("测试理由");
+    expect(html).not.toContain("隐藏目标");
+  });
+
+  it("renders the one-shot vote reveal and focuses the leading seat", () => {
+    const baseGame = makeGame();
+    const html = normalizeHtml(
+      renderToStaticMarkup(
+        createElement(ClassTrialGameTable, {
+          game: makeGame({
+            currentSpeakerSeatId: undefined,
+            phase: "EXILE_RESOLUTION",
+            phaseLabel: "放逐结算",
+            tableSummary: {
+              ...baseGame.tableSummary,
+              voteSnapshot: {
+                votes: [
+                  { seq: 10, day: 2, voter: { seatId: 1, name: "角色1" }, target: { seatId: 6, name: "角色6" } },
+                  { seq: 11, day: 2, voter: { seatId: 2, name: "角色2" }, target: { seatId: 6, name: "角色6" } },
+                  { seq: 12, day: 2, voter: { seatId: 3, name: "角色3" }, abstained: true },
+                ],
+                tally: [{ target: { seatId: 6, name: "角色6" }, count: 2 }],
+                abstainCount: 1,
+                leaders: [{ seatId: 6, name: "角色6" }],
+                revealed: true,
+              },
+            },
+          }),
+          loading: false,
+          onReturnHome: () => undefined,
+          onSubmit: async () => undefined,
+        }),
+      ),
+    );
+
+    expect(html).toContain("class-trial-table-vote-reveal");
+    expect(html).toContain("class-trial-seat-vote-focus");
+    expect(html).toContain("开票揭示");
+    expect(html).toContain("6号");
+    expect(html).toContain("2票");
+    expect(html).toContain("1号 -> 6号");
+    expect(html).toContain("3号 -> 弃票");
+  });
+
+  it("renders no-exile vote reveal without focusing a seat", () => {
+    const baseGame = makeGame();
+    const html = normalizeHtml(
+      renderToStaticMarkup(
+        createElement(ClassTrialGameTable, {
+          game: makeGame({
+            currentSpeakerSeatId: undefined,
+            phase: "EXILE_RESOLUTION",
+            phaseLabel: "放逐结算",
+            tableSummary: {
+              ...baseGame.tableSummary,
+              voteSnapshot: {
+                votes: [
+                  {
+                    seq: 10,
+                    day: 2,
+                    voter: { seatId: 1, name: "角色1" },
+                    target: { seatId: 6, name: "角色6" },
+                  },
+                  {
+                    seq: 11,
+                    day: 2,
+                    voter: { seatId: 2, name: "角色2" },
+                    target: { seatId: 7, name: "角色7" },
+                  },
+                ],
+                tally: [
+                  { target: { seatId: 6, name: "角色6" }, count: 1 },
+                  { target: { seatId: 7, name: "角色7" }, count: 1 },
+                ],
+                abstainCount: 0,
+                leaders: [
+                  { seatId: 6, name: "角色6" },
+                  { seatId: 7, name: "角色7" },
+                ],
+                revealed: true,
+              },
+            },
+          }),
+          loading: false,
+          onReturnHome: () => undefined,
+          onSubmit: async () => undefined,
+        }),
+      ),
+    );
+
+    expect(html).toContain("平票无处刑");
+    expect(html).toContain("class-trial-vote-burst-no-exile");
+    expect(html).not.toContain("class-trial-seat-vote-focus");
+  });
+
+  it("keeps ordinary discussion turns free of the vote stage", () => {
+    const html = renderToStaticMarkup(
+      createElement(ClassTrialGameTable, {
+        game: makeGame(),
+        loading: false,
+        onReturnHome: () => undefined,
+        onSubmit: async () => undefined,
+      }),
+    );
+
+    expect(html).not.toContain("class-trial-vote-stage");
   });
 
   it("automatically renders the class-trial verdict review at game over", () => {

@@ -57,15 +57,15 @@ const GENERATED_INTRO_ENTRIES: Record<
   },
   fukawa: {
     displayName: "腐川冬子",
-    textJa: "どうせ私なんて...",
+    textJa: "どうせ私なんて……",
   },
   kirigiri: {
     displayName: "雾切响子",
-    textJa: "ここまで言えば分かるわね?",
+    textJa: "ここまで言えば分かるわね？",
   },
   naegi: {
     displayName: "苗木诚",
-    textJa: "それは違うよ!",
+    textJa: "それは違うよ！",
   },
 };
 

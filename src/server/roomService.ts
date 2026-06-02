@@ -6,6 +6,7 @@ import { getBoardPreset, toBoardSnapshot } from "@/game/boards";
 import { toHumanCommand } from "@/game/commandSchemas";
 import type { HumanCommandInput } from "@/game/commandSchemas";
 import { applyCommand, applySystemStep, createGame, getTurnRequirement } from "@/game/engine";
+import { isPublicActorPhase } from "@/game/phaseSemantics";
 import { buildPlayerView } from "@/game/projection";
 import type { AiFriendConfig, BoardSnapshot, GameState, HumanGameView, Phase, TurnRequirement } from "@/game/types";
 import { getMainGameStorageStatus } from "@/server/gameService";
@@ -1861,7 +1862,7 @@ function buildRoomTurnView(
     rawActorSeatId !== undefined &&
     (currentRequirement.type === "ai" ||
       rawActorSeatId === player?.seatId ||
-      isPublicRoomActorPhase(state.phase));
+      isPublicActorPhase(state.phase));
   const actor = actorIsVisible ? state.seats.find((seat) => seat.seatId === rawActorSeatId) : undefined;
   const isSelfActor = Boolean(currentRequirement.type === "human" && rawActorSeatId === player?.seatId);
   const canHostContinue = Boolean(player?.isHost && currentRequirement.type !== "human");
@@ -1949,22 +1950,6 @@ function buildRoomSeats(room: RoomRecord, seatCount: number): RoomSeatView[] {
       aiName: room.status === "lobby" ? undefined : aiSeat?.name,
     };
   });
-}
-
-function isPublicRoomActorPhase(phase: Phase): boolean {
-  return (
-    phase === "DAY_SPEECH" ||
-    phase === "DAY_VOTE" ||
-    phase === "LAST_WORDS" ||
-    phase === "WOLF_KING_SHOT" ||
-    phase === "SHERIFF_NOMINATION" ||
-    phase === "SHERIFF_SPEECH" ||
-    phase === "SHERIFF_WITHDRAWAL" ||
-    phase === "SHERIFF_VOTE" ||
-    phase === "SHERIFF_PK_SPEECH" ||
-    phase === "SHERIFF_PK_VOTE" ||
-    phase === "SHERIFF_HANDOFF"
-  );
 }
 
 async function assignSeat(room: RoomRecord, playerId: string, seatId: number, previousRevision = roomRevision(room)): Promise<void> {

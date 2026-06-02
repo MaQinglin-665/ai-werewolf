@@ -438,7 +438,7 @@ describe("routed speech provider", () => {
             {
               message: {
                 content: JSON.stringify({
-                  speech: "我是雾切响子。只看已经公开的信息，前置位给出的理由还不够闭合，今天先不要把票打散。",
+                  speech: "雾切响子。可验证部分只有平安夜，空白部分是没有共同核对点；今天先不要把票打散。",
                 }),
               },
             },
@@ -756,6 +756,1164 @@ describe("routed speech provider", () => {
     expect(guideText).toContain("干净模板/后置责任");
     expect(guideText).toContain("不要继续评价“太干净像模板”本身");
     expect(guideText).toContain("谁利用这份干净制造票口");
+  });
+
+  it("adds role-specific repeated abstract pressure guidance instead of another generic gap attack", () => {
+    let state = createGame({ seed: 91, humanSeatId: null });
+    const enoshima = state.seats.find((seat) => seat.isAi && seat.seatId === 5)!;
+    enoshima.name = "江之岛盾子";
+    enoshima.roleCard = roleCardFixture("enoshima", "江之岛盾子");
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [1, 2, 3, 4, 5];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 1,
+      message: "1号苗木先给框架，但没有往下推倾向。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "2号雾切指出1号这个缺口，但自己也没给结论。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 3,
+      message: "3号腐川继续说2号没把缺口往下推，也没有落方向。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [5];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, 5);
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "guided");
+    const guideText = input.playerSpeechGuide.tablePlayerStyle.join("\n");
+
+    expect(guideText).toContain("动态导演提示");
+    expect(guideText).toContain("抽象压力空转");
+    expect(guideText).toContain("角色性格化压力");
+    expect(guideText).toContain("超高校级的分析师");
+    expect(guideText).toContain("全场发言结构");
+    expect(guideText).toContain("反应模式");
+  });
+
+  it("hardens the class-trial director note when everyone keeps attacking the same no-tendency gap", () => {
+    let state = createGame({ seed: 91, humanSeatId: null });
+    const speaker = state.seats.find((seat) => seat.isAi && seat.seatId === 5)!;
+    speaker.name = "江之岛盾子";
+    speaker.roleCard = roleCardFixture("enoshima", "江之岛盾子");
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [1, 2, 3, 4, 5];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 1,
+      message: "1号苗木只留了共同验证点，没有给倾向。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "2号雾切说1号没给票口，这个缺口先挂着。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 3,
+      message: "3号腐川也觉得1号这个缺口没有被说圆。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [5];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, 5);
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "guided");
+    const guideText = input.playerSpeechGuide.tablePlayerStyle.join("\n");
+
+    expect(guideText).toContain("不能把这句作为主轴");
+    expect(guideText).toContain("收益、身份成本、票型成本或反应差");
+  });
+
+  it("steers repeated framework-slide criticism into role-specific benefit pressure", () => {
+    let state = createGame({ seed: 91, humanSeatId: null });
+    const speaker = state.seats.find((seat) => seat.isAi && seat.seatId === 5)!;
+    speaker.name = "江之岛盾子";
+    speaker.roleCard = roleCardFixture("enoshima", "江之岛盾子");
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [1, 2, 3, 4, 5];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 1,
+      message: "1号苗木拿发言顺序当核对基准，但框架没有落地。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "2号雾切说1号把验证责任推给后面，自己也没放立场。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 3,
+      message: "3号腐川说2号也只是话滑过去，没把框架合上。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [5];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, 5);
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "guided");
+    const guideText = input.playerSpeechGuide.tablePlayerStyle.join("\n");
+
+    expect(guideText).toContain("框架滑移/话滑空转");
+    expect(guideText).toContain("不要继续说框架空或谁滑了");
+    expect(guideText).toContain("谁借这个框架拖延立场");
+    expect(guideText).toContain("超高校级的分析师");
+  });
+
+  it("steers repeated peaceful-night vote-bait criticism away from one copied phrase", () => {
+    let state = createGame({ seed: 91, humanSeatId: null });
+    const speaker = state.seats.find((seat) => seat.isAi && seat.seatId === 6)!;
+    speaker.name = "塞蕾丝缇雅";
+    speaker.roleCard = roleCardFixture("celestia", "塞蕾丝缇雅");
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [1, 2, 3, 4, 5, 6];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 1,
+      message: "1号苗木说谁借平安夜催票谁就解释动机。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "2号雾切继续看谁借平安夜催票，但没有补收益分析。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 3,
+      message: "3号腐川也说这条动机缺口还没补上。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [6];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, 6);
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "guided");
+    const guideText = input.playerSpeechGuide.tablePlayerStyle.join("\n");
+
+    expect(guideText).toContain("平安夜催票复读");
+    expect(guideText).toContain("不要再复述谁借平安夜催票");
+    expect(guideText).toContain("谁利用这个母题收取解释权");
+  });
+
+  it("guides public references to include names or short names", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_SPEECH";
+    const speaker = state.seats.find((seat) => seat.isAi && seat.seatId === 1)!;
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+
+    const ordinaryInput = buildConstrainedSpeechInput(buildAgentView(state, speaker.seatId), createSpeechPlan(buildAgentView(state, speaker.seatId)), "guided");
+    const ordinaryGuide = [...ordinaryInput.playerSpeechGuide.tablePlayerStyle, ...ordinaryInput.playerSpeechGuide.avoid].join("\n");
+    expect(ordinaryGuide).toContain("称呼别人尽量带名字");
+    expect(ordinaryGuide).toContain("2号Claude");
+
+    const kirigiri = state.seats.find((seat) => seat.isAi && seat.seatId === 2)!;
+    kirigiri.name = "雾切响子";
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    const classTrialInput = buildConstrainedSpeechInput(buildAgentView(state, kirigiri.seatId), createSpeechPlan(buildAgentView(state, kirigiri.seatId)), "guided");
+    const classTrialGuide = [...classTrialInput.playerSpeechGuide.tablePlayerStyle, ...classTrialInput.playerSpeechGuide.avoid].join("\n");
+
+    expect(classTrialGuide).toContain("2号雾切");
+    expect(classTrialGuide).toContain("5号江之岛");
+    expect(classTrialGuide).toContain("6号塞蕾丝");
+    expect(classTrialGuide).toContain("9号爱音");
+  });
+
+  it("adds class-trial dialogue rewrite guidance that turns werewolf jargon into character lines", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_SPEECH";
+    const enoshima = state.seats.find((seat) => seat.isAi && seat.seatId === 5)!;
+    enoshima.name = "江之岛盾子";
+    enoshima.roleCard = roleCardFixture("enoshima", "江之岛盾子");
+    state.speechQueue = [enoshima.seatId];
+    state.speechIndex = 0;
+
+    const input = buildConstrainedSpeechInput(buildAgentView(state, enoshima.seatId), createSpeechPlan(buildAgentView(state, enoshima.seatId)), "guided");
+    const guideText = [...input.playerSpeechGuide.tablePlayerStyle, ...input.playerSpeechGuide.avoid].join("\n");
+
+    expect(guideText).toContain("台词化转译");
+    expect(guideText).toContain("站边/票口/闭环/缺口");
+    expect(guideText).toContain("角色自己的话");
+    expect(guideText).toContain("不要把所有角色都说成筹码");
+    expect(guideText).toContain("不要把每个人都写成结构分析");
+  });
+
+  it("keeps Fukawa class-trial speech tied to Togami outside the opening turn too", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    const fukawa = state.seats.find((seat) => seat.isAi && seat.seatId === 3)!;
+    fukawa.name = "腐川冬子";
+    fukawa.roleCard = roleCardFixture("fukawa", "腐川冬子");
+    state.speechQueue = [fukawa.seatId];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, fukawa.seatId);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "雾切，你这句话没有把证据接上，我先把这个断点放在这里。", "guided"),
+    ).toContain("腐川发言缺少十神情绪坐标");
+    expect(
+      validateRenderedSpeech(view, plan, "雾切，你这句话别把十神大人也拖进空话里；证据没接上，我先盯这里。", "guided"),
+    ).not.toContain("腐川发言缺少十神情绪坐标");
+  });
+
+  it("rejects class-trial speeches that are mostly werewolf template terminology", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    const kirigiri = state.seats.find((seat) => seat.isAi && seat.seatId === 2)!;
+    kirigiri.name = "雾切响子";
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    state.speechQueue = [kirigiri.seatId];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, kirigiri.seatId);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "我先按公开信息盘，1号没给站边，也没给票口，证据链闭环有缺口，后置位再看。",
+        "guided",
+      ),
+    ).toContain("学级裁判术语过多");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "苗木这段证词合不上；他把问题递给全场，却没有说明自己为什么急着收住话头。",
+        "guided",
+      ),
+    ).not.toContain("学级裁判术语过多");
+  });
+
+  it("rejects bundled class-trial jargon that should be rewritten as character dialogue", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    const kirigiri = state.seats.find((seat) => seat.isAi && seat.seatId === 2)!;
+    kirigiri.name = "雾切响子";
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    state.speechQueue = [kirigiri.seatId];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, kirigiri.seatId);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "雾切这段检验线停在证据链不闭合，黑白熊还在二选一站边，8号也只问站边和票口。",
+        "guided",
+      ),
+    ).toContain("学级裁判术语过多");
+    expect(
+      validateRenderedSpeech(view, plan, "平安夜只是背景，我要抓的是谁的证词还没闭合。", "guided"),
+    ).toContain("学级裁判术语过多");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "雾切这段证词没接上；黑白熊逼人二选一，但没有说明哪一句话真的露出伪装。",
+        "guided",
+      ),
+    ).not.toContain("学级裁判术语过多");
+  });
+
+  it("rejects class-trial check-line references before any public seer claim", () => {
+    let state = createGame({ boardId: "9p-seer-witch-hunter", seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const togami = state.seats[6]!;
+    togami.name = "十神白夜";
+    togami.roleCard = roleCardFixture("togami", "十神白夜");
+    state.speechQueue = [togami.seatId];
+    state.speechIndex = 0;
+    let view = buildAgentView(state, togami.seatId);
+    let plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "好，我知道你手里还攥着一条验人线没摊开。", "guided"),
+    ).toContain("查验线缺少公开身份依据");
+
+    const kirigiri = state.seats[1]!;
+    kirigiri.name = "雾切响子";
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    state.speechQueue = [kirigiri.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: kirigiri.seatId,
+      message: "我跳预言家，昨晚验了1号，金水。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [togami.seatId];
+    state.speechIndex = 0;
+    view = buildAgentView(state, togami.seatId);
+    plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "2号雾切响子的验人线先接着看，我只审她前后证词有没有对上。", "guided"),
+    ).not.toContain("查验线缺少公开身份依据");
+  });
+
+  it("rejects attributing role claims to seats that never publicly claimed them", () => {
+    let state = createGame({ boardId: "9p-seer-witch-hunter", seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const celestia = state.seats[5]!;
+    celestia.name = "塞蕾丝缇雅";
+    celestia.roleCard = roleCardFixture("celestia", "塞蕾丝缇雅");
+    state.speechQueue = [celestia.seatId];
+    state.speechIndex = 0;
+    let view = buildAgentView(state, celestia.seatId);
+    let plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "4号和5号也先后自称猎人，现在桌面上站着三张猎人。", "guided"),
+    ).toContain("把未公开身份的4号说成猎人声明者");
+
+    const kirigiri = state.seats[1]!;
+    kirigiri.name = "雾切响子";
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    state.speechQueue = [kirigiri.seatId];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: kirigiri.seatId,
+      message: "我拍猎人，今天先防止票乱散。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [celestia.seatId];
+    state.speechIndex = 0;
+    view = buildAgentView(state, celestia.seatId);
+    plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "2号雾切响子自称猎人，这个身份声明我先接着看。", "guided"),
+    ).not.toContain("把未公开身份的2号说成猎人声明者");
+  });
+
+  it("adds class-trial low-info opening director so early seats act like characters", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.events.push({
+      seq: state.events.length + 1,
+      type: "DAY_STARTED",
+      visibility: "public",
+      day: 1,
+      phase: "DAY_ANNOUNCEMENT",
+      message: "第1天清晨，昨夜平安夜。",
+      payload: { deadSeatIds: [] },
+    });
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const setup = [
+      [1, "naegi", "苗木诚"],
+      [2, "kirigiri", "雾切响子"],
+      [3, "fukawa", "腐川冬子"],
+      [4, "monokuma", "黑白熊"],
+      [5, "enoshima", "江之岛盾子"],
+      [6, "celestia", "塞蕾丝缇雅"],
+      [7, "togami", "十神白夜"],
+      [8, "tomori", "高松灯"],
+      [9, "anon", "千早爱音"],
+    ] as const;
+    for (const [seatId, id, displayName] of setup) {
+      const seat = state.seats[seatId - 1]!;
+      seat.name = displayName;
+      seat.roleCard = roleCardFixture(id, displayName);
+    }
+
+    const naegiView = buildAgentView(state, 1);
+    const naegiInput = buildConstrainedSpeechInput(naegiView, createSpeechPlan(naegiView), "guided");
+    const naegiGuide = [...naegiInput.playerSpeechGuide.tablePlayerStyle, ...naegiInput.playerSpeechGuide.avoid].join("\n");
+    expect(naegiGuide).toContain("首日低信息开庭导演");
+    expect(naegiGuide).toContain("希望型主持人");
+    expect(naegiGuide).toContain("共同验证点");
+    expect(naegiGuide).toContain("不要写成“发言顺序、站边、票型一起校验”");
+
+    const fukawaView = buildAgentView(state, 3);
+    const fukawaInput = buildConstrainedSpeechInput(fukawaView, createSpeechPlan(fukawaView), "guided");
+    const fukawaGuide = [...fukawaInput.playerSpeechGuide.tablePlayerStyle, ...fukawaInput.playerSpeechGuide.avoid].join("\n");
+    expect(fukawaGuide).toContain("十神大人");
+    expect(fukawaGuide).toContain("不用等十神发言");
+    expect(fukawaGuide).toContain("公开情绪");
+  });
+
+  it("rejects class-trial low-info openings that only announce generic audit frames", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.events.push({
+      seq: state.events.length + 1,
+      type: "DAY_STARTED",
+      visibility: "public",
+      day: 1,
+      phase: "DAY_ANNOUNCEMENT",
+      message: "第1天清晨，昨夜平安夜。",
+      payload: { deadSeatIds: [] },
+    });
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "大家早，昨晚平安夜，女巫用药了。我会把今天的发言顺序、每个人的站边和票型放在一起校验，后置位谁跳身份、谁跟风或回避关键问题，我会先记下来。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "现在证据还少，但我想先定一个大家都能回头核对的点：谁把平安夜当成收票理由，谁只是承认不确定。这个点先放在裁判台上。",
+        "guided",
+      ),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects low-info class-trial first speakers that only greet and restate peace night", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.events.push({
+      seq: state.events.length + 1,
+      type: "DAY_STARTED",
+      visibility: "public",
+      day: 1,
+      phase: "DAY_ANNOUNCEMENT",
+      message: "第1天清晨，昨夜平安夜。",
+      payload: { deadSeatIds: [] },
+    });
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "好的，雾切、大家，早安。平安夜，女巫用药了，至少第一天没人倒牌，这是个好的起点。我是1号苗木诚。", "guided"),
+    ).toContain("首置位发言缺少可验证钩子");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "平安夜是好的起点，但我想先定一个共同验证点：谁把这件事当成收票理由，谁只是承认不确定。",
+        "guided",
+      ),
+    ).not.toContain("首置位发言缺少可验证钩子");
+  });
+
+  it("rejects low-info class-trial openings that keep room-greeting boilerplate", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.events.push({
+      seq: state.events.length + 1,
+      type: "DAY_STARTED",
+      visibility: "public",
+      day: 1,
+      phase: "DAY_ANNOUNCEMENT",
+      message: "第1天清晨，昨夜平安夜。",
+      payload: { deadSeatIds: [] },
+    });
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "大家早上好。昨夜平安夜，女巫用药了，首日信息不多，我想先一起确认一个可以回头验证的点：谁今天的发言是先给结论、再补过程。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "平安夜让我们都还站在裁判台上；我先把希望放在一个能共同确认的地方：谁把这件事拿去急着收票，谁就要把动机说清楚。",
+        "guided",
+      ),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects low-info class-trial openings that treat speech order as a system puzzle", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "我今天坐首置位，信息确实不多，但我想先抛一个能一起检验的点：这条发言顺序是随机排的，还是后排的人故意留到后面？后置位8个人，谁先主动接话谁先跳身份，就是可以回头核对的记录。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "我先把希望放在一个能共同确认的地方：谁接平安夜时急着把别人推上裁判台，谁就要把动机说清楚。",
+        "guided",
+      ),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects low-info class-trial openings that turn later seats into a process checklist", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const kirigiri = state.seats[1]!;
+    kirigiri.name = "雾切响子";
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 1;
+    const view = buildAgentView(state, 2);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "后置位整体我会按发言顺序校验：下一位3号腐川冬子，你接这句话时是补上依据，还是继续留空。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "苗木这句话少的是可复查标准；我先只切这一层，等有人真的把怀疑落到行为上，再看标准能不能成立。",
+        "guided",
+      ),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects first-seat low-info openers that assign the next speaker homework", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "虽然现在信息很少，但我希望大家把发言顺序当成核对基础。下一位，2号雾切，我想先听听你对平安夜的第一反应。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "下一位，2号雾切，先听你的。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "下一位2号雾切，我想听你对平安夜本身会怎么定位。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "平安夜还没把答案交出来；我先把希望放在一个能共同确认的地方：谁急着把别人推上裁判台，谁就说明自己的动机。",
+        "guided",
+      ),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects first-seat low-info openers that defer judgment until the full round finishes", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "我先提一个能回头核对的点：今天全桌的发言顺序和每个人的态度，等第一轮发言走完可以拉一条线来验证。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "这个前后顺序，等第一轮走完后我们能一起查。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "等所有人发完言后，看看谁在平安夜这个结果上带节奏。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "等到所有人发言结束之后，我们回头看看谁主动给出了怀疑方向。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "后面的人发言时，我会留意谁愿意把证词说清楚。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "后置位的各位，等你们发言时，我希望能看到明确的判断理由。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "平安夜还没把答案交出来；谁把不确定说成确定，谁就把依据说清楚。",
+        "guided",
+      ),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects low-info class-trial lines that wait for later seats before judging", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const kirigiri = state.seats[1]!;
+    kirigiri.name = "雾切响子";
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 1;
+    const view = buildAgentView(state, 2);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "我先轻记这个门槛，等后置位谁先在这里定人或推票，我再回头看这条动机链能不能合上。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "苗木把门槛设在尚未发生的动作上；我现在只切这一点，不把判断推给别人替我完成。",
+        "guided",
+      ),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects low-info class-trial lines that wait for later-seat opinions as the main action", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "我先不多说，等听完雾切和后面几位的想法，我们再一起对照。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "我先把希望放在一条能共同确认的线上：谁把不确定说成确定，谁就把依据说清楚。",
+        "guided",
+      ),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects low-info class-trial variants that wait for all later seats to finish", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "第一天信息确实很少，我会先听着，等后置位都说完再对照每个人的逻辑。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "后置位我会跟听，今晚之前所有人的发言顺序和票型我会一起验证。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "平安夜还没把答案交出来；谁把不确定说成确定，谁就把依据说清楚。", "guided"),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects first-seat low-info openers that outsource suspicion targets to later seats", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "我先放一个全桌能回头看的点：后置位谁会在没有前置压力的情况下，主动提出一个明确的怀疑对象或出人方向。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "平安夜还没把答案交出来；我先把希望放在一个能共同确认的地方：谁把不确定说成确定，谁就把依据说清楚。",
+        "guided",
+      ),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects first-seat low-info openers that wait for future claims as the main content", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "后面如果有人直接给出明确的身份声明或查验结论，我们就能拿那个人的前后发言对照着看。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "第一轮发言的态度和用词，我会记下来作为后续校验的起点。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "平安夜还没把答案交出来；我先把希望放在一个能共同确认的地方：谁把不确定说成确定，谁就把依据说清楚。",
+        "guided",
+      ),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects low-info class-trial speakers who defer their own judgment to future identity claims", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const kirigiri = state.seats[1]!;
+    kirigiri.name = "雾切响子";
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 1;
+    const view = buildAgentView(state, 2);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "我先记下这个开口点的硬度，等后面身份声明出来再对照。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "我会先压1号苗木诚，等后面有人拍身份出来再调整。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "雾切原话是“等身份声明出来再对照”，我现在就审这句为什么把判断推迟了。", "guided"),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects low-info class-trial lines that turn speech order into the pressure point", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const naegi = state.seats[0]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "我想先从发言顺序上留一个共同验证点。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "我会把发言顺序和前后逻辑串起来看。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "平安夜还没把答案交出来；谁把不确定说成确定，谁就把依据说清楚。", "guided"),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects low-info class-trial lines that park judgment on the whole later block", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const fukawa = state.seats[2]!;
+    fukawa.name = "腐川冬子";
+    fukawa.roleCard = roleCardFixture("fukawa", "腐川冬子");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 2;
+    const view = buildAgentView(state, 3);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "后置位整体先听一轮，4号黑白熊如果也滑过去，今天这条链就全是空转。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "雾切响子把问题推回苗木诚，却没把自己的落点交出来；别把这种空白也拖到十神大人面前。", "guided"),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects class-trial low-info speech that names the opener as a low-floor start", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const kirigiri = state.seats[1]!;
+    kirigiri.name = "雾切响子";
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 1;
+    const view = buildAgentView(state, 2);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "苗木这个低保开局没有给我能复查的证据，只是把压力放给后面的人。", "guided"),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "苗木把证据留得太薄；我先切这一点，不替他把空白补成结论。", "guided"),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("rejects low-info class-trial lines that turn the next seat into a dramatic assignment", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const fukawa = state.seats[2]!;
+    fukawa.name = "腐川冬子";
+    fukawa.roleCard = roleCardFixture("fukawa", "腐川冬子");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 2;
+    const view = buildAgentView(state, 3);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "下一位黑白熊，你听好了：苗木和雾切都在绕圈，轮到你先告诉我这条空话里谁最受益。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "下一位5号江之岛盾子，轮到你时替我盯住：苗木这个框到底想收谁的跟风。",
+        "guided",
+      ),
+    ).toContain("学级裁判低信息开局过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "苗木和雾切都把话说得太轻，别把这种空白也拖到十神大人面前碍眼。", "guided"),
+    ).not.toContain("学级裁判低信息开局过于模板化");
+  });
+
+  it("keeps Celestia's chip metaphor from spreading to every class-trial role", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const kirigiri = state.seats[1]!;
+    kirigiri.name = "雾切响子";
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 1;
+    const kirigiriView = buildAgentView(state, 2);
+    const kirigiriPlan = createSpeechPlan(kirigiriView);
+
+    expect(
+      validateRenderedSpeech(kirigiriView, kirigiriPlan, "苗木没有放任何筹码，我先把这个缺口记下。", "guided"),
+    ).toContain("非塞蕾丝发言滥用筹码口吻");
+    expect(
+      validateRenderedSpeech(kirigiriView, kirigiriPlan, "苗木这句话少了可复查标准，我先把这个断点记下。", "guided"),
+    ).not.toContain("非塞蕾丝发言滥用筹码口吻");
+
+    const celestia = state.seats[5]!;
+    celestia.name = "塞蕾丝缇雅";
+    celestia.roleCard = roleCardFixture("celestia", "塞蕾丝缇雅");
+    const celestiaView = buildAgentView(state, 6);
+    const celestiaPlan = createSpeechPlan(celestiaView);
+
+    expect(
+      validateRenderedSpeech(celestiaView, celestiaPlan, "这枚筹码我先压在苗木身上，看他怎么拆。", "guided"),
+    ).not.toContain("非塞蕾丝发言滥用筹码口吻");
+  });
+
+  it("requires Fukawa low-info openings to show Togami-oriented public emotion", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const fukawa = state.seats[2]!;
+    fukawa.name = "腐川冬子";
+    fukawa.roleCard = roleCardFixture("fukawa", "腐川冬子");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 2;
+    const view = buildAgentView(state, 3);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "雾切响子，你紧接着就咬苗木只给了已知信息，自己却也没给出任何方向，只是把他扔进观察位。",
+        "guided",
+      ),
+    ).toContain("腐川低信息开局缺少十神情绪坐标");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "十神大人还没开口，我就已经受不了你们把空话堆到他面前；雾切，你把苗木挂起来，却没有承担结论。",
+        "guided",
+      ),
+    ).not.toContain("腐川低信息开局缺少十神情绪坐标");
+  });
+
+  it("keeps low-info class-trial guards active when an opener only mentions future voting review", () => {
+    let state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    const naegi = state.seats[0]!;
+    const kirigiri = state.seats[1]!;
+    const fukawa = state.seats[2]!;
+    naegi.name = "苗木诚";
+    kirigiri.name = "雾切响子";
+    fukawa.name = "腐川冬子";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    fukawa.roleCard = roleCardFixture("fukawa", "腐川冬子");
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 1,
+      message: "平安夜是公开信息，我先留共同验证点：发言顺序和给出的理由，能否在投票时形成闭环。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "可验证部分只有平安夜，空白部分是还没有共同核对点。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 3);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "雾切，你刚才问苗木更关注哪类异常，自己却没落一个可验证倾向。",
+        "guided",
+      ),
+    ).toContain("腐川低信息开局缺少十神情绪坐标");
+  });
+
+  it("requires Enoshima low-info openings to lead with analyst structure instead of empty spectacle", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const enoshima = state.seats[4]!;
+    enoshima.name = "江之岛盾子";
+    enoshima.roleCard = roleCardFixture("enoshima", "江之岛盾子");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 4;
+    const view = buildAgentView(state, 5);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "前面几位绕着安全发言来回打转，等于四个人轮流把同一个空罐子传了一圈。", "guided"),
+    ).toContain("江之岛低信息开局缺少分析师结构");
+    expect(
+      validateRenderedSpeech(view, plan, "苗木这条空转链上谁最受益，我先把这个裂口记下。", "guided"),
+    ).toContain("江之岛低信息开局缺少分析师结构");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "结构分析先摆出来：这条空转链里最有收益的位置，是那个把安全发言变成跟压工具的人。",
+        "guided",
+      ),
+    ).not.toContain("江之岛低信息开局缺少分析师结构");
+  });
+
+  it("keeps Enoshima analyst guard active after negative no-ticket wording", () => {
+    let state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const naegi = state.seats[0]!;
+    const enoshima = state.seats[4]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    enoshima.name = "江之岛盾子";
+    enoshima.roleCard = roleCardFixture("enoshima", "江之岛盾子");
+    state.speechQueue = [1, 5];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 1,
+      message: "目前还没有任何人给出站边或票口，我先只看谁把平安夜拿去做文章。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [5];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 5);
+    const plan = createSpeechPlan(view);
+
+    expect(validateRenderedSpeech(view, plan, "啊……绝望的开场。苗木把自己从路标下摘出去了。", "guided")).toContain(
+      "江之岛低信息开局缺少分析师结构",
+    );
+    expect(validateRenderedSpeech(view, plan, "结构先摆出来：谁借平安夜空白获利，谁的反应模式最像伪装。", "guided")).not.toContain(
+      "江之岛低信息开局缺少分析师结构",
+    );
+  });
+
+  it("rejects generic class-trial waiting for all later seats to finish", () => {
+    let state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const naegi = state.seats[0]!;
+    const kirigiri = state.seats[1]!;
+    naegi.name = "苗木诚";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    kirigiri.name = "雾切响子";
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 1,
+      message: "1号苗木诚只说平安夜。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 2);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(view, plan, "我倾向先把苗木放进观察位，等后置位所有人过完一轮，再回看他有没有接应或跟压。", "guided"),
+    ).toContain("学级裁判发言过于模板化");
+    expect(
+      validateRenderedSpeech(view, plan, "苗木这句只有平安夜事实，可验证部分到此为止；空白部分是他没有留下共同核对点。", "guided"),
+    ).not.toContain("学级裁判发言过于模板化");
+  });
+
+  it("rejects final class-trial speakers who keep waiting for later seats", () => {
+    let state = createGame({ boardId: "9p-seer-witch-hunter", seed: 98, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    const setup = [
+      [1, "naegi", "苗木诚"],
+      [2, "kirigiri", "雾切响子"],
+      [3, "fukawa", "腐川冬子"],
+      [4, "monokuma", "黑白熊"],
+      [5, "enoshima", "江之岛盾子"],
+      [6, "celestia", "塞蕾丝缇雅"],
+      [7, "togami", "十神白夜"],
+      [8, "tomori", "高松灯"],
+      [9, "anon", "千早爱音"],
+    ] as const;
+    for (const [seatId, id, displayName] of setup) {
+      const seat = state.seats[seatId - 1]!;
+      seat.name = displayName;
+      seat.roleCard = roleCardFixture(id, displayName);
+    }
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    for (const [seatId, , displayName] of setup.slice(0, 8)) {
+      state = applyCommand(state, {
+        type: "speak",
+        actorSeatId: seatId,
+        message: `${seatId}号${displayName}先留一个公开点。`,
+      });
+    }
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 9);
+    const plan = createSpeechPlan(view);
+    const guide = buildConstrainedSpeechInput(view, plan, "guided").playerSpeechGuide.tablePlayerStyle.join("\n");
+
+    expect(guide).toContain("今天最后一个发言位");
+    expect(
+      validateRenderedSpeech(view, plan, "6号塞蕾丝这个声明可以等后置位核对，我先不卡你跳的时机。", "guided"),
+    ).toContain("最后位不能等待后置位");
+    expect(
+      validateRenderedSpeech(view, plan, "6号塞蕾丝这个声明已经到我这里收束，我不等后置，只看她跳身份前后有没有解释成本。", "guided"),
+    ).not.toContain("最后位不能等待后置位");
   });
 
   it("keeps the class-trial lens as prompt guidance while baseline style checks catch templates", () => {
@@ -1345,6 +2503,63 @@ describe("mock speech provider", () => {
     expect(input.inferenceLayers.privateUnknowns.join("\n")).toContain("女巫是谁");
   });
 
+  it("adds universal de-template guidance to ordinary werewolf speech input", () => {
+    let state = createGame({ seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [1, 2, 3, 4];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 1,
+      message: "1号发言。我先按公开信息盘，前面没人给站边就先观察。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "2号发言。1号没有站边也没有票口，这个疑点先放着。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 3,
+      message: "3号发言。我也觉得1号没给票口，今天先看这个缺口。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [4];
+    state.speechIndex = 0;
+
+    const view = buildAgentView(state, 4);
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "guided");
+    const guideText = [
+      ...input.playerSpeechGuide.tablePlayerStyle,
+      ...input.playerSpeechGuide.softInteraction,
+      ...input.playerSpeechGuide.avoid,
+    ].join("\n");
+
+    expect(guideText).toContain("通用去模板");
+    expect(guideText).toContain("不要继续复读没站边/没票口");
+    expect(guideText).toContain("身份收益");
+    expect(guideText).toContain("票型动机");
+    expect(guideText).toContain("反应差");
+    expect(guideText).toContain("可验证条件");
+  });
+
+  it("rejects ordinary empty-template chains without blocking concrete pressure", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [1];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(validateRenderedSpeech(view, plan, "我先按公开信息盘，这个疑点未解除，票口先放这里。", "guided")).toContain(
+      "发言过于模板化",
+    );
+    expect(validateRenderedSpeech(view, plan, "2号刚才把平安夜说死成女巫用药，我先压这个过度确定；后置位只看谁顺手拿它收票。", "guided")).not.toContain(
+      "发言过于模板化",
+    );
+  });
+
   it("treats repeated peaceful-night mentions as settled context instead of an active talking point", () => {
     let state = createGame({ boardId: "9p-seer-witch-hunter", seed: 92, humanSeatId: null });
     state.day = 1;
@@ -1679,6 +2894,172 @@ describe("mock speech provider", () => {
     expect(result.isFallback).toBe(true);
     expect(result.speech).toMatch(/9号.*还没发言，我不提前评价/);
     expect(result.speech).not.toContain("9号这条线先留着");
+  });
+
+  it("class-trial low-info first-speaker fallback does not pressure an unspoken next seat", async () => {
+    process.env.AI_LLM_MAX_RETRIES = "0";
+    const state = createGame({ seed: 91, humanSeatId: null });
+    const naegi = state.seats.find((seat) => seat.seatId === 1)!;
+    const kirigiri = state.seats.find((seat) => seat.seatId === 2)!;
+    naegi.name = "苗木诚";
+    kirigiri.name = "雾切响子";
+    naegi.roleCard = roleCardFixture("naegi", "苗木诚");
+    kirigiri.roleCard = roleCardFixture("kirigiri", "雾切响子");
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, naegi.seatId);
+    const plan = {
+      ...createSpeechPlan(view),
+      target: kirigiri,
+      targetSpeechStatus: "unspoken" as const,
+      allowedInteraction: "ask_future" as const,
+      speechMove: "ask_unspoken_target" as const,
+    };
+    const provider = createConstrainedLlmSpeechProvider({
+      providerId: "test-speech",
+      render: async () => {
+        throw new Error("provider down");
+      },
+    });
+
+    const result = await provider.generateSpeech(view, plan);
+
+    expect(result.isFallback).toBe(true);
+    expect(result.speech).not.toContain("2号雾切");
+    expect(result.speech).toContain("希望");
+    expect(result.speech).toContain("共同验证");
+    expect(result.speech).not.toContain("信息少");
+    expect(result.speech).not.toContain("借平安夜催票");
+    expect(validateRenderedSpeech(view, plan, result.speech, "guided")).not.toContain("提前评价未发言的2号站边或可信度");
+  });
+
+  it("class-trial low-info Fukawa fallback keeps Togami as the public emotion coordinate", async () => {
+    process.env.AI_LLM_MAX_RETRIES = "0";
+    let state = createGame({ seed: 91, humanSeatId: null });
+    const namesBySeat = new Map<number, readonly [string, string]>([
+      [1, ["naegi", "苗木诚"]],
+      [2, ["kirigiri", "雾切响子"]],
+      [3, ["fukawa", "腐川冬子"]],
+      [7, ["togami", "十神白夜"]],
+    ]);
+    for (const seat of state.seats) {
+      const fixture = namesBySeat.get(seat.seatId);
+      if (!fixture) continue;
+      seat.name = fixture[1];
+      seat.roleCard = roleCardFixture(fixture[0], fixture[1]);
+    }
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 1,
+      message: "我们先留一个共同验证点，看谁借平安夜急着收票。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "可验证部分只有平安夜，空白部分是还没有共同核对点。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 3);
+    const plan = createSpeechPlan(view);
+    const provider = createConstrainedLlmSpeechProvider({
+      providerId: "test-speech",
+      render: async () => {
+        throw new Error("provider down");
+      },
+    });
+
+    const result = await provider.generateSpeech(view, plan);
+
+    expect(result.isFallback).toBe(true);
+    expect(result.speech).toContain("十神");
+    expect(validateRenderedSpeech(view, plan, result.speech, "guided")).not.toContain("腐川低信息开局缺少十神情绪坐标");
+  });
+
+  it("keeps Fukawa validation fallback tied to Togami after a hard-info turn", async () => {
+    process.env.AI_LLM_MAX_RETRIES = "0";
+    let state = createGame({ seed: 91, humanSeatId: null });
+    const namesBySeat = new Map<number, readonly [string, string]>([
+      [1, ["naegi", "苗木诚"]],
+      [2, ["kirigiri", "雾切响子"]],
+      [3, ["fukawa", "腐川冬子"]],
+      [7, ["togami", "十神白夜"]],
+    ]);
+    for (const seat of state.seats) {
+      const fixture = namesBySeat.get(seat.seatId);
+      if (!fixture) continue;
+      seat.name = fixture[1];
+      seat.roleCard = roleCardFixture(fixture[0], fixture[1]);
+    }
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 1,
+      message: "平安夜先留一个共同验证点，别急着收票。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "猎人的枪就在这里；谁把票往我身上推，先把公开理由说完整。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [3, 4, 5, 6, 7, 8, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 3);
+    const plan = createSpeechPlan(view);
+    const provider = createConstrainedLlmSpeechProvider({
+      providerId: "test-speech",
+      render: async () =>
+        JSON.stringify({
+          speech: "雾切响子，身份这句话没有说清，我先把这个断点放在这里。",
+        }),
+    });
+
+    const result = await provider.generateSpeech(view, plan);
+
+    expect(result.isFallback).toBe(true);
+    expect(result.speech).toContain("十神");
+    expect(result.speech).not.toContain("提到身份相关词");
+    expect(result.speech).not.toContain("公开形态");
+    expect(validateRenderedSpeech(view, plan, result.speech, "guided")).not.toContain("腐川发言缺少十神情绪坐标");
+  });
+
+  it("keeps Togami low-info fallback in character instead of saying low-info jargon", async () => {
+    process.env.AI_LLM_MAX_RETRIES = "0";
+    const state = createGame({ seed: 91, humanSeatId: null });
+    const togami = state.seats.find((seat) => seat.seatId === 7)!;
+    togami.name = "十神白夜";
+    togami.roleCard = roleCardFixture("togami", "十神白夜");
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [7];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 7);
+    const plan = createSpeechPlan(view);
+    const provider = createConstrainedLlmSpeechProvider({
+      providerId: "test-speech",
+      render: async () => {
+        throw new Error("provider down");
+      },
+    });
+
+    const result = await provider.generateSpeech(view, plan);
+
+    expect(result.isFallback).toBe(true);
+    expect(result.speech).toContain("合格线");
+    expect(result.speech).not.toContain("低信息");
+    expect(result.speech).not.toContain("站边");
+    expect(result.speech).not.toContain("票口");
   });
 
   it("exposes the complete current-day speech order to the LLM", () => {

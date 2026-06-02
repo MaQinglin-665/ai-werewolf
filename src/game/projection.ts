@@ -12,6 +12,7 @@ import {
 import { buildWolfTeamPlan } from "./campStrategy";
 import { isSupportedRoleClaim } from "./claims";
 import { PHASE_LABELS, ROLE_LABELS } from "./labels";
+import { isPublicActorPhase } from "./phaseSemantics";
 import { buildGameReview } from "./review";
 import { isWolfRole } from "./roleUtils";
 import { buildTableMemory } from "./tableMemory";
@@ -24,10 +25,9 @@ import type {
   HumanGameView,
   Phase,
   PublicSpeechItem,
-  PublicVoteItem,
-  PublicVoteSnapshot,
   AiFriendRuntimeLlmConfig,
 } from "./types";
+import { buildPublicSheriffVoteSnapshot, buildPublicVoteSnapshot, buildRecentPublicVotes } from "./voteSnapshot";
 
 type HumanViewOptions = {
   allowFlowControls?: boolean;
@@ -216,7 +216,7 @@ function resolveSeatRuntimeLlmConfig(
 function buildPublicSummary(state: GameState): AgentView["publicSummary"] {
   const tableMemory = buildTableMemory(state);
   const recentSpeeches = buildRecentSpeeches(state);
-  const recentVotes = buildRecentVotes(state);
+  const recentVotes = buildRecentPublicVotes(state);
   const recentDeaths = state.events
     .filter(
       (event) =>
@@ -236,8 +236,8 @@ function buildPublicSummary(state: GameState): AgentView["publicSummary"] {
   return {
     recentSpeeches,
     recentVotes,
-    voteSnapshot: buildVoteSnapshot(state),
-    sheriffVoteSnapshot: buildSheriffVoteSnapshot(state),
+    voteSnapshot: buildPublicVoteSnapshot(state),
+    sheriffVoteSnapshot: buildPublicSheriffVoteSnapshot(state),
     recentDeaths,
     deathSummary: recentDeaths,
     claimBoard: tableMemory.claimBoard,
@@ -259,141 +259,6 @@ function buildRecentSpeeches(state: GameState): PublicSpeechItem[] {
         message: readString(event.payload, "message") ?? event.message,
       };
     });
-}
-
-function buildRecentVotes(state: GameState): PublicVoteItem[] {
-  const revealedDays = new Set(state.events.filter((event) => event.type === "VOTE_REVEALED").map((event) => event.day));
-  if (state.phase === "DAY_VOTE" || revealedDays.size === 0) return [];
-
-  return state.events
-    .filter((event) => event.type === "VOTE_CAST" && revealedDays.has(event.day))
-    .slice(-12)
-    .map((event) => {
-      const voterSeatId = readNumber(event.payload, "voterSeatId") ?? event.actorSeatId;
-      const targetSeatId = readNumber(event.payload, "targetSeatId");
-      if (!voterSeatId) return undefined;
-      const item: PublicVoteItem = {
-        seq: event.seq,
-        day: event.day,
-        voter: toTarget(getSeat(state, voterSeatId)),
-        ...(targetSeatId ? { target: toTarget(getSeat(state, targetSeatId)) } : { abstained: true }),
-        reason: typeof event.payload.reason === "string" ? event.payload.reason : undefined,
-      };
-      return item;
-    })
-    .filter((vote): vote is PublicVoteItem => Boolean(vote));
-}
-
-function buildRecentSheriffVotes(state: GameState, revealEvent: GameEvent | undefined): PublicVoteItem[] {
-  if (!revealEvent) return [];
-
-  const previousBoundarySeq =
-    [...state.events]
-      .reverse()
-      .find(
-        (event) =>
-          event.seq < revealEvent.seq && (event.type === "SHERIFF_VOTE_REVEALED" || event.type === "SHERIFF_PK_STARTED"),
-      )?.seq ?? 0;
-
-  return state.events
-    .filter(
-      (event) =>
-        event.type === "SHERIFF_VOTE_CAST" &&
-        event.day === revealEvent.day &&
-        event.seq > previousBoundarySeq &&
-        event.seq < revealEvent.seq,
-    )
-    .map((event) => {
-      const voterSeatId = readNumber(event.payload, "voterSeatId") ?? event.actorSeatId;
-      const targetSeatId = readNumber(event.payload, "targetSeatId");
-      if (!voterSeatId) return undefined;
-      const item: PublicVoteItem = {
-        seq: event.seq,
-        day: event.day,
-        voter: toTarget(getSeat(state, voterSeatId)),
-        ...(targetSeatId ? { target: toTarget(getSeat(state, targetSeatId)) } : { abstained: true }),
-        reason: typeof event.payload.reason === "string" ? event.payload.reason : undefined,
-      };
-      return item;
-    })
-    .filter((vote): vote is PublicVoteItem => Boolean(vote));
-}
-
-function buildVoteSnapshot(state: GameState): PublicVoteSnapshot {
-  if (state.phase === "DAY_VOTE") {
-    return {
-      votes: [],
-      tally: [],
-      leaders: [],
-      revealed: false,
-    };
-  }
-
-  const revealEvent = [...state.events].reverse().find((event) => event.type === "VOTE_REVEALED");
-  const rawTally = Array.isArray(revealEvent?.payload.tally) ? revealEvent.payload.tally : [];
-  const tally = rawTally
-    .map((item) => {
-      if (!item || typeof item !== "object") return undefined;
-      const targetSeatId = "targetSeatId" in item && typeof item.targetSeatId === "number" ? item.targetSeatId : undefined;
-      const count = "votes" in item && typeof item.votes === "number" ? item.votes : undefined;
-      if (!targetSeatId || count === undefined) return undefined;
-      return {
-        target: toTarget(getSeat(state, targetSeatId)),
-        count,
-      };
-    })
-    .filter((item): item is { target: ActionTarget; count: number } => Boolean(item))
-    .sort((a, b) => b.count - a.count || a.target.seatId - b.target.seatId);
-  const topCount = tally[0]?.count ?? 0;
-
-  return {
-    votes: buildRecentVotes(state).filter((vote) => vote.day === revealEvent?.day),
-    tally,
-    abstainCount:
-      typeof revealEvent?.payload.abstainCount === "number" ? revealEvent.payload.abstainCount : undefined,
-    leaders: tally.filter((item) => item.count === topCount && topCount > 0).map((item) => item.target),
-    revealed: Boolean(revealEvent),
-  };
-}
-
-function buildSheriffVoteSnapshot(state: GameState): PublicVoteSnapshot | undefined {
-  if (!state.rules.hasSheriff) return undefined;
-  if (state.phase === "SHERIFF_VOTE" || state.phase === "SHERIFF_PK_VOTE") {
-    return {
-      votes: [],
-      tally: [],
-      leaders: [],
-      revealed: false,
-    };
-  }
-
-  const revealEvent = [...state.events].reverse().find((event) => event.type === "SHERIFF_VOTE_REVEALED");
-  if (!revealEvent) return undefined;
-
-  const rawTally = Array.isArray(revealEvent.payload.tally) ? revealEvent.payload.tally : [];
-  const tally = rawTally
-    .map((item) => {
-      if (!item || typeof item !== "object") return undefined;
-      const targetSeatId = "targetSeatId" in item && typeof item.targetSeatId === "number" ? item.targetSeatId : undefined;
-      const count = "votes" in item && typeof item.votes === "number" ? item.votes : undefined;
-      if (!targetSeatId || count === undefined) return undefined;
-      return {
-        target: toTarget(getSeat(state, targetSeatId)),
-        count,
-      };
-    })
-    .filter((item): item is { target: ActionTarget; count: number } => Boolean(item))
-    .sort((a, b) => b.count - a.count || a.target.seatId - b.target.seatId);
-  const topCount = tally[0]?.count ?? 0;
-
-  return {
-    votes: buildRecentSheriffVotes(state, revealEvent),
-    tally,
-    abstainCount:
-      typeof revealEvent.payload.abstainCount === "number" ? revealEvent.payload.abstainCount : undefined,
-    leaders: tally.filter((item) => item.count === topCount && topCount > 0).map((item) => item.target),
-    revealed: true,
-  };
 }
 
 function buildPhaseSteps(state: GameState): HumanGameView["tableSummary"]["phaseSteps"] {
@@ -686,23 +551,6 @@ function visibleCurrentActorSeatId(
   }
 
   return undefined;
-}
-
-function isPublicActorPhase(phase: Phase): boolean {
-  return (
-    phase === "DAY_SPEECH" ||
-    phase === "KNIGHT_DUEL" ||
-    phase === "DAY_VOTE" ||
-    phase === "LAST_WORDS" ||
-    phase === "WOLF_KING_SHOT" ||
-    phase === "SHERIFF_NOMINATION" ||
-    phase === "SHERIFF_SPEECH" ||
-    phase === "SHERIFF_WITHDRAWAL" ||
-    phase === "SHERIFF_VOTE" ||
-    phase === "SHERIFF_PK_SPEECH" ||
-    phase === "SHERIFF_PK_VOTE" ||
-    phase === "SHERIFF_HANDOFF"
-  );
 }
 
 function getVisibleCurrentSpeakerSeatId(state: GameState): number | undefined {

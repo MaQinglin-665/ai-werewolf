@@ -153,15 +153,15 @@ describe("class trial theme model", () => {
     });
   });
 
-  it("calibrates Chihaya Anon larger and higher after replacing her portrait", () => {
+  it("calibrates Chihaya Anon with top headroom after replacing her portrait", () => {
     const layouts = CLASS_TRIAL_CHARACTER_ROSTER.map((_, index) => getClassTrialCharacterForSeat(index, undefined).portraitLayout);
 
     expect(layouts).toHaveLength(9);
     expect(layouts.every(Boolean)).toBe(true);
     expect(getClassTrialCharacterForSeat(8, undefined).portraitLayout).toEqual({
-      scale: 1.28,
+      scale: 1.02,
       x: 0,
-      y: -4,
+      y: 4,
     });
     expect(getClassTrialCharacterForSeat(7, undefined).portraitLayout).toMatchObject({
       scale: expect.any(Number),
@@ -170,30 +170,22 @@ describe("class trial theme model", () => {
     });
   });
 
-  it("keeps Chihaya Anon's thinking portrait framed with extra headroom", () => {
+  it("lets Chihaya Anon's thinking portrait inherit the speaking calibration", () => {
     const anon = getClassTrialCharacterForSeat(8, undefined);
 
     expect(anon.portraitLayout).toEqual({
-      scale: 1.28,
+      scale: 1.02,
       x: 0,
-      y: -4,
+      y: 4,
     });
-    expect(anon.thinkingPortraitLayout).toEqual({
-      scale: 1,
-      x: 0,
-      y: 3,
-    });
+    expect(anon.thinkingPortraitLayout).toBeUndefined();
   });
 
   it("reserves top headroom for non-baseline speaking portraits", () => {
-    for (const [index, character] of CLASS_TRIAL_CHARACTER_ROSTER.entries()) {
+    for (const index of CLASS_TRIAL_CHARACTER_ROSTER.keys()) {
       const layout = getClassTrialCharacterForSeat(index, undefined).portraitLayout!;
 
-      if (character.id === "anon") {
-        expect(layout.y).toBeLessThan(0);
-      } else {
-        expect(layout.y).toBeGreaterThan(0);
-      }
+      expect(layout.y).toBeGreaterThan(0);
     }
 
     expect(getClassTrialCharacterForSeat(2, undefined).portraitLayout?.scale).toBeLessThan(1);

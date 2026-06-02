@@ -675,6 +675,9 @@ export type PublicVoteSnapshot = {
   abstainCount?: number;
   leaders: ActionTarget[];
   revealed: boolean;
+  eligibleSeatIds?: number[];
+  lockedSeatIds?: number[];
+  pendingSeatIds?: number[];
 };
 
 export type ClaimBoardItem = {

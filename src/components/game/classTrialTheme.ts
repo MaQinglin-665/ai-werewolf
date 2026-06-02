@@ -70,12 +70,10 @@ export const CLASS_TRIAL_PORTRAIT_LAYOUTS: Record<ClassTrialCharacterId, ClassTr
   celestia: { scale: 0.98, x: 0, y: 4 },
   togami: { scale: 0.98, x: 0, y: 4 },
   tomori: { scale: 1, x: 0, y: 3 },
-  anon: { scale: 1.28, x: 0, y: -4 },
+  anon: { scale: 1.02, x: 0, y: 4 },
 };
 
-export const CLASS_TRIAL_THINKING_PORTRAIT_LAYOUTS: Partial<Record<ClassTrialCharacterId, ClassTrialPortraitLayout>> = {
-  anon: { scale: 1, x: 0, y: 3 },
-};
+export const CLASS_TRIAL_THINKING_PORTRAIT_LAYOUTS: Partial<Record<ClassTrialCharacterId, ClassTrialPortraitLayout>> = {};
 
 export type ClassTrialPackManifest = {
   id: string;

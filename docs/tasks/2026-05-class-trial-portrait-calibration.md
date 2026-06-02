@@ -78,7 +78,7 @@ Files or directories the agent should not edit:
 This task is complete when:
 
 - Each fixed class-trial character has a portrait layout entry.
-- 千早爱音 uses the accepted transparent standing portrait and is enlarged/up-shifted to better match 高松灯's visual size.
+- 千早爱音 uses the accepted transparent standing portrait and is calibrated with enough top headroom in the fixed portrait frame.
 - The speaking portrait image receives CSS variables for scale and offset.
 - The portrait frame has stable dimensions and bottom-centered containment.
 - Dialogue layout remains left portrait plus right speech box, with hidden identities.
@@ -138,7 +138,7 @@ Completed:
 - Follow-up recording-cleanliness pass: split action-seat highlighting from speaking focus so portrait/dialogue only render for `currentSpeakerSeatId`; action and waiting phases hide the focus area.
 - Follow-up background clarity pass: ring blur/opacity now follows the speaking focus state, so non-speaking action/wait phases keep a clear ring table.
 - Follow-up speech staging pass: added class-trial focus enter/exit state, active-seat callout, portrait slide/fade, dialogue pop-in, and reduced-motion fallbacks.
-- Follow-up 千早爱音 pass: replaced the unsuitable scene/card portrait with the local ignored transparent `Mygo_anime_anon.png` standing portrait, updated its source page in the ignored local manifest, and tuned the layout to `scale: 1.28`, `y: -4`.
+- Follow-up 千早爱音 pass: replaced the unsuitable scene/card portrait with the local ignored transparent `Mygo_anime_anon.png` standing portrait, updated its source page in the ignored local manifest, initially enlarged it, then corrected the local speaking-frame layout to `scale: 1.02`, `y: 4` after recording review showed the head was clipped.
 - Follow-up class-trial background pass: switched active class-trial games from the default werewolf table background to a CSS-built court stage with dark red/black depth, gold guide lines, and class-trial ring styling.
 
 Verification:

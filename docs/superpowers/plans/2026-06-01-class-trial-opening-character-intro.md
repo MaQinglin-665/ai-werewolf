@@ -221,7 +221,7 @@ describe("classTrialIntro", () => {
           id: "naegi",
           displayNameJa: "苗木 誠",
           titleJa: "超高校級の幸運",
-          subtitleJa: "それは違うよ!",
+          subtitleJa: "それは違うよ！",
           portraitUrl: "/class-trial-pack/intro/portraits/naegi.png",
           audioUrl: "/class-trial-pack/intro/audio/naegi.wav",
           themeColor: "#f6c94a",
@@ -669,9 +669,9 @@ const requestSchema = z.object({
 });
 
 const GENERATED_INTRO_LINES: Record<string, { displayName: string; textJa: string; roleCard: AiCharacterRoleCard }> = {
-  naegi: entry("naegi", "苗木诚", "それは違うよ!"),
-  kirigiri: entry("kirigiri", "雾切响子", "ここまで言えば分かるわね?"),
-  fukawa: entry("fukawa", "腐川冬子", "どうせ私なんて..."),
+  naegi: entry("naegi", "苗木诚", "それは違うよ！"),
+  kirigiri: entry("kirigiri", "雾切响子", "ここまで言えば分かるわね？"),
+  fukawa: entry("fukawa", "腐川冬子", "どうせ私なんて……"),
   monokuma: entry("monokuma", "黑白熊", "うぷぷぷぷ。"),
   enoshima: entry("enoshima", "江之岛盾子", "絶望的に飽きちゃった。"),
   celestia: entry("celestia", "塞蕾丝缇雅", "わたくしはセレスティア・ルーデンベルクですわ。"),
@@ -809,7 +809,7 @@ function makeConfig(): ClassTrialIntroConfig {
         id: "anon",
         displayNameJa: "千早 愛音",
         titleJa: "超高校級のギタリスト",
-        subtitleJa: "あはは...",
+        subtitleJa: "あはは……あはははは……",
         portraitUrl: "/class-trial-pack/intro/portraits/anon.png",
         audioUrl: "/class-trial-pack/intro/audio/anon.wav",
         themeColor: "#ef4c6a",
@@ -822,7 +822,7 @@ function makeConfig(): ClassTrialIntroConfig {
         id: "naegi",
         displayNameJa: "苗木 誠",
         titleJa: "超高校級の幸運",
-        subtitleJa: "それは違うよ!",
+        subtitleJa: "それは違うよ！",
         portraitUrl: "/class-trial-pack/intro/portraits/naegi.png",
         audioUrl: "/class-trial-pack/intro/audio/naegi.wav",
         themeColor: "#f6c94a",
@@ -1010,7 +1010,7 @@ function makeConfig(): ClassTrialIntroConfig {
         id: "anon",
         displayNameJa: "千早 愛音",
         titleJa: "超高校級のギタリスト",
-        subtitleJa: "あはは...",
+        subtitleJa: "あはは……あはははは……",
         portraitUrl: "/class-trial-pack/intro/portraits/anon.png",
         audioUrl: "/class-trial-pack/intro/audio/anon.wav",
         themeColor: "#ef4c6a",
@@ -1023,7 +1023,7 @@ function makeConfig(): ClassTrialIntroConfig {
         id: "naegi",
         displayNameJa: "苗木 誠",
         titleJa: "超高校級の幸運",
-        subtitleJa: "それは違うよ!",
+        subtitleJa: "それは違うよ！",
         portraitUrl: "/class-trial-pack/intro/portraits/naegi.png",
         audioUrl: "/class-trial-pack/intro/audio/naegi.wav",
         themeColor: "#f6c94a",
@@ -1049,7 +1049,7 @@ describe("ClassTrialOpeningIntro", () => {
     expect(html).toContain("class-trial-opening-intro");
     expect(html).toContain("超高校級のギタリスト");
     expect(html).toContain("千早 愛音");
-    expect(html).toContain("あはは...");
+    expect(html).toContain("あはは……あはははは……");
     expect(html).toContain("跳过");
     expect(html).not.toContain("1号");
   });
@@ -1862,11 +1862,11 @@ Expected: each final PNG has transparent corners and no green fringe visible at 
 
 - [ ] **Step 4: Prepare external Bilibili clips**
 
-Use only `0:00-0:03` from each user-provided URL and save locally:
+Use only `0:00-0:04` from each user-provided URL and save locally:
 
 ```powershell
-yt-dlp -f bestaudio --download-sections "*00:00-00:03" -o "tmp/class-trial-intro-tomori.%(ext)s" "https://www.bilibili.com/video/BV1ewwxesEu4/"
-yt-dlp -f bestaudio --download-sections "*00:00-00:03" -o "tmp/class-trial-intro-anon.%(ext)s" "https://www.bilibili.com/video/BV1WGS3YMEZz/"
+yt-dlp -f bestaudio --download-sections "*00:00-00:04" -o "tmp/class-trial-intro-tomori.%(ext)s" "https://www.bilibili.com/video/BV1ewwxesEu4/"
+yt-dlp -f bestaudio --download-sections "*00:00-00:04" -o "tmp/class-trial-intro-anon.%(ext)s" "https://www.bilibili.com/video/BV1WGS3YMEZz/"
 ffmpeg -y -i "tmp/class-trial-intro-tomori.m4a" -ar 32000 -ac 1 "local-assets/class-trial-pack/intro/audio/tomori.wav"
 ffmpeg -y -i "tmp/class-trial-intro-anon.m4a" -ar 32000 -ac 1 "local-assets/class-trial-pack/intro/audio/anon.wav"
 ```
@@ -1888,7 +1888,7 @@ Create `local-assets/class-trial-pack/intro/intro.json`:
       "id": "anon",
       "displayNameJa": "千早 愛音",
       "titleJa": "超高校級のギタリスト",
-      "subtitleJa": "あはは...",
+      "subtitleJa": "あはは……あはははは……",
       "portraitUrl": "/class-trial-pack/intro/portraits/anon.png",
       "audioUrl": "/class-trial-pack/intro/audio/anon.wav",
       "themeColor": "#ef4c6a",
@@ -1897,13 +1897,13 @@ Create `local-assets/class-trial-pack/intro/intro.json`:
       "durationMs": 5200,
       "audioMode": "external",
       "externalSourceUrl": "https://www.bilibili.com/video/BV1WGS3YMEZz/",
-      "externalSourceRange": "0:00-0:03"
+      "externalSourceRange": "0:00-0:04"
     },
     {
       "id": "tomori",
       "displayNameJa": "高松 燈",
-      "titleJa": "超高校級の詩人",
-      "subtitleJa": "ペンギン、ぐーぐーがーがー。",
+      "titleJa": "超高校級の湊企鹅",
+      "subtitleJa": "ぐーぐーがーがー、ぐーぐーがーがー。",
       "portraitUrl": "/class-trial-pack/intro/portraits/tomori.png",
       "audioUrl": "/class-trial-pack/intro/audio/tomori.wav",
       "themeColor": "#6aa7ff",
@@ -1912,7 +1912,7 @@ Create `local-assets/class-trial-pack/intro/intro.json`:
       "durationMs": 5400,
       "audioMode": "external",
       "externalSourceUrl": "https://www.bilibili.com/video/BV1ewwxesEu4/",
-      "externalSourceRange": "0:00-0:03"
+      "externalSourceRange": "0:00-0:04"
     },
     {
       "id": "togami",
@@ -1970,7 +1970,7 @@ Create `local-assets/class-trial-pack/intro/intro.json`:
       "id": "fukawa",
       "displayNameJa": "腐川 冬子",
       "titleJa": "超高校級の文学少女",
-      "subtitleJa": "どうせ私なんて...",
+      "subtitleJa": "どうせ私なんて……",
       "portraitUrl": "/class-trial-pack/intro/portraits/fukawa.png",
       "audioUrl": "/class-trial-pack/intro/audio/fukawa.wav",
       "themeColor": "#6f56a6",
@@ -1983,7 +1983,7 @@ Create `local-assets/class-trial-pack/intro/intro.json`:
       "id": "kirigiri",
       "displayNameJa": "霧切 響子",
       "titleJa": "超高校級の探偵",
-      "subtitleJa": "ここまで言えば分かるわね?",
+      "subtitleJa": "ここまで言えば分かるわね？",
       "portraitUrl": "/class-trial-pack/intro/portraits/kirigiri.png",
       "audioUrl": "/class-trial-pack/intro/audio/kirigiri.wav",
       "themeColor": "#b7a6ff",
@@ -1996,7 +1996,7 @@ Create `local-assets/class-trial-pack/intro/intro.json`:
       "id": "naegi",
       "displayNameJa": "苗木 誠",
       "titleJa": "超高校級の幸運",
-      "subtitleJa": "それは違うよ!",
+      "subtitleJa": "それは違うよ！",
       "portraitUrl": "/class-trial-pack/intro/portraits/naegi.png",
       "audioUrl": "/class-trial-pack/intro/audio/naegi.wav",
       "themeColor": "#f6c94a",

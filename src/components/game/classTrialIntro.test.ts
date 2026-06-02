@@ -42,7 +42,7 @@ describe("classTrialIntro", () => {
         accentColor: index === 0 ? "#202024" : character.accentColor,
         externalSourceUrl:
           character.id === "anon" ? " https://www.bilibili.com/video/BV1WGS3YMEZz/ " : undefined,
-        externalSourceRange: character.id === "anon" ? " 0:00-0:03 " : undefined,
+        externalSourceRange: character.id === "anon" ? " 0:00-0:04 " : undefined,
       })),
     });
 
@@ -51,7 +51,7 @@ describe("classTrialIntro", () => {
     expect(config?.characters.map((item) => item.id)).toEqual(CLASS_TRIAL_OPENING_INTRO_ORDER);
     expect(config?.characters[0]?.displayNameJa).toBe("anon-ja");
     expect(config?.characters[0]?.externalSourceUrl).toBe("https://www.bilibili.com/video/BV1WGS3YMEZz/");
-    expect(config?.characters[0]?.externalSourceRange).toBe("0:00-0:03");
+    expect(config?.characters[0]?.externalSourceRange).toBe("0:00-0:04");
   });
 
   it("defaults missing or invalid config id and version", () => {
@@ -94,14 +94,14 @@ describe("classTrialIntro", () => {
         ...character,
         externalSourceUrl:
           index === 0 ? ` https://example.com/${"x".repeat(300)} ` : character.externalSourceUrl,
-        externalSourceRange: index === 0 ? ` ${"0:00-0:03 ".repeat(10)} ` : character.externalSourceRange,
+        externalSourceRange: index === 0 ? ` ${"0:00-0:04 ".repeat(10)} ` : character.externalSourceRange,
       })),
     });
 
     expect(config?.characters[0]?.externalSourceUrl).toHaveLength(260);
     expect(config?.characters[0]?.externalSourceUrl?.startsWith("https://example.com/")).toBe(true);
     expect(config?.characters[0]?.externalSourceRange).toHaveLength(40);
-    expect(config?.characters[0]?.externalSourceRange?.startsWith("0:00-0:03")).toBe(true);
+    expect(config?.characters[0]?.externalSourceRange?.startsWith("0:00-0:04")).toBe(true);
   });
 
   it("rejects configs that are missing confirmed characters or reverse order", () => {
@@ -111,7 +111,7 @@ describe("classTrialIntro", () => {
           id: "naegi",
           displayNameJa: "苗木 誠",
           titleJa: "超高校級の幸運",
-          subtitleJa: "それは違うよ!",
+          subtitleJa: "それは違うよ！",
           portraitUrl: "/class-trial-pack/intro/portraits/naegi.png",
           audioUrl: "/class-trial-pack/intro/audio/naegi.wav",
           themeColor: "#f6c94a",

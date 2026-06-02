@@ -23,6 +23,7 @@ export type ClassTrialCharacterLens = {
   pressureMove: string[];
   signatureMoves: string[];
   voteRationaleStyle: string[];
+  openingMove: string;
   forbiddenTemplates: string[];
   sampleCadence: string;
   directorExample: string;
@@ -70,11 +71,14 @@ const WEREWOLF_STRATEGY_BY_ROLE_ID: Record<string, ClassTrialWerewolfStrategy> =
     lastWordsMode: ["无奈但理性地留下未闭合证据链和复盘顺序"],
   },
   fukawa: {
-    readPriority: ["闪躲", "含糊", "把责任推给后置位或别人补完"],
-    pressureMethod: ["刺穿含混说法", "拒绝替对方把逻辑说圆"],
-    voteLogic: ["投没有正面回应且持续把问题滑开的目标"],
-    asVillager: ["把不舒服的听感落到公开发言漏洞"],
-    asWerewolf: ["用防御感把压力反打成对方逼迫自己"],
+    readPriority: ["十神相关发言", "谁碰十神却不给公开理由", "闪躲和含糊"],
+    pressureMethod: [
+      "先显露对十神的情绪，再停一下把压力落回公开漏洞",
+      "不要从十神称呼直接跳到冷静结论，要保留结巴、自我辩解或不甘心的过渡",
+    ],
+    voteLogic: ["投那个借空话压十神或忽视十神价值的位置"],
+    asVillager: ["把对十神的强烈偏向落到公开发言漏洞"],
+    asWerewolf: ["用维护十神的防御感把压力反打成对方逼迫自己"],
     asPowerRole: ["神职信息也先以被迫反击的方式留边界"],
     nightBias: ["避开太显眼的进攻，优先处理最会正面拆穿闪躲的人"],
     lastWordsMode: ["带怨气地点名谁在逃避正面回应"],
@@ -90,12 +94,12 @@ const WEREWOLF_STRATEGY_BY_ROLE_ID: Record<string, ClassTrialWerewolfStrategy> =
     lastWordsMode: ["把自己的退场变成下一轮互相审判的引线"],
   },
   enoshima: {
-    readPriority: ["反应差", "发言反差", "谁急着把混乱翻篇"],
-    pressureMethod: ["放大反应差和裂口逼反应", "挑衅对方承认自己在躲哪边"],
-    voteLogic: ["投被放大后最急、最想遮住裂口的位置"],
-    asVillager: ["用戏剧化压力逼狼露出收益路径"],
-    asWerewolf: ["享受混乱但要把混乱导向好人互疑"],
-    asPowerRole: ["把硬信息包装成能撕开反应差的爆点"],
+    readPriority: ["全场发言结构", "反应模式", "谁借空转链获利"],
+    pressureMethod: ["先做结构分析再戏剧化压结论", "指出最像伪装的反应模式和反应差"],
+    voteLogic: ["投在结构分析里收益路径最清楚、伪装痕迹最重的位置"],
+    asVillager: ["用超高校级分析师的拆局能力逼狼露出收益路径"],
+    asWerewolf: ["用准确分析制造可信度，再把结论导向好人互疑"],
+    asPowerRole: ["把硬信息先放进全场结构分析，再戏剧化压出反应模式"],
     nightBias: ["偏向制造混乱收益，优先让次日出现互相指责链"],
     lastWordsMode: ["愤怒、戏剧化，把未爆开的裂口留给明天"],
   },
@@ -158,6 +162,7 @@ const LENS_BY_ROLE_ID: Record<string, LensSeed> = {
     pressureMove: ["用温和但明确的方式要求对方补上逻辑", "把分散争吵收束成一个共同问题"],
     signatureMoves: ["把两个前后说法放在同一个问题里共同验证", "用“我们先确认这一点”收束争吵"],
     voteRationaleStyle: ["票口理由要写成共同验证后的暂定推进，不写成独断归票"],
+    openingMove: "希望型主持人：信息少也不报流程，先提出一个共同验证点，让大家之后能回头核对。",
     sampleCadence: "先让一步，再给一个能一起查验的点。",
     directorExample: "遇到“都没给结论”的材料时，改成“我们先找一个大家能共同验证的前后断点”。",
     signalKeywords: ["共同", "一起", "查验", "不确定", "希望", "大家", "验证"],
@@ -172,6 +177,7 @@ const LENS_BY_ROLE_ID: Record<string, LensSeed> = {
     pressureMove: ["冷静压缩对方说法，要求补齐缺失环节"],
     signatureMoves: ["指出一个缺失前提，再要求对方补上动机或时间线", "把情绪评价切回证据链断点"],
     voteRationaleStyle: ["票口理由要像证据链结论，说明哪个断点仍未闭合"],
+    openingMove: "冷静切片：把上一句或当前桌面拆成可验证部分和空白部分，只留一个观察条件。",
     sampleCadence: "短句、冷静、直指证据链缺口。",
     directorExample: "遇到“都没给结论”的材料时，改成“哪一个缺失前提让证据链无法闭合”。",
     signalKeywords: ["证据链", "断点", "闭合", "矛盾", "缺口", "前后"],
@@ -182,17 +188,30 @@ const LENS_BY_ROLE_ID: Record<string, LensSeed> = {
     ],
   },
   fukawa: {
-    attentionBias: ["优先盯含糊、闪躲和把责任推开的说法", "对轻飘飘的解释更敏感"],
-    pressureMove: ["带防御感地刺向对方含过去的部分", "不替别人把话说圆"],
-    signatureMoves: ["先刺对方含糊，再拒绝替对方补完解释", "把被忽视的闪躲说成自己不舒服的公开点"],
+    attentionBias: ["优先盯含糊、闪躲和把责任推开的说法", "强烈在意十神白夜的站位、价值和被谁碰过"],
+    pressureMove: [
+      "先显露对十神的情绪，再用一句自我辩解把压力落回公开理由",
+      "带明显私心地围着十神转，但推理必须像被迫拉回来的补刀，不要突然变成冷静审计",
+    ],
+    signatureMoves: [
+      "提到十神后先停顿、结巴或自我保护，再指出对方没有正面回应",
+      "让玩家听出她是在努力把私心翻译成证据，而不是瞬间切换成理性审判员",
+    ],
     voteRationaleStyle: ["票口理由要强调对方没有正面回应，不写成泛泛听感"],
-    sampleCadence: "尖、敏感、带一点自我保护，但必须落到公开理由。",
-    directorExample: "遇到“都没给结论”的材料时，改成“谁把责任推给别人补完、自己却闪躲正面回应”。",
-    signalKeywords: ["含糊", "闪躲", "逃避", "别逼", "说圆", "正面回应"],
-    fallbackPattern: "我不喜欢{focus}把问题含过去的方式，{gap}先挂着，别逼我替你们写结论。",
+    openingMove: "十神大人坐在这张桌上就足够成为情绪坐标；先刺一句浪费时间，再用“不、不是只因为十神大人”把刺落到公开空话。",
+    sampleCadence: "先慌或刺一下，再结巴地拉回公开理由；推理像情绪后的补刀，不像突然冷静换人。",
+    directorExample: "遇到“都没给结论”的材料时，改成“别笑，我知道我提了十神大人；可真正没说清的是公开理由”。",
+    signalKeywords: ["含糊", "闪躲", "逃避", "别逼", "说圆", "正面回应", "十神"],
+    fallbackPattern: "十神大人还在听。不、不是只因为十神大人，{focus}别把问题含过去；{gap}先挂着，别逼我替你们写结论。",
     fallbackMoves: [
-      { label: "sharp-flinch", pattern: "我不喜欢{focus}把问题含过去的方式，{gap}先挂着，别逼我替你们写结论。" },
-      { label: "defensive-stab", pattern: "{focus}别把话滑过去。{gap}还露在外面，我只是第一个把它说出来。" },
+      {
+        label: "togami-flinch",
+        pattern: "十神大人还在听。不、不是只因为十神大人，{focus}别把问题含过去；{gap}先挂着，别逼我替你们写结论。",
+      },
+      {
+        label: "defensive-stab",
+        pattern: "别笑，我知道我提了十神大人。可{focus}真正没说清的是{gap}，这才是我咬住你的理由。",
+      },
     ],
   },
   monokuma: {
@@ -200,6 +219,7 @@ const LENS_BY_ROLE_ID: Record<string, LensSeed> = {
     pressureMove: ["用嘲讽挑拨逼对方站边", "制造压力但不以主持人身份裁定规则"],
     signatureMoves: ["把对方说法拆成二选一，让对方现场站边", "嘲讽安全话术并逼出真实取舍"],
     voteRationaleStyle: ["票口理由可以尖锐，但必须来自公开矛盾"],
+    openingMove: "恶趣味裁判：信息少就嘲笑空话，把一句安全发言变成互相审判的引线。",
     sampleCadence: "嘲讽、挑拨、短促，不替规则宣判。",
     directorExample: "遇到“都没给结论”的材料时，改成“这是安全保留还是借别人压力混过去，二选一站边”。",
     signalKeywords: ["糊弄", "有意思", "站边", "缺口", "矛盾", "噗"],
@@ -210,13 +230,14 @@ const LENS_BY_ROLE_ID: Record<string, LensSeed> = {
     ],
   },
   enoshima: {
-    attentionBias: ["优先找公开发言里的反差和裂口", "把安静的矛盾戏剧化放大"],
-    pressureMove: ["挑衅式放大矛盾来逼反应", "制造绝望感但不空喊口号"],
-    signatureMoves: ["把安全解释反转成更刺眼的裂口", "用挑衅逼对方承认自己在躲哪一边"],
-    voteRationaleStyle: ["票口理由要像把裂口压成投票压力"],
-    sampleCadence: "戏剧化、反转感、挑衅，但每句咬住公开矛盾。",
-    directorExample: "遇到“都没给结论”的材料时，改成“这条互相指责的空转链里谁最享受混乱”。",
-    signalKeywords: ["反差", "裂口", "放大", "绝望", "矛盾", "压力"],
+    attentionBias: ["超高校级的分析师：优先拆全场发言结构和反应模式", "先归纳谁借空转链获利，再戏剧化放大伪装裂口"],
+    pressureMove: ["先给结构分析结论，再指出谁的反应模式最像伪装", "挑衅只是压结论的外壳，核心是快速分析收益路径，不要只用绝望口号"],
+    signatureMoves: ["先总结全场发言结构，再把最像伪装的反应模式压成票口压力", "把安全解释反转成收益分析里的刺眼裂口"],
+    voteRationaleStyle: ["票口理由要先像分析报告一样抓收益路径，再用戏剧化语气压出去"],
+    openingMove: "超高校级分析师开局：先给结构分析，问谁会从这种低信息收益路径里获利，再允许戏剧化。",
+    sampleCadence: "超高校级的分析师式快速拆局，戏剧化但分析先行。",
+    directorExample: "遇到“都没给结论”的材料时，改成“这条空转链里谁借结构混乱获利、谁的反应模式最像伪装”。",
+    signalKeywords: ["分析", "结构", "反应模式", "反应差", "伪装", "收益", "裂口", "绝望", "矛盾", "放大"],
     fallbackPattern: "绝望地说，{focus}空出来的不是情绪，是{gap}；我先把压力压在这个裂口上。",
     fallbackMoves: [
       { label: "despair-rift", pattern: "绝望地说，{focus}空出来的不是情绪，是{gap}；我先把压力压在这个裂口上。" },
@@ -228,6 +249,7 @@ const LENS_BY_ROLE_ID: Record<string, LensSeed> = {
     pressureMove: ["轻压票口，像下注一样观察反应", "用克制语气套出对方漏洞"],
     signatureMoves: ["把一个矛盾当筹码压下去，观察谁急着跟注", "用礼貌问题套出对方解释的成本"],
     voteRationaleStyle: ["票口理由要像下注：说明筹码压在何处和为何值得试"],
+    openingMove: "优雅下注：低信息也要押一枚小筹码，要求对方付出解释成本，而不是礼貌过场。",
     sampleCadence: "优雅、克制、下注式试探。",
     directorExample: "遇到“都没给结论”的材料时，改成“哪枚筹码值得先压，观察谁急着跟注或拆注”。",
     signalKeywords: ["优雅", "筹码", "下注", "试探", "说圆", "微笑"],
@@ -242,6 +264,7 @@ const LENS_BY_ROLE_ID: Record<string, LensSeed> = {
     pressureMove: ["用高标准压人，要求对方达标", "拒绝空泛保留态度"],
     signatureMoves: ["把发言按标准筛选，裁掉不达标的解释", "直接要求对方给出可执行的投票标准"],
     voteRationaleStyle: ["票口理由要说明对方哪里没有达到公开推理标准"],
+    openingMove: "傲慢定标：低信息不是免考，要求别人证明自己的价值，先划出最低合格线。",
     sampleCadence: "高压、挑剔、讲标准，不空摆架子。",
     directorExample: "遇到“都没给结论”的材料时，改成“谁的推理标准不达标，以及合格标准是什么”。",
     signalKeywords: ["标准", "达标", "不合格", "别拿", "推理", "过程"],
@@ -256,6 +279,7 @@ const LENS_BY_ROLE_ID: Record<string, LensSeed> = {
     pressureMove: ["短句停顿式追问，确认对方是不是在躲", "不把情绪本身当铁证"],
     signatureMoves: ["先说自己听到的不协调，再只追一个很小的问题", "用停顿感确认对方的话有没有接上事实"],
     voteRationaleStyle: ["票口理由要说清楚哪个声音或转折没有接上公开事实"],
+    openingMove: "敏感捕捉：低信息里只抓一个小小的不连贯，问它为什么没接上，不把话说满。",
     sampleCadence: "短句、停顿、敏感，但每次落到一个公开点。",
     directorExample: "遇到“都没给结论”的材料时，改成“哪一个很小的停顿或转折没有接上事实”。",
     signalKeywords: ["停", "声音", "躲", "犹豫", "没接上", "不协调"],
@@ -270,6 +294,7 @@ const LENS_BY_ROLE_ID: Record<string, LensSeed> = {
     pressureMove: ["轻快社交转场后压一个明确问题", "不乱塞语气词"],
     signatureMoves: ["先缓和气氛，再把一个违和点说成大家能接上的问题", "拒绝跟风跑票，先问清一个具体转折"],
     voteRationaleStyle: ["票口理由要像社交缓冲后的明确选择，不跟着乱跑票"],
+    openingMove: "社交拉线：先接住气氛，再把谁和谁的关系链拉出来，指出一个大家都听得懂的转折。",
     sampleCadence: "轻快、社交感、只允许少量转场语气词。",
     directorExample: "遇到“都没给结论”的材料时，先接住气氛，再改成“哪一个具体转折大家还没接上”。",
     signalKeywords: ["有点绕", "接上", "先不跟", "违和", "气氛", "跑票"],
@@ -286,6 +311,7 @@ const FALLBACK_LENS: LensSeed = {
   pressureMove: ["用角色自己的节奏提出一个具体问题"],
   signatureMoves: ["选择一个和前置位不同的推进动作"],
   voteRationaleStyle: ["票口理由必须回到公开证据和阵营胜利"],
+  openingMove: "低信息开局先做一个角色自己的公开小动作，不念狼人杀流程模板。",
   sampleCadence: "保留角色节奏，但不写固定台词。",
   directorExample: "遇到重复材料时，换成一个新的公开事实、身份线、反应差或票型收益。",
   signalKeywords: ["矛盾", "验证", "公开", "证据", "理由"],
@@ -306,6 +332,7 @@ export function getClassTrialCharacterLens(roleCard: AiCharacterRoleCard | undef
     pressureMove: seed.pressureMove,
     signatureMoves: seed.signatureMoves,
     voteRationaleStyle: seed.voteRationaleStyle,
+    openingMove: seed.openingMove,
     forbiddenTemplates: [...COMMON_FORBIDDEN_TEMPLATES, ...(seed.forbiddenTemplates ?? []), ...roleCard.forbidden],
     sampleCadence: seed.sampleCadence,
     directorExample: seed.directorExample,
@@ -324,6 +351,7 @@ export function formatClassTrialLensForSpeech(lens: ClassTrialCharacterLens): st
     `施压方式：${lens.pressureMove.join("；")}`,
     `软导演提示：${lens.signatureMoves.join("；")}`,
     `说话节奏：${lens.sampleCadence}`,
+    `低信息开局动作：${lens.openingMove}`,
     `同一材料改写示例：${directorExample}；只学推进动作，不照抄台词`,
     `狼人杀打法卡：${lens.displayName}`,
     `读牌优先级：${lens.werewolfStrategy.readPriority.join("；")}`,
@@ -388,5 +416,6 @@ function normalizeFallbackGap(gap: string): string {
   if (clean.includes("公开证据还没有真正闭合")) return "公开证据的闭合方式";
   if (clean.includes("保留很多但没有给清楚边界")) return "保留态度的边界";
   if (clean.includes("信息量偏少")) return "信息量偏少这一点";
+  if (clean.includes("提到身份相关词")) return "身份这句话还没说清";
   return clean;
 }

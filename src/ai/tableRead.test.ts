@@ -473,6 +473,150 @@ describe("createVotePlan", () => {
 });
 
 describe("createSpeechPlan", () => {
+  it("does not turn private trust for an unevidenced class-trial back seat into public talking points", () => {
+    const speaker = target(3, "腐川冬子");
+    const focus = target(1, "苗木诚");
+    const trustedBackSeat = target(5, "江之岛盾子");
+    const tableMemory = createTableMemory();
+    const view = {
+      ...createView(tableMemory),
+      mySeatId: speaker.seatId,
+      myRole: "VILLAGER",
+      roleCard: classTrialRoleCard("fukawa", speaker.name),
+      aliveSeats: [focus, target(2, "雾切响子"), speaker, target(4, "黑白熊"), trustedBackSeat],
+      publicSummary: {
+        ...createView(tableMemory).publicSummary,
+        recentSpeeches: [
+          { seq: 1, day: 1, speaker: focus, message: "1号发言。我跳预言家，2号金水，今天先看谁借身份线收票。" },
+          { seq: 2, day: 1, speaker: target(2, "雾切响子"), message: "2号发言。1号没有把观察点落到具体收益位，我先记这个断点。" },
+        ],
+        tableMemory,
+      },
+      privateKnowledge: {
+        aiMemory: {
+          seatId: speaker.seatId,
+          day: 1,
+          trustedSeatId: trustedBackSeat.seatId,
+          beliefs: [{ seatId: trustedBackSeat.seatId, suspicion: 20, trust: 80, reasons: ["私人节奏判断偏稳"] }],
+        },
+      },
+      allowedActions: [{ type: "speak" }],
+    } as AgentView;
+    const focusRead = createSeat({
+      seatId: focus.seatId,
+      name: focus.name,
+      suspicion: 72,
+      trust: 38,
+      pressure: ["观察点没有落到具体收益位"],
+      lastSpeechDay: 1,
+      lastSpeech: "1号发言。我跳预言家，2号金水，今天先看谁借身份线收票。",
+    });
+    const tableRead: AiTableRead = {
+      mySeatId: speaker.seatId,
+      myRole: "VILLAGER",
+      day: 1,
+      seats: [
+        focusRead,
+        createSeat({ seatId: 2, name: "雾切响子", suspicion: 46, trust: 50, lastSpeechDay: 1 }),
+        createSeat({ seatId: speaker.seatId, name: speaker.name, isSelf: true, suspicion: 0, trust: 100 }),
+        createSeat({ seatId: 4, name: "黑白熊", suspicion: 45, trust: 45 }),
+        createSeat({ seatId: trustedBackSeat.seatId, name: trustedBackSeat.name, suspicion: 32, trust: 78 }),
+      ],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [],
+      wolfTeammateSeatIds: [],
+      focus: focusRead,
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches: view.publicSummary.recentSpeeches,
+      recentDeaths: ["第1天清晨，昨夜平安夜。"],
+      tableMemory,
+      tableMood: "学级裁判首日公开焦点在前置发言",
+    };
+
+    const plan = createSpeechPlan(view, tableRead);
+    const speechText = [plan.stance, ...plan.talkingPoints].join("\n");
+
+    expect(speechText).not.toContain(`更信${trustedBackSeat.seatId}号`);
+    expect(speechText).not.toContain(`${trustedBackSeat.seatId}号`);
+    expect(speechText).toContain(`${focus.seatId}号`);
+  });
+
+  it("can reference a privately trusted seat when the public table has visible speech evidence", () => {
+    const speaker = target(4, "黑白熊");
+    const focus = target(1, "苗木诚");
+    const trustedSpokenSeat = target(5, "江之岛盾子");
+    const tableMemory = createTableMemory();
+    const view = {
+      ...createView(tableMemory),
+      mySeatId: speaker.seatId,
+      myRole: "VILLAGER",
+      roleCard: classTrialRoleCard("monokuma", speaker.name),
+      aliveSeats: [focus, target(2, "雾切响子"), target(3, "腐川冬子"), speaker, trustedSpokenSeat],
+      publicSummary: {
+        ...createView(tableMemory).publicSummary,
+        recentSpeeches: [
+          { seq: 1, day: 1, speaker: focus, message: "1号发言。我跳预言家，2号金水，今天先看谁借身份线收票。" },
+          { seq: 2, day: 1, speaker: trustedSpokenSeat, message: "5号发言。我不急着接1号预言家，先看谁把票口压得太早。" },
+          { seq: 3, day: 1, speaker: target(3, "腐川冬子"), message: "3号发言。1号身份线还缺收益解释。" },
+        ],
+        tableMemory,
+      },
+      privateKnowledge: {
+        aiMemory: {
+          seatId: speaker.seatId,
+          day: 1,
+          trustedSeatId: trustedSpokenSeat.seatId,
+          beliefs: [{ seatId: trustedSpokenSeat.seatId, suspicion: 20, trust: 80, reasons: ["私人节奏判断偏稳"] }],
+        },
+      },
+      allowedActions: [{ type: "speak" }],
+    } as AgentView;
+    const focusRead = createSeat({
+      seatId: focus.seatId,
+      name: focus.name,
+      suspicion: 72,
+      trust: 38,
+      pressure: ["身份线还缺收益解释"],
+      lastSpeechDay: 1,
+      lastSpeech: "1号发言。我跳预言家，2号金水，今天先看谁借身份线收票。",
+    });
+    const tableRead: AiTableRead = {
+      mySeatId: speaker.seatId,
+      myRole: "VILLAGER",
+      day: 1,
+      seats: [
+        focusRead,
+        createSeat({ seatId: 2, name: "雾切响子", suspicion: 46, trust: 50 }),
+        createSeat({ seatId: 3, name: "腐川冬子", suspicion: 50, trust: 44, lastSpeechDay: 1 }),
+        createSeat({ seatId: speaker.seatId, name: speaker.name, isSelf: true, suspicion: 0, trust: 100 }),
+        createSeat({
+          seatId: trustedSpokenSeat.seatId,
+          name: trustedSpokenSeat.name,
+          suspicion: 32,
+          trust: 78,
+          lastSpeechDay: 1,
+          lastSpeech: "5号发言。我不急着接1号预言家，先看谁把票口压得太早。",
+        }),
+      ],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [],
+      wolfTeammateSeatIds: [],
+      focus: focusRead,
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches: view.publicSummary.recentSpeeches,
+      recentDeaths: ["第1天清晨，昨夜平安夜。"],
+      tableMemory,
+      tableMood: "学级裁判首日有公开发言对照",
+    };
+
+    const plan = createSpeechPlan(view, tableRead);
+    const speechText = [plan.stance, ...plan.talkingPoints].join("\n");
+
+    expect(speechText).toContain(`${trustedSpokenSeat.seatId}号已经给过公开发言`);
+    expect(speechText).not.toContain(`更信${trustedSpokenSeat.seatId}号`);
+    expect(speechText).toContain(`${focus.seatId}号`);
+  });
+
   it("starts day-one speech with one concrete observation instead of assigning full-table homework", () => {
     const tableMemory = createTableMemory({
       deathAnnouncements: ["第1天清晨，昨夜平安夜。"],
@@ -737,6 +881,120 @@ describe("createSpeechPlan", () => {
     expect(speechText).toContain("不要因为任何前置位没站边或没给票口去硬打");
     expect(speechText).not.toContain("前面持续怀疑1号");
     expect(speechText).not.toMatch(/1号[^。\n]{0,24}(?:补|解释|说清|交代).{0,12}(?:站边|票口)/);
+  });
+
+  it("does not treat a future voting-review phrase as hard day-one information", () => {
+    const opener = target(1, "苗木诚");
+    const speaker = target(3, "腐川冬子");
+    const tableMemory = createTableMemory();
+    const view = {
+      ...createView(tableMemory),
+      mySeatId: speaker.seatId,
+      myRole: "VILLAGER",
+      phase: "DAY_SPEECH",
+      aliveSeats: [opener, target(2, "雾切响子"), speaker],
+      roleCard: classTrialRoleCard("fukawa", "腐川冬子"),
+      publicSummary: {
+        ...createView(tableMemory).publicSummary,
+        recentSpeeches: [
+          {
+            seq: 1,
+            day: 1,
+            speaker: opener,
+            message: "平安夜是公开信息，我先留共同验证点：发言顺序和给出的理由，能否在投票时形成闭环。",
+          },
+        ],
+        tableMemory,
+      },
+      privateKnowledge: { aiMemory: { seatId: speaker.seatId, day: 1, beliefs: [] } },
+      allowedActions: [{ type: "speak" }],
+    } as AgentView;
+    const openerRead = createSeat({
+      seatId: opener.seatId,
+      name: opener.name,
+      suspicion: 50,
+      trust: 45,
+      lastSpeechDay: 1,
+      lastSpeech: view.publicSummary.recentSpeeches[0]!.message,
+    });
+    const tableRead: AiTableRead = {
+      mySeatId: speaker.seatId,
+      myRole: "VILLAGER",
+      day: 1,
+      seats: [openerRead, createSeat({ seatId: 2, name: "雾切响子" }), createSeat({ seatId: speaker.seatId, name: speaker.name, isSelf: true })],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [],
+      wolfTeammateSeatIds: [],
+      focus: openerRead,
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches: view.publicSummary.recentSpeeches,
+      recentDeaths: ["第1天清晨，昨夜平安夜。"],
+      tableMemory,
+      tableMood: "首日低信息开局",
+    };
+
+    const plan = createSpeechPlan(view, tableRead);
+
+    expect(plan.tableTask?.mode).toBe("set-standard");
+    expect(plan.tableTask?.line).toContain("低信息首轮");
+    expect(plan.tableTask?.line).not.toContain("票型已经有焦点");
+  });
+
+  it("does not treat a negative no-ticket phrase as hard day-one information", () => {
+    const opener = target(1, "苗木诚");
+    const speaker = target(5, "江之岛盾子");
+    const tableMemory = createTableMemory();
+    const view = {
+      ...createView(tableMemory),
+      mySeatId: speaker.seatId,
+      myRole: "VILLAGER",
+      phase: "DAY_SPEECH",
+      aliveSeats: [opener, target(2, "雾切响子"), speaker],
+      roleCard: classTrialRoleCard("enoshima", "江之岛盾子"),
+      publicSummary: {
+        ...createView(tableMemory).publicSummary,
+        recentSpeeches: [
+          {
+            seq: 1,
+            day: 1,
+            speaker: opener,
+            message: "目前还没有任何人给出站边或票口，我先只看谁把平安夜拿去做文章。",
+          },
+        ],
+        tableMemory,
+      },
+      privateKnowledge: { aiMemory: { seatId: speaker.seatId, day: 1, beliefs: [] } },
+      allowedActions: [{ type: "speak" }],
+    } as AgentView;
+    const openerRead = createSeat({
+      seatId: opener.seatId,
+      name: opener.name,
+      suspicion: 50,
+      trust: 45,
+      lastSpeechDay: 1,
+      lastSpeech: view.publicSummary.recentSpeeches[0]!.message,
+    });
+    const tableRead: AiTableRead = {
+      mySeatId: speaker.seatId,
+      myRole: "VILLAGER",
+      day: 1,
+      seats: [openerRead, createSeat({ seatId: 2, name: "雾切响子" }), createSeat({ seatId: speaker.seatId, name: speaker.name, isSelf: true })],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [],
+      wolfTeammateSeatIds: [],
+      focus: openerRead,
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches: view.publicSummary.recentSpeeches,
+      recentDeaths: ["第1天清晨，昨夜平安夜。"],
+      tableMemory,
+      tableMood: "首日低信息开局",
+    };
+
+    const plan = createSpeechPlan(view, tableRead);
+
+    expect(plan.tableTask?.mode).toBe("set-standard");
+    expect(plan.tableTask?.line).toContain("低信息首轮");
+    expect(plan.tableTask?.line).not.toContain("票型已经有焦点");
   });
 
   it("turns repeated pressure on the same opener into a pressure-chain audit", () => {

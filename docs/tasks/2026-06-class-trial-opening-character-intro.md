@@ -78,15 +78,15 @@ Canonical intro content:
 
 | order | id | displayNameJa | titleJa | subtitleJa | audioMode | audio file path | external source URL | source range |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `anon` | `千早 愛音` | `超高校級のギタリスト` | `あはは...` | `external` | `/class-trial-pack/intro/audio/anon.wav` | `https://www.bilibili.com/video/BV1WGS3YMEZz/` | `0:00-0:03` |
-| 2 | `tomori` | `高松 燈` | `超高校級の詩人` | `ペンギン、ぐーぐーがーがー。` | `external` | `/class-trial-pack/intro/audio/tomori.wav` | `https://www.bilibili.com/video/BV1ewwxesEu4/` | `0:00-0:03` |
+| 1 | `anon` | `千早 愛音` | `超高校級のギタリスト` | `あはは……あはははは……` | `external` | `/class-trial-pack/intro/audio/anon.wav` | `https://www.bilibili.com/video/BV1WGS3YMEZz/` | `0:00-0:04` |
+| 2 | `tomori` | `高松 燈` | `超高校級の湊企鹅` | `ぐーぐーがーがー、ぐーぐーがーがー。` | `external` | `/class-trial-pack/intro/audio/tomori.wav` | `https://www.bilibili.com/video/BV1ewwxesEu4/` | `0:00-0:04` |
 | 3 | `togami` | `十神 白夜` | `超高校級の御曹司` | `俺が導いてやる。` | `generated` | `/class-trial-pack/intro/audio/togami.wav` |  |  |
 | 4 | `celestia` | `セレスティア` | `超高校級のギャンブラー` | `わたくしはセレスティア・ルーデンベルクですわ。` | `generated` | `/class-trial-pack/intro/audio/celestia.wav` |  |  |
 | 5 | `enoshima` | `江ノ島 盾子` | `超高校級の分析師` | `絶望的に飽きちゃった。` | `generated` | `/class-trial-pack/intro/audio/enoshima.wav` |  |  |
 | 6 | `monokuma` | `モノクマ` | `超高校級の学園長` | `うぷぷぷぷ。` | `generated` | `/class-trial-pack/intro/audio/monokuma.wav` |  |  |
-| 7 | `fukawa` | `腐川 冬子` | `超高校級の文学少女` | `どうせ私なんて...` | `generated` | `/class-trial-pack/intro/audio/fukawa.wav` |  |  |
-| 8 | `kirigiri` | `霧切 響子` | `超高校級の探偵` | `ここまで言えば分かるわね?` | `generated` | `/class-trial-pack/intro/audio/kirigiri.wav` |  |  |
-| 9 | `naegi` | `苗木 誠` | `超高校級の幸運` | `それは違うよ!` | `generated` | `/class-trial-pack/intro/audio/naegi.wav` |  |  |
+| 7 | `fukawa` | `腐川 冬子` | `超高校級の文学少女` | `どうせ私なんて……` | `generated` | `/class-trial-pack/intro/audio/fukawa.wav` |  |  |
+| 8 | `kirigiri` | `霧切 響子` | `超高校級の探偵` | `ここまで言えば分かるわね？` | `generated` | `/class-trial-pack/intro/audio/kirigiri.wav` |  |  |
+| 9 | `naegi` | `苗木 誠` | `超高校級の幸運` | `それは違うよ！` | `generated` | `/class-trial-pack/intro/audio/naegi.wav` |  |  |
 
 Local asset policy:
 

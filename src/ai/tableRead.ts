@@ -1225,7 +1225,14 @@ function isLowInfoDayOneTarget(view: AgentView, seatId: number): boolean {
 
 function hasHardDayOneOpeningInfo(message: string): boolean {
   const withoutDeathShape = message.replace(/(?:平安夜[^。！？；]{0,20})?女巫用药(?:了|处理)?|按女巫用药处理/g, "");
-  return /查杀|金水|预言家|我是女巫|我女巫|猎人|骑士|守卫|警徽|归票|出人|投/.test(withoutDeathShape);
+  return /查杀|金水|预言家|我是女巫|我女巫|猎人|骑士|守卫|警徽/.test(withoutDeathShape) || hasConcreteDayOneVotePressure(withoutDeathShape);
+}
+
+function hasConcreteDayOneVotePressure(message: string): boolean {
+  const withoutNegativeTicket = message.replace(/(?:没|没有|还没有|尚未|未|并未|不是|不急(?:着)?)[^。！？；]{0,18}(?:站边|票口|推票|催票)/g, "");
+  return /归票|出人|票口[^。！？；]{0,10}(?:先|直接)?(?:压|落|锁|给到|放在)|(?:先|直接)?(?:压|投(?:给|出|向|到)?|票投|出)\s*(?:\d+|[一二三四五六七八九十两]+)\s*号/.test(
+    withoutNegativeTicket,
+  );
 }
 
 function countSeatMentions(message: string, seatId: number): number {
@@ -1592,7 +1599,41 @@ function buildMemorySpeechPoint(
     ? tableRead.seats.find((seat) => seat.seatId === memory.trustedSeatId && !seat.isWolfTeammate)
     : undefined;
   if (trustedSeat && trustedSeat.seatId !== focus.seatId) {
-    return `我暂时更信${trustedSeat.seatId}号，所以焦点先放在${focus.seatId}号`;
+    return buildPublicTrustSpeechPoint(view, tableRead, trustedSeat, focus);
+  }
+
+  return undefined;
+}
+
+function buildPublicTrustSpeechPoint(
+  view: AgentView,
+  tableRead: AiTableRead,
+  trustedSeat: SeatRead,
+  focus: SeatRead,
+): string | undefined {
+  if (trustedSeat.publicChecksAgainst.some((check) => check.result === "GOOD")) {
+    return `${trustedSeat.seatId}号有公开金水信息，当前先审${focus.seatId}号的发言缺口`;
+  }
+
+  if (trustedSeat.publicClaims.length > 0) {
+    return `${trustedSeat.seatId}号已经给过公开身份信息，当前先审${focus.seatId}号的发言缺口`;
+  }
+
+  const supportiveStance = trustedSeat.publicStancedBy.find((stance) => stance.kind === "SUPPORT" || stance.kind === "FOLLOW");
+  if (supportiveStance) {
+    return `${supportiveStance.actor.name}${supportiveStance.kindLabel}${trustedSeat.seatId}号，当前先审${focus.seatId}号的发言缺口`;
+  }
+
+  if (trustedSeat.lastSpeechDay !== undefined) {
+    return `${trustedSeat.seatId}号已经给过公开发言，当前先审${focus.seatId}号的发言缺口`;
+  }
+
+  if (hasCurrentDaySeatMention(view, trustedSeat.seatId)) {
+    return `${trustedSeat.seatId}号已经进入公开讨论，当前先审${focus.seatId}号的发言缺口`;
+  }
+
+  if (tableRead.voteSnapshot.votes.some((vote) => vote.voter.seatId === trustedSeat.seatId || vote.target?.seatId === trustedSeat.seatId)) {
+    return `${trustedSeat.seatId}号已经进过公开票型，当前先审${focus.seatId}号的发言缺口`;
   }
 
   return undefined;

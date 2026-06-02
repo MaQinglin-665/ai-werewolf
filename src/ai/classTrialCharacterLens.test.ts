@@ -49,6 +49,30 @@ describe("classTrialCharacterLens", () => {
     expect(new Set([kirigiri, enoshima, monokuma, togami].map((lens) => lens.werewolfStrategy.readPriority.join("|"))).size).toBe(4);
   });
 
+  it("frames Enoshima as the Ultimate Analyst before theatrical pressure", () => {
+    const enoshima = getClassTrialCharacterLens(roleCard("enoshima"))!;
+    const guide = formatClassTrialLensForSpeech(enoshima);
+
+    expect(guide).toContain("超高校级的分析师");
+    expect(guide).toContain("全场发言结构");
+    expect(guide).toContain("反应模式");
+    expect(guide).toContain("伪装");
+    expect(guide).toContain("先给结构分析结论");
+    expect(guide).toContain("不要只用绝望口号");
+  });
+
+  it("makes Fukawa strongly orbit Togami while still using public reasons", () => {
+    const fukawa = getClassTrialCharacterLens(roleCard("fukawa"))!;
+    const guide = formatClassTrialLensForSpeech(fukawa);
+
+    expect(guide).toContain("十神");
+    expect(guide).toContain("谁碰十神");
+    expect(guide).toContain("强烈偏向");
+    expect(guide).toContain("公开理由");
+    expect(guide).toContain("先显露对十神的情绪");
+    expect(guide).toContain("不、不是只因为十神大人");
+  });
+
   it("returns undefined for non-class-trial role cards", () => {
     expect(getClassTrialCharacterLens({ ...roleCard("naegi"), theme: "space-opera" })).toBeUndefined();
     expect(getClassTrialCharacterLens(undefined)).toBeUndefined();
@@ -90,6 +114,30 @@ describe("classTrialCharacterLens", () => {
     expect(formatClassTrialLensForSpeech(kirigiri)).not.toContain("必须照抄");
   });
 
+  it("gives every fixed role a low-info opening move instead of a generic werewolf opener", () => {
+    const expectations: Array<[string, string, string]> = [
+      ["naegi", "共同验证点", "希望"],
+      ["kirigiri", "冷静切片", "可验证部分"],
+      ["fukawa", "十神大人", "浪费时间"],
+      ["monokuma", "互相审判", "空话"],
+      ["enoshima", "结构分析", "收益路径"],
+      ["celestia", "下注", "解释成本"],
+      ["togami", "价值", "合格线"],
+      ["tomori", "小小的不连贯", "没接上"],
+      ["anon", "关系链", "气氛"],
+    ];
+
+    for (const [id, firstNeedle, secondNeedle] of expectations) {
+      const lens = getClassTrialCharacterLens(roleCard(id))!;
+      const guide = formatClassTrialLensForSpeech(lens);
+
+      expect(guide).toContain("低信息开局动作");
+      expect(guide).toContain(firstNeedle);
+      expect(guide).toContain(secondNeedle);
+      expect(guide).not.toContain("发言顺序、每个人的站边和票型放在一起校验");
+    }
+  });
+
   it("keeps lens validation advisory so DeepSeek can freeplay without keyword matching", () => {
     const lens = getClassTrialCharacterLens(roleCard("naegi"))!;
 
@@ -123,6 +171,29 @@ describe("classTrialCharacterLens", () => {
 
     expect(line).toContain("结论和依据之间的连接");
     expect(line).not.toContain("还需要再对照还没接上");
+  });
+
+  it("keeps Fukawa fallback moves anchored to Togami instead of audit wording", () => {
+    const fukawa = getClassTrialCharacterLens(roleCard("fukawa"))!;
+    const first = buildClassTrialLensFallbackSpeech(fukawa, {
+      focusText: "2号雾切响子",
+      gap: "提到身份相关词，需要核对它是公开形态还是身份声明",
+      seed: 0,
+    });
+    const second = buildClassTrialLensFallbackSpeech(fukawa, {
+      focusText: "2号雾切响子",
+      gap: "提到身份相关词，需要核对它是公开形态还是身份声明",
+      seed: 1,
+    });
+
+    expect(first).toContain("十神");
+    expect(second).toContain("十神");
+    expect(first + second).toContain("不、不是只因为");
+    expect(first + second).toContain("别笑");
+    expect(first + second).toContain("身份这句话还没说清");
+    expect(first + second).not.toContain("提到身份相关词");
+    expect(first + second).not.toContain("公开形态");
+    expect(first + second).not.toContain("身份声明");
   });
 
   it("uses multiple role action fallback moves instead of one stitched fallback pattern", () => {

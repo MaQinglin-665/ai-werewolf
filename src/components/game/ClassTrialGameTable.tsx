@@ -8,13 +8,25 @@ import {
   getClassTrialDialogueFrameByProgress,
 } from "./classTrialDialogue";
 import { ClassTrialVerdictReview } from "./ClassTrialVerdictReview";
+import { ClassTrialVoteStage } from "./ClassTrialVoteStage";
 import {
-  getClassTrialCharacterForSeat,
+  buildClassTrialTableModel,
+  getAudioWaitingText,
+  isMatchingAudioTypewriter,
+  type ClassTrialSpeakingFocusView,
+} from "./classTrialTableModel";
+import {
   getClassTrialCourtBackgroundUrl,
   type ClassTrialPackCharacter,
   type ClassTrialPackManifest,
 } from "./classTrialTheme";
-import type { ClassTrialAudioTypewriterState, ClassTrialManualAudioPlayback, CommandPayload, LiveAiSpeech } from "./clientTypes";
+import type {
+  ClassTrialAudioTypewriterState,
+  ClassTrialManualAudioPlayback,
+  CommandPayload,
+  HostAudioStatus,
+  LiveAiSpeech,
+} from "./clientTypes";
 
 type PortraitCssVariables = CSSProperties & {
   "--class-trial-portrait-scale": number;
@@ -26,59 +38,7 @@ type CourtStageCssVariables = CSSProperties & {
   "--class-trial-court-background"?: string;
 };
 
-type SpeakingFocusView = {
-  character: ClassTrialPackCharacter;
-  key: string;
-  message: string;
-  speakerName: string;
-  stage: "enter" | "exit";
-};
-
 type MotionPreference = "pending" | "enabled" | "reduced";
-
-function buildSeatCharacters(game: HumanGameView, manifest: ClassTrialPackManifest | undefined): Map<number, ClassTrialPackCharacter> {
-  return new Map(game.seats.map((seat, index) => [seat.seatId, getClassTrialCharacterForSeat(index, manifest)]));
-}
-
-function getActiveSeatId(game: HumanGameView): number | undefined {
-  return game.currentSpeakerSeatId ?? game.currentActorSeatId;
-}
-
-function getSpeakerCharacter(
-  speakerSeatId: number | undefined,
-  seatCharacters: Map<number, ClassTrialPackCharacter>,
-): ClassTrialPackCharacter | undefined {
-  const seatId = speakerSeatId;
-  return seatId ? seatCharacters.get(seatId) : undefined;
-}
-
-function getLatestSpeakerMessage(
-  game: HumanGameView,
-  speakerSeatId: number | undefined,
-  liveAiSpeech: LiveAiSpeech | null | undefined,
-): string {
-  const seatId = speakerSeatId;
-  const liveText =
-    liveAiSpeech && seatId && liveAiSpeech.speaker.seatId === seatId ? liveAiSpeech.text.trim() : undefined;
-  if (liveText) return liveText;
-  const speech = [...game.tableSummary.recentSpeeches].reverse().find((item) => !seatId || item.speaker?.seatId === seatId);
-  return speech?.message ?? "正在思考/准备发言。";
-}
-
-function isMatchingAudioTypewriter(
-  audioTypewriter: ClassTrialAudioTypewriterState | undefined,
-  speakerSeatId: number | undefined,
-): audioTypewriter is ClassTrialAudioTypewriterState {
-  return Boolean(audioTypewriter && speakerSeatId && audioTypewriter.speaker.seatId === speakerSeatId);
-}
-
-function getAudioWaitingText(audioTypewriter: ClassTrialAudioTypewriterState | undefined, fallback: string): string {
-  if (audioTypewriter?.state === "paused") return "请点击播放语音。";
-  if (audioTypewriter?.preparationStage === "generating") return "正在生成语音。";
-  if (audioTypewriter?.preparationStage === "ready") return "准备播放。";
-  if (audioTypewriter?.preparationStage === "queued") return "正在调取证言。";
-  return fallback;
-}
 
 function getPortraitCssVariables(
   character: ClassTrialPackCharacter | undefined,
@@ -119,6 +79,9 @@ export function ClassTrialGameTable({
   manualAudioPlayback,
   liveAiSpeech,
   aiRuntimeMode = "mock",
+  hostAudioEnabled = false,
+  hostAudioStatus = null,
+  onToggleHostAudio,
   onReturnHome,
   onSubmit,
 }: {
@@ -129,54 +92,41 @@ export function ClassTrialGameTable({
   manualAudioPlayback?: ClassTrialManualAudioPlayback | null;
   liveAiSpeech?: LiveAiSpeech | null;
   aiRuntimeMode?: AiRuntimeMode;
+  hostAudioEnabled?: boolean;
+  hostAudioStatus?: HostAudioStatus | null;
+  onToggleHostAudio?: () => void;
   onReturnHome: () => void;
   onSubmit: (payload: CommandPayload) => Promise<void>;
 }) {
   const courtStageStyle = getCourtStageStyle(manifest);
-  const seatCharacters = buildSeatCharacters(game, manifest);
-  const activeAudioTypewriter =
-    audioTypewriter?.state === "loading" || audioTypewriter?.state === "playing" || audioTypewriter?.state === "paused"
-      ? audioTypewriter
-      : undefined;
-  const audioSpeakerSeatId = activeAudioTypewriter?.speaker.seatId;
-  const speakerSeatId = audioSpeakerSeatId ?? game.currentSpeakerSeatId;
-  const activeSeatId = audioSpeakerSeatId ?? getActiveSeatId(game);
-  const activeCharacter = getSpeakerCharacter(activeSeatId, seatCharacters);
-  const speakerCharacter = getSpeakerCharacter(speakerSeatId, seatCharacters);
-  const speakerName = speakerCharacter?.displayName ?? "等待发言";
-  const centerStatus = speakerCharacter
-    ? `${speakerCharacter.displayName} 发言中`
-    : activeCharacter
-      ? `${activeCharacter.displayName} 行动中`
-      : "等待发言";
-  const message = speakerCharacter ? getLatestSpeakerMessage(game, speakerSeatId, liveAiSpeech) : "";
-  const speakerCharacterId = speakerCharacter?.id;
-  const speakerCharacterName = speakerCharacter?.displayName;
-  const speakerAvatarUrl = speakerCharacter?.avatarUrl;
-  const speakerPortraitUrl = speakerCharacter?.portraitUrl;
-  const speakerThinkingPortraitUrl = speakerCharacter?.thinkingPortraitUrl;
-  const speakerHasAvatar = speakerCharacter?.hasAvatar;
-  const speakerHasPortrait = speakerCharacter?.hasPortrait;
-  const speakerHasThinkingPortrait = speakerCharacter?.hasThinkingPortrait;
-  const speakerSourcePage = speakerCharacter?.sourcePage;
-  const speakerPortraitScale = speakerCharacter?.portraitLayout?.scale;
-  const speakerPortraitX = speakerCharacter?.portraitLayout?.x;
-  const speakerPortraitY = speakerCharacter?.portraitLayout?.y;
-  const speakerThinkingPortraitScale = speakerCharacter?.thinkingPortraitLayout?.scale;
-  const speakerThinkingPortraitX = speakerCharacter?.thinkingPortraitLayout?.x;
-  const speakerThinkingPortraitY = speakerCharacter?.thinkingPortraitLayout?.y;
-  const currentSpeakingFocusKey = speakerCharacterId ? `${speakerCharacterId}\n${speakerSeatId ?? ""}\n${message}` : "";
-  const currentSpeakingFocus: SpeakingFocusView | undefined = speakerCharacter
-    ? {
-        character: speakerCharacter,
-        key: currentSpeakingFocusKey,
-        message,
-        speakerName,
-        stage: "enter",
-      }
-    : undefined;
-  const previousSpeakingFocusRef = useRef<SpeakingFocusView | undefined>(currentSpeakingFocus);
-  const [exitingFocus, setExitingFocus] = useState<SpeakingFocusView | undefined>();
+  const tableModel = buildClassTrialTableModel({
+    game,
+    manifest,
+    audioTypewriter,
+    liveAiSpeech,
+    aiRuntimeMode,
+    hostAudioEnabled,
+    hostAudioStatus,
+  });
+  const {
+    seatCharacters,
+    activeAudioTypewriter,
+    speakerSeatId,
+    activeSeatId,
+    speakerName,
+    centerStatus,
+    currentSpeakingFocusKey,
+    currentSpeakingFocus,
+    aiRuntimeLabel,
+    classTrialVoteState,
+    nightPhase,
+    hostAudioLabel,
+    voteLockedSeatIds,
+    votePendingSeatIds,
+    voteFocusSeatId,
+  } = tableModel;
+  const previousSpeakingFocusRef = useRef<ClassTrialSpeakingFocusView | undefined>(currentSpeakingFocus);
+  const [exitingFocus, setExitingFocus] = useState<ClassTrialSpeakingFocusView | undefined>();
   const visibleFocus = currentSpeakingFocus ?? exitingFocus;
   const focusSpeakerName = visibleFocus?.speakerName ?? speakerName;
   const focusCharacter = visibleFocus?.character;
@@ -218,7 +168,6 @@ export function ClassTrialGameTable({
     waitingForSpeechAudioStart ||
     dialogueFrameIndex < 0;
   const continueAction = game.availableActions.find((action) => action.type === "continue");
-  const aiRuntimeLabel = aiRuntimeMode === "llm" ? "真实 LLM · DeepSeek-v4" : "Mock AI";
   const matchingManualAudioPlayback =
     manualAudioPlayback &&
     manualAudioPlayback.speechKey === matchingAudioTypewriter?.speechKey &&
@@ -236,55 +185,9 @@ export function ClassTrialGameTable({
   }, []);
 
   useEffect(() => {
-    if (!currentSpeakingFocusKey || !speakerCharacterId || !speakerCharacterName) return;
-
-    previousSpeakingFocusRef.current = {
-      character: {
-        id: speakerCharacterId,
-        displayName: speakerCharacterName,
-        avatarUrl: speakerAvatarUrl,
-        portraitUrl: speakerPortraitUrl,
-        thinkingPortraitUrl: speakerThinkingPortraitUrl,
-        hasAvatar: speakerHasAvatar,
-        hasPortrait: speakerHasPortrait,
-        hasThinkingPortrait: speakerHasThinkingPortrait,
-        sourcePage: speakerSourcePage,
-        portraitLayout:
-          typeof speakerPortraitScale === "number" && typeof speakerPortraitX === "number" && typeof speakerPortraitY === "number"
-            ? { scale: speakerPortraitScale, x: speakerPortraitX, y: speakerPortraitY }
-            : undefined,
-        thinkingPortraitLayout:
-          typeof speakerThinkingPortraitScale === "number" &&
-          typeof speakerThinkingPortraitX === "number" &&
-          typeof speakerThinkingPortraitY === "number"
-            ? { scale: speakerThinkingPortraitScale, x: speakerThinkingPortraitX, y: speakerThinkingPortraitY }
-            : undefined,
-      },
-      key: currentSpeakingFocusKey,
-      message,
-      speakerName,
-      stage: "enter",
-    };
-  }, [
-    currentSpeakingFocusKey,
-    message,
-    speakerAvatarUrl,
-    speakerCharacterId,
-    speakerCharacterName,
-    speakerHasAvatar,
-    speakerHasPortrait,
-    speakerHasThinkingPortrait,
-    speakerPortraitScale,
-    speakerPortraitUrl,
-    speakerThinkingPortraitUrl,
-    speakerPortraitX,
-    speakerPortraitY,
-    speakerSourcePage,
-    speakerThinkingPortraitScale,
-    speakerThinkingPortraitX,
-    speakerThinkingPortraitY,
-    speakerName,
-  ]);
+    if (!currentSpeakingFocus) return;
+    previousSpeakingFocusRef.current = currentSpeakingFocus;
+  }, [currentSpeakingFocus]);
 
   useEffect(() => {
     if (currentSpeakingFocusKey) return;
@@ -348,12 +251,20 @@ export function ClassTrialGameTable({
 
   return (
     <section
-      className={["class-trial-table", "class-trial-court-stage", hasSpeakingFocus ? "class-trial-table-speaking" : ""]
+      className={[
+        "class-trial-table",
+        "class-trial-court-stage",
+        nightPhase ? "class-trial-table-night" : "",
+        hasSpeakingFocus ? "class-trial-table-speaking" : "",
+        classTrialVoteState ? "class-trial-table-vote-active" : "",
+        classTrialVoteState?.variant === "reveal" ? "class-trial-table-vote-reveal" : "",
+      ]
         .filter(Boolean)
         .join(" ")}
       style={courtStageStyle}
     >
       <div className="class-trial-table-background" aria-hidden="true" />
+      {nightPhase && <div className="class-trial-night-haze" aria-hidden="true" />}
       <header className="class-trial-table-topbar">
         <div>
           <span className="class-trial-table-kicker">Local Theme</span>
@@ -361,6 +272,26 @@ export function ClassTrialGameTable({
         </div>
         <div className="class-trial-table-actions">
           <span className="class-trial-table-runtime">{aiRuntimeLabel}</span>
+          {onToggleHostAudio && (
+            <button
+              type="button"
+              onClick={onToggleHostAudio}
+              aria-pressed={hostAudioEnabled}
+              aria-label={hostAudioStatus ? "系统播报中" : hostAudioEnabled ? "关闭主持播报" : "开启主持播报"}
+              className={[
+                "class-trial-host-audio-toggle",
+                hostAudioEnabled ? "class-trial-host-audio-toggle-active" : "",
+                hostAudioStatus ? "class-trial-host-audio-toggle-playing" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              <span className="class-trial-host-audio-icon" aria-hidden="true">
+                音
+              </span>
+              <span>{hostAudioLabel}</span>
+            </button>
+          )}
           <button type="button" onClick={onReturnHome} className="class-trial-table-secondary">
             返回首页
           </button>
@@ -369,15 +300,20 @@ export function ClassTrialGameTable({
 
       <div className="class-trial-ring" aria-label="9人环形裁判席" style={getRingFocusStyle(hasSpeakingFocus)}>
         {game.seats.map((seat, index) => {
-          const character = seatCharacters.get(seat.seatId) ?? getClassTrialCharacterForSeat(index, manifest);
+          const character = seatCharacters.get(seat.seatId);
+          if (!character) return null;
 
           return (
             <div
               key={seat.seatId}
               className={[
                 "class-trial-seat",
+                nightPhase ? "class-trial-seat-night-dim" : "",
                 seat.alive ? "" : "class-trial-seat-dead",
                 seat.seatId === activeSeatId ? "class-trial-seat-active" : "",
+                voteLockedSeatIds.has(seat.seatId) ? "class-trial-seat-vote-locked" : "",
+                votePendingSeatIds.has(seat.seatId) ? "class-trial-seat-vote-waiting" : "",
+                voteFocusSeatId === seat.seatId ? "class-trial-seat-vote-focus" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -390,6 +326,12 @@ export function ClassTrialGameTable({
               )}
               <span className="class-trial-seat-name">{character.displayName}</span>
               {!seat.alive && <span className="class-trial-seat-status">已退场</span>}
+              {seat.alive && voteLockedSeatIds.has(seat.seatId) && (
+                <span className="class-trial-seat-vote-status">已锁票</span>
+              )}
+              {seat.alive && votePendingSeatIds.has(seat.seatId) && (
+                <span className="class-trial-seat-vote-status class-trial-seat-vote-status-waiting">等待中</span>
+              )}
             </div>
           );
         })}
@@ -399,6 +341,8 @@ export function ClassTrialGameTable({
         <span>{game.phaseLabel}</span>
         <strong>{centerStatus}</strong>
       </section>
+
+      {classTrialVoteState && <ClassTrialVoteStage game={game} />}
 
       {focusCharacter && (
         <section

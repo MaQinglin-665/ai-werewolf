@@ -2,16 +2,85 @@
 
 ## Current State
 
-**Last Updated:** 2026-05-30 15:19 Asia/Shanghai
-**Session ID:** class-trial thinking/persona polish
-**Active Feature:** class-trial-thinking-persona-polish - Class Trial Thinking Portrait And Persona Polish (done)
+**Last Updated:** 2026-06-02 22:30 Asia/Shanghai
+**Session ID:** class-trial-system-architecture
+**Active Feature:** class-trial-system-architecture - Class Trial System Architecture (done)
 
 ## Status
 
 ### What's Done
 
+- [x] Completed the unified class-trial / global Werewolf architecture cleanup requested for AI template feel, phase confusion, vote presentation, and room projection impact.
+- [x] Added shared `src/game/phaseSemantics.ts` and reused it from `src/game/projection.ts` and `src/server/roomService.ts`, removing duplicated public actor phase logic.
+- [x] Added `src/game/voteSnapshot.ts` so public vote progress/reveal semantics are a reusable rule/projection model instead of inline projection helpers.
+- [x] Added `src/components/game/classTrialVotePresentation.ts` and rewired `ClassTrialVoteStage` / `ClassTrialGameTable` to consume a single sealed/reveal presentation model.
+- [x] Added `src/components/game/classTrialFlowModel.ts` and rewired `GameClient` intro, opening-night curtain, auto-advance, host audio, AI audio, and voice prewarm gating through it.
+- [x] Added `src/components/game/classTrialTableModel.ts` so class-trial table focus, night state, host label, vote ring state, and active audio speaker ownership are computed outside JSX.
+- [x] Added `src/ai/classTrialSpeechDirector.ts` and moved class-trial self-introduction, dialogue rewrite, low-info opening, final-speaker, and repeated-focus director guidance out of `speechProviders.ts`.
+- [x] Added focused red-green tests for every extracted model and kept existing class-trial vote/table/speech tests passing.
+- [x] Verification passed: targeted aggregate Vitest 12 files / 324 tests; room API test 1 file / 19 tests; `npx tsc --noEmit`; `npm run lint`; `npm run build`.
+- [x] Local HTTP/API smoke passed on `http://127.0.0.1:3000`: `/` returned 200, `/api/games/boards` returned 200, and a 9p class-trial game was created with `phaseSteps` and `tableSummary.voteSnapshot`.
+- [x] Room SSE smoke passed with `ROOM_SMOKE_BASE_URL=http://127.0.0.1:3000 npm run smoke:room-sse`.
+- [x] `npm run smoke:room-action:vote` was investigated but not completed: default port mismatch caused the first fetch failure; after pointing to 3000 and also trying a mock 3003 production server, it timed out in the existing room AI night-advance path after `NIGHT_WOLVES -> NIGHT_SEER`.
 - [x] Core harness files remain present and validated by `npm run harness:check`.
 - [x] `学级裁判主题局` remains local-only and is not exposed from `/rooms` or Public Alpha.
+- [x] Added class-trial vote burst overlay for sealed vote start and revealed vote result states.
+- [x] Added no-exile vote verdict handling so tied/no-target reveals show `未达成处刑` without focusing a seat.
+- [x] Added CSS-only red/black slash burst, scanline/pulse pressure, and locked-seat stamp effects with reduced-motion fallback.
+- [x] Browser verification on `http://127.0.0.1:51631` confirmed sealed progress stays readable and does not expose vote targets, unique reveal focuses seat 6, and no-exile reveal keeps focus count 0.
+- [x] Added `docs/tasks/2026-05-class-trial-vote-visualization.md` and `docs/superpowers/plans/2026-05-31-class-trial-vote-visualization.md` for the local-only vote visualization slice.
+- [x] `DAY_VOTE` public projection now exposes only eligible, locked, and pending seat ids; it still hides vote targets, tally, leaders, and vote reasons until resolution.
+- [x] Added `ClassTrialVoteStage` for sealed vote progress (`封票中`, locked/pending seat rail, meter) and one-shot reveal (`开票揭示`, tally rows, voter ledger, focus seat).
+- [x] Wired the class-trial table to show per-seat `已锁票` / `等待中` chips during vote and focus the leading seat during reveal, without touching ordinary non-theme vote UI.
+- [x] Updated class-trial phase copy so vote phase says targets stay sealed and exile resolution reads as one-shot opening.
+- [x] Browser verification on `http://127.0.0.1:51631` confirmed sealed progress with `3 / 9`, per-seat `已锁票/等待中`, no arrows/targets, and the one-shot `开票揭示` tally/ledger reveal.
+- [x] Added `docs/tasks/2026-05-class-trial-public-speech-evidence-boundary.md` for the private-memory-to-public-speech boundary task.
+- [x] Root-caused the reported `我暂时更信5号` line to `buildMemorySpeechPoint()` converting `memory.trustedSeatId` directly into a public talking point.
+- [x] Added a red-green regression where a class-trial speaker privately trusts an unevidenced unspoken back seat; the test first failed on `我暂时更信5号` and now passes.
+- [x] Added `buildPublicTrustSpeechPoint()` so private trust is only spoken when it can be translated into public evidence such as a public check, claim, support stance, prior speech, public mention, or vote record.
+- [x] Added a positive regression proving a trusted seat with visible public speech can still be referenced as public evidence rather than suppressed or rendered as raw private trust.
+- [x] Focused verification passed: `npm run test -- src/ai/tableRead.test.ts src/ai/speechProviders.test.ts` and `npm run test -- src/game/engine.test.ts -t "memory"`.
+- [x] Type/build confidence passed: `npx tsc --noEmit`, targeted `npx eslint src/ai/tableRead.ts src/ai/tableRead.test.ts`, and `npm run build`.
+- [x] Fixed full lint by adding `tmp/**` to `eslint.config.mjs` global ignores; `npm run lint` now passes instead of scanning existing `tmp/chrome-class-trial-smoke` Chrome extension cache files.
+- [x] Added `docs/tasks/2026-05-speech-de-template-persona-layer.md` for the follow-up speech-personality slice.
+- [x] Added a universal de-template guide to ordinary and class-trial speech input, steering speakers away from repeated `我先按公开信息盘 / 这个疑点未解除 / 票口先放这里` chains and toward identity-benefit, vote-motive, reaction-gap, death-shape, follow-pressure, or verifiable-condition moves.
+- [x] Added ordinary Werewolf validation for obvious empty-template chains while preserving concrete pressure, bluffing, and later-seat verification conditions.
+- [x] Red-green regression for `通用去模板` guidance and ordinary template-chain rejection first failed, then passed after the shared guidance/validation layer.
+- [x] Focused speech/table-read verification passed after narrowing the ordinary validator to avoid false positives around legitimate `等后置位发言看有没有人接线` wording.
+- [x] Added `docs/tasks/2026-05-class-trial-role-pressure-addressing.md` for the follow-up role-pressure and public-addressing slice.
+- [x] Added name-aware public reference guidance so class-trial and ordinary speakers prefer seat plus name or short name, while keeping seat numbers for checks, votes, and target clarity.
+- [x] Expanded the class-trial repeated-focus director to catch abstract loops around `缺口 / 没往下推 / 没给倾向 / 没给结论`, then ask the current role to change pressure method instead of repeating the same accusation.
+- [x] Strengthened 江之岛盾子 as `超高校级的分析师`: structural table analysis and reaction-pattern reading first, theatrical pressure second.
+- [x] Strengthened 腐川冬子 around 十神白夜: she reacts strongly to who touches, protects, ignores, or pressures 十神, while still translating that obsession into public table reasons.
+- [x] Focused role-pressure tests passed: `npm run test -- src/ai/classTrialCharacterLens.test.ts src/ai/speechProviders.test.ts` passed 2 files / 106 tests.
+- [x] Real Day 1 text sample `tmp/class-trial-day1-real-role-pressure-addressing-1780156628228.md` generated 9/9 DeepSeek speeches with fallback 0/9, templateHits 0, repeated pressure terms 3, and nameRefs 10.
+- [x] Follow-up sample review found the first three low-information class-trial speeches were still too template-like: 苗木 only greeted/restated平安夜, 雾切 waited for all later seats, 腐川 lacked 十神 emotion, and 江之岛 lacked analyst structure.
+- [x] Added a per-role `低信息开局动作` to all 9 class-trial character lenses so low-information openings have a character action instead of a generic Werewolf audit frame.
+- [x] Added class-trial opening director guidance for low-information Day 1: 苗木 must leave a共同验证点, 腐川 must show 十神大人 as a public emotion coordinate, and 江之岛 must lead with analysis/structure/benefit/reaction-pattern before spectacle.
+- [x] Added validation against generic class-trial opening frames such as `发言顺序、站边、票型一起校验`, greeting-only平安夜 restatement, waiting for all later seats to finish, final speakers waiting for后置位, 腐川 missing 十神, and 江之岛 missing analyst structure.
+- [x] Follow-up red-green verification passed: `npm run test -- src/ai/classTrialCharacterLens.test.ts src/ai/speechProviders.test.ts` passed 2 files / 114 tests.
+- [x] Fresh real Day 1 sample after the follow-up now runs: `tmp/class-trial-day1-verification-1780195573037.md` generated 9/9 DeepSeek speeches, fallback 3/9 through role-specific class-trial fallback, templateHits 0, repeatedPressureTerms 4, nameRefs 11, Enoshima analyst signals 1, and Fukawa Togami refs 1.
+- [x] Root-caused the remaining 腐川/江之岛 low-info drift to day-one hard-info detection treating generic future wording like `投票时形成闭环` as hard information because it matched bare `投`.
+- [x] Narrowed day-one hard-info detection in `tableRead` and `speechProviders` so future voting review language stays low-info, while concrete `票口/归票/出人/投X号` still closes the low-info layer.
+- [x] Added role-specific class-trial low-info fallback so rejected DeepSeek openings no longer pressure unspoken seats and still preserve 苗木共同验证点、雾切冷静切片、腐川十神坐标、江之岛结构/收益/伪装 signal.
+- [x] Browser/game QA on `http://127.0.0.1:3005` completed a full Day 1 class-trial run: 9/9 speeches reached `DAY_VOTE`, transcript saved to `tmp/class-trial-browser-qa-1780197058323.md`, screenshot saved to `tmp/class-trial-browser-qa-3005-current.png`.
+- [x] Browser QA finding: role/persona feel is better, but the live run still over-circled `1号没给倾向/缺口`; GPT-SoVITS was unavailable at `127.0.0.1:9880`, so this pass verified text/UI timing but not audible quality.
+- [x] Follow-up fix after browser QA: 苗木 low-info fallback now carries a stronger `希望/共同验证` character beat, and repeated empty-stance/empty-gap director guidance now explicitly says the speaker cannot keep the same `没给倾向/缺口` line as the main axis.
+- [x] Follow-up focused tests passed: `npm run test -- src/ai/speechProviders.test.ts -t "hardens the class-trial director note|class-trial low-info first-speaker fallback"` and `npm run test -- src/ai/speechProviders.test.ts src/ai/classTrialCharacterLens.test.ts src/ai/tableRead.test.ts` passed 3 files / 142 tests.
+- [x] Follow-up dialogue-persona pass added class-trial台词化转译 guidance so `站边/票口/闭环/缺口` stay as internal structure and spoken lines become role-flavored裁判场台词.
+- [x] Added class-trial terminology-overload validation, low-info room-greeting rejection, and a guard against treating the system speech order as a wolf-team puzzle.
+- [x] Added a broad Fukawa role-texture guard and updated Fukawa fallback moves so validation fallback still references 十神 and normalizes audit wording like `提到身份相关词` into natural speech.
+- [x] Fresh real DeepSeek Day 1 sample `tmp/class-trial-day1-verification-1780198915715.md` generated 9/9 speeches with fallback 2/9, templateHits 0, repeatedPressureTerms 0, nameRefs 8, Enoshima analyst signals 2, and Fukawa Togami refs 1.
+- [x] Latest focused AI tests passed: `npm run test -- src/ai/speechProviders.test.ts src/ai/classTrialCharacterLens.test.ts src/ai/tableRead.test.ts` passed 3 files / 150 tests.
+- [x] Follow-up verification pass generated multiple real Day 1 samples and tightened residual class-trial template variants: non-Celestia `筹码` spread, `后置位整体/发言顺序校验`, `下一位/后面几位/等第一轮走完` workflow talk, `等后置位谁先动再回头看`, and negative `没有票口` incorrectly closing the low-info layer.
+- [x] Narrowed day-one hard-info detection again so negative no-ticket/no-stance wording such as `还没有任何人给出站边或票口` does not disable low-info role guards.
+- [x] Added repeated-motif guidance for `框架滑移/话滑空转` and `平安夜催票复读`, and changed 苗木 low-info fallback away from the easily copied `借平安夜催票` phrase.
+- [x] Tightened 江之岛 low-info validation so `裂口/谁最受益` alone is not enough; she must show analysis, structure, reaction-pattern, benefit-path, or disguise signal.
+- [x] Fresh real DeepSeek Day 1 sample `tmp/class-trial-day1-verification-1780200902521.md` generated 9/9 speeches with fallback 1/9, templateHits 0, repeatedPressureTerms 1, nameRefs 7, Enoshima analyst signals 2, and Fukawa Togami refs 1; the final residual `等第一轮走完后` variant is now covered by a targeted regression after that sample.
+- [x] Latest focused AI tests passed: `npm run test -- src/ai/speechProviders.test.ts src/ai/classTrialCharacterLens.test.ts src/ai/tableRead.test.ts` passed 3 files / 161 tests.
+- [x] Latest verification follow-up added targeted regressions for lingering class-trial workflow/omniscience leaks: `下一位先听你的`, `等所有人发完言后`, `后置位的各位等你们发言时`, `等后面有人拍身份再调整`, unpublicized `验人线`, and false role-claim attribution like `4号和5号自称猎人`.
+- [x] Latest focused AI tests passed: `npm run test -- src/ai/speechProviders.test.ts src/ai/classTrialCharacterLens.test.ts src/ai/tableRead.test.ts` passed 3 files / 171 tests.
+- [x] Latest real DeepSeek Day 1 sample `tmp/class-trial-day1-verification-1780213850241.md` generated 9/9 speeches with fallback 0/9, templateHits 0, repeatedPressureTerms 4, nameRefs 9, Enoshima analyst signals 1, and Fukawa Togami refs 1; the final observed `后置位的各位，等你们发言时` variant is now covered by a targeted regression.
 - [x] Seat 8 in the fixed class-trial roster is now `tomori` / `高松灯`; the active 9-seat order is 苗木诚、雾切响子、腐川冬子、黑白熊、江之岛盾子、塞蕾丝缇雅、十神白夜、高松灯、千早爱音.
 - [x] Ignored local `local-assets/class-trial-pack/manifest.json` and `personas.json` use 高松灯 instead of 叶隐康比吕.
 - [x] Ignored local 高松灯 avatar and portrait PNG files exist and remain untracked.
@@ -142,9 +211,9 @@
 
 ### What's Next
 
-1. Run a human listening pass with `播AI开` through at least the first 4 speakers, paying special attention to whether 黑白熊's `噗噗/うぷぷ` feels complete and whether the generated thinking poses feel right in motion.
-2. Push into Day 2 in a live browser run and confirm DeepSeek non-fallback lines do not reintroduce speakers by name, beyond the automated contract/fallback validation.
-3. Use the listening pass to decide whether the next slice should tune per-role voice lines further or add an evaluator layer for repeated abstract pressure.
+1. Subjectively review the vote screen in a longer live class-trial run and decide whether the sealed-progress panel needs stronger motion or sound cues.
+2. If mobile class-trial voting becomes important, add a dedicated mobile layout check; this slice focused desktop/local table verification.
+3. The previous voice/persona listening pass remains a separate quality follow-up and is not part of this vote-visualization slice.
 
 ## Blockers / Risks
 
@@ -171,6 +240,8 @@
 - [ ] Deferred chunk loading protects the local TTS backend from request bursts, but very long speeches can still pause between chunks if synthesis is slower than playback.
 - [ ] Browser automation was not available in this thread after the prewarm edit; direct route smoke and focused tests passed, but a longer subjective browser listening pass remains useful.
 - [ ] Browser automation was not exposed in this turn and local Playwright was not installed; API/log regression and local app health checks were captured for the latest no-skip/typewriter/persona slice.
+- [ ] This vote visualization slice is local-only class-trial UI/projection work; it intentionally did not touch `/rooms`, Public Alpha, or non-theme vote rendering.
+- [ ] The dev server used for browser verification is running on `http://127.0.0.1:51631` because port 3000 was occupied by another local app.
 - [ ] Deterministic local Japanese rewrite removes a major wait but may sound less semantically rich than LLM translation; keep a human listening pass before treating voice quality as final.
 - [ ] One live speaker still hit fallback before the role-specific fallback patch; automated tests protect the new fallback, but a fresh full live run would confirm it subjectively.
 - [ ] Subjective character feel still needs a longer Day 1 listening pass; tests prove the lens reaches prompts and validation, not that every live line will feel perfect.
@@ -195,6 +266,25 @@
 
 ## Files Modified This Session
 
+- `src/components/game/ClassTrialVoteStage.tsx` - adds reveal verdict metadata and the class-trial vote burst overlay.
+- `src/components/game/classTrialVoteStage.test.ts` - protects sealed privacy, overlay hooks, exile reveal, and no-exile reveal.
+- `src/components/game/classTrialGameTable.test.ts` - protects no-exile reveal from focusing a seat.
+- `src/app/globals.css` - adds scanline/pulse pressure, red-black burst overlays, locked stamp, keyframes, and reduced-motion fallback.
+- `docs/superpowers/plans/2026-05-31-class-trial-vote-burst-animation.md` - implementation plan for this slice.
+- `docs/tasks/2026-05-class-trial-vote-burst-animation.md` - task card and verification record for this slice.
+- `src/game/types.ts` - adds hidden vote progress fields to `PublicVoteSnapshot`.
+- `src/game/projection.ts` - exposes sealed eligible/locked/pending vote progress during `DAY_VOTE` without vote targets.
+- `src/game/engine.test.ts` - protects hidden vote projection before resolution.
+- `src/components/game/ClassTrialVoteStage.tsx` - new class-trial sealed-progress and one-shot reveal presenter.
+- `src/components/game/classTrialVoteStage.test.ts` - presenter coverage for sealed and revealed states.
+- `src/components/game/ClassTrialGameTable.tsx` - wires vote stage, seat locked/waiting chips, reveal focus, and table classes.
+- `src/components/game/classTrialGameTable.test.ts` - protects sealed vote table markup, reveal markup, and non-vote absence.
+- `src/components/game/classTrialPhaseScenes.ts` - updates vote/reveal copy for sealed targets and one-shot opening.
+- `src/components/game/classTrialPhaseScenes.test.ts` - protects the updated vote/reveal phase copy.
+- `src/app/globals.css` - adds class-trial vote HUD, rail, ledger, tally, and seat-state styling.
+- `docs/superpowers/plans/2026-05-31-class-trial-vote-visualization.md` - implementation plan used for execution.
+- `docs/tasks/2026-05-class-trial-vote-visualization.md` - task card and verification record for this slice.
+- `feature_list.json`, `progress.md`, `session-handoff.md` - current feature status and handoff evidence for this slice.
 - `src/components/game/classTrialTheme.ts` - replaces seat 8 fixed roster id/display name and adds class-trial portrait layout metadata.
 - `src/components/game/classTrialTheme.test.ts` - protects Tomori roster, AI friend order, and portrait calibration baseline.
 - `src/components/game/classTrialDialogue.ts` - hybrid dialogue timeline helper with compact long-segment splitting.
@@ -484,9 +574,9 @@
 - [x] Class-trial prompt-leak/self-intro targeted lint: `npx eslint src/ai/actionProviders.ts src/ai/actionProviders.test.ts src/ai/speechProviders.ts src/ai/speechProviders.test.ts` passed with no output.
 - [x] Class-trial prompt-leak/self-intro TypeScript: `npx tsc --noEmit` passed.
 - [x] Class-trial prompt-leak/self-intro build: `npm run build` passed with the existing Turbopack NFT trace warning for `next.config.ts -> src/app/class-trial-pack/[...assetPath]/route.ts`.
-- [ ] Browser automation cannot actually hear GPT-SoVITS output; the latest pass verified visible state/timing, but a human listening pass is still needed for audio quality and long-pause judgment.
-- [ ] The long browser trace timed out before preserving a full black-white-bear transcript, so the next pass should manually listen through at least the first 4 speakers.
+- [ ] GPT-SoVITS was unavailable during the latest browser QA (`127.0.0.1:9880/openapi.json` connection failed), so a real listening pass still needs the local voice service running.
+- [ ] The latest browser trace preserved the full Day 1 transcript, but the next subjective pass should start GPT-SoVITS and listen through at least the first 4 voiced speakers.
 
 ## Notes for Next Session
 
-Use `AGENTS.md` first. Then read `feature_list.json`, this file, `session-handoff.md`, `docs/tasks/2026-05-class-trial-character-lens.md`, and the current class-trial task cards.
+Use `AGENTS.md` first. Then read `feature_list.json`, this file, `session-handoff.md`, `docs/tasks/2026-05-class-trial-role-pressure-addressing.md`, and the current class-trial task cards.

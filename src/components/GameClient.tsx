@@ -109,7 +109,8 @@ import {
   type ClassTrialThemeMode,
 } from "./game/classTrialTheme";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
-import { getThemedPhaseCurtainCue } from "./game/phaseCurtainModel";
+import { getClassTrialFlowModel } from "./game/classTrialFlowModel";
+import { getClassTrialOpeningNightCurtainCue, getThemedPhaseCurtainCue } from "./game/phaseCurtainModel";
 import { buildLandingLineupPreview } from "./game/landingLineupPreview";
 import { MobileGameTable } from "./game/MobileGameTable";
 import {
@@ -207,6 +208,8 @@ export function GameClient() {
     useState<ClassTrialIntroAudioPreparation | null>(null);
   const [classTrialIntroGameId, setClassTrialIntroGameId] = useState<string | null>(null);
   const [completedClassTrialIntroGameId, setCompletedClassTrialIntroGameId] = useState<string | null>(null);
+  const [completedClassTrialOpeningNightCurtainGameId, setCompletedClassTrialOpeningNightCurtainGameId] =
+    useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roleIntroGameId, setRoleIntroGameId] = useState<string | null>(null);
@@ -296,12 +299,26 @@ export function GameClient() {
   const classTrialAiFriends = useMemo(() => buildClassTrialAiFriends(classTrialPersonas), [classTrialPersonas]);
   const classTrialLocalThemeSelected = classTrialThemeMode === "class-trial";
   const classTrialThemeActive = classTrialThemeMode === "class-trial" && Boolean(game);
-  const classTrialIntroPending = Boolean(
-    classTrialThemeActive &&
-      game &&
-      classTrialIntroGameId === game.id &&
-      completedClassTrialIntroGameId !== game.id,
+  const classTrialFlow = useMemo(
+    () =>
+      getClassTrialFlowModel({
+        game,
+        classTrialThemeActive,
+        classTrialIntroGameId,
+        completedClassTrialIntroGameId,
+        completedClassTrialOpeningNightCurtainGameId,
+        roleIntroGameId,
+      }),
+    [
+      classTrialThemeActive,
+      classTrialIntroGameId,
+      completedClassTrialIntroGameId,
+      completedClassTrialOpeningNightCurtainGameId,
+      game,
+      roleIntroGameId,
+    ],
   );
+  const classTrialIntroPending = classTrialFlow.introPending;
 
   const selectBoard = useCallback(
     (boardId: string) => {
@@ -962,6 +979,7 @@ export function GameClient() {
         setRoleIntroGameId(null);
         setClassTrialIntroGameId(null);
         setCompletedClassTrialIntroGameId(null);
+        setCompletedClassTrialOpeningNightCurtainGameId(null);
         setGame(view);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "读取对局失败。");
@@ -993,9 +1011,11 @@ export function GameClient() {
       if (useFixedClassTrialLineup) {
         setClassTrialIntroGameId(view.id);
         setCompletedClassTrialIntroGameId(null);
+        setCompletedClassTrialOpeningNightCurtainGameId(null);
       } else {
         setClassTrialIntroGameId(null);
         setCompletedClassTrialIntroGameId(null);
+        setCompletedClassTrialOpeningNightCurtainGameId(null);
       }
       setGame(view);
     } catch {
@@ -1021,6 +1041,7 @@ export function GameClient() {
     setRoleIntroGameId(null);
     setClassTrialIntroGameId(null);
     setCompletedClassTrialIntroGameId(null);
+    setCompletedClassTrialOpeningNightCurtainGameId(null);
     setPhaseCurtain(null);
     setIdiotReveal(null);
     setIdentityBookOpen(false);
@@ -1268,8 +1289,8 @@ export function GameClient() {
   const idiotRevealActive = Boolean(idiotReveal);
 
   useEffect(() => {
-    if (!game || loading || error || game.result || roleIntroGameId === game.id || phaseCurtainActive || idiotRevealActive) return;
-    if (classTrialIntroPending) return;
+    if (!game || loading || error || game.result || phaseCurtainActive || idiotRevealActive) return;
+    if (classTrialFlow.pauseAutoAdvance) return;
     if (findLatestUnplayedPublicEvent(game, completedIdiotRevealKeysRef.current, IDIOT_REVEAL_EVENT_TYPES)) return;
 
     const currentSpeechKeys = new Set(game.tableSummary.recentSpeeches.map((speech) => speechStreamKey(game.id, speech)));
@@ -1316,7 +1337,7 @@ export function GameClient() {
   }, [
     aiSpeechAudioCompletionTick,
     aiSpeechAudioStatus,
-    classTrialIntroPending,
+    classTrialFlow,
     classTrialThemeActive,
     effectiveAiSpeechAudioEnabled,
     error,
@@ -1326,31 +1347,42 @@ export function GameClient() {
     idiotRevealActive,
     loading,
     phaseCurtainActive,
-    roleIntroGameId,
     runtimeAiTtsConfigs,
     submitCommand,
   ]);
 
   useEffect(() => {
-    if (!game || roleIntroGameId === game.id) return;
+    if (!game || !classTrialFlow.allowThemedPhaseCurtain) {
+      const timer = window.setTimeout(() => setPhaseCurtain(null), 0);
+      return () => window.clearTimeout(timer);
+    }
 
-    const curtainKey = `${game.id}:${game.day}:${game.phase}`;
+    const openingNightCurtainPending = classTrialFlow.openingNightCurtainPending;
+    const curtainKey = openingNightCurtainPending ? `${game.id}:class-trial-opening-night` : `${game.id}:${game.day}:${game.phase}`;
     if (lastCurtainKeyRef.current === curtainKey) return;
     lastCurtainKeyRef.current = curtainKey;
 
-    const cue = getThemedPhaseCurtainCue(game, { classTrialThemeActive });
+    const cue = openingNightCurtainPending
+      ? getClassTrialOpeningNightCurtainCue(game)
+      : getThemedPhaseCurtainCue(game, { classTrialThemeActive });
     if (!cue) {
       const timer = window.setTimeout(() => setPhaseCurtain(null), 0);
       return () => window.clearTimeout(timer);
     }
 
     const showTimer = window.setTimeout(() => setPhaseCurtain(cue), 0);
-    const hideTimer = window.setTimeout(() => setPhaseCurtain(null), cue.durationMs);
+    const hideTimer = window.setTimeout(() => {
+      if (openingNightCurtainPending) {
+        setCompletedClassTrialOpeningNightCurtainGameId(game.id);
+        lastCurtainKeyRef.current = `${game.id}:${game.day}:${game.phase}`;
+      }
+      setPhaseCurtain(null);
+    }, cue.durationMs);
     return () => {
       window.clearTimeout(showTimer);
       window.clearTimeout(hideTimer);
     };
-  }, [classTrialThemeActive, game, roleIntroGameId]);
+  }, [classTrialFlow, classTrialThemeActive, game]);
 
   useEffect(() => {
     if (!game) return;
@@ -1369,8 +1401,7 @@ export function GameClient() {
 
   useEffect(() => {
     if (!game || !classTrialThemeActive || !effectiveAiSpeechAudioEnabled || loading || aiSpeechAudioStatus) return;
-    if (roleIntroGameId === game.id) return;
-    if (classTrialIntroPending) return;
+    if (classTrialFlow.pauseVoicePrewarm) return;
 
     const cue = buildClassTrialVoicePrewarmCue(game, prewarmedClassTrialVoiceKeysRef.current, runtimeAiTtsConfigs);
     if (!cue) return;
@@ -1382,19 +1413,18 @@ export function GameClient() {
     });
   }, [
     aiSpeechAudioStatus,
-    classTrialIntroPending,
+    classTrialFlow,
     classTrialThemeActive,
     effectiveAiSpeechAudioEnabled,
     game,
     loadAiSpeechAudioUrl,
     loading,
-    roleIntroGameId,
     runtimeAiTtsConfigs,
   ]);
 
   useEffect(() => {
-    if (!game || !hostAudioEnabled || roleIntroGameId === game.id) return;
-    if (classTrialIntroPending) return;
+    if (!game || !hostAudioEnabled) return;
+    if (classTrialFlow.pauseHostAudio) return;
 
     if (effectiveAiSpeechAudioEnabled && game.phase !== "DAY_ANNOUNCEMENT") {
       const pendingAiSpeechCue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current, runtimeAiTtsConfigs);
@@ -1431,17 +1461,16 @@ export function GameClient() {
     game,
     hostAudioCompletionTick,
     hostAudioEnabled,
-    classTrialIntroPending,
+    classTrialFlow,
     classTrialThemeActive,
     playHostAudioCue,
-    roleIntroGameId,
     runtimeAiTtsConfigs,
     stopHostAudio,
   ]);
 
   useEffect(() => {
-    if (!game || !effectiveAiSpeechAudioEnabled || roleIntroGameId === game.id) return;
-    if (classTrialIntroPending) return;
+    if (!game || !effectiveAiSpeechAudioEnabled) return;
+    if (classTrialFlow.pauseAiAudio) return;
 
     const cue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current, runtimeAiTtsConfigs);
     if (!cue) return;
@@ -1498,7 +1527,7 @@ export function GameClient() {
     return () => window.clearTimeout(timer);
   }, [
     aiSpeechAudioCompletionTick,
-    classTrialIntroPending,
+    classTrialFlow,
     effectiveAiSpeechAudioEnabled,
     game,
     consumeBufferedClassTrialContinue,
@@ -1507,7 +1536,6 @@ export function GameClient() {
     playClassTrialTextFallback,
     playAiSpeechAudioText,
     prepareAiSpeechAudioText,
-    roleIntroGameId,
     runtimeAiTtsConfigs,
     stopAiSpeechAudio,
   ]);
@@ -1616,6 +1644,9 @@ export function GameClient() {
                 }
                 liveAiSpeech={liveAiSpeech}
                 aiRuntimeMode={effectiveAiRuntimeMode}
+                hostAudioEnabled={hostAudioEnabled}
+                hostAudioStatus={hostAudioStatus}
+                onToggleHostAudio={toggleHostAudio}
                 onReturnHome={returnHome}
                 onSubmit={submitCommand}
               />

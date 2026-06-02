@@ -8,11 +8,15 @@ type PublicEvent = HumanGameView["publicEvents"][number];
 export function getClassTrialPhaseCurtainCue(game: HumanGameView): PhaseCurtainCue | null {
   switch (game.phase) {
     case "NIGHT_WOLVES":
+      return nightCue(game, "夜晚降临", "天黑请闭眼，狼人行动开始。", "隐藏行动只显示阶段，不公开刀口。");
     case "NIGHT_WOLF_BEAUTY":
+      return nightCue(game, "狼美人的夜晚", "狼美人正在选择是否魅惑。", "隐藏行动只显示阶段，不公开目标。");
     case "NIGHT_GUARD":
+      return nightCue(game, "守卫睁眼", "守卫正在选择今晚守护目标。", "隐藏行动只显示阶段，不公开守护。");
     case "NIGHT_SEER":
+      return nightCue(game, "预言家查验", "预言家正在查验一名玩家。", "隐藏行动只显示阶段，不公开查验。");
     case "NIGHT_WITCH":
-      return null;
+      return nightCue(game, "女巫睁眼", "女巫正在决定是否使用药。", "隐藏行动只显示阶段，不公开用药。");
     case "DAY_ANNOUNCEMENT": {
       const dayStart = findLatestEvent(game, "DAY_STARTED");
       return classTrialCue({
@@ -26,17 +30,17 @@ export function getClassTrialPhaseCurtainCue(game: HumanGameView): PhaseCurtainC
     case "DAY_VOTE":
       return classTrialCue({
         eyebrow: `第 ${game.day} 天`,
-        title: "投票审判开始",
-        subtitle: "所有视线汇聚到票箱。现在，选择你认为该被放逐的人。",
+        title: "封票审判开始",
+        subtitle: "所有人的投票已经进入票箱，目标将在开票时一次性公开。",
         tone: "vote",
-        resultLines: ["投票阶段：每一票都会成为公开证据。"],
+        resultLines: ["投票阶段：当前只公开封票进度，不公开投票目标。"],
       });
     case "EXILE_RESOLUTION": {
       const voteReveal = findLatestEvent(game, "VOTE_REVEALED");
       return classTrialCue({
         eyebrow: `第 ${game.day} 天`,
-        title: "开票审判",
-        subtitle: voteReveal?.message ?? "票箱开启，判决正在落下。",
+        title: "开票揭示",
+        subtitle: voteReveal?.message ?? "票箱开启，所有指向一次性成为公开证据。",
         tone: "vote",
         resultLines: formatVoteResultLines(game, voteReveal),
       });
@@ -100,6 +104,16 @@ function classTrialCue(cue: Omit<PhaseCurtainCue, "durationMs" | "presentation">
     presentation: "class-trial",
     durationMs: CLASS_TRIAL_SCENE_DURATION_MS,
   };
+}
+
+function nightCue(game: HumanGameView, title: string, subtitle: string, resultLine: string): PhaseCurtainCue {
+  return classTrialCue({
+    eyebrow: `第 ${game.day} 夜`,
+    title,
+    subtitle,
+    tone: "night",
+    resultLines: [resultLine],
+  });
 }
 
 function findLatestEvent(game: HumanGameView, type: GameEventType): PublicEvent | undefined {
