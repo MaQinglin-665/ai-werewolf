@@ -190,11 +190,11 @@ describe("table memory death-shape public cues", () => {
           kind: "death_shape",
           weight: "medium",
           target: expect.objectContaining({ seatId: deadSeat.seatId }),
-          summary: expect.stringMatching(/首夜单死.*女巫没救.*合理简称.*不应.*质疑/),
+          summary: expect.stringMatching(/首夜单死.*女巫没救.*不确定性.*公开推测.*不能说成确定事实/),
         }),
       ]),
     );
-    expect(memory.publicSignals.join("\n")).toMatch(/首夜单死.*女巫没救.*合理简称/);
+    expect(memory.publicSignals.join("\n")).toMatch(/首夜单死.*女巫没救.*不确定性.*公开推测/);
     expect(memory.publicSignals.join("\n")).not.toContain("狼人不能空刀");
   });
 

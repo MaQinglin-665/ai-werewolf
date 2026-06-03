@@ -502,7 +502,7 @@ function buildDeathShapeCues(state: GameState): TableMemory["reasoningCues"] {
         day: event.day,
         kind: "death_shape",
         weight: "medium",
-        summary: `首夜单死${deadTarget ? `（${deadTarget.name}）` : ""}：无守卫女巫局里，“女巫没救/没用解药”是公开死亡形态下的合理简称，不应只因“女巫没救/没用解药”这种说法质疑；但不能确认具体刀口、毒药归属或女巫身份。`,
+        summary: `首夜单死${deadTarget ? `（${deadTarget.name}）` : ""}：无守卫女巫局里，“女巫没救/没用解药/没用药”只能作为带不确定性的公开推测，不能说成确定事实；也不能确认具体刀口、毒药归属或女巫身份。`,
         ...(deadTarget ? { target: deadTarget } : {}),
         evidence: [event.message, "本局无守卫且有女巫，死亡形态本身是公开信息。"],
       });

@@ -1107,10 +1107,21 @@ function buildSpeechTableTask(
     : pressureInfluence;
 
   if (spokenThisDay.length === 0) {
+    const deathShape = getCurrentDayPublicDeathShape(view);
+    const deathInstruction =
+      deathShape === "death"
+        ? "天亮有夜死时只短句报死亡名单，不确认女巫用药、刀口或毒口，也不要求下一位立刻站边或交票口。"
+        : deathShape === "peaceful"
+          ? "平安夜只说女巫用药了即可，不主动展开药线或空刀，也不要求下一位立刻站边或交票口。"
+          : "没有公开死讯时不主动讲平安夜、药线、刀口或毒口，也不要求下一位立刻站边或交票口。";
     return {
       mode: "set-standard",
-      line: "首置位先给一个可验证观察点；平安夜只说女巫用药了即可，不主动展开药线或空刀，也不要求下一位立刻站边或交票口。",
-      directives: ["给观察点", "平安夜只作背景", "不要求站边票口"],
+      line: `首置位先给一个可验证观察点；${deathInstruction}`,
+      directives: [
+        "给观察点",
+        deathShape === "death" ? "夜死只报名单" : deathShape === "peaceful" ? "平安夜只作背景" : "无死讯不讲药线",
+        "不要求站边票口",
+      ],
     };
   }
 
@@ -1168,6 +1179,22 @@ function buildSpeechTableTask(
   }
 
   return undefined;
+}
+
+type CurrentDayPublicDeathShape = "none" | "peaceful" | "death";
+
+function getCurrentDayPublicDeathShape(view: AgentView): CurrentDayPublicDeathShape {
+  const eventLines = view.publicEvents
+    .filter((event) => event.day === view.day && event.type === "DAY_STARTED")
+    .map((event) => event.message);
+  const text = [
+    ...eventLines,
+    ...view.publicSummary.recentDeaths,
+    ...view.publicSummary.tableMemory.deathAnnouncements,
+  ].join("\n");
+  if (/(死亡|倒牌|出局)/.test(text)) return "death";
+  if (/(平安夜|无人死亡|没有人死亡|没人倒牌|无人倒牌)/.test(text)) return "peaceful";
+  return "none";
 }
 
 function isHiddenDramaticClassTrialGoodCheckTarget(view: AgentView, tableRead: AiTableRead, seatId: number): boolean {

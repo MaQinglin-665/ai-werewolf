@@ -2205,6 +2205,9 @@ describe("routed speech provider", () => {
       validateRenderedSpeech(view, plan, "我这轮按闭眼好人打，结论先留活口；平安夜只说女巫用药了。", "guided"),
     ).toContain("学级裁判发言过于模板化");
     expect(
+      validateRenderedSpeech(view, plan, "我闭眼视角看，3号腐川冬子这条证词还没有合上。", "guided"),
+    ).toContain("学级裁判发言过于模板化");
+    expect(
       validateRenderedSpeech(view, plan, "我把能听到的点摆一下，发言顺序和票型我会一起看。", "guided"),
     ).toContain("学级裁判低信息开局过于模板化");
   });
@@ -3715,7 +3718,7 @@ describe("mock speech provider", () => {
     expect(input.constraints?.join("\n")).toContain(`dead seer gold seat ${gold.seatId}`);
   });
 
-  it("briefs day-one single death as a public death-shape hypothesis without confirming potion use", () => {
+  it("briefs day-one single death without confirming witch potion use", () => {
     const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 94, humanSeatId: null });
     const deadSeat = state.seats.find((seat) => seat.role !== "WEREWOLF")!;
     const speaker = state.seats.find((seat) => seat.alive && seat.seatId !== deadSeat.seatId)!;
@@ -3744,18 +3747,51 @@ describe("mock speech provider", () => {
       input.publicContext.rules.deathInfoNote,
     ].join("\n");
 
-    expect(briefingText).toMatch(/首夜单死.*女巫没救.*合理简称/);
-    expect(briefingText).toMatch(/不应只因.*女巫没救.*质疑/);
-    expect(briefingText).toMatch(/平安夜直接按公开死亡形态处理/);
-    expect(briefingText).toMatch(/女巫用药了/);
-    expect(briefingText).toMatch(/不要把平安夜本身交给后置位重复解释/);
+    expect(briefingText).toMatch(/首夜单死.*女巫没救.*推测/);
+    expect(briefingText).not.toMatch(/女巫没救.*合理简称/);
+    expect(briefingText).toMatch(/有夜死|死亡名单/);
+    expect(briefingText).toMatch(/不能确认女巫用药|不要确认女巫用药/);
+    expect(briefingText).not.toMatch(/平安夜直接按公开死亡形态处理/);
+    expect(briefingText).not.toMatch(/发言里短句说“女巫用药了”即可|平安夜只需短句带过：可以说“女巫用药了”/);
     expect(briefingText).toMatch(/空刀.*不作为|空刀只作为边界/);
     expect(briefingText).toMatch(/非女巫.*女巫是谁.*具体救了几号.*狼刀或毒口/);
     expect(briefingText).toMatch(/真女巫.*真实救毒信息/);
     expect(briefingText).toMatch(/药瓶状态.*公开死亡形态/);
-    expect(briefingText).not.toMatch(/不能断定.*女巫用药|不能断定.*女巫动作/);
+    expect(briefingText).toMatch(/不能.*女巫用药|不要.*女巫用药/);
     expect(briefingText).not.toContain("狼人不能空刀");
     expect(briefingText).toContain("公开死亡形态");
+
+    const view = buildAgentView(state, speaker.seatId);
+    const plan = createSpeechPlan(view);
+    expect(validateRenderedSpeech(view, plan, `昨晚${deadSeat.seatId}号出局了，女巫用药了，这个背景先放下。`)).toContain(
+      "有夜死时不能确认女巫用药",
+    );
+    expect(validateRenderedSpeech(view, plan, `昨晚${deadSeat.seatId}号出局了，女巫没用药这条线先记住。`)).toContain(
+      "有夜死时不能确认女巫用药",
+    );
+    expect(
+      validateRenderedSpeech(view, plan, `昨晚${deadSeat.seatId}号出局了，死因不公开，我倾向可能是女巫没救，但不替女巫确认用药。`),
+    ).not.toContain("有夜死时不能确认女巫用药");
+  });
+
+  it("keeps day-one briefing neutral when there is no public death shape", () => {
+    const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 95, humanSeatId: null });
+    const speaker = state.seats.find((seat) => seat.alive)!;
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+
+    const input = buildConstrainedSpeechInput(buildAgentView(state, speaker.seatId));
+    const briefingText = [
+      input.tableBriefing.publicBoundary.join("\n"),
+      input.tableBriefing.legalSpeechFocus.join("\n"),
+      input.publicContext.rules.deathInfoNote,
+    ].join("\n");
+
+    expect(briefingText).toMatch(/没有需要展开的死亡形态|目前没有公开死讯/);
+    expect(briefingText).not.toMatch(/有夜死时只能确认死亡名单|有夜死只需短句带过死亡名单/);
+    expect(briefingText).not.toMatch(/平安夜只需短句带过：可以说“女巫用药了”|发言里短句说“女巫用药了”即可/);
   });
 
   it("allows public potion-line speculation but rejects hidden potion details and absolute no-kill claims", () => {
