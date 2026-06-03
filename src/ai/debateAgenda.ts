@@ -79,7 +79,7 @@ export function buildDebateAgenda(
   const avoidTraps = uniqueLines([
     "不要把短发言、语气、位置感直接当铁证；必须和身份线、票型或公开矛盾组合。",
     "不要提前评价本轮未发言的后置位已经没逻辑、没回应或划水；若要追问，只留一个具体问题。",
-    "不要把公开死讯说成狼刀、女巫毒、自刀或守卫信息，除非公开记录明确写出。",
+    "若把公开死讯解释成狼刀、女巫毒、自刀或守卫信息，要说明公开规则、票型或已发言依据，不要伪装成夜间直知。",
     isWolfRole(view.myRole, view.rules.wolfRoles) ? "狼人发言不能暴露狼队分工、真实刀口和队友身份。" : undefined,
     view.myRole === "SEER" ? "真预言家不要只报结果，要交代公开可听懂的验人顺序和今天票口；报查杀后不能让查杀位靠自证推走票口。" : undefined,
   ]).slice(0, 5);

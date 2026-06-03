@@ -2,14 +2,19 @@
 
 ## Current State
 
-**Last Updated:** 2026-06-02 Asia/Shanghai
-**Session ID:** room-vote-class-trial-rules
-**Active Feature:** room-vote-class-trial-rules - Room Vote And Class Trial Rules (done)
+**Last Updated:** 2026-06-03 Asia/Shanghai
+**Session ID:** class-trial-public-death-inference
+**Active Feature:** class-trial-public-death-inference - Class Trial Public Death-Shape Inference (done)
 
 ## Status
 
 ### What's Done
 
+- [x] Reworked class-trial death-shape speech guidance so AI may infer witch potion state, knife targets, and poison targets from public death announcements plus board rules instead of being blocked by conclusion-level bans.
+- [x] Removed the validation ban that rejected public-death lines like `女巫没救/没用药` or public knife/poison-mouth reasoning, while still blocking invented witch identity and non-public rescue-target leaks.
+- [x] Updated table memory, table-read tasks, inference layers, role playbooks, advanced reasoning, and debate agenda prompts to require public evidence/reasoning source instead of templated prohibition wording.
+- [x] Added red-green regressions proving day-one single-death potion/knife/poison-mouth public reasoning passes validation and prompt guidance no longer says `不能确认女巫用药` / `不能说成确定事实`.
+- [x] Verification passed: targeted affected tests, `npx tsc --noEmit`, `npm run lint`, full `npm run test` (89 files / 851 tests), and `npm run build` with the existing Turbopack NFT trace warning.
 - [x] Added `docs/superpowers/specs/2026-06-02-room-vote-and-class-trial-rules-design.md` and `docs/superpowers/plans/2026-06-02-room-vote-and-class-trial-rules.md`.
 - [x] Added `src/server/roomAdvance.ts` and rewired public-room host continue so ordinary AI/system flow advances to the next human or public stop instead of one brittle step.
 - [x] Hardened `scripts/room-action-smoke.mjs` with CLI `--base-url`, per-request timeout, and compact trace diagnostics.

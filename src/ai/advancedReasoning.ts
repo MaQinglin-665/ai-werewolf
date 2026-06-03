@@ -142,7 +142,7 @@ function buildDeathLegacyNote(view: AgentView): string | undefined {
 
   const latestDeath = view.publicSummary.recentDeaths.at(-1);
   return latestDeath
-    ? `遗言和倒牌审计：最新公开死讯是${latestDeath}；只复盘谁借死讯带节奏，不能擅自断定狼刀、毒或自刀。`
+    ? `遗言和倒牌审计：最新公开死讯是${latestDeath}；复盘谁借死讯带节奏，若判断狼刀、毒或自刀，要给公开规则、票型或发言依据。`
     : undefined;
 }
 

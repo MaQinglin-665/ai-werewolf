@@ -1110,7 +1110,7 @@ function buildSpeechTableTask(
     const deathShape = getCurrentDayPublicDeathShape(view);
     const deathInstruction =
       deathShape === "death"
-        ? "天亮有夜死时只短句报死亡名单，不确认女巫用药、刀口或毒口，也不要求下一位立刻站边或交票口。"
+        ? "天亮有夜死时先短句报死亡名单；若聊女巫用药、刀口或毒口，要给公开规则依据或反面解释，也不要求下一位立刻站边或交票口。"
         : deathShape === "peaceful"
           ? "平安夜只说女巫用药了即可，不主动展开药线或空刀，也不要求下一位立刻站边或交票口。"
           : "没有公开死讯时不主动讲平安夜、药线、刀口或毒口，也不要求下一位立刻站边或交票口。";

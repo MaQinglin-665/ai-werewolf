@@ -2,12 +2,18 @@
 
 ## Current Objective
 
-- Goal: Stabilize ordinary public-room vote smoke, then separate class-trial theme flow and role-first speech direction from ordinary Werewolf rules.
-- Current status: Done locally. Room advance, room vote smoke diagnostics, class-trial theme flow, and class-trial persona director are implemented, verified, and ready to push to GitHub.
+- Goal: Keep class-trial AI speech on public/player-known evidence while allowing valid public death-shape inference about witch potion state, knife targets, and poison targets.
+- Current status: Done locally. Conclusion-level bans on `女巫没救/没用药` and public knife/poison-mouth reasoning were removed; prompts now require public rules/death-announcement reasoning instead of templated prohibition wording, and the work is verified and ready to push to GitHub.
 - Local note: This work should push to GitHub only; no Tencent Cloud or Render deployment is in scope.
 
 ## Completed This Session
 
+- [x] Reworked class-trial death-shape speech guidance so AI can infer potion state, knife targets, and poison targets from public death announcements plus board rules without pretending to have private night knowledge.
+- [x] Removed the public-death `有夜死时不能确认女巫用药` validation branch and relaxed knife/poison-mouth validation for targets already present in the public death list.
+- [x] Kept private boundaries for invented witch identity, invented rescue target, and fake self-witch status leaks.
+- [x] Updated table memory, table-read tasks, inference layers, role playbooks, advanced reasoning, and debate agenda prompts from “do not say this conclusion” to “say the public evidence source.”
+- [x] Added regressions proving day-one single-death public reasoning about `女巫没救/没用药`, knife target, and poison-mouth overlap passes validation.
+- [x] Verification passed: affected Vitest files, `npx tsc --noEmit`, `npm run lint`, full `npm run test` (89 files / 851 tests), and `npm run build` with the existing Turbopack NFT trace warning.
 - [x] Added `docs/superpowers/specs/2026-06-02-room-vote-and-class-trial-rules-design.md`, `docs/superpowers/plans/2026-06-02-room-vote-and-class-trial-rules.md`, and `docs/tasks/2026-06-room-vote-class-trial-rules.md`.
 - [x] Added `src/server/roomAdvance.ts` with bounded host advancement and trace output; `src/server/roomService.ts` now uses it outside `DAY_VOTE`.
 - [x] Added room API coverage proving host continue can reach speech and resolve a vote, and improved `scripts/room-action-smoke.mjs` diagnostics for base URL, timeout, and recent steps.

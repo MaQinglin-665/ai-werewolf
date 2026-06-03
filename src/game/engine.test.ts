@@ -2159,7 +2159,8 @@ describe("game engine", () => {
     const serialized = JSON.stringify(input);
 
     expect(input.constraints?.join("\n")).toContain("狼人杀允许低信息推测");
-    expect(input.constraints?.join("\n")).toContain("不要把女巫是谁");
+    expect(input.constraints?.join("\n")).toContain("公开死亡形态推理");
+    expect(input.constraints?.join("\n")).toContain("不要伪装成私密直知");
     expect(input.speechPlan?.targetSpeechStatus).toBeDefined();
     expect(input.speechPlan?.allowedInteraction).toBeDefined();
     expect(serialized).not.toMatch(/privateKnowledge|wolfTeamPlan|assignments|wolfTeammates|ROLE_ASSIGNED/);

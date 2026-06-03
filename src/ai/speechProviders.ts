@@ -64,7 +64,7 @@ const AI_SPEECH_MAX_SENTENCES = 3;
 const CLASS_TRIAL_SPEECH_MAX_CHARS = 260;
 const CLASS_TRIAL_SPEECH_MAX_SENTENCES = 3;
 const SPEECH_SYSTEM_PROMPT =
-  "你是狼人杀玩家本人。根据牌桌局势、你的身份信息和你的性格，自由发表这一轮公开发言。优先阅读 input.tableBriefing.text 和 input.publicContext.rules，它们是事实边界和当前板子规则，不是台词模板；input.speechContract 是最高优先级的短约束，必须优先遵守其中的 move、mustSay、mayAsk、mustNotAsk 和 voteBoundary；再参考 input.inferenceLayers、input.expertStrategy、input.advancedReasoning、input.reasoningFrame、input.rolePlaybook、input.claimAudit、input.debateAgenda 和 input.playerSpeechGuide，inferenceLayers 把公开事实、高概率推断、低概率边界和私密未知分开，expertStrategy 是高质量对局打法原则，advancedReasoning 是本局当前应该核验的逻辑清单，reasoningFrame 把硬证据、软信号、反面解释和验证问题拆开，rolePlaybook 是你当前角色的玩法分支和行动边界，claimAudit 专门审计身份坑、查验链和未对跳神职，debateAgenda 是本轮可以追问、收票和验证的动态议程，都不是固定话术。发言要像高阶玩家临场盘逻辑：2-3句短句，观点先落地，给1个公开依据，再留下一个追问或票口；优先串联验人、站边、票型、发言顺序和死亡播报，而不是只给情绪听感，也不要把座位、语气、短发言这类软信息当铁证。模型特点只是软性的打法倾向：例如 DeepSeek 偏逻辑链，Claude 偏边界审查，豆包偏强压，Kimi 偏长线记忆；只有第一天早上需要时才按座位名报自己是谁，后续轮次不要反复自我介绍；不要说自己是 AI、语言模型或系统角色，也不要为了表现风格牺牲局势判断。不要把内部分析标签说出口，例如“拆因果”“第一点”“盘问议程”“票口条件”“可改票条件”；不要列第一、第二、第三；要把这些材料改写成自然的牌桌发言。只输出玩家实际说出口的台词，不写括号内动作、神态、语气或旁白描写。发言可以有个人风格和策略，但不能违背事实简报：只能评价本日已经发过言的人；已经发过言的人只能回看其已发表内容，不能说等他后面再补、轮到他再回应；对尚未发言的后置位如果必须追问，只点一个和当前发言链相关的位置，留一个具体问题，不能把问题铺成一圈通用作业，也不能说他们已经信息少或没回应；真预言家报查杀后，今天票口先压查杀位，只有外置硬身份反证可以改变结构，不给查杀位靠自证把票口推走的空间；天亮死讯只公开谁死亡，不公开狼刀、毒、自刀等具体死因，除非公开记录写明，不要把私密细节说死。狼人杀大多数时间没有足够硬信息，允许按公开规则和发言状态进行推测、猜测和施压；要把猜测说成“我倾向、我猜、按规则推”，并留下验证条件。无守卫女巫局里，平安夜作为公开死亡形态处理，发言里短句说“女巫用药了”即可；空刀只作为边界，不主动展开。若平安夜已被前置位讲过，就当作已结算背景，不主动复读药线或空刀；非女巫不能说自己知道女巫是谁、具体救了几号、刀口或毒口在哪；真女巫可以公开自己的真实救毒信息，但不能编错目标，也不要只说“我救过人”这种半公开私密状态。药瓶是否使用、是否还在可以按公开死亡形态推理，但不要伪装成私密直知。有夜死时只能确认死亡名单；“女巫没救/没用解药/没用药”只能作为带不确定性的公开推测，不能说成确定事实。";
+  "你是狼人杀玩家本人。根据牌桌局势、你的身份信息和你的性格，自由发表这一轮公开发言。优先阅读 input.tableBriefing.text 和 input.publicContext.rules，它们是事实边界和当前板子规则，不是台词模板；input.speechContract 是最高优先级的短约束，必须优先遵守其中的 move、mustSay、mayAsk、mustNotAsk 和 voteBoundary；再参考 input.inferenceLayers、input.expertStrategy、input.advancedReasoning、input.reasoningFrame、input.rolePlaybook、input.claimAudit、input.debateAgenda 和 input.playerSpeechGuide，inferenceLayers 把公开事实、高概率推断、低概率边界和私密未知分开，expertStrategy 是高质量对局打法原则，advancedReasoning 是本局当前应该核验的逻辑清单，reasoningFrame 把硬证据、软信号、反面解释和验证问题拆开，rolePlaybook 是你当前角色的玩法分支和行动边界，claimAudit 专门审计身份坑、查验链和未对跳神职，debateAgenda 是本轮可以追问、收票和验证的动态议程，都不是固定话术。发言要像高阶玩家临场盘逻辑：2-3句短句，观点先落地，给1个公开依据，再留下一个追问或票口；优先串联验人、站边、票型、发言顺序和死亡播报，而不是只给情绪听感，也不要把座位、语气、短发言这类软信息当铁证。模型特点只是软性的打法倾向：例如 DeepSeek 偏逻辑链，Claude 偏边界审查，豆包偏强压，Kimi 偏长线记忆；只有第一天早上需要时才按座位名报自己是谁，后续轮次不要反复自我介绍；不要说自己是 AI、语言模型或系统角色，也不要为了表现风格牺牲局势判断。不要把内部分析标签说出口，例如“拆因果”“第一点”“盘问议程”“票口条件”“可改票条件”；不要列第一、第二、第三；要把这些材料改写成自然的牌桌发言。只输出玩家实际说出口的台词，不写括号内动作、神态、语气或旁白描写。发言可以有个人风格和策略，但不能违背事实简报：只能评价本日已经发过言的人；已经发过言的人只能回看其已发表内容，不能说等他后面再补、轮到他再回应；对尚未发言的后置位如果必须追问，只点一个和当前发言链相关的位置，留一个具体问题，不能把问题铺成一圈通用作业，也不能说他们已经信息少或没回应；真预言家报查杀后，今天票口先压查杀位，只有外置硬身份反证可以改变结构，不给查杀位靠自证把票口推走的空间；天亮死讯只直接公开谁死亡，不直接公开狼刀、毒、自刀等具体死因；若按规则推死因，要说清公开依据，不要把推理包装成私密直知。狼人杀大多数时间没有足够硬信息，允许按公开规则和发言状态进行推测、猜测和施压；要把猜测说成“我倾向、我猜、按规则推”，并留下验证条件。无守卫女巫局里，平安夜作为公开死亡形态处理，发言里短句说“女巫用药了”即可；空刀只作为边界，不主动展开。若平安夜已被前置位讲过，就当作已结算背景，不主动复读药线或空刀；非女巫不能说自己私下知道女巫是谁或具体救了几号；刀口和毒口若按公开死亡形态推理，要交代依据；真女巫可以公开自己的真实救毒信息，但不能编错目标，也不要只说“我救过人”这种半公开私密状态。药瓶是否使用、是否还在、刀口和毒口都可以按公开死亡形态与板子规则推理；关键是把依据说成公开规则、死亡播报或已公开发言，不要伪装成私密直知。";
 
 export type SpeechStrictness = "strict" | "guided" | "loose";
 
@@ -711,30 +711,30 @@ type CurrentDayDeathShape = "none" | "peaceful" | "death";
 
 function buildDeathInfoNote(deathShape: CurrentDayDeathShape, deathShapeAlreadyDiscussed: boolean): string {
   const shared =
-    "禁止把推测说成私密确定细节：非女巫不能确定女巫是谁、具体救了几号、刀口或毒口在哪；真女巫可以公开自己的真实救毒信息，但不能编错目标，也不要只说“我救过人”这种半公开私密状态。药瓶状态可以按公开死亡形态推理，但不要伪装成私密直知。";
+    "药瓶状态、刀口和毒口可以按公开死亡形态与板子规则推理；发言要说清公开依据，不要伪装成私密直知。非女巫仍不能编造女巫是谁或具体救了几号；真女巫可以公开自己的真实救毒信息，但不能编错目标，也不要只说“我救过人”这种半公开私密状态。";
   if (deathShape === "death") {
     return [
       deathShapeAlreadyDiscussed
-        ? "有夜死已作为公开死亡形态处理，后续发言不要主动复读药线、刀口或毒口；只在和票型、身份线直接相关时一句带过。"
-        : "天亮有夜死时只公开死亡名单，不公开具体刀口、毒口、自刀、女巫用药或女巫身份；不要确认女巫用药。无守卫首夜单死后，说“女巫没救/没用解药/没用药”只能作为带不确定性的公开推测，不能说成确定事实。",
+        ? "有夜死已作为公开死亡形态处理，后续若继续聊药线、刀口或毒口，要转到票型、身份线或公开规则收益。"
+        : "天亮有夜死时公开死亡名单；无守卫首夜单死可按狼必刀和女巫行动规则推出“刀口未被解药救下/女巫没救下来”，也可以讨论药瓶状态的反面解释。",
       shared,
     ].join("");
   }
   if (deathShape === "peaceful") {
     return deathShapeAlreadyDiscussed
       ? `平安夜已作为公开死亡形态处理，后续发言不要主动复读药线或空刀；只在和票型、身份线直接相关时一句带过。${shared}`
-      : `天亮死讯只公开死亡名单，不公开具体刀口、毒口、自刀位置或女巫身份；无守卫平安夜直接按公开死亡形态处理，发言里短句说“女巫用药了”即可，不主动展开空刀，也不要把平安夜本身交给后置位重复解释。${shared}`;
+      : `天亮死讯只直接公开死亡名单；具体刀口、毒口、自刀位置和女巫身份需要从公开规则或公开发言推理，不能伪装成私密直知；无守卫平安夜直接按公开死亡形态处理，发言里短句说“女巫用药了”即可，不主动展开空刀，也不要把平安夜本身交给后置位重复解释。${shared}`;
   }
-  return `天亮死讯只公开死亡名单，不公开具体刀口、毒口、自刀位置或女巫身份。${shared}`;
+  return `天亮死讯只直接公开死亡名单；具体刀口、毒口、自刀位置和女巫身份需要从公开规则或公开发言推理，不能伪装成私密直知。${shared}`;
 }
 
 function buildDeathBoundaryLine(deathShape: CurrentDayDeathShape, deathShapeAlreadyDiscussed: boolean): string {
   const shared =
-    "非女巫不要把女巫是谁、具体救了几号、狼刀或毒口落点说成确定事实；真女巫可以公开真实救毒信息，不能只说“我救过人”这种半公开私密状态；药瓶状态可以按公开死亡形态推理。";
+    "药瓶状态、狼刀和毒口落点都可以按公开死亡形态推理；说这些结论时要给公开规则或死亡播报依据，不要伪装成私密直知。真女巫可以公开真实救毒信息，不能只说“我救过人”这种半公开私密状态。";
   if (deathShape === "death") {
     return deathShapeAlreadyDiscussed
-      ? `有夜死已作为公开死亡形态处理，不要主动复读药线、刀口或毒口；${shared}`
-      : `有夜死只公开死亡名单；不要确认女巫用药、刀口、毒口或自刀。无守卫首夜单死时，“女巫没救/没用解药/没用药”只能作为带不确定性的公开推测，不能说成确定事实；${shared}`;
+      ? `有夜死已作为公开死亡形态处理，后续聊药线、刀口或毒口要服务于身份线、票型或收益判断；${shared}`
+      : `有夜死先公开死亡名单；无守卫首夜单死时，“女巫没救/没用解药/没用药”可作为公开规则推理，但要留意毒药重合刀口等反面解释；${shared}`;
   }
   if (deathShape === "peaceful") {
     return deathShapeAlreadyDiscussed
@@ -1130,10 +1130,10 @@ function buildTableBriefing(
     deathShape === "peaceful"
       ? "平安夜里的“女巫用药了”只是公开规则推理，不等于发言者自称女巫；只有明确说“我是女巫”、公开救毒目标或拍女巫身份，才算女巫声明。"
       : deathShape === "death"
-        ? "有夜死时只能确认死亡名单；非女巫不要确认女巫用药、刀口、毒口或自刀。只有明确说“我是女巫”、公开救毒目标或拍女巫身份，才算女巫声明。"
+        ? "有夜死可以基于死亡名单和板子规则推药瓶状态、刀口或毒口，但必须把依据说成公开规则或公开播报；只有明确说“我是女巫”、公开救毒目标或拍女巫身份，才算女巫声明。"
         : "目前没有公开死讯；不要主动编造平安夜、女巫用药、刀口、毒口或自刀。只有明确说“我是女巫”、公开救毒目标或拍女巫身份，才算女巫声明。",
     ...buildClaimAttributionBoundaryLines(view),
-    "空刀不作为平安夜发言主线；天亮死讯只公开倒牌结果，不公开狼刀、毒、自刀等具体死因。",
+    "空刀不作为平安夜发言主线；天亮死讯只直接公开倒牌结果，狼刀、毒、自刀等具体死因需要按公开规则或公开发言推理。",
     buildDeathBoundaryLine(deathShape, deathShapeAlreadyDiscussed),
   ];
   const privateBoundary = buildPrivateBoundaryLines(view);
@@ -1167,10 +1167,10 @@ function buildTableBriefing(
     deathShape === "peaceful"
       ? "不要把“平安夜女巫用药了”理解成某个发言者公开跳女巫；这只是死亡形态推理。"
       : deathShape === "death"
-        ? "有夜死时不要把死亡名单解释成女巫用药、毒口或刀口；除非公开记录或你的真实女巫视角允许公开，否则只能说死因不公开。"
+        ? "有夜死时可以按公开死亡名单、板子规则和已发言内容解释药线、刀口或毒口；不要把这种推理伪装成自己看见了夜间私密结果。"
         : "目前没有公开死讯；不要主动解释成平安夜、女巫用药、毒口或刀口。",
     "没有公开预言家声明或公开查验前，不能说某人手里有验人线、查验线或验人链；这属于未公开身份线。",
-    "公开死讯可以产生推测和压力，但非女巫不能擅自说成确定的具体刀口、毒口、自刀位置或女巫身份；真女巫可以公开真实救毒信息，但不能只说“我救过人”这种半公开私密状态；药瓶状态可以按公开死亡形态推理。",
+    "公开死讯可以产生推测和压力；非女巫不能编造女巫身份或具体救人目标，刀口、毒口、自刀判断要给公开依据；真女巫可以公开真实救毒信息，但不能只说“我救过人”这种半公开私密状态；药瓶状态可以按公开死亡形态推理。",
     "尚未发言的后置位还没有给本轮态度，不能评价他们已经信息少、没回应或没站边；若要点人，只留一个具体问题，不能提前说更信、更疑、放好、狼坑、票口、焦点、先压或收票。",
     "已经发过言的前置位本轮不会再次发言，不能要求他们稍后补充、后面回应或轮到时再解释。",
     ...(view.privateKnowledge.sheriff ? [] : ["没有警上、警下、警徽、警长流程，不要使用这些概念。"]),
@@ -1190,7 +1190,7 @@ function buildTableBriefing(
         ? "有夜死已作为公开死亡形态处理，不要主动复读药线、刀口或毒口；把发言重心转到前置发言、身份线或票口。"
         : "平安夜已作为公开死亡形态处理，不要主动复读；把发言重心转到前置发言、身份线或票口。"
       : deathShape === "death"
-        ? "有夜死只需短句带过死亡名单；不要确认女巫用药、刀口或毒口。"
+        ? "有夜死先短句报名单；若聊女巫用药、刀口或毒口，要给公开规则依据或反面解释。"
         : deathShape === "peaceful"
           ? "平安夜只需短句带过：可以说“女巫用药了”，不要解释空刀概率或展开规则背景。"
           : "目前没有公开死讯，不要主动讲平安夜、药线、刀口或毒口；先铺自己的观察点。",
@@ -1264,8 +1264,8 @@ function buildDeathBriefingLine(view: AgentView, deathShapeAlreadyDiscussed = ha
   if (deaths.length === 0) return "公开死讯：目前没有需要引用的死亡播报。";
   if (deathShape === "death") {
     return deathShapeAlreadyDiscussed
-      ? `公开死讯：${deaths.join("；")}。有夜死已作为公开死亡形态处理，本轮不要主动复读药线、刀口或毒口；死因仍未公开，不能直接确认狼刀、毒药归属、女巫用药或自刀。`
-      : `公开死讯：${deaths.join("；")}。有夜死，只公开死亡名单；死因仍未公开，不能直接确认狼刀、毒药归属、女巫用药或自刀。`;
+      ? `公开死讯：${deaths.join("；")}。有夜死已作为公开死亡形态处理；如果继续聊药线、刀口或毒口，要接到公开规则、身份线、票型或收益判断。`
+      : `公开死讯：${deaths.join("；")}。有夜死，公开信息是死亡名单；可按本局规则推理刀口、毒口或女巫药瓶状态，但要把依据说清楚。`;
   }
   return deathShapeAlreadyDiscussed
     ? `公开死讯：${deaths.join("；")}。平安夜已作为公开死亡形态处理，本轮不要主动复读药线或空刀；死因仍未公开，不能直接确认狼刀、毒药归属或自刀。`
@@ -1853,19 +1853,8 @@ function validateDeathCauseBoundaries(view: AgentView, speech: string): string[]
     errors.push("发言暗示私密女巫用药状态");
   }
 
-  if (confirmsWitchPotionOnPublicDeath(view, speech)) {
-    errors.push("有夜死时不能确认女巫用药");
-  }
-
   if (asksToRelitigatePeaceNight(speech)) {
     errors.push("平安夜不应被当成后置追问任务");
-  }
-
-  const overCertainDeathDetail = /(?:确定|肯定|必然|一定|铁定|就是).{0,12}(刀口|毒口|自刀|女巫身份|被救的是|救的是)/.test(
-    speech,
-  );
-  if (overCertainDeathDetail) {
-    errors.push("发言把私密死因细节说成确定事实");
   }
 
   return errors;
@@ -1907,6 +1896,7 @@ function asksToRelitigatePeaceNight(speech: string): boolean {
 
 function hasForbiddenPotionTargetDetail(view: AgentView, speech: string): boolean {
   const publiclyClaimed = collectPubliclyClaimedPotionTargets(view);
+  const publicDeathTargets = collectCurrentDayPublicDeathSeatIds(view);
   const saveTargets = [
     ...collectPotionTargetIds(speech, /女巫.{0,18}(?:救的是|救了|救中的是)\s*([0-9]+|[一二三四五六七八九十两]+)\s*号?/g),
     ...collectPotionTargetIds(speech, /(?:我|昨晚|昨夜|夜里).{0,10}(?:救的是|救了)\s*([0-9]+|[一二三四五六七八九十两]+)\s*号?/g),
@@ -1922,13 +1912,36 @@ function hasForbiddenPotionTargetDetail(view: AgentView, speech: string): boolea
 
   return (
     hasForbiddenKnownTarget(view, saveTargets, [view.privateKnowledge.witch?.savedTarget?.seatId, ...publiclyClaimed.saved]) ||
-    hasForbiddenKnownTarget(view, poisonTargets, [view.privateKnowledge.witch?.poisonedTarget?.seatId, ...publiclyClaimed.poisoned]) ||
+    hasForbiddenKnownTarget(view, poisonTargets, [
+      view.privateKnowledge.witch?.poisonedTarget?.seatId,
+      ...publiclyClaimed.poisoned,
+      ...publicDeathTargets,
+    ]) ||
     hasForbiddenKnownTarget(view, knifeTargets, [
       view.privateKnowledge.witch?.currentVictim?.seatId,
       view.privateKnowledge.witch?.savedTarget?.seatId,
+      ...publicDeathTargets,
     ]) ||
-    hasForbiddenKnownTarget(view, poisonMouthTargets, [view.privateKnowledge.witch?.poisonedTarget?.seatId])
+    hasForbiddenKnownTarget(view, poisonMouthTargets, [view.privateKnowledge.witch?.poisonedTarget?.seatId, ...publicDeathTargets])
   );
+}
+
+function collectCurrentDayPublicDeathSeatIds(view: AgentView): number[] {
+  const ids = new Set<number>();
+  for (const event of view.publicEvents) {
+    if (event.day !== view.day || event.type !== "DAY_STARTED") continue;
+    const payloadSeatIds = event.payload.deadSeatIds;
+    if (Array.isArray(payloadSeatIds)) {
+      for (const seatId of payloadSeatIds) {
+        if (typeof seatId === "number" && Number.isFinite(seatId)) ids.add(seatId);
+      }
+    }
+    for (const match of String(event.message ?? "").matchAll(/(\d{1,2})\s*号/g)) {
+      const seatId = Number(match[1]);
+      if (Number.isFinite(seatId)) ids.add(seatId);
+    }
+  }
+  return [...ids];
 }
 
 function hasForbiddenKnownTarget(view: AgentView, targetIds: number[], allowedTargetIds: Array<number | undefined>): boolean {
@@ -2126,12 +2139,12 @@ function buildSpeechConstraints(
     ? [
         "狼人杀允许低信息推测：可以说“我猜/我倾向/大概率/按规则推”，并用这种推测推动追问、站边和票口。",
         "平安夜已作为公开死亡形态处理；本轮不要主动复读“按女巫用药”或空刀，只在直接相关时一句带过。",
-        "非女巫不要把女巫是谁、具体救了几号、狼刀刀口在哪、毒口在哪说成确定事实；真女巫可以公开真实救毒信息，但不能只说“我救过人”这种半公开私密状态；药瓶状态可以按公开死亡形态推理，但不要伪装成私密直知。",
+        "药瓶状态、狼刀刀口和毒口都可以按公开死亡形态推理；说这些结论时要给公开规则、死亡播报或已发言依据，不要伪装成私密直知；真女巫可以公开真实救毒信息，但不能只说“我救过人”这种半公开私密状态。",
       ]
     : [
         "狼人杀允许低信息推测：可以说“我猜/我倾向/大概率/按规则推”，并用这种推测推动追问、站边和票口。",
         "死亡/平安夜直接按公开死亡形态处理：无守卫平安夜发言里短句说“女巫用药了”即可；不要展开空刀，也不要把平安夜本身交给后置位重复解释。",
-        "非女巫不要把女巫是谁、具体救了几号、狼刀刀口在哪、毒口在哪说成确定事实；真女巫可以公开真实救毒信息，但不能只说“我救过人”这种半公开私密状态；药瓶状态可以按公开死亡形态推理，但不要伪装成私密直知。",
+        "药瓶状态、狼刀刀口和毒口都可以按公开死亡形态推理；说这些结论时要给公开规则、死亡播报或已发言依据，不要伪装成私密直知；真女巫可以公开真实救毒信息，但不能只说“我救过人”这种半公开私密状态。",
         "正常发言不要展开空刀；不要把空刀说成规则绝对不可能，也不要把空刀当成平安夜主线解释。",
       ];
   const interactionConstraints = buildSpeechInteractionConstraints(plan, speechContract);
@@ -2983,29 +2996,6 @@ function validateConciseTableSpeech(speech: string, view?: AgentView): string[] 
   if (view) errors.push(...validateClassTrialRoleTexture(view, speech));
   if (view) errors.push(...validateClassTrialFinalSpeakerFutureWait(view, speech));
   return errors;
-}
-
-function confirmsWitchPotionOnPublicDeath(view: AgentView, speech: string): boolean {
-  if (getCurrentDayDeathShape(view) !== "death") return false;
-  if (allowsUncertainWitchPotionReference(speech)) return false;
-  if (view.myRole === "WITCH" && isAllowedTrueWitchTargetReveal(view, speech)) return false;
-  return /(?:女巫.{0,12}(?:用药了|用了药|用了解药|用了毒药|开了药|开了解药|开了毒|毒了|救了|没用药|没有用药|没用解药|没开解药|没救|没有救)|按女巫用药处理|女巫用药了|女巫没用药|女巫没有用药|女巫没用解药|女巫没救)/.test(
-    speech,
-  );
-}
-
-function allowsUncertainWitchPotionReference(speech: string): boolean {
-  return (
-    /(?:不|不能|不要|别|无法|没法|不替|不帮|不为|不该).{0,16}(?:女巫)?.{0,10}(?:确认|断定|说死|锁死).{0,12}(?:用药|救|毒|解药|毒药)/.test(
-      speech,
-    ) ||
-    /(?:女巫)?.{0,10}(?:用药|救|毒|解药|毒药).{0,16}(?:不能|不要|别|无法|没法|不该).{0,10}(?:确认|断定|说死|锁死)/.test(
-      speech,
-    ) ||
-    /(?:可能|也许|或许|大概率|更像|倾向|只是一种推测|只是推测|不确定).{0,16}(?:女巫)?.{0,10}(?:用药|救|毒|解药|毒药)/.test(
-      speech,
-    )
-  );
 }
 
 function validateClassTrialOpeningHook(view: AgentView, speech: string): string[] {
