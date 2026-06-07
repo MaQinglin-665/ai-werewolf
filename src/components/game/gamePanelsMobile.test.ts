@@ -286,7 +286,7 @@ describe("mobile game panels", () => {
     expect(html).toContain("学级裁判主题局");
     expect(html).toContain("本地限定");
     expect(html).toContain("真实 LLM");
-    expect(html).toContain("DeepSeek-v4");
+    expect(html).toContain("Mimo-v2.5");
     expect(html).toContain("未找到本地主题素材包");
     expect(html).toContain("未找到本地角色卡");
     expect(html).toContain("开场片头音频准备中：7 / 9");

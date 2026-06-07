@@ -49,7 +49,7 @@ export function buildDebateAgenda(
       : undefined,
     target ? buildTargetVoteCommitment(view, target, options.plan) : undefined,
     seerCounterclaim
-      ? `预言家对跳局不要散票：先比较验人结构、发言顺序和票型收益，再决定今天跟哪条线。`
+      ? `预言家对跳局不要散票：先比较验人结构、发言顺序和投票承诺，再决定今天跟哪条线。`
       : undefined,
     latestVote?.leaders.length
       ? `票口焦点${latestVote.leaders.map(seatText).join("、")}要区分被归票、被冲票和自己发言崩盘。`
@@ -113,7 +113,7 @@ function buildTargetCrossExamination(view: AgentView, target: ActionTarget, plan
 function buildTargetVoteCommitment(view: AgentView, target: ActionTarget, plan: SpeechPlan | undefined): string {
   const targetText = seatText(target);
   if (isFinalBlackCheckTarget(plan, target)) {
-    return `本轮围绕查杀${targetText}收票：真预言家线先压这里，外置位只给硬身份反证。`;
+    return `本轮围绕查杀${targetText}收票：真预言家先用自己的结果压这里；反对者要公开承担反对理由。`;
   }
   if (getPlanTargetStatus(view, plan, target) === "spoken") {
     if (isLowInfoDayOneNoHardInfo(view)) {

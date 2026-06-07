@@ -656,7 +656,8 @@ describe("createSpeechPlan", () => {
     expect(plan.tableTask?.mode).toBe("set-standard");
     expect(plan.tableTask?.line).toContain("可验证观察点");
     expect(plan.tableTask?.line).toContain("平安夜");
-    expect(plan.tableTask?.line).toContain("女巫用药了");
+    expect(plan.tableTask?.line).toContain("只作背景");
+    expect(plan.tableTask?.line).toContain("观察动作");
     expect(plan.tableTask?.line).not.toMatch(/主盘药线|给可验证的发言标准|后置位任务/);
     expect(plan.tableTask?.directives.join("\n")).not.toMatch(/给标准|给后置位任务/);
   });
@@ -877,8 +878,8 @@ describe("createSpeechPlan", () => {
     const plan = createSpeechPlan(view, tableRead);
     const speechText = [plan.tableTask?.line, plan.interaction?.line, plan.stance, ...plan.talkingPoints].join("\n");
 
-    expect(plan.tableTask?.line).toContain("只审计观察点和跟压收益");
-    expect(speechText).toContain("不要因为任何前置位没站边或没给票口去硬打");
+    expect(plan.tableTask?.line).toContain("只检查观察点和跟压收益");
+    expect(speechText).toContain("不要因为任何前置位没表态或没给投票方向去硬打");
     expect(speechText).not.toContain("前面持续怀疑1号");
     expect(speechText).not.toMatch(/1号[^。\n]{0,24}(?:补|解释|说清|交代).{0,12}(?:站边|票口)/);
   });
@@ -1059,7 +1060,8 @@ describe("createSpeechPlan", () => {
     const plan = createSpeechPlan(view, tableRead);
 
     expect(plan.tableTask?.line).toContain("必须换角度");
-    expect(plan.tableTask?.line).toContain("审计谁在借这个焦点做收益");
+    expect(plan.tableTask?.line).not.toContain("检查谁在借这个焦点做收益");
+    expect(plan.tableTask?.line).toContain("谁公开替焦点改方向");
     expect(plan.talkingPoints.join("\n")).not.toMatch(/1号[^。\n]{0,24}(?:没给|没有).{0,12}(?:站边|票口)/);
   });
 
@@ -1109,6 +1111,175 @@ describe("createSpeechPlan", () => {
     expect(plan.targetSpeechStatus).toBe("unspoken");
     expect(plan.allowedInteraction).toBe("finalize_black_check");
     expect(plan.speechMove).toBe("claim_black_check");
+  });
+
+  it("gives class-trial hard-info seer black checks enough substance to avoid result-only speeches", () => {
+    const checkedWolf = target(3, "腐川冬子");
+    const tableMemory = createTableMemory();
+    const view = {
+      ...createView(tableMemory),
+      phase: "DAY_SPEECH",
+      myRole: "SEER",
+      roleCard: classTrialRoleCard("naegi", "苗木诚"),
+      aliveSeats: [target(1, "苗木诚"), target(2, "雾切响子"), checkedWolf],
+      publicSummary: {
+        ...createView(tableMemory).publicSummary,
+        recentSpeeches: [],
+        recentDeaths: ["第1天清晨，9号千早爱音倒牌。"],
+        deathSummary: ["第1天清晨，9号千早爱音倒牌。"],
+        tableMemory,
+      },
+      privateKnowledge: {
+        aiMemory: { seatId: 1, day: 1, beliefs: [] },
+        seerChecks: [{ day: 1, seerSeatId: 1, targetSeatId: checkedWolf.seatId, result: "WEREWOLF" }],
+      },
+      allowedActions: [{ type: "speak" }],
+    } as AgentView;
+    const checkedSeat = createSeat({
+      seatId: checkedWolf.seatId,
+      name: checkedWolf.name,
+      suspicion: 96,
+      trust: 4,
+      pressure: ["私密查验指向狼人"],
+    });
+    const tableRead: AiTableRead = {
+      mySeatId: 1,
+      myRole: "SEER",
+      day: 1,
+      personaLabel: "苗木诚",
+      seats: [
+        createSeat({ seatId: 1, name: "苗木诚", isSelf: true, suspicion: 0, trust: 100 }),
+        createSeat({ seatId: 2, name: "雾切响子", suspicion: 45, trust: 48 }),
+        checkedSeat,
+      ],
+      knownWolfSeatIds: [checkedWolf.seatId],
+      knownGoodSeatIds: [],
+      wolfTeammateSeatIds: [],
+      focus: checkedSeat,
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches: [],
+      recentDeaths: ["第1天清晨，9号千早爱音倒牌。"],
+      tableMemory,
+      tableMood: "预言家查杀",
+    };
+
+    const plan = createSpeechPlan(view, tableRead);
+    const planText = [plan.stance, plan.tableTask?.line, ...plan.talkingPoints].join("\n");
+
+    expect(plan.speechMove).toBe("claim_black_check");
+    expect(planText).not.toContain("必须交代验人理由");
+    expect(planText).not.toContain("票口边界");
+    expect(planText).not.toContain("外置硬身份反证");
+    expect(planText).not.toContain("身份动作");
+    expect(planText).not.toContain("外置位");
+    expect(planText).not.toContain("更硬的身份信息");
+    expect(planText).not.toContain("观察位");
+    expect(planText).not.toContain("等他发言时讲清自己的逻辑");
+    expect(planText).not.toContain("不要只报结论");
+    expect(planText).not.toContain("轻放");
+    expect(planText).not.toContain("可商量观察");
+    expect(planText).not.toContain("降温");
+    expect(planText).not.toContain("观望");
+    expect(planText).not.toContain("他发言只影响别人怎么接");
+    expect(planText).not.toContain("不改变我这条结果");
+    expect(planText).toContain("查杀位");
+    expect(planText).toContain("我跳预言家");
+    expect(planText).toContain("昨晚查验");
+    expect(planText).toContain("今天我的票先压");
+    expect(planText).toContain("公开和我的结果对撞");
+  });
+
+  it("gives a class-trial black-check target a direct response plan before relationship flavor", () => {
+    const claimant = target(1, "苗木诚");
+    const checked = target(3, "腐川冬子");
+    const blackCheckClaim: ClaimBoardItem = {
+      claimId: "claim-1",
+      claimant,
+      claimedRole: "SEER",
+      claimedRoleLabel: "预言家",
+      strength: "hard",
+      checks: [{ day: 1, target: checked, result: "WEREWOLF" }],
+      summary: "苗木诚跳预言家报腐川冬子查杀",
+      lastUpdatedDay: 1,
+      sourceSpeechSeq: 1,
+    };
+    const tableMemory = createTableMemory({ claimBoard: [blackCheckClaim] });
+    const view = {
+      ...createView(tableMemory),
+      phase: "DAY_SPEECH",
+      mySeatId: checked.seatId,
+      myRole: "WEREWOLF",
+      roleCard: classTrialRoleCard("fukawa", "腐川冬子"),
+      aliveSeats: [claimant, target(2, "雾切响子"), checked, target(7, "十神白夜")],
+      publicSummary: {
+        ...createView(tableMemory).publicSummary,
+        recentSpeeches: [
+          {
+            seq: 1,
+            day: 1,
+            speaker: claimant,
+            message: "苗木诚。我跳预言家，3号腐川冬子是查杀；今天票口先压3号。",
+          },
+        ],
+        claimBoard: [blackCheckClaim],
+        tableMemory,
+      },
+      persona: {
+        ...createView(tableMemory).persona!,
+        id: "cornered-fukawa",
+        riskTolerance: 0.35,
+        bluffing: 0.25,
+      },
+      privateKnowledge: {
+        wolfTeammates: [target(4, "黑白熊")],
+        aiMemory: { seatId: checked.seatId, day: 1, beliefs: [] },
+      },
+      allowedActions: [{ type: "speak" }],
+    } as AgentView;
+    const tableRead: AiTableRead = {
+      mySeatId: checked.seatId,
+      myRole: "WEREWOLF",
+      day: 1,
+      personaLabel: "腐川冬子",
+      seats: [
+        createSeat({ seatId: claimant.seatId, name: claimant.name, suspicion: 35, trust: 65, publicClaims: [blackCheckClaim] }),
+        createSeat({ seatId: 2, name: "雾切响子", suspicion: 44, trust: 50 }),
+        createSeat({
+          seatId: checked.seatId,
+          name: checked.name,
+          isSelf: true,
+          suspicion: 92,
+          trust: 8,
+          publicChecksAgainst: [{ claimant, result: "WEREWOLF", day: 1 }],
+          pressure: ["被1号苗木诚公开报查杀"],
+        }),
+        createSeat({ seatId: 7, name: "十神白夜", suspicion: 45, trust: 45 }),
+      ],
+      knownWolfSeatIds: [4],
+      knownGoodSeatIds: [],
+      wolfTeammateSeatIds: [4],
+      focus: createSeat({ seatId: claimant.seatId, name: claimant.name, suspicion: 35, trust: 65, publicClaims: [blackCheckClaim] }),
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches: view.publicSummary.recentSpeeches,
+      recentDeaths: [],
+      tableMemory,
+      tableMood: "被预言家查杀",
+    };
+
+    const plan = createSpeechPlan(view, tableRead);
+    const planText = [plan.stance, plan.tableTask?.line, ...plan.talkingPoints].join("\n");
+
+    expect(plan.target?.seatId).toBe(claimant.seatId);
+    expect(planText).toContain("不认");
+    expect(planText).toContain("查杀");
+    expect(planText).not.toContain("验人理由");
+    expect(planText).not.toContain("起跳收益");
+    expect(planText).not.toContain("票口边界");
+    expect(planText).toContain("一句话把我按死");
+    expect(planText).not.toContain("谁最轻松");
+    expect(planText).toContain("我哪里不接");
+    expect(planText).toContain("我今天怎么活");
+    expect(planText).not.toContain("十神");
   });
 
   it("does not turn a dead seer's legacy gold water into the next speech pressure target", () => {
@@ -1265,6 +1436,7 @@ describe("class-trial dramatic speech planning", () => {
       phase: "DAY_SPEECH",
       myRole: "SEER",
       roleCard: classTrialRoleCard("naegi", "苗木诚"),
+      aliveSeats: Array.from({ length: 10 }, (_, index) => target(index + 1, `${index + 1}号`)),
       privateKnowledge: {
         aiMemory: { seatId: 1, day: 1, beliefs: [] },
         seerChecks: [{ day: 1, seerSeatId: 1, targetSeatId: 2, result: "GOOD" }],
@@ -1329,6 +1501,7 @@ describe("class-trial dramatic speech planning", () => {
       phase: "DAY_SPEECH",
       myRole: "SEER",
       roleCard: classTrialRoleCard("naegi", "苗木诚"),
+      aliveSeats: Array.from({ length: 10 }, (_, index) => target(index + 1, `${index + 1}号`)),
       publicSummary: {
         ...createView(tableMemory).publicSummary,
         recentSpeeches,
@@ -1399,6 +1572,7 @@ describe("class-trial dramatic speech planning", () => {
       phase: "DAY_SPEECH",
       myRole: "SEER",
       roleCard: classTrialRoleCard("naegi", "苗木诚"),
+      aliveSeats: Array.from({ length: 10 }, (_, index) => target(index + 1, `${index + 1}号`)),
       publicSummary: {
         ...createView(tableMemory).publicSummary,
         recentSpeeches,

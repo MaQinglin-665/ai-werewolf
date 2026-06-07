@@ -78,6 +78,7 @@ describe("gameClientRequests", () => {
       boardIdOverride: "9p-seer-witch-hunter",
       humanSeatModeOverride: "none",
       aiFriendsOverride: classTrialAiFriends,
+      seatRoleOverrides: ["SEER", "WITCH", "VILLAGER", "WEREWOLF", "WEREWOLF", "WEREWOLF", "HUNTER", "VILLAGER", "VILLAGER"],
       fetcher: fetchMock,
     });
 
@@ -85,6 +86,7 @@ describe("gameClientRequests", () => {
       boardId: "9p-seer-witch-hunter",
       humanSeatId: null,
       aiFriends: classTrialAiFriends,
+      seatRoleOverrides: ["SEER", "WITCH", "VILLAGER", "WEREWOLF", "WEREWOLF", "WEREWOLF", "HUNTER", "VILLAGER", "VILLAGER"],
     });
   });
 

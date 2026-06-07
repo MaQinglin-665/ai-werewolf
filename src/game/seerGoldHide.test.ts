@@ -10,6 +10,23 @@ describe("seer gold-water reveal timing", () => {
     expect(plan.claimIntent).toBeUndefined();
   });
 
+  it("reveals a class-trial nine-player good check on day one", () => {
+    const plan = createSpeechPlan(
+      seerView({
+        day: 1,
+        result: "GOOD",
+        classTrial: true,
+        aliveSeatCount: 9,
+      }),
+    );
+
+    expect(plan.kind).toBe("claim-check");
+    expect(plan.claimIntent).toMatchObject({
+      claimedRole: "SEER",
+      check: { targetSeatId: 2, result: "GOOD" },
+    });
+  });
+
   it("reveals a wolf check immediately", () => {
     const plan = createSpeechPlan(seerView({ day: 2, result: "WEREWOLF" }));
 
@@ -74,12 +91,14 @@ function seerView({
   tableMemory = emptyTableMemory(),
   rules = { hasGuard: false, guardSaveConflictKills: false, hasWolfBeauty: false, hasKnight: false },
   aliveSeatCount = 2,
+  classTrial = false,
 }: {
   day: number;
   result: "WEREWOLF" | "GOOD";
   tableMemory?: TableMemory;
   rules?: AgentView["rules"];
   aliveSeatCount?: number;
+  classTrial?: boolean;
 }): AgentView {
   const aliveSeats = [
     { seatId: 1, name: "Seer" },
@@ -97,6 +116,7 @@ function seerView({
     phase: "DAY_SPEECH",
     day,
     rules,
+    roleCard: classTrial ? classTrialRoleCard("naegi", "苗木诚") : undefined,
     aliveSeats,
     publicEvents: [],
     publicSummary: {
@@ -113,6 +133,25 @@ function seerView({
     },
     allowedActions: [{ type: "speak" }],
   } as AgentView;
+}
+
+function classTrialRoleCard(id: string, displayName: string): AgentView["roleCard"] {
+  return {
+    id,
+    displayName,
+    theme: "class-trial",
+    styleTags: [],
+    speechStyleZh: "",
+    reasoningBias: "",
+    voteBias: "",
+    nightActionBias: "",
+    asVillager: "",
+    asWerewolf: "",
+    pressureResponse: "",
+    relationshipHints: [],
+    catchphrasePolicy: "",
+    forbidden: [],
+  };
 }
 
 function seerClaim(): ClaimBoardItem {

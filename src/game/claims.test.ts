@@ -40,12 +40,88 @@ describe("role claim extraction", () => {
     ]);
   });
 
+  it("parses characterful seer black checks with a named target and pronoun result", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 1,
+      message:
+        "好，昨晚平安夜，女巫用药了。我是预言家，苗木诚。我昨晚查了3号腐川冬子——她是狼人。今天票口先压在3号身上。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+    expect(claim?.checks).toEqual([
+      expect.objectContaining({
+        claimantSeatId: 1,
+        targetSeatId: 3,
+        result: "WEREWOLF",
+      }),
+    ]);
+  });
+
+  it("parses class-trial seer checks when a dash-separated name is followed by result-is-wolf wording", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 1,
+      message:
+        "我先说一件事。我是预言家，昨晚查了3号——腐川冬子，结果是狼。今天先别把3号轻轻放过去。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+    expect(claim?.checks).toEqual([
+      expect.objectContaining({
+        claimantSeatId: 1,
+        targetSeatId: 3,
+        result: "WEREWOLF",
+      }),
+    ]);
+  });
+
+  it("parses class-trial self-intro seer claims with seat and character name before the role", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 1,
+      message:
+        "我是1号苗木诚，预言家，昨晚验了6号塞蕾丝缇雅，查杀，她是狼。今天我的票挂在6号。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+    expect(claim?.checks).toEqual([
+      expect.objectContaining({
+        claimantSeatId: 1,
+        targetSeatId: 6,
+        result: "WEREWOLF",
+      }),
+    ]);
+  });
+
   it("does not treat endorsing another seer as a self seer claim", () => {
     const claim = extractRoleClaimFromSpeech({
       day: 1,
       claimantSeatId: 4,
       message: "我认3号预言家这条线，查杀先走。",
       validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+    });
+
+    expect(claim).toBeUndefined();
+  });
+
+  it("does not treat referenced black-check positions as a new self seer check", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 6,
+      message:
+        "苗木诚这张牌已经拍在桌上了，3号就是查杀位，这个结果我暂时收下。腐川冬子，你准备用哪枚筹码替自己开脱。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
     });
 
     expect(claim).toBeUndefined();

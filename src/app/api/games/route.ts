@@ -1,5 +1,6 @@
 import { createGameRecord } from "@/server/gameService";
 import { AI_FRIEND_AVATAR_DATA_URL_MAX_LENGTH } from "@/game/aiFriends";
+import { ROLES } from "@/game/types";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -23,12 +24,50 @@ const roleCardSchema = z.object({
   voiceProfileId: z.string().min(1).max(80).optional(),
   voiceLocale: z.string().min(1).max(20).optional(),
   voiceRewritePolicy: z.string().min(1).max(180).optional(),
+  classTrialVoiceProfile: z
+    .object({
+      personalityCore: z.array(z.string().min(1).max(180)).max(8).default([]),
+      valueBiases: z.array(z.string().min(1).max(180)).max(8).default([]),
+      reactionTendencies: z.array(z.string().min(1).max(220)).max(10).default([]),
+      lightCatchphrases: z.array(z.string().min(1).max(80)).max(6).default([]),
+      overuseBans: z.array(z.string().min(1).max(160)).max(10).default([]),
+      scenarioReactions: z
+        .record(
+          z.string().min(1).max(80),
+          z.object({
+            innerDrive: z.string().min(1).max(220),
+            speechMove: z.string().min(1).max(220),
+            mustAvoid: z.string().min(1).max(180),
+          }),
+        )
+        .default({}),
+      alignmentReactions: z
+        .record(
+          z.string().min(1).max(80),
+          z.object({
+            speechDrive: z.string().min(1).max(220),
+            failureMode: z.string().min(1).max(180),
+          }),
+        )
+        .default({}),
+      acceptableForms: z.array(z.string().min(1).max(160)).max(8).default([]),
+      unacceptableForms: z.array(z.string().min(1).max(160)).max(8).default([]),
+      dramaticBoundaries: z.object({
+        allowSharpConflict: z.boolean(),
+        allowIrrationalMisread: z.boolean(),
+        allowDeceptionWhenAligned: z.boolean(),
+        mustStayInTurnOrder: z.literal(true),
+        mustRemainWerewolfPlayable: z.literal(true),
+      }),
+    })
+    .optional(),
 });
 
 const createGameSchema = z
   .object({
     boardId: z.string().min(1).max(80).optional(),
     humanSeatId: z.number().int().min(1).max(12).nullable().optional(),
+    seatRoleOverrides: z.array(z.enum(ROLES)).max(12).optional(),
     aiFriends: z
       .array(
         z.object({
@@ -90,6 +129,7 @@ export async function POST(request?: Request) {
       boardId: parsed.data?.boardId,
       humanSeatId: parsed.data?.humanSeatId,
       aiFriends: parsed.data?.aiFriends,
+      seatRoleOverrides: parsed.data?.seatRoleOverrides,
     });
     return Response.json(view);
   } catch (error) {

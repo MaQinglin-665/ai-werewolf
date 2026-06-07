@@ -146,6 +146,66 @@ describe("ai friends", () => {
     expect(resolved[0]?.setup.avatarDataUrl).toBe(avatarDataUrl);
   });
 
+  it("preserves class-trial role voice profiles through friend resolution", () => {
+    const custom = {
+      ...copyAiFriend(getDefaultAiFriends("test")[0], { id: "friend-class-trial", now: "2026-05-15T00:00:00.000Z" }),
+      roleCard: {
+        id: "kirigiri",
+        displayName: "Kirigiri",
+        theme: "class-trial",
+        styleTags: ["restrained"],
+        speechStyleZh: "Stay precise.",
+        reasoningBias: "Prefer narrow doubts.",
+        voteBias: "Vote from public facts.",
+        nightActionBias: "Use legal night actions.",
+        asVillager: "Ask narrow questions.",
+        asWerewolf: "Redirect real gaps.",
+        pressureResponse: "Question the pressure.",
+        relationshipHints: [],
+        catchphrasePolicy: "Light seasoning only.",
+        forbidden: [],
+        classTrialVoiceProfile: {
+          personalityCore: ["keeps emotional distance"],
+          valueBiases: ["hates too-clean conclusions"],
+          reactionTendencies: ["narrows one missing premise"],
+          lightCatchphrases: ["one missing piece"],
+          overuseBans: ["do not repeat evidence chain"],
+          scenarioReactions: {
+            lowInfoOpening: {
+              innerDrive: "observe early definitions",
+              speechMove: "ask one narrow question",
+              mustAvoid: "do not summarize the room",
+            },
+          },
+          alignmentReactions: {
+            asVillager: {
+              speechDrive: "block premature consensus",
+              failureMode: "too reserved",
+            },
+          },
+          acceptableForms: ["short pressure"],
+          unacceptableForms: ["neutral audit"],
+          dramaticBoundaries: {
+            allowSharpConflict: true,
+            allowIrrationalMisread: true,
+            allowDeceptionWhenAligned: true,
+            mustStayInTurnOrder: true as const,
+            mustRemainWerewolfPlayable: true as const,
+          },
+        },
+      },
+    };
+
+    const resolved = resolveAiFriendsForGame([custom], 1);
+
+    expect(resolved[0]?.config.roleCard?.classTrialVoiceProfile?.overuseBans).toEqual(
+      expect.arrayContaining(["do not repeat evidence chain"]),
+    );
+    expect(resolved[0]?.setup.roleCard?.classTrialVoiceProfile?.scenarioReactions.lowInfoOpening?.speechMove).toBe(
+      "ask one narrow question",
+    );
+  });
+
   it("rejects invalid import JSON", () => {
     expect(() => parseAiFriendExport("{not json")).toThrow(/JSON/);
     expect(() => parseAiFriendExport(JSON.stringify({ version: 2, friends: [] }))).toThrow(/版本/);

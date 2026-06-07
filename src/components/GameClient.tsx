@@ -97,6 +97,7 @@ import {
 } from "./game/gameClientRequests";
 import {
   CLASS_TRIAL_DEFAULT_BOARD_ID,
+  CLASS_TRIAL_FIXED_SEAT_ROLES,
   CLASS_TRIAL_THEME_MODE_STORAGE_KEY,
   buildClassTrialAiFriends,
   getClassTrialPackStatus,
@@ -1005,6 +1006,7 @@ export function GameClient() {
         boardIdOverride: useFixedClassTrialLineup ? CLASS_TRIAL_DEFAULT_BOARD_ID : undefined,
         humanSeatModeOverride: useFixedClassTrialLineup ? "none" : undefined,
         aiFriendsOverride: useFixedClassTrialLineup ? classTrialAiFriends : undefined,
+        seatRoleOverrides: useFixedClassTrialLineup ? CLASS_TRIAL_FIXED_SEAT_ROLES : undefined,
       });
       rememberGame(view.id);
       setRoleIntroGameId(view.humanSeatId === null ? null : view.id);

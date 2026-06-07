@@ -221,6 +221,6 @@ function ensureSeatNumbers(textJa: string, seatNumbers: string[]): string {
 
 function compactJapaneseRewrite(text: string): string {
   const sentences = text.match(/[^。！？]+[。！？]?/g) ?? [text];
-  const compact = sentences.slice(0, 4).join("").replace(/[。！？]?$/, "。");
-  return Array.from(compact).slice(0, 180).join("").replace(/[、，,：:；;]+$/u, "。");
+  const compact = sentences.join("").replace(/[。！？]?$/, "。");
+  return compact.replace(/[、，,：:；;]+$/u, "。");
 }

@@ -96,6 +96,35 @@ describe("game creation ai friends", () => {
         voiceProfileId: "monokuma-ja-local",
         voiceLocale: "ja-JP",
         voiceRewritePolicy: "轻微意译，不改变狼人杀信息。",
+        classTrialVoiceProfile: {
+          personalityCore: ["用笑声掩盖真实站队"],
+          valueBiases: ["喜欢把别人逼到公开站边"],
+          reactionTendencies: ["压力来时先嘲讽再反咬漏洞"],
+          lightCatchphrases: ["唔噗噗"],
+          overuseBans: ["不要每句都笑"],
+          scenarioReactions: {
+            lowInfoOpening: {
+              innerDrive: "想先把场面搅热。",
+              speechMove: "用一个具体问题逼人站边。",
+              mustAvoid: "不能替主持人宣布规则。",
+            },
+          },
+          alignmentReactions: {
+            asWerewolf: {
+              speechDrive: "借公开矛盾制造混乱。",
+              failureMode: "演得像局外主持人。",
+            },
+          },
+          acceptableForms: ["嘲讽后仍有明确狼人杀目标"],
+          unacceptableForms: ["只玩梗不推人"],
+          dramaticBoundaries: {
+            allowSharpConflict: true,
+            allowIrrationalMisread: true,
+            allowDeceptionWhenAligned: true,
+            mustStayInTurnOrder: true,
+            mustRemainWerewolfPlayable: true,
+          },
+        },
       },
     };
 
@@ -112,9 +141,42 @@ describe("game creation ai friends", () => {
     expect(firstAiSeat?.name).toBe("黑白熊");
     expect(firstAiSeat?.roleCard?.displayName).toBe("黑白熊");
     expect(firstAiSeat?.roleCard?.forbidden.join(" ")).toContain("不能泄露隐藏身份");
+    expect(firstAiSeat?.roleCard?.classTrialVoiceProfile?.scenarioReactions.lowInfoOpening?.speechMove).toContain("站边");
     expect(view.setup?.aiFriends[0]?.roleCard?.id).toBe("monokuma");
+    expect(view.setup?.aiFriends[0]?.roleCard?.classTrialVoiceProfile?.alignmentReactions.asWerewolf?.speechDrive).toContain("混乱");
     expect(JSON.stringify(view)).not.toContain("secret");
     expect(JSON.stringify(view)).not.toContain("apiKey");
+  });
+
+  it("accepts fixed seat role overrides for local class-trial games", async () => {
+    const response = await createGame(
+      new Request("http://localhost/api/games", {
+        method: "POST",
+        body: JSON.stringify({
+          boardId: "9p-seer-witch-hunter",
+          humanSeatId: null,
+          seatRoleOverrides: ["SEER", "WITCH", "VILLAGER", "WEREWOLF", "WEREWOLF", "WEREWOLF", "HUNTER", "VILLAGER", "VILLAGER"],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  it("rejects fixed seat role overrides that do not match the board", async () => {
+    const response = await createGame(
+      new Request("http://localhost/api/games", {
+        method: "POST",
+        body: JSON.stringify({
+          boardId: "9p-seer-witch-hunter",
+          seatRoleOverrides: ["SEER"],
+        }),
+      }),
+    );
+    const payload = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toContain("固定身份数量必须和板子座位数一致");
   });
 
   it("accepts a fixed human seat id", async () => {

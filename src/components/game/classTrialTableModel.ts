@@ -2,7 +2,12 @@ import { isNightPhase } from "@/game/phaseSemantics";
 import type { AiRuntimeMode, HumanGameView } from "@/game/types";
 import { getClassTrialThemeFlow, type ClassTrialThemeFlow } from "./classTrialThemeFlow";
 import { getClassTrialVotePresentation, type ClassTrialVotePresentationState } from "./classTrialVotePresentation";
-import { getClassTrialCharacterForSeat, type ClassTrialPackCharacter, type ClassTrialPackManifest } from "./classTrialTheme";
+import {
+  CLASS_TRIAL_AI_RUNTIME_LABEL,
+  getClassTrialCharacterForSeat,
+  type ClassTrialPackCharacter,
+  type ClassTrialPackManifest,
+} from "./classTrialTheme";
 import type { ClassTrialAudioTypewriterState, HostAudioStatus, LiveAiSpeech } from "./clientTypes";
 
 export type ClassTrialSpeakingFocusView = {
@@ -91,7 +96,7 @@ export function buildClassTrialTableModel(options: {
     currentSpeakingFocusKey,
     currentSpeakingFocus,
     themeFlow,
-    aiRuntimeLabel: options.aiRuntimeMode === "llm" ? "真实 LLM · DeepSeek-v4" : "Mock AI",
+    aiRuntimeLabel: options.aiRuntimeMode === "llm" ? CLASS_TRIAL_AI_RUNTIME_LABEL : "Mock AI",
     classTrialVoteState,
     nightPhase: isNightPhase(game.phase),
     hostAudioLabel: hostAudioStatus ? "播报中" : options.hostAudioEnabled ? "主持开" : "主持关",

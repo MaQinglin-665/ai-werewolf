@@ -17,7 +17,10 @@ type SpeechClaimDraft = {
 };
 
 const ROLE_CLAIM_GAP = "[^，,。！？!?；;：:\\n]{0,8}";
+const SELF_INTRO_ROLE_CLAIM_GAP =
+  "(?:(?:\\d{1,2}\\s*号)?[A-Za-z0-9_\\-\\u4e00-\\u9fa5]{1,24}[，,：:\\s]{1,4})?[^，,。！？!?；;：:\\n]{0,8}";
 const CLAIM_TARGET_LABEL = "(?:玩家|位|AI|[A-Za-z0-9_\\-\\u4e00-\\u9fa5]{0,24}?)?";
+const CHECK_RESULT_TEXT = "(查杀(?!位|牌|线|结果)|金水(?!位|牌|线|结果)|狼人|好人|狼)";
 const SELF_CHECK_RESULT_PREFIX = "[，,：:\\s]*(?:是|为|出)?\\s*(?:我(?:昨晚|昨夜|夜里|今晚)?(?:查验|验|查|摸)(?:出来)?的?|我的)?\\s*";
 const WITCH_DIRECT_ROLE_PATTERN = new RegExp(
   `(?:我是|我拍|(?<!在)我这里是|我底牌是|明牌|我这张|我作为)${ROLE_CLAIM_GAP}(?:女巫|女巫牌)`,
@@ -34,7 +37,7 @@ const ROLE_PATTERNS: Array<{ role: Role; pattern: RegExp }> = [
   {
     role: "SEER",
     pattern: new RegExp(
-      `(?:我是|我跳|我起跳|我拍|我这里是|我底牌是|明牌)${ROLE_CLAIM_GAP}预言家|预言家${ROLE_CLAIM_GAP}(?:我来报验|我报验|我跳|我拍)|我报验人`,
+      `我是${SELF_INTRO_ROLE_CLAIM_GAP}预言家|(?:我跳|我起跳|我拍|我这里是|我底牌是|明牌)${ROLE_CLAIM_GAP}预言家|预言家${ROLE_CLAIM_GAP}(?:我来报验|我报验|我跳|我拍)|我报验人`,
     ),
   },
   {
@@ -186,10 +189,14 @@ function extractClaimChecks(params: {
   const checks: ClaimCheck[] = [];
   const patterns = [
     new RegExp(
-      `(?:查验|查验的是|查了|验了|验的是|摸了|我验|我查|报验).{0,12}?(\\d{1,2})\\s*号${CLAIM_TARGET_LABEL}${SELF_CHECK_RESULT_PREFIX}(查杀|金水|狼人|好人)`,
+      `(?:查验|查验的是|查了|验了|验的是|摸了|我验|我查|报验).{0,12}?(\\d{1,2})\\s*号${CLAIM_TARGET_LABEL}${SELF_CHECK_RESULT_PREFIX}${CHECK_RESULT_TEXT}`,
       "g",
     ),
-    new RegExp(`(\\d{1,2})\\s*号${CLAIM_TARGET_LABEL}${SELF_CHECK_RESULT_PREFIX}(查杀|金水|狼人|好人)`, "g"),
+    new RegExp(
+      `(?:查验|查验的是|查了|验了|验的是|摸了|我验|我查|报验).{0,18}?(\\d{1,2})\\s*号${CLAIM_TARGET_LABEL}[\\s,，:：\\-—－]{1,8}(?:${CLAIM_TARGET_LABEL}[\\s,，:：\\-—－]{1,8})?(?:他|她|TA|ta|这个位置|这张牌|结果)?\\s*(?:是|为)?\\s*${CHECK_RESULT_TEXT}`,
+      "g",
+    ),
+    new RegExp(`(\\d{1,2})\\s*号${CLAIM_TARGET_LABEL}${SELF_CHECK_RESULT_PREFIX}${CHECK_RESULT_TEXT}`, "g"),
   ];
 
   for (const pattern of patterns) {
@@ -202,7 +209,7 @@ function extractClaimChecks(params: {
         day: params.day,
         claimantSeatId: params.claimantSeatId,
         targetSeatId,
-        result: resultText === "查杀" || resultText === "狼人" ? "WEREWOLF" : "GOOD",
+        result: resultText === "查杀" || resultText === "狼人" || resultText === "狼" ? "WEREWOLF" : "GOOD",
         sourceSpeechSeq: params.sourceSpeechSeq,
       });
     }
@@ -220,7 +227,7 @@ function inferClaimStrength(message: string, role: Role): ClaimStrength {
 
 function hasExplicitHardSeerClaim(message: string): boolean {
   return new RegExp(
-    `(?:我是|我跳|我起跳|我拍|我这里是|我底牌是|明牌)${ROLE_CLAIM_GAP}预言家|预言家${ROLE_CLAIM_GAP}(?:我来报验|我报验|我跳|我拍)|我报验人`,
+    `我是${SELF_INTRO_ROLE_CLAIM_GAP}预言家|(?:我跳|我起跳|我拍|我这里是|我底牌是|明牌)${ROLE_CLAIM_GAP}预言家|预言家${ROLE_CLAIM_GAP}(?:我来报验|我报验|我跳|我拍)|我报验人`,
   ).test(message);
 }
 

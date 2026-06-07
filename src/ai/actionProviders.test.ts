@@ -5,7 +5,7 @@ import { buildConstrainedActionInput, routedModelActionProvider, validateActionD
 import { buildAiTableRead, createVotePlan } from "./tableRead";
 import { buildAgentView } from "@/game/projection";
 import { createGame } from "@/game/engine";
-import type { ActionTarget, AgentView, AiTableRead, SeatRead, TableMemory } from "@/game/types";
+import type { ActionTarget, AgentView, AiTableRead, Seat, SeatRead, TableMemory } from "@/game/types";
 
 const originalEnv = { ...process.env };
 
@@ -79,7 +79,7 @@ describe("routed action provider", () => {
     });
     expect(input.constraints.join("\n")).toContain("role card is soft guidance");
     expect(input.constraints.join("\n")).toContain("学级裁判角色投票理由透镜：雾切响子");
-    expect(input.constraints.join("\n")).toContain("证据链断点");
+    expect(input.constraints.join("\n")).toContain("过于顺滑的结论");
     expect(JSON.stringify(input.characterRole)).not.toContain("真实身份");
   });
 
@@ -683,11 +683,11 @@ describe("routed action provider", () => {
     expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
   });
 
-  it("keeps class-trial action repair attempts on DeepSeek instead of persona fallbacks", async () => {
+  it("keeps class-trial action repair attempts on Mimo instead of persona fallbacks", async () => {
     process.env.AI_LLM_API_KEY = "test-key";
     process.env.AI_LLM_MAX_RETRIES = "1";
     process.env.AI_LLM_ACTION_FALLBACK_PERSONAS = "GPT";
-    process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";
+    process.env.AI_MODEL_MIMO = "mimo-v2.5";
     process.env.AI_MODEL_GPT = "gpt-5.4";
 
     let requestCount = 0;
@@ -722,6 +722,7 @@ describe("routed action provider", () => {
     const state = createGame({ seed: 91 });
     const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
     voter.name = "雾切响子";
+    setMimoPersona(voter);
     voter.roleCard = {
       id: "kirigiri",
       displayName: "雾切响子",
@@ -750,9 +751,9 @@ describe("routed action provider", () => {
       const body = JSON.parse(String(call[1]?.body)) as { model: string };
       return body.model;
     });
-    expect(requestedModels).toEqual(["deepseek-v4-flash", "deepseek-v4-flash"]);
+    expect(requestedModels).toEqual(["mimo-v2.5", "mimo-v2.5"]);
     expect(result.isFallback).toBe(false);
-    expect(result.provider).toBe("deepseek-action:deepseek-v4-flash");
+    expect(result.provider).toBe("mimo-action:mimo-v2.5");
     expect(result.command).toMatchObject({ type: "vote", actorSeatId: voter.seatId });
   });
 
@@ -1418,5 +1419,28 @@ function emptyTableMemory(overrides: Partial<TableMemory> = {}): TableMemory {
     deathAnnouncements: [],
     publicSignals: [],
     ...overrides,
+  };
+}
+
+function setMimoPersona(seat: Seat): void {
+  seat.persona = {
+    id: "mimo-logic-checker",
+    name: "Mimo",
+    modelLabel: "mimo-v2.5",
+    label: "细节校验型",
+    style: "抓前后矛盾和公开发言细节。",
+    goal: "用细节逼迫可疑位补逻辑。",
+    riskTolerance: 0.45,
+    bluffing: 0.4,
+    preferences: {
+      logic: 0.88,
+      identity: 0.46,
+      vote: 0.62,
+      emotion: 0.26,
+      memory: 0.86,
+      leadership: 0.48,
+      deception: 0.38,
+      caution: 0.6,
+    },
   };
 }

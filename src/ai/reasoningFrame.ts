@@ -44,7 +44,9 @@ export function buildReasoningFrame(view: AgentView): AiReasoningFrame {
       ? `站边变化不要直接定狼：${latestShift.summary}，可能是好人回头、狼倒钩、冲锋转向或被票型压力逼出来。`
       : undefined,
     topFocus
-      ? `${seatText(topFocus.seat)}是焦点时，要反问：如果他是好人，谁在借这个焦点拿票型收益。`
+      ? view.roleCard?.theme === "class-trial"
+        ? `${seatText(topFocus.seat)}是焦点时，先从我这个角色愿意承担的判断出发；反面解释只短留一句，不替全桌做收益旁白。`
+        : `${seatText(topFocus.seat)}是焦点时，要反问：如果他是好人，谁在借这个焦点拿票型收益。`
       : undefined,
     latestVote?.leaders.length
       ? `票型焦点${latestVote.leaders.map(seatText).join("、")}不等于天然狼位，要区分被归票、被冲票和自爆发言造成的票。`

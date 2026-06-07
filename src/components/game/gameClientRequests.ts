@@ -1,4 +1,4 @@
-import type { AiFriendConfig, AiFriendRuntimeLlmConfig, AiRuntimeMode, HumanGameView } from "@/game/types";
+import type { AiFriendConfig, AiFriendRuntimeLlmConfig, AiRuntimeMode, HumanGameView, Role } from "@/game/types";
 import { speechStreamKey } from "./autoAdvance";
 import type { CommandPayload, HumanSeatMode } from "./clientTypes";
 
@@ -23,6 +23,7 @@ export async function createGameView(options: {
   boardIdOverride?: string;
   humanSeatModeOverride?: HumanSeatMode;
   aiFriendsOverride?: AiFriendConfig[];
+  seatRoleOverrides?: readonly Role[];
   fetcher?: Fetcher;
 }): Promise<HumanGameView> {
   const response = await (options.fetcher ?? fetch)("/api/games", {
@@ -35,6 +36,7 @@ export async function createGameView(options: {
           ? null
           : options.selectedHumanSeatId ?? undefined,
       aiFriends: options.aiFriendsOverride ?? options.selectedAiFriends,
+      seatRoleOverrides: options.seatRoleOverrides,
     }),
   });
   if (!response.ok) throw new Error("创建对局失败。");

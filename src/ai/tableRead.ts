@@ -138,7 +138,7 @@ export function buildAiTableRead(view: AgentView): AiTableRead {
         suspicion -= weighted((isHardSeer ? 18 : 14) * dayOneCaution, protectionWeight);
         pressure.push(`${protectedClaim.claimedRoleLabel}未对跳，先不弱推`);
         if (view.day === 1) {
-          pressure.push(`${protectedClaim.claimedRoleLabel}未对跳，首日先留身份坑`);
+          pressure.push(`${protectedClaim.claimedRoleLabel}未对跳，首日先留身份空间`);
         }
       }
     }
@@ -208,7 +208,7 @@ export function buildAiTableRead(view: AgentView): AiTableRead {
 
     if (view.publicSummary.tableMemory.stanceShifts.some((shift) => shift.actor.seatId === seat.seatId)) {
       suspicion += weighted(10, Math.max(preferences.logic, preferences.memory));
-      pressure.push("站边前后变化");
+      pressure.push("表态前后变化");
     }
 
     if (seatMemory && !isSelf) {
@@ -218,7 +218,7 @@ export function buildAiTableRead(view: AgentView): AiTableRead {
       }
       if (seatMemory.evasiveSpeechCount > 0) {
         suspicion += weighted(Math.min(10, seatMemory.evasiveSpeechCount * 5), Math.max(preferences.logic, preferences.caution));
-        pressure.push("公开记忆：回避站边");
+        pressure.push("公开记忆：回避表态");
       }
     }
 
@@ -229,7 +229,7 @@ export function buildAiTableRead(view: AgentView): AiTableRead {
       }
       if (/不急|先听|过一轮|不站死/.test(lastSpeechMessage) && !isLowInfoDayOneSeatSpeech(view, seat.seatId, lastSpeechMessage)) {
         suspicion += weighted(3, preferences.leadership);
-        pressure.push("站边偏保守，需要补判断");
+        pressure.push("表态偏保守，需要补判断");
       }
       if (!isWolfRole(view.myRole, view.rules.wolfRoles) && hasDayOneSoftPowerHintText(view.day, lastSpeechMessage)) {
         trust += weighted(8, Math.max(preferences.identity, preferences.caution));
@@ -341,6 +341,23 @@ export function buildAiTableRead(view: AgentView): AiTableRead {
   };
 }
 
+function findPublicBlackCheckAgainstSelf(
+  view: AgentView,
+  tableRead: AiTableRead,
+): { claimant: ActionTarget; day: number } | undefined {
+  const selfRead = tableRead.seats.find((seat) => seat.isSelf || seat.seatId === view.mySeatId);
+  const directCheck = selfRead?.publicChecksAgainst.find((check) => check.result === "WEREWOLF");
+  if (directCheck) return { claimant: directCheck.claimant, day: directCheck.day };
+
+  for (const claim of view.publicSummary.claimBoard) {
+    if (claim.claimedRole !== "SEER") continue;
+    const check = claim.checks.find((item) => item.target.seatId === view.mySeatId && item.result === "WEREWOLF");
+    if (check) return { claimant: claim.claimant, day: check.day };
+  }
+
+  return undefined;
+}
+
 export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(view)): SpeechPlan {
   const latestCheck = view.privateKnowledge.seerChecks?.at(-1);
   const focus = chooseContinuityFocus(view, tableRead);
@@ -373,9 +390,19 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
           ? `${target?.name ?? `${latestCheck.targetSeatId}号`} 是我的查验狼`
           : `${target?.name ?? `${latestCheck.targetSeatId}号`} 是我的金水`,
       talkingPoints: [
-        latestCheck.result === "WEREWOLF" ? "今天先围绕查验狼归票" : "金水位先放一轮",
+        latestCheck.result === "WEREWOLF" && isDramaticClassTrialView(view)
+          ? `我跳预言家，昨晚查验结果是${target?.name ?? `${latestCheck.targetSeatId}号`}查杀`
+          : latestCheck.result === "WEREWOLF"
+            ? "今天先围绕查验狼归票"
+            : "金水位先放一轮",
+        latestCheck.result === "WEREWOLF" && isDramaticClassTrialView(view)
+          ? "查杀位可以反打，但不能靠自证把今天焦点推走"
+          : undefined,
+        latestCheck.result === "WEREWOLF" && isDramaticClassTrialView(view)
+          ? "今天我的票先压查杀位，反对者要公开对撞"
+          : undefined,
         memoryPoint ?? (focus ? `${focus.name} 的票型和发言还要继续验` : "不要散票"),
-      ],
+      ].filter((point): point is string => Boolean(point)),
       risk: 0.7,
       claimIntent: {
         claimedRole: "SEER",
@@ -387,6 +414,22 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
           result: latestCheck.result,
         },
       },
+    });
+  }
+
+  const blackCheckAgainstSelf = findPublicBlackCheckAgainstSelf(view, tableRead);
+  if (isDramaticClassTrialView(view) && blackCheckAgainstSelf) {
+    const claimant = blackCheckAgainstSelf.claimant;
+    return attachDynamics({
+      kind: isWolfRole(view.myRole, view.rules.wolfRoles) ? "confuse" : "defend",
+      target: claimant,
+      stance: `被${claimant.name}公开查杀，先回应查杀本身`,
+      talkingPoints: [
+        `我不认${claimant.seatId}号这条查杀，先说我哪里不接他一句话把我按死`,
+        "如果要认推或搅局，也必须围绕查杀本身说清楚，我今天怎么活、怎么搅局都不能绕到无关关系梗",
+        "今天桌面先比较查杀结论、我正面回应了什么、谁敢公开替这条查杀改方向",
+      ],
+      risk: Math.max(0.42, personaRisk),
     });
   }
 
@@ -446,7 +489,7 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
         target,
         stance: `狼队冲锋位把票压向 ${target.name}`,
         talkingPoints: [
-          wolfAssignment.supportSeat ? `我暂时认${wolfAssignment.supportSeat.seatId}号预言家` : "我先跟公开身份线走",
+          wolfAssignment.supportSeat ? `我暂时认${wolfAssignment.supportSeat.seatId}号预言家` : "我先跟公开身份说法走",
           `今天先压${target.seatId}号，票不要散`,
         ],
         risk: Math.max(0.62, personaRisk),
@@ -460,7 +503,7 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
         stance: `狼队倒钩位对 ${wolfAssignment.supportSeat.name} 保持距离`,
         talkingPoints: [
           `我不完全认${wolfAssignment.supportSeat.seatId}号预言家`,
-          memoryPoint ?? (focus ? `${focus.seatId}号也要补站边理由` : "身份线不能只听单边"),
+          memoryPoint ?? (focus ? `${focus.seatId}号也要把表态说清` : "身份说法不能只听单边"),
         ],
         risk: Math.max(0.48, personaRisk),
       });
@@ -488,7 +531,7 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
         stance: "神坑已经暴露太多，女巫视角先藏住",
         talkingPoints: [
           "神坑已经够亮，剩下的身份不要继续送夜刀收益",
-          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 需要从公开发言解释` : "先让外置位补站边"),
+          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 需要从公开发言解释` : "先让外置位补表态"),
         ],
         risk: 0.22,
       });
@@ -536,7 +579,7 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
         stance: "神坑已经暴露太多，猎人身份先藏住",
         talkingPoints: [
           "神坑已经够亮，我不继续把身份送出去",
-          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 给过程，不要只给结论` : "先看谁强推身份坑"),
+          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 给过程，不要只给结论` : "先看谁强推身份说法"),
         ],
         risk: 0.26,
       });
@@ -583,7 +626,7 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
         stance: "神坑已经暴露太多，白痴身份先藏住",
         talkingPoints: [
           "神坑已经够亮，我不继续把身份送出去",
-          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 要把发言矛盾解释清楚` : "先看谁借身份坑带节奏"),
+          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 要把发言矛盾解释清楚` : "先看谁借身份说法带节奏"),
         ],
         risk: 0.24,
       });
@@ -609,7 +652,7 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
       target: focus,
       stance: "白痴牌先用公开逻辑防误推",
       talkingPoints: [
-        memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 先解释站边和票型` : "先把发言顺序听完整"),
+        memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 先解释表态和投票` : "先把发言顺序听完整"),
         "我不怕吃抗推，但好人票不能乱散",
       ],
       risk: 0.42,
@@ -677,7 +720,7 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
         stance: "神坑已经暴露太多，守卫身份先藏住",
         talkingPoints: [
           "神坑已经够亮，我不继续把身份送出去",
-          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 需要补过程` : "先看谁借身份坑带节奏"),
+          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 需要补过程` : "先看谁借身份说法带节奏"),
         ],
         risk: 0.24,
       });
@@ -710,7 +753,7 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
         stance: `用${roleText}口径扛夜刀压力`,
         talkingPoints: [
           fakeGodRole === "WITCH" ? "我这里像女巫视角，狼夜里可以来试" : "我底牌不虚，狼夜里可以来试",
-          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 先补发言逻辑` : "今天别继续逼身份坑"),
+          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 先补发言逻辑` : "今天别继续逼身份说法"),
         ],
         risk: Math.max(0.62, personaRisk),
         claimIntent: {
@@ -772,10 +815,16 @@ function shouldRevealSeerCheck(
 }
 
 function getGoodSeerCheckRevealDay(view: AgentView, hasPublicSeerCounterclaim: boolean): number {
+  if (shouldRevealClassTrialGoodCheckImmediately(view)) return 1;
+
   const wolfRoles = new Set(view.rules.wolfRoles);
   const baseDay = wolfRoles.has("WOLF_KING") || wolfRoles.has("WHITE_WOLF_KING") ? 1 : 3;
   if (hasPublicSeerCounterclaim && baseDay > 1) return 2;
   return baseDay;
+}
+
+function shouldRevealClassTrialGoodCheckImmediately(view: AgentView): boolean {
+  return isDramaticClassTrialView(view) && !view.rules.hasGuard && view.aliveSeats.length <= 9;
 }
 
 type IdentityPressure = {
@@ -978,7 +1027,7 @@ function buildSpeechPlayMotive(view: AgentView, plan: SpeechPlan): SpeechPlan["p
   if (view.myRole === "VILLAGER" && GOD_ROLES.includes(plan.claimIntent.claimedRole)) {
     return {
       kind: "protect_power_role",
-      line: "给真神留身份坑，狼夜里可以来试，但发言还要落在公开逻辑上。",
+      line: "给真神留身份空间，狼夜里可以来试，但发言还要落在公开逻辑上。",
       allowIdentityClaim: true,
     };
   }
@@ -986,7 +1035,7 @@ function buildSpeechPlayMotive(view: AgentView, plan: SpeechPlan): SpeechPlan["p
   if (isWolfRole(view.myRole, view.rules.wolfRoles) && plan.claimIntent.claimedRole === "SEER") {
     return {
       kind: "wolf_misdirect",
-      line: "用悍跳身份制造站边压力，理由必须听起来像闭眼公开视角。",
+      line: "用悍跳身份制造表态压力，理由必须听起来像闭眼公开视角。",
       allowIdentityClaim: true,
     };
   }
@@ -994,7 +1043,21 @@ function buildSpeechPlayMotive(view: AgentView, plan: SpeechPlan): SpeechPlan["p
   if (plan.kind === "rally") {
     return {
       kind: "self_defense",
-      line: "拍身份是为了挡当前票口或收住散票，不是用身份替代推理。",
+      line: "拍身份是为了挡当前投票压力或收住散票，不是用身份替代推理。",
+      allowIdentityClaim: true,
+    };
+  }
+
+  if (
+    isDramaticClassTrialView(view) &&
+    view.day === 1 &&
+    view.myRole === "SEER" &&
+    plan.claimIntent.claimedRole === "SEER" &&
+    plan.claimIntent.check?.result === "WEREWOLF"
+  ) {
+    return {
+      kind: "tempo_grab",
+      line: "我跳预言家，把这条查杀明牌放到桌上；今天我的票先压查杀位。",
       allowIdentityClaim: true,
     };
   }
@@ -1083,6 +1146,29 @@ function buildSpeechTableTask(
   plan: SpeechPlan,
 ): SpeechPlan["tableTask"] {
   const spokenThisDay = view.publicSummary.recentSpeeches.filter((speech) => speech.day === view.day && speech.speaker);
+  const plannedSeerBlackCheck =
+    plan.claimIntent?.claimedRole === "SEER" &&
+    plan.claimIntent.check?.result === "WEREWOLF" &&
+    plan.claimIntent.check.targetSeatId === plan.target?.seatId;
+  if (isDramaticClassTrialView(view) && plannedSeerBlackCheck) {
+    return {
+      mode: "set-standard",
+      target: plan.target,
+      line:
+        "我跳预言家，昨晚查验出的结果是查杀；今天我的票先压查杀位；谁要保查杀位，就公开和我的结果对撞。",
+      directives: ["跳预言家", "报查杀", "票压查杀位", "要求保人者公开对撞"],
+    };
+  }
+  const blackCheckAgainstSelf = findPublicBlackCheckAgainstSelf(view, tableRead);
+  if (isDramaticClassTrialView(view) && blackCheckAgainstSelf) {
+    return {
+      mode: "set-standard",
+      target: blackCheckAgainstSelf.claimant,
+      line:
+        `你是被${blackCheckAgainstSelf.claimant.seatId}号公开查杀的位置；本轮先回应查杀本身：不认或认推都可以，但要说我哪里不接他一句话把我按死，我今天怎么活或怎么搅局，别绕到无关关系梗。`,
+      directives: ["回应查杀", "反打按死你的动作", "说我哪里不接", "说我今天怎么活"],
+    };
+  }
   const pressureInfluence = tableRead.tableMemory.speechInfluence.find(
     (item) => item.day === view.day && item.direction === "pressure" && item.followupCount >= 1,
   );
@@ -1110,17 +1196,17 @@ function buildSpeechTableTask(
     const deathShape = getCurrentDayPublicDeathShape(view);
     const deathInstruction =
       deathShape === "death"
-        ? "天亮有夜死时先短句报死亡名单；若聊女巫用药、刀口或毒口，要给公开规则依据或反面解释，也不要求下一位立刻站边或交票口。"
+        ? "天亮有夜死时先短句报死亡名单；若聊女巫用药、刀口或毒口，要给公开规则依据或反面解释，也不要求下一位立刻表态或交投票方向。"
         : deathShape === "peaceful"
-          ? "平安夜只说女巫用药了即可，不主动展开药线或空刀，也不要求下一位立刻站边或交票口。"
-          : "没有公开死讯时不主动讲平安夜、药线、刀口或毒口，也不要求下一位立刻站边或交票口。";
+          ? "平安夜只作背景，一句带过后接自己的观察动作，不主动展开药线或空刀，也不要求下一位立刻表态或交投票方向。"
+          : "没有公开死讯时不主动讲平安夜、药线、刀口或毒口，也不要求下一位立刻表态或交投票方向。";
     return {
       mode: "set-standard",
       line: `首置位先给一个可验证观察点；${deathInstruction}`,
       directives: [
         "给观察点",
         deathShape === "death" ? "夜死只报名单" : deathShape === "peaceful" ? "平安夜只作背景" : "无死讯不讲药线",
-        "不要求站边票口",
+        "不要求表态投票",
       ],
     };
   }
@@ -1137,10 +1223,10 @@ function buildSpeechTableTask(
     const variant = (view.mySeatId + spokenThisDay.length) % 3;
     if (variant === 0) {
       return {
-        mode: "audit-pressure-chain",
+        mode: "inspect-pressure-chain",
         target: toTargetFromSeatRead(focusTarget),
-        line: `桌面已经多人接住${focusTarget.seatId}号压力，这轮必须换角度，不要复读同一缺口；先审计谁在借这个焦点做收益。`,
-        directives: ["审计压力链", "找收益位", "不要复读"],
+        line: `桌面已经多人接住${focusTarget.seatId}号压力，这轮必须换角度，不要复读同一处断点；先检查谁公开替焦点改方向。`,
+        directives: ["检查压力链", "找公开改向位", "不要复读"],
       };
     }
     if (variant === 1) {
@@ -1164,8 +1250,8 @@ function buildSpeechTableTask(
   if (isLowInfoDayOneNoHardInfo(view, spokenThisDay)) {
     return {
       mode: "set-standard",
-      line: "低信息首轮只审计观察点和跟压收益，不要因为任何前置位没站边或没给票口去硬打；先记录等待身份/查验信息。",
-      directives: ["审计观察点", "不硬打站边票口", "等待身份信息"],
+      line: "低信息首轮只检查观察点和跟压收益，不要因为任何前置位没表态或没给投票方向去硬打；先记录等待身份/查验信息。",
+      directives: ["检查观察点", "不硬打表态投票", "等待身份信息"],
     };
   }
 
@@ -1174,7 +1260,7 @@ function buildSpeechTableTask(
       mode: "summarize-vote",
       target: tableRead.voteSnapshot.leaders[0],
       line: `当前票型已经有焦点，先说清这票是硬证据归票还是软压力票，别把软票说成铁证。`,
-      directives: ["区分硬软证据", "说明票型风险", "落票口边界"],
+      directives: ["区分硬软证据", "说明票型风险", "说清今天怎么处理票型"],
     };
   }
 
@@ -1372,13 +1458,26 @@ function buildSpeechInteraction(
         target: previousTarget,
         line: lowInfoOpening
           ? `上一位${sourceSpeaker.name}我先轻记，只看他的开口观察点是不是过泛`
-          : `上一位${sourceSpeaker.name}我先留疑问，回看他刚才的站边理由能不能和票型对上`,
+          : `上一位${sourceSpeaker.name}我先留疑问，回看他刚才的表态理由能不能和投票对上`,
         goal: "保留追问窗口",
       };
     }
   }
 
   if (!target) return undefined;
+
+  if (
+    plan.claimIntent?.claimedRole === "SEER" &&
+    plan.claimIntent.check?.result === "WEREWOLF" &&
+    plan.claimIntent.check.targetSeatId === target.seatId
+  ) {
+    return {
+      kind: "challenge",
+      target: toTargetFromSeatRead(target),
+      line: `今天我的票先压${target.seatId}号；反对者要公开说明为什么不接这条查杀。`,
+      goal: "用查验结果定焦点",
+    };
+  }
 
   if ((view.persona?.riskTolerance ?? 0.45) >= 0.65) {
     return {
@@ -1429,7 +1528,7 @@ function buildPersonaCue(
   if (personaId === "logic-checker" || personaId === "calm-analyst") {
     return {
       mode: "verify",
-      line: "我会把前后发言、站边和票型放在一起校验",
+      line: "我会把前后两句话有没有接上放在一起听",
       directives: ["引用公开细节", "对照前后变化", "避免空结论"],
     };
   }
@@ -1445,7 +1544,7 @@ function buildPersonaCue(
   if (personaId === "identity-focused") {
     return {
       mode: "identity",
-      line: "我会优先看身份线有没有互相打架",
+      line: "我会优先看身份说法有没有互相打架",
       directives: ["围绕身份结构", "检查预言家线", "避免身份信息散乱"],
     };
   }
@@ -1461,7 +1560,7 @@ function buildPersonaCue(
   if (preferences.identity >= 0.88) {
     return {
       mode: "identity",
-      line: "我会先把预言家线、神坑和民坑的结构关系摆出来",
+      line: "我会先把公开身份说法和查杀回应摆出来",
       directives: ["围绕身份结构", "对照金水查杀", "记住前后身份口径"],
     };
   }
@@ -1469,7 +1568,7 @@ function buildPersonaCue(
   if (preferences.logic >= 0.86) {
     return {
       mode: "verify",
-      line: "我会把发言顺序、票型和前后逻辑一起校验",
+      line: "我会从刚才那句最卡的反应往回听",
       directives: ["引用公开细节", "对照前后变化", "少用情绪结论"],
     };
   }
@@ -1482,7 +1581,7 @@ function buildPersonaCue(
           ? `我会先看谁借${targetText}号这个轻焦点带节奏`
           : `我会直接给${targetText}号压力，先听他的即时反应`
         : "我会先把桌面情绪和反应压出来",
-      directives: lowInfoOpeningTarget ? ["审计跟压", "不硬归票", "看节奏收益"] : ["节奏更快", "回应语气", "制造互动压力"],
+      directives: lowInfoOpeningTarget ? ["检查跟压", "不硬归票", "看节奏收益"] : ["节奏更快", "回应语气", "制造互动压力"],
     };
   }
 
@@ -1494,7 +1593,7 @@ function buildPersonaCue(
           ? `我这轮只把${targetText}号当轻观察点，先收谁在借题发挥`
           : `我这轮会把${targetText}号放进归票讨论`
         : "我这轮会先收束票型",
-      directives: lowInfoOpeningTarget ? ["轻观察", "审计借题发挥", "不要求首置位站边"] : ["给出清晰边界", "组织票型", "要求明确站边"],
+      directives: lowInfoOpeningTarget ? ["轻观察", "看谁借题发挥", "不要求首置位表态"] : ["给出清晰边界", "组织投票选择", "要求明确表态"],
     };
   }
 
@@ -1509,22 +1608,22 @@ function buildPersonaCue(
   if (preferences.identity >= 0.72) {
     return {
       mode: "identity",
-      line: "我会看身份线和态度结构有没有互相打架",
-      directives: ["结构化站边", "检查身份收益", "观察临场反应"],
+      line: "我会看身份说法和态度有没有互相打架",
+      directives: ["结构化表态", "检查身份收益", "观察临场反应"],
     };
   }
 
   if (preferences.memory >= 0.82) {
     return {
       mode: "verify",
-      line: "我会把上一轮记下的发言和今天的票型放在一起看",
+      line: "我会把上一轮记下的发言和今天的投票压力放在一起看",
       directives: ["延续个人记忆", "追踪前后变化", "避免临场失忆"],
     };
   }
 
   return {
     mode: "steady",
-    line: "我会先给稳定视角，不把票型带得太散",
+    line: "我会先给稳定视角，不把投票带得太散",
     directives: ["稳定表达", "公开理由", "控制风险"],
   };
 }
@@ -2017,12 +2116,12 @@ function buildVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRe
     .reverse()
     .find((stance) => stance.kind === "QUESTION" || stance.kind === "PRESSURE");
   if (latestNegativeStance) {
-    return `${latestNegativeStance.actor.name}${latestNegativeStance.kindLabel}过这里，投票先检验这条站边。`;
+    return `${latestNegativeStance.actor.name}${latestNegativeStance.kindLabel}过这里，投票先检验这条表态。`;
   }
 
   const stanceShift = view.publicSummary.tableMemory.stanceShifts.find((shift) => shift.actor.seatId === target.seatId);
   if (stanceShift) {
-    return `${target.name}有站边变化：${stanceShift.fromKindLabel}到${stanceShift.toKindLabel}，先按前后变化投票。`;
+    return `${target.name}有表态变化：${stanceShift.fromKindLabel}到${stanceShift.toKindLabel}，先按前后变化投票。`;
   }
 
   if (target.pressure.length > 0) {
@@ -3076,25 +3175,25 @@ function buildPublicStancePoint(view: AgentView, tableRead: AiTableRead): string
       .filter((seat) => !seat.isSelf && !seat.isWolfTeammate)
       .sort((a, b) => b.suspicion - a.suspicion || a.trust - b.trust || a.seatId - b.seatId);
     const suspect = reads[0];
-    if (suspect) return `我不认${suspect.seatId}号预言家，${suspect.pressure[0] ?? "这条身份线要补过程"}`;
+    if (suspect) return `我不认${suspect.seatId}号预言家，${suspect.pressure[0] ?? "这条身份说法要补过程"}`;
   }
 
   const focus = tableRead.focus;
   const seerClaim = focus?.publicClaims.find((claim) => claim.claimedRole === "SEER");
   if (focus && seerClaim && focus.suspicion >= focus.trust) {
-    return `我不认${focus.seatId}号预言家，${focus.pressure[0] ?? "发言和站边不够一致"}`;
+    return `我不认${focus.seatId}号预言家，${focus.pressure[0] ?? "发言和表态不够一致"}`;
   }
 
   const trustedSeer = tableRead.seats
     .filter((seat) => !seat.isSelf && seat.publicClaims.some((claim) => claim.claimedRole === "SEER"))
     .sort((a, b) => b.trust - a.trust || a.suspicion - b.suspicion)[0];
   if (trustedSeer && trustedSeer.trust - trustedSeer.suspicion >= 18) {
-    return `我暂时认${trustedSeer.seatId}号预言家，先看他的验人和票型`;
+    return `我暂时认${trustedSeer.seatId}号预言家，先看查杀回应和有没有对跳`;
   }
 
   if (view.publicSummary.tableMemory.stanceShifts.length > 0) {
     const shift = view.publicSummary.tableMemory.stanceShifts.at(-1);
-    if (shift) return `${shift.actor.name}站边有变化，需要解释为什么从${shift.fromKindLabel}改成${shift.toKindLabel}`;
+    if (shift) return `${shift.actor.name}表态有变化，需要解释为什么从${shift.fromKindLabel}改成${shift.toKindLabel}`;
   }
 
   return undefined;

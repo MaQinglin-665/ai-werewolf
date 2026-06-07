@@ -103,7 +103,7 @@ describe("ClassTrialGameTable", () => {
     );
 
     expect(html).toContain("真实 LLM");
-    expect(html).toContain("DeepSeek-v4");
+    expect(html).toContain("Mimo-v2.5");
   });
 
   it("renders the existing host broadcast toggle inside the class-trial table chrome", () => {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { AiRuntimeMode } from "@/game/types";
 import type { AiLineupPreviewItem, BoardOption, HumanSeatMode } from "./clientTypes";
-import type { ClassTrialThemeMode } from "./classTrialTheme";
+import { CLASS_TRIAL_AI_RUNTIME_LABEL, type ClassTrialThemeMode } from "./classTrialTheme";
 import { StatusPill } from "./PanelPrimitives";
 import {
   buildMobileLobbySeatIds,
@@ -69,7 +69,7 @@ export function LandingPanel({
         : "随机真人座位";
   const boardSummaryLabel = selectedBoard ? `${selectedBoard.name} · ${selectedBoard.seatCount}人` : "待选板子";
   const aiSummaryLabel = selectedAiFriendCount > 0 ? `${selectedAiFriendCount} 位 AI 入局` : "默认 AI 阵容";
-  const classTrialAiRuntimeLabel = classTrialAiRuntimeMode === "llm" ? "真实 LLM · DeepSeek-v4 主脑" : "Mock 试玩";
+  const classTrialAiRuntimeLabel = classTrialAiRuntimeMode === "llm" ? `${CLASS_TRIAL_AI_RUNTIME_LABEL} 主脑` : "Mock 试玩";
   const lobbySeatIds = buildMobileLobbySeatIds(selectedBoard?.seatCount ?? 6);
   const lobbySeatDensityClass = getMobileLobbySeatDensityClass(lobbySeatIds.length);
   const lobbyLineupBySeatId = new Map(aiLineupPreview.map((friend) => [friend.seatId, friend]));

@@ -28,6 +28,7 @@ type CreateGameOptions = {
   seed?: number | string;
   boardId?: string;
   aiFriends?: AiFriendConfig[];
+  seatRoleOverrides?: readonly Role[];
 };
 
 export function createGame(options: CreateGameOptions = {}): GameState {
@@ -39,7 +40,7 @@ export function createGame(options: CreateGameOptions = {}): GameState {
     throw new Error(`真人座位必须在 1 到 ${board.seatCount} 之间。`);
   }
   const now = new Date().toISOString();
-  const roles = shuffle(board.roles, options.seed);
+  const roles = resolveSeatRoles(board.roles, options.seatRoleOverrides, options.seed);
   const resolvedAiFriends = resolveAiFriendsForGame(options.aiFriends, spectatorMode ? board.seatCount : board.seatCount - 1);
   const aiFriendSetup: GameSetupSnapshot["aiFriends"] = [];
   let aiIndex = 0;
@@ -129,6 +130,35 @@ export function createGame(options: CreateGameOptions = {}): GameState {
   });
 
   return state;
+}
+
+function resolveSeatRoles(boardRoles: readonly Role[], seatRoleOverrides: readonly Role[] | undefined, seed?: number | string): Role[] {
+  if (!seatRoleOverrides) return shuffle(boardRoles, seed);
+  if (seatRoleOverrides.length !== boardRoles.length) {
+    throw new Error(`固定身份数量必须和板子座位数一致：需要 ${boardRoles.length} 个，收到 ${seatRoleOverrides.length} 个。`);
+  }
+  if (!hasSameRoleCounts(seatRoleOverrides, boardRoles)) {
+    throw new Error("固定身份必须和板子角色构成一致。");
+  }
+  return [...seatRoleOverrides];
+}
+
+function hasSameRoleCounts(left: readonly Role[], right: readonly Role[]): boolean {
+  const leftCounts = countRoles(left);
+  const rightCounts = countRoles(right);
+  const roles = new Set([...leftCounts.keys(), ...rightCounts.keys()]);
+  for (const role of roles) {
+    if ((leftCounts.get(role) ?? 0) !== (rightCounts.get(role) ?? 0)) return false;
+  }
+  return true;
+}
+
+function countRoles(roles: readonly Role[]): Map<Role, number> {
+  const counts = new Map<Role, number>();
+  for (const role of roles) {
+    counts.set(role, (counts.get(role) ?? 0) + 1);
+  }
+  return counts;
 }
 
 export function hydrateGameState(state: GameState): GameState {
@@ -1928,7 +1958,7 @@ function cloneState(state: GameState): GameState {
   return hydrateGameState(JSON.parse(JSON.stringify(state)) as GameState);
 }
 
-function shuffle<T>(items: T[], seed?: number | string): T[] {
+function shuffle<T>(items: readonly T[], seed?: number | string): T[] {
   const copy = [...items];
   const random = seed === undefined ? Math.random : seededRandom(seed);
 

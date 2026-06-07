@@ -19,6 +19,7 @@ import type {
   ReviewAiDebugEntry,
   ReviewDebugInfo,
   ReviewSeat,
+  Role,
 } from "@/game/types";
 import { prisma } from "@/lib/prisma";
 import { recordRoomAnalyticsEvent } from "@/server/roomAnalytics";
@@ -73,12 +74,15 @@ export function listGameBoards(): BoardSnapshot[] {
   return listBoardPresets();
 }
 
-export async function createGameRecord(options: { boardId?: string; humanSeatId?: number | null; aiFriends?: AiFriendConfig[] } = {}): Promise<HumanGameView> {
+export async function createGameRecord(
+  options: { boardId?: string; humanSeatId?: number | null; aiFriends?: AiFriendConfig[]; seatRoleOverrides?: readonly Role[] } = {},
+): Promise<HumanGameView> {
   const board = getBoardPreset(options.boardId);
   const state = createGame({
     boardId: board.id,
     humanSeatId: options.humanSeatId === null ? null : options.humanSeatId ?? randomHumanSeatId(board.seatCount),
     aiFriends: options.aiFriends,
+    seatRoleOverrides: options.seatRoleOverrides,
   });
   await saveGameState(state);
   await recordRoomAnalyticsEvent({

@@ -282,6 +282,73 @@ export function sanitizeAiCharacterRoleCard(value: unknown): AiCharacterRoleCard
     voiceProfileId: sanitizeOptionalIdentifier(readString(value.voiceProfileId, 80)),
     voiceLocale: sanitizeOptionalIdentifier(readString(value.voiceLocale, 20)),
     voiceRewritePolicy: readString(value.voiceRewritePolicy, 180),
+    classTrialVoiceProfile: sanitizeClassTrialRoleVoiceProfile(value.classTrialVoiceProfile),
+  };
+}
+
+function sanitizeClassTrialRoleVoiceProfile(value: unknown): AiCharacterRoleCard["classTrialVoiceProfile"] | undefined {
+  if (!isRecord(value)) return undefined;
+
+  return {
+    personalityCore: readStringArray(value.personalityCore, 8, 180),
+    valueBiases: readStringArray(value.valueBiases, 8, 180),
+    reactionTendencies: readStringArray(value.reactionTendencies, 10, 220),
+    lightCatchphrases: readStringArray(value.lightCatchphrases, 6, 80),
+    overuseBans: readStringArray(value.overuseBans, 10, 160),
+    scenarioReactions: sanitizeClassTrialScenarioReactions(value.scenarioReactions),
+    alignmentReactions: sanitizeClassTrialAlignmentReactions(value.alignmentReactions),
+    acceptableForms: readStringArray(value.acceptableForms, 8, 160),
+    unacceptableForms: readStringArray(value.unacceptableForms, 8, 160),
+    dramaticBoundaries: sanitizeClassTrialDramaticBoundaries(value.dramaticBoundaries),
+  };
+}
+
+function sanitizeClassTrialScenarioReactions(
+  value: unknown,
+): NonNullable<AiCharacterRoleCard["classTrialVoiceProfile"]>["scenarioReactions"] {
+  const reactions: NonNullable<AiCharacterRoleCard["classTrialVoiceProfile"]>["scenarioReactions"] = {};
+  if (!isRecord(value)) return reactions;
+
+  for (const [key, rawReaction] of Object.entries(value)) {
+    if (!isRecord(rawReaction)) continue;
+    const innerDrive = readString(rawReaction.innerDrive, 220);
+    const speechMove = readString(rawReaction.speechMove, 220);
+    const mustAvoid = readString(rawReaction.mustAvoid, 180);
+    if (!innerDrive || !speechMove || !mustAvoid) continue;
+    reactions[key] = { innerDrive, speechMove, mustAvoid };
+  }
+
+  return reactions;
+}
+
+function sanitizeClassTrialAlignmentReactions(
+  value: unknown,
+): NonNullable<AiCharacterRoleCard["classTrialVoiceProfile"]>["alignmentReactions"] {
+  const reactions: NonNullable<AiCharacterRoleCard["classTrialVoiceProfile"]>["alignmentReactions"] = {};
+  if (!isRecord(value)) return reactions;
+
+  for (const [key, rawReaction] of Object.entries(value)) {
+    if (!isRecord(rawReaction)) continue;
+    const speechDrive = readString(rawReaction.speechDrive, 220);
+    const failureMode = readString(rawReaction.failureMode, 180);
+    if (!speechDrive || !failureMode) continue;
+    reactions[key] = { speechDrive, failureMode };
+  }
+
+  return reactions;
+}
+
+function sanitizeClassTrialDramaticBoundaries(
+  value: unknown,
+): NonNullable<AiCharacterRoleCard["classTrialVoiceProfile"]>["dramaticBoundaries"] {
+  const raw = isRecord(value) ? value : {};
+
+  return {
+    allowSharpConflict: readBoolean(raw.allowSharpConflict) === true,
+    allowIrrationalMisread: readBoolean(raw.allowIrrationalMisread) === true,
+    allowDeceptionWhenAligned: readBoolean(raw.allowDeceptionWhenAligned) === true,
+    mustStayInTurnOrder: true,
+    mustRemainWerewolfPlayable: true,
   };
 }
 
@@ -309,6 +376,10 @@ function readStringArray(value: unknown, maxItems: number, maxLength: number): s
     .map((item) => readString(item, maxLength))
     .filter((item): item is string => Boolean(item))
     .slice(0, maxItems);
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
 }
 
 function sanitizeOptionalIdentifier(value: string | undefined): string | undefined {

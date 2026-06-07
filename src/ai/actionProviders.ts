@@ -1831,7 +1831,7 @@ function stripActionRuntimeLlm(input: LlmActionInput): Omit<LlmActionInput, "llm
 }
 
 function readActionPrimaryPersonaName(input: LlmActionInput): string | undefined {
-  if (isClassTrialActionInput(input)) return "DeepSeek";
+  if (isClassTrialActionInput(input)) return input.persona?.name;
 
   const primary = input.persona?.name;
   const previousIssue = input.stability?.previousIssue ?? "";

@@ -233,6 +233,36 @@ export type AiPersonaPreferences = {
   caution: number;
 };
 
+export type ClassTrialScenarioReaction = {
+  innerDrive: string;
+  speechMove: string;
+  mustAvoid: string;
+};
+
+export type ClassTrialAlignmentReaction = {
+  speechDrive: string;
+  failureMode: string;
+};
+
+export type ClassTrialRoleVoiceProfile = {
+  personalityCore: string[];
+  valueBiases: string[];
+  reactionTendencies: string[];
+  lightCatchphrases: string[];
+  overuseBans: string[];
+  scenarioReactions: Record<string, ClassTrialScenarioReaction>;
+  alignmentReactions: Record<string, ClassTrialAlignmentReaction>;
+  acceptableForms: string[];
+  unacceptableForms: string[];
+  dramaticBoundaries: {
+    allowSharpConflict: boolean;
+    allowIrrationalMisread: boolean;
+    allowDeceptionWhenAligned: boolean;
+    mustStayInTurnOrder: true;
+    mustRemainWerewolfPlayable: true;
+  };
+};
+
 export type AiCharacterRoleCard = {
   id: string;
   displayName: string;
@@ -251,6 +281,7 @@ export type AiCharacterRoleCard = {
   voiceProfileId?: string;
   voiceLocale?: string;
   voiceRewritePolicy?: string;
+  classTrialVoiceProfile?: ClassTrialRoleVoiceProfile;
 };
 
 export type AiFriendLlmConfig = {
@@ -907,7 +938,7 @@ export type SpeechPersonaCue = {
 };
 
 export type SpeechTableTask = {
-  mode: "set-standard" | "audit-pressure-chain" | "hold-countercase" | "pivot-alternative" | "summarize-vote";
+  mode: "set-standard" | "inspect-pressure-chain" | "hold-countercase" | "pivot-alternative" | "summarize-vote";
   line: string;
   directives: string[];
   target?: ActionTarget;

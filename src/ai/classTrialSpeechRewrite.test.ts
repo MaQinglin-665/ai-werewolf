@@ -64,6 +64,24 @@ describe("class-trial Japanese TTS rewrite", () => {
     expect(calls).toBe(0);
   });
 
+  it("keeps late-gameplay clauses in deterministic local rewrites so TTS does not sound truncated", async () => {
+    const result = await rewriteClassTrialSpeechForJapaneseTtsWithMeta(
+      {
+        sourceZh:
+          "平安夜女巫用药了，首置位我信息不多，所以先看发言前后逻辑。3号的听感有压力，但我更想听3号解释。5号现在有点可疑，别急着跟票；预言家的查验和票型要一起看，最后把矛盾逐条摊开。",
+        roleCard: roleCard("kirigiri", "雾切响子"),
+      },
+      async () => '{"textJa":"renderer should not be called"}',
+    );
+
+    expect(result.mode).toBe("local");
+    expect(result.textJa).toContain("3番");
+    expect(result.textJa).toContain("5番");
+    expect(result.textJa).toContain("投票筋");
+    expect(result.textJa).toContain("占い結果");
+    expect(result.textJa).toContain("矛盾");
+  });
+
   it("keeps seat numbers in deterministic local rewrites", async () => {
     const result = await rewriteClassTrialSpeechForJapaneseTtsWithMeta(
       {

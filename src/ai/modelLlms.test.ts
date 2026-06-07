@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { callRoutedModelJson, callRoutedModelJsonWithFallbacks } from "./modelLlms";
+import { callRoutedModelJson, callRoutedModelJsonWithFallbacks, readLlmOutputMaxAttempts } from "./modelLlms";
 
 const originalEnv = { ...process.env };
 
@@ -11,6 +11,27 @@ afterEach(() => {
 });
 
 describe("model LLM routing", () => {
+  it("keeps the default LLM output retry count unchanged", () => {
+    delete process.env.AI_LLM_MAX_RETRIES;
+    delete process.env.AI_LLM_MAX_RETRIES_CAP;
+
+    expect(readLlmOutputMaxAttempts()).toBe(2);
+  });
+
+  it("allows explicit long-run retry counts above the old three-retry ceiling", () => {
+    process.env.AI_LLM_MAX_RETRIES = "6";
+    delete process.env.AI_LLM_MAX_RETRIES_CAP;
+
+    expect(readLlmOutputMaxAttempts()).toBe(7);
+  });
+
+  it("can cap explicit long-run retry counts", () => {
+    process.env.AI_LLM_MAX_RETRIES = "9";
+    process.env.AI_LLM_MAX_RETRIES_CAP = "4";
+
+    expect(readLlmOutputMaxAttempts()).toBe(5);
+  });
+
   it("uses gpt-5.5 as the default GPT model", async () => {
     process.env.AI_LLM_API_KEY = "test-key";
     delete process.env.AI_MODEL_GPT;
@@ -92,6 +113,34 @@ describe("model LLM routing", () => {
     });
 
     expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 60000);
+  });
+
+  it("gives Mimo speech requests a longer default timeout", async () => {
+    process.env.MIMO_LLM_API_KEY = "test-key";
+    delete process.env.AI_LLM_TIMEOUT_MS;
+    delete process.env.AI_LLM_SPEECH_TIMEOUT_MS;
+    delete process.env.AI_LLM_SPEECH_TIMEOUT_MS_CAP;
+    delete process.env.MIMO_LLM_TIMEOUT_MS;
+    delete process.env.MIMO_LLM_SPEECH_TIMEOUT_MS;
+
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "{\"ok\":true}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await callRoutedModelJson({
+      personaName: "Mimo",
+      task: "speech",
+      system: "Return JSON.",
+      input: { seat: 1 },
+      maxTokens: 100,
+    });
+
+    expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 180000);
   });
 
   it("tries gpt-5.5 when the primary GPT model request fails", async () => {

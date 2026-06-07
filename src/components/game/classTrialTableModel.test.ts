@@ -73,6 +73,7 @@ describe("buildClassTrialTableModel", () => {
     expect(model.currentSpeakingFocus?.speakerName).toBe("腐川冬子");
     expect(model.themeFlow.label).toBe("证言审理");
     expect(model.aiRuntimeLabel).toContain("真实 LLM");
+    expect(model.aiRuntimeLabel).toContain("Mimo-v2.5");
     expect(model.hostAudioLabel).toBe("主持关");
   });
 

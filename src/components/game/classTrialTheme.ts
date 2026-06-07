@@ -1,10 +1,12 @@
 import { getDefaultAiFriends } from "@/game/aiFriends";
-import type { AiCharacterRoleCard, AiFriendConfig } from "@/game/types";
+import type { AiCharacterRoleCard, AiFriendConfig, Role } from "@/game/types";
 
 export const CLASS_TRIAL_THEME_MODE_STORAGE_KEY = "ai-werewolf-class-trial-theme-mode";
 export const CLASS_TRIAL_LOCAL_ASSET_ROOT = "local-assets/class-trial-pack";
 export const CLASS_TRIAL_DEFAULT_BOARD_ID = "9p-seer-witch-hunter";
-export const CLASS_TRIAL_GAME_BRAIN_PERSONA_ID = "deepseek-calm-analyst";
+export const CLASS_TRIAL_GAME_BRAIN_PERSONA_ID = "mimo-logic-checker";
+export const CLASS_TRIAL_GAME_BRAIN_LABEL = "Mimo-v2.5";
+export const CLASS_TRIAL_AI_RUNTIME_LABEL = `真实 LLM · ${CLASS_TRIAL_GAME_BRAIN_LABEL}`;
 
 export const CLASS_TRIAL_THEME_MODES = ["default", "class-trial"] as const;
 export type ClassTrialThemeMode = (typeof CLASS_TRIAL_THEME_MODES)[number];
@@ -33,6 +35,18 @@ export const CLASS_TRIAL_CHARACTER_ROSTER: Array<{ id: ClassTrialCharacterId; di
   { id: "togami", displayName: "十神白夜" },
   { id: "tomori", displayName: "高松灯" },
   { id: "anon", displayName: "千早爱音" },
+];
+
+export const CLASS_TRIAL_FIXED_SEAT_ROLES: readonly Role[] = [
+  "SEER",
+  "WITCH",
+  "VILLAGER",
+  "WEREWOLF",
+  "WEREWOLF",
+  "WEREWOLF",
+  "HUNTER",
+  "VILLAGER",
+  "VILLAGER",
 ];
 
 export type ClassTrialPackCharacter = {
@@ -109,6 +123,7 @@ export type ClassTrialCharacterPersona = {
   voiceProfileId?: string;
   voiceLocale?: string;
   voiceRewritePolicy?: string;
+  classTrialVoiceProfile?: AiCharacterRoleCard["classTrialVoiceProfile"];
 };
 
 export type ClassTrialPersonasFile = {
@@ -245,16 +260,16 @@ export function buildClassTrialAiFriends(personas: ClassTrialPersonasFile | unde
 
   const defaults = getDefaultAiFriends(now);
   const defaultByPersonaId = new Map(defaults.map((friend) => [friend.basePersonaId, friend]));
-  const deepseekBase = defaultByPersonaId.get(CLASS_TRIAL_GAME_BRAIN_PERSONA_ID) ?? defaults[0]!;
+  const brainBase = defaultByPersonaId.get(CLASS_TRIAL_GAME_BRAIN_PERSONA_ID) ?? defaults[0]!;
   const byId = new Map(personas.characters.map((character) => [character.id, character]));
 
   return CLASS_TRIAL_CHARACTER_ROSTER.map((rosterCharacter) => {
     const character = byId.get(rosterCharacter.id)!;
     return {
-      ...deepseekBase,
+      ...brainBase,
       id: `class-trial:${character.id}`,
       nickname: character.displayName.slice(0, 16),
-      basePersonaId: deepseekBase.basePersonaId,
+      basePersonaId: brainBase.basePersonaId,
       roleCard: toAiCharacterRoleCard(character),
       createdAt: now,
       updatedAt: now,
@@ -281,6 +296,7 @@ function toAiCharacterRoleCard(character: ClassTrialCharacterPersona): AiCharact
     voiceProfileId: character.voiceProfileId,
     voiceLocale: character.voiceLocale,
     voiceRewritePolicy: character.voiceRewritePolicy,
+    ...(character.classTrialVoiceProfile ? { classTrialVoiceProfile: character.classTrialVoiceProfile } : {}),
   };
 }
 
@@ -313,6 +329,79 @@ function sanitizeClassTrialCharacterPersona(value: unknown): ClassTrialCharacter
     voiceProfileId: readString(value.voiceProfileId, 80),
     voiceLocale: readString(value.voiceLocale, 16),
     voiceRewritePolicy: readString(value.voiceRewritePolicy, 120),
+    classTrialVoiceProfile: sanitizeClassTrialRoleVoiceProfile(value.classTrialVoiceProfile),
+  };
+}
+
+function sanitizeClassTrialRoleVoiceProfile(value: unknown): AiCharacterRoleCard["classTrialVoiceProfile"] | undefined {
+  if (!isRecord(value)) return undefined;
+
+  return {
+    personalityCore: readStringArray(value.personalityCore, 8, 180),
+    valueBiases: readStringArray(value.valueBiases, 8, 180),
+    reactionTendencies: readStringArray(value.reactionTendencies, 10, 220),
+    lightCatchphrases: readStringArray(value.lightCatchphrases, 6, 80),
+    overuseBans: readStringArray(value.overuseBans, 10, 160),
+    scenarioReactions: sanitizeClassTrialScenarioReactions(value.scenarioReactions),
+    alignmentReactions: sanitizeClassTrialAlignmentReactions(value.alignmentReactions),
+    acceptableForms: readStringArray(value.acceptableForms, 8, 160),
+    unacceptableForms: readStringArray(value.unacceptableForms, 8, 160),
+    dramaticBoundaries: sanitizeClassTrialDramaticBoundaries(value.dramaticBoundaries),
+  };
+}
+
+function sanitizeClassTrialScenarioReactions(
+  value: unknown,
+): NonNullable<AiCharacterRoleCard["classTrialVoiceProfile"]>["scenarioReactions"] {
+  if (!isRecord(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, rawReaction]) => {
+        if (!isRecord(rawReaction)) return undefined;
+        const innerDrive = readString(rawReaction.innerDrive, 220);
+        const speechMove = readString(rawReaction.speechMove, 220);
+        const mustAvoid = readString(rawReaction.mustAvoid, 180);
+        if (!innerDrive || !speechMove || !mustAvoid) return undefined;
+        return [key, { innerDrive, speechMove, mustAvoid }] as const;
+      })
+      .filter((entry): entry is readonly [string, NonNullable<AiCharacterRoleCard["classTrialVoiceProfile"]>["scenarioReactions"][string]] =>
+        Boolean(entry),
+      ),
+  );
+}
+
+function sanitizeClassTrialAlignmentReactions(
+  value: unknown,
+): NonNullable<AiCharacterRoleCard["classTrialVoiceProfile"]>["alignmentReactions"] {
+  if (!isRecord(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, rawReaction]) => {
+        if (!isRecord(rawReaction)) return undefined;
+        const speechDrive = readString(rawReaction.speechDrive, 220);
+        const failureMode = readString(rawReaction.failureMode, 180);
+        if (!speechDrive || !failureMode) return undefined;
+        return [key, { speechDrive, failureMode }] as const;
+      })
+      .filter((entry): entry is readonly [string, NonNullable<AiCharacterRoleCard["classTrialVoiceProfile"]>["alignmentReactions"][string]] =>
+        Boolean(entry),
+      ),
+  );
+}
+
+function sanitizeClassTrialDramaticBoundaries(
+  value: unknown,
+): NonNullable<AiCharacterRoleCard["classTrialVoiceProfile"]>["dramaticBoundaries"] {
+  const raw = isRecord(value) ? value : {};
+
+  return {
+    allowSharpConflict: readBoolean(raw.allowSharpConflict) === true,
+    allowIrrationalMisread: readBoolean(raw.allowIrrationalMisread) === true,
+    allowDeceptionWhenAligned: readBoolean(raw.allowDeceptionWhenAligned) === true,
+    mustStayInTurnOrder: true,
+    mustRemainWerewolfPlayable: true,
   };
 }
 

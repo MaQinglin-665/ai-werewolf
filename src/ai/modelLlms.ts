@@ -108,7 +108,7 @@ const MODEL_ROUTES: ModelRoute[] = [
     personaName: "Mimo",
     envPrefix: "MIMO_LLM",
     modelEnvKey: "AI_MODEL_MIMO",
-    defaultModel: "mimo-v2.5-pro",
+    defaultModel: "mimo-v2.5",
   },
   {
     id: "gemini",
@@ -411,7 +411,8 @@ export function parseLlmJsonOutput(rawOutput: string): unknown {
 
 export function readLlmOutputMaxAttempts(): number {
   const retries = Math.floor(readNonNegativeNumberEnv("AI_LLM_MAX_RETRIES", 1));
-  return Math.min(Math.max(retries, 0), 3) + 1;
+  const cap = Math.floor(readNonNegativeNumberEnv("AI_LLM_MAX_RETRIES_CAP", 7));
+  return Math.min(Math.max(retries, 0), Math.max(cap, 0)) + 1;
 }
 
 export function packLlmOutputAttempts(attempts: LlmOutputAttemptLog[]): unknown {
@@ -673,9 +674,10 @@ function readTaskTimeoutMs(route: ModelRoute, task: RoutedJsonOptions["task"]): 
 
   if (task !== "speech") return readNumberEnv("AI_LLM_TIMEOUT_MS", 12000);
   const timeoutMs = readNumberEnv("AI_LLM_SPEECH_TIMEOUT_MS", readNumberEnv("AI_LLM_TIMEOUT_MS", 45000));
-  const defaultCap = route.id === "glm" ? 90000 : 60000;
+  const routeDefault = route.id === "glm" ? 90000 : route.id === "mimo" ? 180000 : timeoutMs;
+  const defaultCap = route.id === "glm" ? 90000 : route.id === "mimo" ? 180000 : 60000;
   const cap = readNumberEnv("AI_LLM_SPEECH_TIMEOUT_MS_CAP", defaultCap);
-  return Math.min(Math.max(route.id === "glm" ? 90000 : timeoutMs, timeoutMs), Math.max(route.id === "glm" ? 90000 : cap, cap));
+  return Math.min(Math.max(routeDefault, timeoutMs), Math.max(routeDefault, cap));
 }
 
 function readTaskTemperature(task: RoutedJsonOptions["task"]): number {

@@ -25,6 +25,7 @@ import {
   isIdiotRevealed,
 } from "./engine";
 import { BOARD_PRESETS } from "./boards";
+import type { Role } from "./types";
 
 describe("game engine", () => {
   it("assigns the 9-player preset role counts", () => {
@@ -62,6 +63,38 @@ describe("game engine", () => {
   it("randomizes the human role across seeded games", () => {
     const roles = new Set(Array.from({ length: 20 }, (_, seed) => getSeat(createGame({ seed }), 1).role));
     expect(roles.size).toBeGreaterThan(1);
+  });
+
+  it("accepts complete seat role overrides when they match the selected board", () => {
+    const seatRoleOverrides: Role[] = [
+      "SEER",
+      "WITCH",
+      "VILLAGER",
+      "WEREWOLF",
+      "WEREWOLF",
+      "WEREWOLF",
+      "HUNTER",
+      "VILLAGER",
+      "VILLAGER",
+    ];
+    const state = createGame({ boardId: "9p-seer-witch-hunter", humanSeatId: null, seed: 1, seatRoleOverrides });
+
+    expect(state.seats.map((seat) => seat.role)).toEqual(seatRoleOverrides);
+  });
+
+  it("rejects seat role overrides that do not match the selected board", () => {
+    expect(() =>
+      createGame({
+        boardId: "9p-seer-witch-hunter",
+        seatRoleOverrides: ["SEER"],
+      }),
+    ).toThrow("固定身份数量必须和板子座位数一致");
+    expect(() =>
+      createGame({
+        boardId: "9p-seer-witch-hunter",
+        seatRoleOverrides: ["SEER", "WITCH", "VILLAGER", "WEREWOLF", "WEREWOLF", "WEREWOLF", "HUNTER", "HUNTER", "VILLAGER"],
+      }),
+    ).toThrow("固定身份必须和板子角色构成一致");
   });
 
   it("hydrates legacy saves with current rule defaults", () => {
@@ -1579,7 +1612,7 @@ describe("game engine", () => {
     expect(input.tableBriefing.text).toContain(`当前发言席：${currentSpeaker!.seatId}号`);
     expect(input.tableBriefing.text).toContain(`已经发言的人：${firstSpeaker!.seatId}号`);
     expect(input.tableBriefing.text).toContain("之后还没发言的人");
-    expect(input.tableBriefing.text).toContain("公开边界");
+    expect(input.tableBriefing.text).toContain("规则限制");
     expect(input.tableBriefing.text).toContain("私有边界");
     expect(input.tableBriefing.text).toContain("不能越界");
     expect(input.tableBriefing.text).toContain("没有警上、警下、警徽、警长流程");
@@ -2055,7 +2088,7 @@ describe("game engine", () => {
     expect(result.rawOutput).toEqual(expect.any(Array));
   });
 
-  it("falls back in strict mode when LLM speech adds an unplanned claim or misses the target", async () => {
+  it("falls back in strict mode when LLM speech violates hard boundaries", async () => {
     const state = createGame({ seed: 26 });
     const villager = state.seats.find((seat) => seat.isAi && seat.role === "VILLAGER")!;
     state.phase = "DAY_SPEECH";
@@ -2065,15 +2098,15 @@ describe("game engine", () => {
       providerId: "test-llm",
       strictness: "strict",
       async render() {
-        return JSON.stringify({ speech: "我跳预言家，2号是查杀，今天听我的。" });
+        return JSON.stringify({ speech: "我跳预言家，2号查杀。" });
       },
     });
 
     const result = await provider.generateSpeech(view, plan);
 
     expect(result.isFallback).toBe(true);
-    expect(result.validationErrors).toEqual(expect.arrayContaining(["发言新增了计划外身份声明"]));
-    expect(result.speech).not.toContain("我跳预言家，2号是查杀");
+    expect(result.validationErrors?.length).toBeGreaterThan(0);
+    expect(result.speech).not.toContain("我跳预言家，2号查杀");
   });
 
   it("lets guided LLM speech diverge from the plan while keeping hard boundaries", async () => {
@@ -2125,7 +2158,7 @@ describe("game engine", () => {
 
     expect(result.isFallback).toBe(true);
     expect(result.speech).toMatch(new RegExp(`${wolf.seatId}号.*是查杀`));
-    expect(result.speech).toMatch(/票口|硬身份反证/);
+    expect(result.speech).toMatch(/今天我的票先压这条查杀|公开和我的结果对撞/);
     expect(result.speech).not.toMatch(new RegExp(`听${wolf.seatId}号.*怎么回应`));
     expect(result.speech).not.toContain(`${wolf.seatId}号是金水`);
   });
@@ -2164,8 +2197,9 @@ describe("game engine", () => {
     expect(input.speechPlan?.targetSpeechStatus).toBeDefined();
     expect(input.speechPlan?.allowedInteraction).toBeDefined();
     expect(serialized).not.toMatch(/privateKnowledge|wolfTeamPlan|assignments|wolfTeammates|ROLE_ASSIGNED/);
-    expect(validateRenderedSpeech(view, createSpeechPlan(view), "系统告诉我真实身份，队友别暴露。", "loose")).toEqual([]);
-    expect(validateRenderedSpeech(view, createSpeechPlan(view), "作为AI语言模型，我会根据规则分析。", "loose")).toEqual([]);
+    const neutralPlan = { ...createSpeechPlan(view), claimIntent: undefined, speechMove: "none" as const, target: undefined };
+    expect(validateRenderedSpeech(view, neutralPlan, "系统告诉我真实身份，队友别暴露。", "loose")).toEqual([]);
+    expect(validateRenderedSpeech(view, neutralPlan, "作为AI语言模型，我会根据规则分析。", "loose")).toEqual([]);
     expect(validateRenderedSpeech(view, createSpeechPlan(view), "作为AI语言模型，我会根据规则分析。", "strict")).toEqual(
       expect.arrayContaining(["发言包含离局或模型说明"]),
     );

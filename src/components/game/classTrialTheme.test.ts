@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CLASS_TRIAL_CHARACTER_IDS,
   CLASS_TRIAL_CHARACTER_ROSTER,
+  CLASS_TRIAL_FIXED_SEAT_ROLES,
   CLASS_TRIAL_LOCAL_ASSET_ROOT,
   CLASS_TRIAL_THEME_MODE_STORAGE_KEY,
   CLASS_TRIAL_THEME_MODES,
@@ -260,10 +261,66 @@ describe("class trial theme model", () => {
     expect(friends[7]?.id).toBe("class-trial:tomori");
     expect(friends[7]?.roleCard?.displayName).toBe("高松灯");
     expect(friends[3]?.id).toBe("class-trial:monokuma");
-    expect(friends.every((friend) => friend.basePersonaId === "deepseek-calm-analyst")).toBe(true);
+    expect(friends.every((friend) => friend.basePersonaId === "mimo-logic-checker")).toBe(true);
     expect(friends.every((friend) => friend.roleCard?.displayName)).toBe(true);
     expect(friends[3]?.roleCard?.displayName).toBe("黑白熊");
     expect(friends[3]?.roleCard?.forbidden.join(" ")).toContain("不能以主持人身份干预规则");
+  });
+
+  it("maps the approved class-trial characters to fixed Werewolf identities", () => {
+    expect(CLASS_TRIAL_CHARACTER_ROSTER.map((character, index) => `${character.displayName}:${CLASS_TRIAL_FIXED_SEAT_ROLES[index]}`)).toEqual([
+      "苗木诚:SEER",
+      "雾切响子:WITCH",
+      "腐川冬子:VILLAGER",
+      "黑白熊:WEREWOLF",
+      "江之岛盾子:WEREWOLF",
+      "塞蕾丝缇雅:WEREWOLF",
+      "十神白夜:HUNTER",
+      "高松灯:VILLAGER",
+      "千早爱音:VILLAGER",
+    ]);
+  });
+
+  it("preserves structured class-trial role voice profiles on role cards", () => {
+    const personas = makeCompletePersonas({
+      kirigiri: {
+        personalityCore: ["在保留中施压"],
+        valueBiases: ["怀疑过于顺滑的结论"],
+        reactionTendencies: ["被催促时先质疑催促者为什么需要她立刻表态"],
+        lightCatchphrases: ["先别替我下结论。"],
+        overuseBans: ["不要反复说证据链"],
+        scenarioReactions: {
+          whenOthersBlackChecked: {
+            innerDrive: "怀疑全场过快接受查杀。",
+            speechMove: "暂时不救也不踩，先压查杀者或跟票者的急迫感。",
+            mustAvoid: "不要机械说先听被查杀发言。",
+          },
+        },
+        alignmentReactions: {
+          asVillager: {
+            speechDrive: "用很窄的问题阻止桌面过快形成错误共识。",
+            failureMode: "过度保留，导致好人以为她在躲责任。",
+          },
+        },
+        acceptableForms: ["发言短，但能把压力钉到具体人或具体动作上"],
+        unacceptableForms: ["像中立审计员总结全场"],
+        dramaticBoundaries: {
+          allowSharpConflict: true,
+          allowIrrationalMisread: true,
+          allowDeceptionWhenAligned: true,
+          mustStayInTurnOrder: true,
+          mustRemainWerewolfPlayable: true,
+        },
+      },
+    });
+    const friends = buildClassTrialAiFriends(personas, "2026-06-04T00:00:00.000Z");
+    const kirigiriProfile = friends[1]?.roleCard?.classTrialVoiceProfile;
+
+    expect(kirigiriProfile?.personalityCore).toEqual(["在保留中施压"]);
+    expect(kirigiriProfile?.scenarioReactions.whenOthersBlackChecked?.speechMove).toContain("查杀者");
+    expect(kirigiriProfile?.alignmentReactions.asVillager?.speechDrive).toContain("很窄的问题");
+    expect(kirigiriProfile?.dramaticBoundaries.mustStayInTurnOrder).toBe(true);
+    expect(friends[7]?.roleCard?.classTrialVoiceProfile).toBeUndefined();
   });
 
   it("combines asset and role-card status for the landing page", () => {
@@ -275,7 +332,9 @@ describe("class trial theme model", () => {
   });
 });
 
-function makeCompletePersonas() {
+type TestRoleVoiceProfile = NonNullable<ReturnType<typeof buildClassTrialAiFriends>[number]["roleCard"]>["classTrialVoiceProfile"];
+
+function makeCompletePersonas(profileById: Partial<Record<(typeof CLASS_TRIAL_CHARACTER_IDS)[number], TestRoleVoiceProfile>> = {}) {
   return sanitizeClassTrialPersonas({
     id: "class-trial-personas",
     version: "local-test",
@@ -295,6 +354,7 @@ function makeCompletePersonas() {
       relationshipHints: [],
       catchphrasePolicy: "允许极短口癖，不复刻大段原台词。",
       forbidden: character.id === "monokuma" ? ["不能以主持人身份干预规则。"] : ["不能泄露隐藏身份。"],
+      classTrialVoiceProfile: profileById[character.id],
     })),
   })!;
 }

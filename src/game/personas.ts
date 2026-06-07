@@ -84,7 +84,7 @@ const AI_ROSTER: AiPersona[] = [
   {
     id: "mimo-logic-checker",
     name: "Mimo",
-    modelLabel: "mimo-v2.5-pro",
+    modelLabel: "mimo-v2.5",
     label: "细节校验型",
     style: "抓前后矛盾，常提到上一轮发言、票型变化和站边转向。",
     goal: "从公开信息里找破绽，用细节逼迫可疑位补逻辑。",

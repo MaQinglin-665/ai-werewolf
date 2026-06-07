@@ -2,12 +2,118 @@
 
 ## Current Objective
 
-- Goal: Keep class-trial AI speech on public/player-known evidence while allowing valid public death-shape inference about witch potion state, knife targets, and poison targets.
-- Current status: Done locally. Conclusion-level bans on `女巫没救/没用药` and public knife/poison-mouth reasoning were removed; prompts now require public rules/death-announcement reasoning instead of templated prohibition wording, and the work is verified and ready to push to GitHub.
-- Local note: This work should push to GitHub only; no Tencent Cloud or Render deployment is in scope.
+- Goal: Improve class-trial Day 1 speech so characters look like themselves participating in a Werewolf incident, not skilled Werewolf players wearing character skins.
+- Current status: Mimo is now the fixed current class-trial brain for this local theme slice, but this is not a final subjective "ideal" claim. The current follow-up is paused after a full-game Mimo viability check and one targeted local fix. Latest real evidence is still `tmp/class-trial-mimo-full-game-1780746535599.md` / `.json`: completed on D2, good side won by `所有狼人出局`, 40 AI logs, 18 speeches, 22 actions, all actions on `mimo-action:mimo-v2.5-pro`, all real speeches on `mimo-speech:mimo-v2.5-pro`, `actionFallback: 0`, `speechFallback: 1`. This proves full-game completion/playability with Mimo, but not a clean 0-fallback speech run.
+- Local note: This is a local AI text planning/validation slice. No Tencent Cloud, Render, browser UI, or audio deployment check is in scope.
 
 ## Completed This Session
 
+- [x] Ran repeated real full-game Mimo harness checks with temporary process env only. No key was written to files.
+- [x] Latest full-game evidence: `tmp/class-trial-mimo-full-game-1780746535599.md` / `.json`; `GAME_OVER` on D2, good side won, `fallback: 1`, `speechFallback: 1`, `actionFallback: 0`, providers all Mimo.
+- [x] Practical stop decision: the game is currently completable/playable end-to-end, but chasing the last D1 黑白熊 speech fallback via repeated real full-game runs is too expensive. Continue later with targeted replay/unit tests or transcript review, not broad Mimo full-game reruns.
+- [x] Targeted local follow-up: reproduced the latest D1 黑白熊 raw shape through `createConstrainedLlmSpeechProvider` and fixed the normalization path. For class-trial hard-info speeches, sentence limiting now preserves planned identity/check/vote-boundary sentences instead of blindly keeping the first 6 sentences and dropping `我是预言家，昨晚查验结果是1号苗木诚查杀...`.
+- [x] Full-game Mimo follow-up: quoted third-party seer claims no longer make an observer satisfy the speaker's own seer black-check finality contract. This targets the D1 高松灯 raw output that was usable but got rejected after quoting 黑白熊's `我是预言家...查杀`.
+- [x] Full-game Mimo follow-up: post-speech challenge timeline validation now checks missing-response wording sentence-by-sentence, preventing a sentence about 5号江之岛盾子 `没接这个点` from being stitched to a separate 3号腐川冬子 reference.
+- [x] Full-game Mimo follow-up: explicit long-run retries can exceed the old 3-retry ceiling. `AI_LLM_MAX_RETRIES=6` now gives 7 total attempts; default remains 2 attempts, and `AI_LLM_MAX_RETRIES_CAP` can bound high settings.
+- [x] Verification for this follow-up: `npm run test -- src/ai/speechProviders.test.ts -t "Monokuma"` passed, 3 focused tests; `npm run test -- src/ai/modelLlms.test.ts src/ai/speechProviders.test.ts src/game/seerGoldHide.test.ts src/ai/tableRead.test.ts` passed, 4 files / 253 tests; `npx tsc --noEmit` passed.
+- [ ] Fresh real full-game Mimo rerun remains intentionally skipped for cost control. Do not copy chat-provided keys and do not write keys to `.env`; rerun only if the user explicitly approves another real full-game spend, with temporary process env only.
+- [x] Locked class-trial fixed roles to the user-approved mapping: 苗木诚=SEER, 雾切响子=WITCH, 腐川冬子=VILLAGER, 黑白熊/江之岛盾子/塞蕾丝缇雅=WEREWOLF, 十神白夜=HUNTER, 高松灯/千早爱音=VILLAGER.
+- [x] Wired fixed seat-role overrides through `GameClient`, `gameClientRequests`, `/api/games`, `gameService`, and `createGame()`, with role-multiset validation in the engine.
+- [x] Preserved `classTrialVoiceProfile` through `/api/games` role-card input so browser-created games do not lose structured character guidance.
+- [x] Updated `tmp/class-trial-d1-all-speeches-score.mjs` to use the fixed lineup and accepted D1 scenario where 苗木诚 checks 6号塞蕾丝缇雅 as wolf.
+- [x] Added hard validation for planned SEER checks regardless of true role or loose strictness, fixing the black-white bear counterclaim case where the plan said `1号查杀` but the generated text omitted the claim.
+- [x] Added public black-check relation fallback states so later speakers do not ask already-spoken checked seats to answer again and do not incorrectly return to an older checked-seat axis.
+- [x] Added role-specific hard-info fallback exits for Monokuma/Naegi seer claims, Celestia checked response, Togami hunter claim, Fukawa/Kirigiri early black-check relation, and Tomori/Anon late relation pivots.
+- [x] Added local attempt diagnostics to the D1 all-speech scoring script output so fallback-heavy reports show per-attempt provider issue, validation errors, and raw-output previews.
+- [x] Reran the fixed D1 diagnostic sample: `tmp/class-trial-d1-all-speeches-score-1780652739209.md` / `.json`; 9 speeches, 9 fallback, average 83, quality sample 0. All 18 LLM attempts failed with DeepSeek `402 Insufficient Balance`, before any parse or validation stage.
+- [x] Tested Mimo with a temporary process env route, not persisted to `.env`: `tmp/class-trial-d1-all-speeches-score-1780653397137.md` / `.json`; 9 speeches, 4 fallback, average 86, `viewerQuality pass=4 warn=1` across 5 non-fallback rows. Non-fallback Mimo speech showed stronger character voice, while remaining failures were validator/contract issues to address later.
+- [x] Switched class-trial fixed friends to `mimo-logic-checker` and changed the current class-trial visible runtime label to `真实 LLM · Mimo-v2.5-pro`.
+- [x] Fixed class-trial action routing so repair attempts use the actual seat persona instead of hard-coding `DeepSeek`; class-trial action and speech repair now stay on Mimo when the fixed theme uses Mimo.
+- [x] Post-code Mimo D1 fixed-scenario sample: `tmp/class-trial-d1-all-speeches-score-1780654895988.md` / `.json`; 9 speeches, 4 fallback, average 83, `viewerQuality pass=4 warn=1` across 5 non-fallback rows, all non-fallback providers on `mimo-speech:mimo-v2.5-pro`.
+- [x] Added `tmp/class-trial-mimo-full-game.mjs` and ran a full game with temporary process env secrets only: `tmp/class-trial-mimo-full-game-1780655742482.md` / `.json` completed to `GAME_OVER` on Day 4, wolves won by `所有平民出局`, with 41 Mimo actions, 24 Mimo speeches, 0 action fallback, and 6 speech fallback.
+- [x] Added hard validation for class-trial speeches that end mid-thought without a sentence close, after the full-game sample exposed a non-fallback Anon line ending at `塞蕾丝缇雅，你那句`.
+- [x] Mimo routing/UI/truncation focused verification passed: `npm run test -- src/ai/actionProviders.test.ts src/ai/speechProviders.test.ts src/components/game/classTrialTheme.test.ts src/components/game/classTrialTableModel.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts` (6 files / 265 tests).
+- [x] Final verification passed: `npx tsc --noEmit`, `npm run lint`, `node --check tmp/class-trial-mimo-full-game.mjs`, `npm run build`, `npm run harness:task-card -- docs/tasks/2026-06-class-trial-freeform-speech-quality.md`, `npm run harness:check`, and `git diff --check`. Build still reports the existing Turbopack NFT trace warning; diff check reports CRLF warnings only.
+- [x] Fixed a validator false negative for natural true-seer black-check treatment: Mimo wording such as `今天她必须正面接这个结果，全桌怎么处理她，就从她自己的回应开始` now counts as today's treatment instead of being rejected as `预言家查杀缺少今天如何处理查杀位`.
+- [x] Post-fix Mimo D1 sample `tmp/class-trial-d1-all-speeches-score-1780662175071.md` / `.json`: 9 speeches, 6 fallback, average 85, quality sample 3, `viewerQuality pass=3`. 苗木诚 is non-fallback Mimo output with score 93; remaining fallbacks are mainly model behavior failures against existing hard constraints.
+- [x] Post-truncation-validator full-game Mimo rerun `tmp/class-trial-mimo-full-game-1780662562076.md` / `.json`: completed to `GAME_OVER` on Day 2, wolves won by `所有神职出局`, 24 Mimo actions, 14 Mimo speeches, 0 action fallback, 1 speech fallback, and no dangling/truncated speech endings found by scan.
+- [x] Latest fallback-heavy sample: `tmp/class-trial-d1-all-speeches-score-1780651610416.md`; 9 speeches, 9 fallback, average 83, no anti-template findings. Treat as regression evidence for fallback shape only.
+- [x] Latest verification passed: targeted aggregate 8 files / 375 tests, `npx tsc --noEmit`, `npm run lint`, `npm run build`, task-card gate, harness check, and `git diff --check` with CRLF warnings only.
+- [x] Latest class-trial D1 speech-quality pass reached the current non-fallback target: `tmp/class-trial-d1-all-speeches-score-1780643618268.md`; 9 speeches, 5 fallback, average 83, quality sample 4 non-fallback speeches, `viewerQuality pass=4`, and no non-fallback anti-template findings.
+- [x] Added same-follower dogpile prevention after public black checks: after multiple speakers already attack the same follower on the same `standard / two-sided / fake-focus` point, later speakers are steered and validated to change target or attack the person repeating.
+- [x] Added checked-seat peaceful-night protection: a public black-check target is steered and validated away from reusing `平安夜/女巫用药/药线` while answering the check.
+- [x] Added late black-check inventory-recap protection: later speakers are steered and validated away from recap-style `平安夜 -> 苗木 -> 雾切 -> 腐川 -> 黑白熊` summaries and toward one concrete target/action.
+- [x] Updated report-only quality scoring so valid follower pivots, including direct-address plus pronoun continuation, are not incorrectly flagged as `black_check_axis_repeat`.
+- [x] Latest verification passed: 8-file class-trial aggregate / 253 tests, persona JSON parse, `npx tsc --noEmit`, `npm run lint`, and `npm run build` with the existing Turbopack NFT trace warning.
+- [x] Latest follow-up fixed the repeated public black-check conversation shape: after the checked seat has answered and multiple followers repeat the same `首跳查杀/查杀位自证` axis, later speakers are now steered and validated toward follower pressure, rescue behavior, focus-locking, or character-specific reaction instead of asking the same checked-seat question again.
+- [x] Added a hard Kirigiri relation guard for D1 class-trial: before the checked seat answers an unopposed first black check, Kirigiri should not pressure the claimant with `票压/锁票/站不站得住/我不跟` language. That line reads like protecting 3号; the detective-consistent move is to hold the claim provisional and cut to the checked seat / later table reactions.
+- [x] Added hard validation and retry repair instructions for two anti-template failures: late speakers replaying the same black-check axis, and late speakers continuing the same checked-seat self-proof question after several followers already asked it.
+- [x] Updated `analyzeClassTrialSpeechQuality()` so a speaker who calls out the table for repeating the same black-check axis is not itself marked as `black_check_axis_repeat`.
+- [x] Latest real D1 report after these guards: `tmp/class-trial-d1-all-speeches-score-1780620247379.md`; 9 speeches, 5 fallback, average 77, quality sample 4 non-fallback speeches, `viewerQuality pass=3 warn=1`, and no non-fallback `unearned_claimant_pressure`. Fallback remains out of scope per user direction.
+- [x] Latest verification passed: `src/ai/classTrialLiveState.test.ts` 9 tests, `src/ai/speechProviders.test.ts` 154 tests, `src/ai/classTrialSpeechQuality.test.ts` 9 tests, the 8-file class-trial aggregate / 223 tests, `npx tsc --noEmit`, `npm run lint`, and `npm run build`.
+- [x] Corrected the black-check hard-information relation frame after user review: when an unopposed first seer black-check is public, Kirigiri / good observers should not pressure the claimant or criticize `首验理由` / `票压太满`; they should hold the claimant provisional, force the checked seat to answer, and watch counterclaims, rescue, or public rewrites.
+- [x] Updated wolf-teammate black-check live-state guidance so wolves do not all borrow the same claimant-pressure axis; the move now turns to the checked teammate's response and who rescues too quickly.
+- [x] Added `unearned_claimant_pressure` and `black_check_axis_repeat` report-only quality findings, plus live-state repetition avoidance for repeated `首跳查杀/票压太死/顺序太干净` framing.
+- [x] Fixed black-check target-response validation so natural claimant references such as `苗木同学，你查杀我？我不认` count as answering the public black check.
+- [x] Updated local Kirigiri and Enoshima profile reactions so Kirigiri does not look like she is shielding the checked seat by attacking the first seer, and Enoshima does not keep using the same black-check line as her stage prop.
+- [x] Latest focused verification passed: class-trial live-state tests, speech-quality tests, Fukawa-focused speech-provider tests, the 8-file class-trial aggregate / 218 tests, `npx tsc --noEmit`, `npm run lint`, and `npm run build`.
+- [x] Latest evidence: a direct 1-3 raw probe produced non-fallback Kirigiri and Fukawa lines in the corrected direction; full report `tmp/class-trial-d1-all-speeches-score-1780588824661.md` had 5 fallback rows, so it is useful as a regression signal but not final subjective proof.
+- [x] Follow-up testing found and fixed a wiring bug: the local persona JSON contained first-batch `classTrialVoiceProfile` data, but `src/game/aiFriends.ts` stripped that field during friend resolution, so earlier prompts still used legacy role lens text.
+- [x] Updated `sanitizeAiCharacterRoleCard()` and added `src/game/aiFriends.test.ts` coverage so class-trial role voice profiles survive `resolveAiFriendsForGame()`, `createGame()`, and `buildAgentView()`.
+- [x] Reran the fixed D1 sample after the sanitizer fix: `tmp/class-trial-d1-all-speeches-score-1780586047863.md`; Kirigiri, Fukawa, and Enoshima were all non-fallback with `viewerQuality: pass`, `characterPresence: strong`, and live intent present.
+- [x] Follow-up subjective read corrected the prior sample interpretation: Kirigiri pressuring Naegi's over-tight vote framing after an unopposed first black-check is not detective-like enough, because it can read as protecting 3号. The corrected target is the checked seat's response and the table's later reactions.
+- [x] Follow-up verification passed: 8 focused files / 211 tests, `npx tsc --noEmit`, `npm run lint`, and `git diff --check` with CRLF warnings only.
+- [x] Added structured `classTrialVoiceProfile` data for `kirigiri`, `fukawa`, and `enoshima` only; Tomori and the rest of the theme pack remain untouched for this first migration batch.
+- [x] Extended role-card types and class-trial persona sanitization so first-batch personality core, value bias, reaction tendency, overuse bans, scenario reactions, alignment reactions, and dramatic boundaries reach the AI speech pipeline.
+- [x] Added `formatClassTrialRoleVoiceProfile()` and rewired the class-trial persona director/freeform speech guide to prefer structured role profiles over legacy fixed role-texture scripts.
+- [x] Updated migrated role lens text so Kirigiri, Fukawa, and Enoshima are not pushed back into a single repeated action label such as `冷静切证词`, `先防御/刺一句`, or `结构/收益`.
+- [x] Added `ClassTrialLiveState` with live intent, pressure, target, public move, character impulse, risk, and repetition avoidance; the LLM now sees a current in-table action instead of only a generic style contract.
+- [x] Added report-only `analyzeClassTrialSpeechQuality()` so the sample report can say a line is hard-valid but viewer-quality failed, with concrete evidence and revision direction.
+- [x] Updated `tmp/class-trial-d1-all-speeches-score.mjs` to surface viewer-quality and anti-template findings while excluding fallback rows from quality aggregation.
+- [x] Latest fixed D1 report: `tmp/class-trial-d1-all-speeches-score-1780580906170.md`; 9 speeches, 7 fallback, average 78, quality sample 2 non-fallback speeches, `viewerQuality pass=2`, no non-fallback anti-template findings. Fallback remains deliberately ignored for this pass.
+- [x] Verification passed: focused class-trial tests 7 files / 201 tests, `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npm run harness:task-card -- docs/tasks/2026-06-class-trial-freeform-speech-quality.md`, `npm run harness:check`, and `git diff --check` with CRLF warnings only.
+- [x] Tried the approved LLM-only class-trial speech experiment: the initial class-trial LLM input no longer exposes decision/audit scripts (`speechPlan`, `constraints`, contract must-say/must-not-ask text, table tasks, expert strategy, reasoning frames, claim audit, debate agenda). Backend validation, retry repair, and fallback remain available but are not used as the target quality metric for this pass.
+- [x] Answered the root-cause question for renewed `首验理由` attacks: they were primarily generated by the LLM's own Werewolf priors after script stripping, not by an explicit table-task instruction. Raw DeepSeek output independently produced `选3号查验的依据是什么`, `凭什么查杀我`, and `为什么首验摸到3号`.
+- [x] Fixed the LLM correction route without restoring the old template layer: retry repair now tells the LLM to move away from night-selection-process attacks and onto `查杀位如何回应`, `有没有预言家对跳`, `这条查杀今天怎么处理`, or `谁公开和结果对撞`.
+- [x] Removed the copyable system phrase `D1不需要解释首验理由`; the system guidance now says D1 seer speech only needs identity, check result, and today's treatment, reducing prompt-to-dialogue leakage.
+- [x] Relaxed explicit black-check validation so natural wording like `昨晚查验了3号腐川冬子，结果是狼人。所以腐川是我的查杀` is accepted as a valid black check.
+- [x] Latest real D1 sample for this LLM-only pass: `tmp/class-trial-d1-all-speeches-score-1780567243006.md`; 苗木诚 is non-fallback real DeepSeek output and the non-fallback speeches no longer use `首验理由/为什么验3号` as their attack axis. Remaining LLM weakness is short/weak role action for 雾切、高松、爱音.
+- [x] Verification passed: related focused AI/claims tests 6 files / 221 tests, `npx tsc --noEmit`, and `git diff --check` with CRLF warnings only.
+- [x] Root-caused the screenshot-level 苗木诚 problem to layer leakage, not wrong seer knowledge: `tableRead` generated output-facing `talkingPoints` / `tableTask.line` like `我的查杀不是可商量观察` and `他发言只影响别人怎么接，不改变我这条结果`, and `speechProviders` fallback/contract still carried `降温/轻放` wording, so the LLM paraphrased those internal constraints into unnatural seer dialogue.
+- [x] Replaced the true-seer black-check contract and fallback with first-person role actions: jump seer, state the checked wolf, place today's vote on the checked seat, and ask defenders to publicly collide with the result. D1 first-check handling now stays as a prohibition against asking for first-check reasons instead of becoming dialogue material.
+- [x] Added regressions in `src/ai/tableRead.test.ts` and `src/ai/speechProviders.test.ts` so `可商量观察/降温/观望/他发言只影响别人怎么接/不改变我这条结果/不要只报结论/轻放` cannot return as seer black-check output material.
+- [x] Latest real D1 all-seat sample: `tmp/class-trial-d1-all-speeches-score-1780556324868.md`; 9 speeches, 3 fallback, average 85. 苗木诚 was non-fallback DeepSeek output, score 86, and no longer says the screenshot's neutral-observer line.
+- [x] Latest verification passed: targeted seer black-check tests, related focused AI/claims tests 6 files / 220 tests, `npx tsc --noEmit`, and `git diff --check` with CRLF warnings only.
+- [x] Latest first-person POV repair pass made true seer black checks speak from the seer's own certain result and vote instead of neutral table-observer wording; checked-seat fallback now answers the black check directly.
+- [x] Added regressions rejecting `外置更硬信息/先别急着放过去`, repeated global `如果查杀位是好人谁收益`, D1 `验人心路/验人顺序` attacks, report-only peaceful-night speeches, and second-person homework to already-spoken seats such as `需要你后续补上`.
+- [x] Tightened class-trial claim extraction so references like `3号就是查杀位` and `这张牌拍在桌上` do not become new self seer/witch claims.
+- [x] Naturalized fallback gap wording by removing `平安夜药线/身份声明边界` phrasing from class-trial fallback output.
+- [x] Latest real D1 all-seat sample after this pass: `tmp/class-trial-d1-all-speeches-score-1780553043282.md`; 9 speeches, 2 fallback, average 79. The original global POV, first-check motive attack, peaceful-night report-only, and no-trigger Fukawa/Togami drift are gone; remaining follow-up is role texture/action depth for 雾切、塞蕾丝、高松 and reducing fallback rate.
+- [x] Latest verification passed: related focused tests 6 files / 220 tests, `npx tsc --noEmit`, and `git diff --check` with CRLF warnings only.
+- [x] Latest pass removed remaining visible class-trial audit-player wording from upstream LLM materials in `advancedReasoning`, `claimAudit`, `tableRead`, and `speechProviders`; labels now steer toward public actions/reasons rather than `审计/身份线/票口/闭合` wording.
+- [x] Added D1 black-check regressions for non-seer/checked-seat `今晚验谁`, `闭合/闭环`, peaceful-night/witch-use becoming a main attack, and first-check motive variants such as `验人选择逻辑`, `怎么摸到`, and `补验人依据`.
+- [x] Latest real D1 all-seat sample after this pass: `tmp/class-trial-d1-all-speeches-score-1780547769642.md`; 9 speeches, 1 fallback, average 85. Real LLM speeches no longer used the old first-check-reason attack in the final sample; 十神、高松、爱音 remain the main role-texture follow-up candidates.
+- [x] Latest verification passed: related focused AI tests 6 files / 215 tests, `npx tsc --noEmit`, and `git diff --check` with CRLF warnings only.
+- [x] Added `docs/tasks/2026-06-class-trial-freeform-speech-quality.md` as the executable task card for the user-reviewed transcript quality issues.
+- [x] Reframed the class-trial speech target from "characters speak like skilled Werewolf players" to "characters stay themselves while participating in a Werewolf incident"; current priority is role authenticity, public table participation, de-templating, basic logic, then inference strength.
+- [x] Updated `src/ai/classTrialPersonaDirector.ts`, `src/ai/classTrialSpeechDirector.ts`, `src/ai/classTrialCharacterLens.ts`, and `src/ai/speechProviders.ts` so repeated class-trial pressure pivots into character actions such as hope checks, testimony cuts, trial taunts, despair/guise reads, wagers, qualification lines, voice breaks, or relationship chains instead of one shared logic-auditor voice.
+- [x] Updated fallback gap wording so class-trial repair lines avoid stitched phrases like `身份这句话还没说清没有闭合`.
+- [x] Generated the latest real D1 all-seat sample `tmp/class-trial-d1-all-speeches-score-1780490992573.md`: 9/9 speeches, 0 fallback, average 75 under the revised role-first scoring lens.
+- [x] Root-caused the bad `首验理由/女巫用药` attack direction to public-state rules leaking into speech: natural wording like `查了3号腐川冬子——她是狼人` was not parsed into `claimBoard.checks`, creating `预言家声明缺少验人`; peaceful-night `女巫用药` guidance could also be promoted from background reasoning into an attack axis.
+- [x] Updated `src/game/claims.ts` so characterful named-target/pronoun-result seer checks are extracted as public checks.
+- [x] Updated `src/ai/speechProviders.ts` so D1 no-guard peaceful-night `女巫用药` can be mentioned as public death-shape reasoning but is rejected when used as the main attack point.
+- [x] Removed D1 `首验理由/选人理由/公开依据/连心路都省了` as a main attack axis and stopped prompting true seer black-check speeches to actively explain why they picked the first target.
+- [x] Root-caused the D1 issues to hard-information turns being treated like low-information class-trial openings: 苗木 could stop at the black-check result, 腐川 could avoid the check and drift to 十神 flavor, and stale stock wording could survive across death shapes.
+- [x] Updated `src/ai/tableRead.ts` so class-trial true seer black-check plans require explicit target/result and vote-boundary reasoning without making first-check motive mandatory.
+- [x] Updated `src/ai/tableRead.ts` so a seat publicly under black check gets a direct response plan before any unrelated character flavor.
+- [x] Updated `src/ai/speechProviders.ts` with dynamic hard-information limits, stronger `claim_black_check` must-say items, explicit `查杀` validation, checked-seat reply validation, D1 first-check motive rejection, prompt/meta leak rejection, non-peaceful death stale phrase rejection, and conservative Fukawa/Togami public-trigger gating.
+- [x] Updated hard-information fallbacks so provider failure produces a direct seer black-check or checked-seat response instead of low-information opening text.
+- [x] Updated class-trial lens fallback wording from `身份那句话少了前提` to less stitched identity-boundary wording and removed `没说清` fallback patterns that were misread as asking already-spoken seats to speak again.
+- [x] Added regressions in `src/ai/tableRead.test.ts` and `src/ai/speechProviders.test.ts` for seer black-check plans, checked-seat responses, dynamic hard-info limits, explicit check wording, prompt leak rejection, non-peaceful death wording, and Fukawa/Togami trigger boundaries.
+- [x] Verification passed: related AI/game tests, `npx tsc --noEmit`, `npm run lint`, task-card gate, harness check, and `git diff --check`.
+- [x] Final real D1 sample for this pass: `tmp/class-trial-d1-all-speeches-score-1780498805293.md`; it no longer uses the old `首验理由/女巫用药` main-axis failure or `身份那句话少了前提`, but stricter rejection increased fallback to 4/9 and average fell to 78.
+- [x] Follow-up de-template material pass removed class-trial internal audit wording from hard-info plans, repair instructions, fallback gap wording, table briefing labels, and post-speech challenge themes.
+- [x] Latest real D1 sample after the de-template pass: `tmp/class-trial-d1-all-speeches-score-1780505837274.md`; 9/9 real LLM speeches, 0 fallback, average 91, with no sample hits for `票口边界` / `外置硬身份反证` / `起跳收益` / `身份动作` / `公开边界` / `首验理由` / `验人理由`.
 - [x] Reworked class-trial death-shape speech guidance so AI can infer potion state, knife targets, and poison targets from public death announcements plus board rules without pretending to have private night knowledge.
 - [x] Removed the public-death `有夜死时不能确认女巫用药` validation branch and relaxed knife/poison-mouth validation for targets already present in the public death list.
 - [x] Kept private boundaries for invented witch identity, invented rescue target, and fake self-witch status leaks.
@@ -501,6 +607,8 @@ Ignored/generated local-only files observed:
 
 ## Blockers / Risks
 
+- Fallback rate increased in some stricter samples. The user explicitly said fallback is out of scope for this pass, but high fallback reduces the number of subjective non-fallback lines available per report.
+- The latest non-fallback lines remove the worst Kirigiri relation error, but Kirigiri / Tomori / Anon still need stronger per-role action texture in a future pass.
 - The vote visualization change is local-only class-trial work and intentionally skips `/rooms` / Public Alpha / ordinary vote UI.
 - `src/app/globals.css` and `src/components/game/classTrialGameTable.test.ts` already had unrelated dirty class-trial edits before this slice; preserve them when staging.
 - The browser verification server is still running on `http://127.0.0.1:51631`; port 3000 was another local app during this pass.
@@ -541,4 +649,86 @@ Ignored/generated local-only files observed:
 
 ## Recommended Next Step
 
-For this architecture slice, the next useful follow-up is a dedicated room vote smoke speed/root-cause pass: make `scripts/room-action-smoke.mjs --coverage=vote` complete quickly under mock AI, then rerun the full browser visual pass with Browser/Playwright available. The class-trial architecture extraction itself is implemented and verified by focused tests, type/lint/build, local HTTP/API smoke, room API tests, and room SSE smoke.
+For this class-trial speech-quality slice, stop broad real Mimo full-game reruns for now. Current practical judgment: full-game Mimo is completable/playable, but the latest real proof is still `speechFallback: 1`, not a clean 0-fallback run. If work resumes, either review `tmp/class-trial-mimo-full-game-1780746535599.md` subjectively or run one explicitly approved full-game verification after the 20:22 normalization fix; otherwise focus on local replay/unit tests.
+
+## 2026-06-05 Mimo D1 0-fallback follow-up
+
+Completed:
+- Fixed additional class-trial speech validators that were rejecting usable Mimo lines: true-seer black-check requests to the unspoken checked target, natural self-intro seer claims, Celestia chip/后置 phrasing, D1 first-check motive negation, supportive Kirigiri wording, and natural black-check treatment boundaries.
+- Switched the class-trial default/runtime label from `mimo-v2.5-pro` to `mimo-v2.5`, matching the 0-fallback evidence route while keeping `AI_MODEL_MIMO` override support.
+- Generated `tmp/class-trial-d1-all-speeches-score-1780667013149.md` / `.json`: 9 speeches, 0 fallback, average 85, all providers `mimo-speech:mimo-v2.5`, `viewerQuality pass=8 warn=1`.
+
+Verification:
+- `npm run test -- src/game/claims.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts src/components/game/classTrialTheme.test.ts src/components/game/classTrialTableModel.test.ts src/components/game/classTrialGameTable.test.ts src/components/game/gamePanelsMobile.test.ts` passed: 7 files / 287 tests.
+- `npx tsc --noEmit` passed.
+
+Remaining risks:
+- This proves fallback can reach 0 on the fixed D1 sample, not that subjective quality is ideal.
+- The 0-fallback sample still has near-duplicate 江之岛/十神 phrasing, weak Togami/Hunter identity texture, and a lower-scoring Kirigiri line. Next pass should fix repeated role axes and per-character action texture rather than adding broad validators.
+
+## 2026-06-05 Mimo D1 0-fallback repair follow-up
+
+Completed:
+- Kept class-trial on `mimo-v2.5` and continued reducing real Mimo fallback causes in the fixed D1 sample.
+- Added copied-question-shape detection and live-state avoidance so late speakers do not reuse a prior speaker's black-check question skeleton.
+- Preserved hard SEER/identity speech contracts in the class-trial LLM input, while keeping ordinary decision/audit scripts stripped; this prevents wolf counterclaims from losing required identity/check/result wording.
+- Retained only D1 public-black-check safety bans for non-hard freeform speech, so Mimo sees "do not attack first-check reason / do not make peaceful night the whole speech" without restoring generic table scripts.
+- Accepted natural hard counterclaim wording such as `我才是预言家`.
+- Made class-trial hard hunter claims expose the concrete line `我拍猎人，枪在这里。`.
+- Latest fixed D1 sample: `tmp/class-trial-d1-all-speeches-score-1780673627203.md` / `.json`; 9 speeches, 0 fallback, average 79, all providers `mimo-speech:mimo-v2.5`, `viewerQuality pass=8 warn=1`.
+
+Changed files:
+- `src/ai/speechProviders.ts`
+- `src/ai/speechProviders.test.ts`
+- `src/ai/classTrialLiveState.ts`
+- `src/ai/classTrialLiveState.test.ts`
+- `src/ai/modelLlms.ts`
+- `src/game/personas.ts`
+- `src/components/game/classTrialTheme.ts`
+- related Mimo label/runtime tests
+- `progress.md`
+- `session-handoff.md`
+- `docs/tasks/2026-06-class-trial-freeform-speech-quality.md`
+
+Verification:
+- `node tmp/class-trial-d1-all-speeches-score.mjs` with temporary Mimo process env produced `tmp/class-trial-d1-all-speeches-score-1780673627203.md`: 9 speeches, 0 fallback.
+- `npm run test -- src/components/game/classTrialTheme.test.ts src/components/game/gameClientRequests.test.ts src/game/engine.test.ts src/app/api/games/aiFriends.test.ts src/app/api/games/api.test.ts src/ai/speechProviders.test.ts src/ai/classTrialSpeechQuality.test.ts src/ai/classTrialCharacterLens.test.ts src/ai/classTrialLiveState.test.ts src/game/claims.test.ts` passed: 10 files / 419 tests.
+- `npm run test -- src/ai/speechProviders.test.ts src/ai/classTrialLiveState.test.ts src/game/claims.test.ts` passed: 3 files / 211 tests.
+- `npx tsc --noEmit` passed.
+- `npm run lint` passed.
+- `npm run build` passed with the existing Turbopack NFT trace warning for `next.config.ts -> src/server/roomService.ts -> src/app/api/rooms/debug-cleanup/route.ts`.
+- `npm run harness:task-card -- docs/tasks/2026-06-class-trial-freeform-speech-quality.md` passed.
+
+Remaining risks:
+- 0 fallback is now achieved for the fixed D1 text sample, but subjective role quality is not ideal.
+- 2号雾切 is legal but too short and low-texture; 4号黑白熊 still sounds contract-shaped; 9号千早爱音 needs stronger Anon relationship texture.
+- This pass did not run a fresh full-game Mimo harness after the D1 fallback repairs. Earlier full-game Mimo evidence exists, but the newest proof is the D1 fixed sample.
+- A real browser/audio listening pass remains separate; this was text planning and validation work.
+
+## 2026-06-06 Mimo D2 0-fallback follow-up
+
+Completed:
+- Continued the user-requested D2 pass after D1 was considered good enough for now.
+- Fixed real Mimo D2 fallback causes rather than polishing fallback prose: quoted why-question fragments in natural focus-shift wording no longer trigger unfinished-question validation, inline class-trial stage directions such as `（转向桌面）` are stripped, Mimo speech requests now default to a longer 180s timeout, and repairable internal audit terms such as `校验没闭合` are rewritten before validation.
+- Latest real D2 sample: `tmp/class-trial-mimo-d2-speeches-1780737098833.md` / `.json`; 8 D2 speeches, `d2SpeechFallback: 0`, all D2 providers `mimo-speech:mimo-v2.5-pro`.
+
+Changed files:
+- `src/ai/modelLlms.ts`
+- `src/ai/modelLlms.test.ts`
+- `src/ai/speechProviders.ts`
+- `src/ai/speechProviders.test.ts`
+- `src/game/speechText.ts`
+- `progress.md`
+- `session-handoff.md`
+- `docs/tasks/2026-06-class-trial-freeform-speech-quality.md`
+
+Verification:
+- `npm run test -- src/ai/speechProviders.test.ts src/ai/modelLlms.test.ts` passed: 2 files / 210 tests.
+- `npx tsc --noEmit` passed.
+- `npx vitest run src/ai/classTrialMimoD2Harness.test.ts --testTimeout 900000` passed and produced `tmp/class-trial-mimo-d2-speeches-1780737098833.md`.
+- `git diff --check` passed with CRLF warnings only.
+
+Remaining risks:
+- This proves D2 fallback is 0 for the latest generated D2 sample, not that the full game or subjective character quality is ideal.
+- D1 in the same run still had 3 fallback rows; that was not the target of this D2 pass.
+- The latest D2 text is usable but still has some table jargon such as `票口`; future work should improve character texture and complete-game consistency, not claim the line quality is final.
