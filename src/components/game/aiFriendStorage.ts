@@ -1,12 +1,19 @@
 import {
   AI_FRIEND_SELECTION_STORAGE_KEY,
   AI_FRIENDS_STORAGE_KEY,
+  buildAiPersonaFromFriend,
   getDefaultAiFriends,
   parseAiFriendExport,
   serializeAiFriendExport,
 } from "@/game/aiFriends";
 import { formatAiFriendLlmModelLabel } from "@/game/llmConfig";
+import {
+  ORDINARY_PLAYER_TYPE_PRESETS,
+  ordinaryPlayerProfileSummary,
+  sanitizeOrdinaryPlayerProfile,
+} from "@/game/ordinaryPlayerProfiles";
 import { getAiPersonaById } from "@/game/personas";
+import { strategySummaryForAiFriend } from "@/ai/personaStrategyCards";
 import type { AiFriendConfig, AiFriendRuntimeLlmConfig, AiFriendRuntimeTtsConfig, AiRuntimeMode } from "@/game/types";
 import type { AiFriendOption } from "./clientTypes";
 
@@ -168,12 +175,19 @@ export function resolveSelectedAiFriends(options: AiFriendOption[], selectedIds:
 
 function toAiFriendOption(friend: AiFriendConfig, isDefault: boolean): AiFriendOption {
   const persona = getAiPersonaById(friend.basePersonaId);
+  const runtimePersona = buildAiPersonaFromFriend(friend);
+  const ordinaryProfile = sanitizeOrdinaryPlayerProfile(friend.ordinaryPlayerProfile);
+  const ordinaryPreset = ORDINARY_PLAYER_TYPE_PRESETS[ordinaryProfile.playerTypeId];
   return {
     ...friend,
+    ordinaryPlayerProfile: ordinaryProfile,
     isDefault,
     basePersonaName: persona?.name ?? "未知模型",
     basePersonaModelLabel: formatAiFriendLlmModelLabel(friend.llmConfig) ?? persona?.modelLabel,
     basePersonaLabel: persona?.label ?? "未知人格",
+    strategySummary: strategySummaryForAiFriend(runtimePersona, friend.roleCard),
+    ordinaryPlayerTypeLabel: ordinaryPreset.label,
+    ordinaryPlayerTypeSummary: ordinaryPlayerProfileSummary(ordinaryProfile),
   };
 }
 

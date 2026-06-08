@@ -34,6 +34,29 @@ describe("AiPoolClient mobile layout", () => {
     expect(html).toContain("选择类型会自动套用默认倾向");
   });
 
+  it("shows inferred strategy-card summaries and a manual refresh entry", () => {
+    const html = renderToStaticMarkup(createElement(AiPoolClient));
+
+    expect(html).toContain("策略卡");
+    expect(html).toContain("逻辑链推演");
+    expect(html).toContain("反模板");
+    expect(html).toContain("刷新策略卡");
+  });
+
+  it("shows ordinary player type presets and separates model routing from play style", () => {
+    const html = renderToStaticMarkup(createElement(AiPoolClient));
+
+    expect(html).toContain("普通局玩家类型");
+    expect(html).toContain("急性子冲票型");
+    expect(html).toContain("谨慎怕背锅型");
+    expect(html).toContain("说话方式");
+    expect(html).toContain("思考偏好");
+    expect(html).toContain("行动策略");
+    expect(html).toContain("模型只决定调用接口");
+    expect(html).toContain("玩家类型决定发言和打法");
+    expect(html).not.toContain("DeepSeek 冷静事实派");
+  });
+
   it("puts AI mode before the pool and keeps quick add behind an overlay entry", () => {
     const html = renderToStaticMarkup(createElement(AiPoolClient));
 

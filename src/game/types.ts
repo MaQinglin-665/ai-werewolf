@@ -233,6 +233,36 @@ export type AiPersonaPreferences = {
   caution: number;
 };
 
+export type AiOrdinaryPlayerTypeId =
+  | "impatient-pusher"
+  | "cautious-backpacker"
+  | "one-line-catcher"
+  | "soft-follower"
+  | "role-sensitive"
+  | "quiet-watcher"
+  | "emotional-reactor"
+  | "pivot-admitter";
+
+export type AiOrdinaryPlayerProfileSliders = {
+  directness: number;
+  emotion: number;
+  speechLength: number;
+  questionBias: number;
+  factBias: number;
+  identityBias: number;
+  voteBias: number;
+  memoryBias: number;
+  nightAggression: number;
+  voteFollow: number;
+  deception: number;
+  caution: number;
+};
+
+export type AiOrdinaryPlayerProfile = {
+  playerTypeId: AiOrdinaryPlayerTypeId;
+  sliders: AiOrdinaryPlayerProfileSliders;
+};
+
 export type ClassTrialScenarioReaction = {
   innerDrive: string;
   speechMove: string;
@@ -321,6 +351,7 @@ export type AiFriendConfig = {
   ttsVoice?: string;
   ttsConfig?: AiFriendTtsConfig;
   roleCard?: AiCharacterRoleCard;
+  ordinaryPlayerProfile?: AiOrdinaryPlayerProfile;
   riskTolerance: number;
   bluffing: number;
   preferences: AiPersonaPreferences;
@@ -339,6 +370,7 @@ export type AiFriendSeatSetup = {
   ttsVoice?: string;
   ttsConfig?: AiFriendTtsConfig;
   roleCard?: AiCharacterRoleCard;
+  ordinaryPlayerProfile?: AiOrdinaryPlayerProfile;
   isDefault: boolean;
 };
 
@@ -658,6 +690,7 @@ export type AiPersona = {
   riskTolerance: number;
   bluffing: number;
   preferences?: AiPersonaPreferences;
+  ordinaryPlayerProfile?: AiOrdinaryPlayerProfile;
 };
 
 export type AiSeatBelief = {
@@ -674,6 +707,11 @@ export type AiSeatMemory = {
   suspectedSeatId?: number;
   trustedSeatId?: number;
   focusSeatId?: number;
+  liveIntent?: string;
+  liveIntentTargetSeatId?: number;
+  liveIntentPublicReason?: string;
+  liveIntentCommitment?: string;
+  voteContinuity?: string;
   lastSpeechTargetSeatId?: number;
   lastSpeechStance?: string;
   lastVoteTargetSeatId?: number;

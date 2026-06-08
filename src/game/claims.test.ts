@@ -103,11 +103,43 @@ describe("role claim extraction", () => {
     ]);
   });
 
+  it("treats a self-owned check result and gold water as a hard seer claim", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 1,
+      message:
+        "大家……早上好。我知道第一天信息很少，平安夜也让我们暂时没有明确的伤亡可以讨论。但这就是我的查验结果，我必须说出来。 我们今天能一起验证的点，就是3号腐川冬子接了这张金水之后的发言。我希望你能先听听3号腐川冬子怎么聊，然后我们看看后面对这个查验结果的反应。我们先确认这一点：3号是好人，那么今天，我们的出人焦点就不应该在她身上。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+    expect(claim?.checks).toEqual([
+      expect.objectContaining({
+        claimantSeatId: 1,
+        targetSeatId: 3,
+        result: "GOOD",
+      }),
+    ]);
+  });
+
   it("does not treat endorsing another seer as a self seer claim", () => {
     const claim = extractRoleClaimFromSpeech({
       day: 1,
       claimantSeatId: 4,
       message: "我认3号预言家这条线，查杀先走。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+    });
+
+    expect(claim).toBeUndefined();
+  });
+
+  it("does not treat recognizing another player's witch claim as a self witch claim", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 3,
+      message: "2号Claude的女巫声明目前没人对跳，我先认，但4号银水要发言闭合。",
       validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
     });
 
@@ -145,6 +177,30 @@ describe("role claim extraction", () => {
       message: "6号塞蕾丝缇雅。女巫在这里。药还握在我手上，谁要下注请现在开口。",
       validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
       roleCard: { theme: "class-trial" },
+    });
+
+    expect(claim?.claimedRole).toBe("WITCH");
+    expect(claim?.strength).toBe("hard");
+  });
+
+  it("treats concise ordinary witch save reports as hard witch claims", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 2,
+      message: "我是2号Claude，女巫。平安夜我救了4号豆包，4号是银水。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+    });
+
+    expect(claim?.claimedRole).toBe("WITCH");
+    expect(claim?.strength).toBe("hard");
+  });
+
+  it("treats colloquial I-witch save reports as hard witch claims", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 2,
+      message: "平安夜，我女巫，昨晚救了4号豆包，4号是银水。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
     });
 
     expect(claim?.claimedRole).toBe("WITCH");
@@ -247,6 +303,31 @@ describe("role claim extraction", () => {
     expect(claim?.claimedRole).toBe("HUNTER");
     expect(claim?.strength).toBe("hard");
     expect(isSupportedRoleClaim({ claimedRole: "HUNTER", message: "枪在这里，别逼我开枪。" })).toBe(true);
+  });
+
+  it("treats concise ordinary hunter self reports as hard hunter claims", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 1,
+      message: "1号DeepSeek，女巫用药了，平安夜。我是猎人，底牌不虚，但今天不急着拍身份打轮次。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+    });
+
+    expect(claim?.claimedRole).toBe("HUNTER");
+    expect(claim?.strength).toBe("hard");
+  });
+
+  it("treats seat-name seer reports as hard seer claims", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 8,
+      message: "8号Kimi，预言家。昨晚验的2号Claude，查杀。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+    expect(claim?.checks).toEqual([expect.objectContaining({ targetSeatId: 2, result: "WEREWOLF" })]);
   });
 
   it("does not treat generic class-trial lead-the-vote wording as a hunter claim", () => {

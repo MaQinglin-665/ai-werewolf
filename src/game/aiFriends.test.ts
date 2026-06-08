@@ -6,6 +6,13 @@ import {
   resolveAiFriendsForGame,
   serializeAiFriendExport,
 } from "./aiFriends";
+import type { AiFriendConfig } from "./types";
+
+function withoutOrdinaryPlayerProfile(friend: AiFriendConfig): Omit<AiFriendConfig, "ordinaryPlayerProfile"> {
+  const legacyFriend = { ...friend };
+  delete legacyFriend.ordinaryPlayerProfile;
+  return legacyFriend;
+}
 
 describe("ai friends", () => {
   it("builds default friends from the model personas", () => {
@@ -23,6 +30,21 @@ describe("ai friends", () => {
       "Kimi",
     ]);
     expect(friends.every((friend) => friend.id.startsWith("default:"))).toBe(true);
+  });
+
+  it("assigns stable ordinary player types to default friends", () => {
+    const friends = getDefaultAiFriends("test");
+
+    expect(friends.map((friend) => friend.ordinaryPlayerProfile?.playerTypeId)).toEqual([
+      "one-line-catcher",
+      "cautious-backpacker",
+      "soft-follower",
+      "impatient-pusher",
+      "pivot-admitter",
+      "quiet-watcher",
+      "emotional-reactor",
+      "role-sensitive",
+    ]);
   });
 
   it("copies a default friend into an editable custom friend", () => {
@@ -61,6 +83,7 @@ describe("ai friends", () => {
       id: "friend-template",
       nickname: "DeepSeek副本",
       basePersonaId: "doubao-pressure-bluffer",
+      ordinaryPlayerProfile: custom.ordinaryPlayerProfile,
       riskTolerance: doubao.riskTolerance,
       bluffing: doubao.bluffing,
       preferences: doubao.preferences,
@@ -73,6 +96,100 @@ describe("ai friends", () => {
     const imported = parseAiFriendExport(exported);
 
     expect(imported).toEqual([custom]);
+  });
+
+  it("copies ordinary player profiles when saving editable friend config", () => {
+    const source = getDefaultAiFriends("test")[0]!;
+    const copy = copyAiFriend(source, { id: "friend-copy-profile", now: "2026-06-08T00:00:00.000Z" });
+
+    expect(copy.ordinaryPlayerProfile).toEqual(source.ordinaryPlayerProfile);
+  });
+
+  it("round-trips ordinary player profiles through export, import, and game resolution", () => {
+    const custom = {
+      ...copyAiFriend(getDefaultAiFriends("test")[2], { id: "friend-ordinary", now: "2026-05-15T00:00:00.000Z" }),
+      ordinaryPlayerProfile: {
+        playerTypeId: "quiet-watcher" as const,
+        sliders: {
+          directness: 0.2,
+          emotion: 0.25,
+          speechLength: 0.25,
+          questionBias: 0.45,
+          factBias: 0.7,
+          identityBias: 0.5,
+          voteBias: 0.35,
+          memoryBias: 0.72,
+          nightAggression: 0.2,
+          voteFollow: 0.45,
+          deception: 0.3,
+          caution: 0.9,
+        },
+      },
+    };
+
+    const imported = parseAiFriendExport(serializeAiFriendExport([custom]));
+    const resolved = resolveAiFriendsForGame(imported, 1);
+
+    expect(imported[0]?.ordinaryPlayerProfile).toEqual(custom.ordinaryPlayerProfile);
+    expect(resolved[0]?.config.ordinaryPlayerProfile).toEqual(custom.ordinaryPlayerProfile);
+    expect(resolved[0]?.persona.ordinaryPlayerProfile).toEqual(custom.ordinaryPlayerProfile);
+    expect(resolved[0]?.setup.ordinaryPlayerProfile).toEqual(custom.ordinaryPlayerProfile);
+  });
+
+  it("infers ordinary player profiles for legacy imported friends", () => {
+    const legacyFriend = withoutOrdinaryPlayerProfile(
+      copyAiFriend(getDefaultAiFriends("test").find((friend) => friend.basePersonaId === "gemini-quiet-observer")!, {
+        id: "friend-legacy-gemini",
+        now: "2026-06-08T00:00:00.000Z",
+      }),
+    );
+
+    const imported = parseAiFriendExport(
+      JSON.stringify({
+        version: 1,
+        friends: [legacyFriend],
+      }),
+    );
+    const resolved = resolveAiFriendsForGame(imported, 1);
+
+    expect(imported[0]?.ordinaryPlayerProfile?.playerTypeId).toBe("quiet-watcher");
+    expect(resolved[0]?.config.ordinaryPlayerProfile?.playerTypeId).toBe("quiet-watcher");
+    expect(resolved[0]?.persona.ordinaryPlayerProfile?.playerTypeId).toBe("quiet-watcher");
+    expect(resolved[0]?.setup.ordinaryPlayerProfile?.playerTypeId).toBe("quiet-watcher");
+  });
+
+  it("falls back for malformed numeric tuning values in imported friends", () => {
+    const defaultGemini = getDefaultAiFriends("test").find((friend) => friend.basePersonaId === "gemini-quiet-observer")!;
+    const legacyFriend = withoutOrdinaryPlayerProfile(
+      copyAiFriend(defaultGemini, {
+        id: "friend-malformed-gemini",
+        now: "2026-06-08T00:00:00.000Z",
+      }),
+    );
+
+    const imported = parseAiFriendExport(
+      JSON.stringify({
+        version: 1,
+        friends: [
+          {
+            ...legacyFriend,
+            riskTolerance: null,
+            bluffing: "",
+            preferences: {
+              ...legacyFriend.preferences,
+              leadership: false,
+              caution: true,
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(imported[0]?.riskTolerance).toBe(defaultGemini.riskTolerance);
+    expect(imported[0]?.bluffing).toBe(defaultGemini.bluffing);
+    expect(imported[0]?.preferences.leadership).toBe(defaultGemini.preferences.leadership);
+    expect(imported[0]?.preferences.caution).toBe(defaultGemini.preferences.caution);
+    expect(imported[0]?.ordinaryPlayerProfile?.playerTypeId).toBe("quiet-watcher");
   });
 
   it("preserves custom OpenAI-compatible model config without API keys", () => {

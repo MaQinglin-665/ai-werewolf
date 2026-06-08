@@ -19,14 +19,20 @@ type SpeechClaimDraft = {
 const ROLE_CLAIM_GAP = "[^，,。！？!?；;：:\\n]{0,8}";
 const SELF_INTRO_ROLE_CLAIM_GAP =
   "(?:(?:\\d{1,2}\\s*号)?[A-Za-z0-9_\\-\\u4e00-\\u9fa5]{1,24}[，,：:\\s]{1,4})?[^，,。！？!?；;：:\\n]{0,8}";
+const SEAT_NAME_SELF_ROLE_PREFIX = "(?:^|[，,。！？!?；;：:\\s])(?:\\d{1,2}\\s*号)?[A-Za-z0-9_\\-\\u4e00-\\u9fa5]{1,24}[，,：:\\s]{1,4}";
 const CLAIM_TARGET_LABEL = "(?:玩家|位|AI|[A-Za-z0-9_\\-\\u4e00-\\u9fa5]{0,24}?)?";
 const CHECK_RESULT_TEXT = "(查杀(?!位|牌|线|结果)|金水(?!位|牌|线|结果)|狼人|好人|狼)";
 const SELF_CHECK_RESULT_PREFIX = "[，,：:\\s]*(?:是|为|出)?\\s*(?:我(?:昨晚|昨夜|夜里|今晚)?(?:查验|验|查|摸)(?:出来)?的?|我的)?\\s*";
 const WITCH_DIRECT_ROLE_PATTERN = new RegExp(
   `(?:我是|我拍|(?<!在)我这里是|我底牌是|明牌|我这张|我作为)${ROLE_CLAIM_GAP}(?:女巫|女巫牌)`,
 );
+const WITCH_COLLOQUIAL_SELF_ROLE_PATTERN =
+  /(?:^|[，,。！？!?；;：:\s])我(?:是)?\s*(?:女巫|女巫牌)(?:[，,。！？!?；;：:\s]|$)/;
+const WITCH_CONCISE_SAVE_REPORT_PATTERN =
+  /(?:^|[。！？；\n\s])(?:女巫|女巫牌)[，,：:\s]{0,8}(?:(?:昨晚|昨夜|夜里|首夜|第一晚)[^。！？；\n]{0,18})?(?:救了|救的是|救过|毒了|毒的是|银水|解药|毒药|药还在)/;
 
 const WITCH_PUBLIC_MEDICINE_CONTEXT_PATTERNS = [
+  /(?:\d{1,2}\s*号|[A-Za-z0-9_\-\u4e00-\u9fa5]{1,24})[^。！？；\n]{0,24}(?:女巫声明|跳女巫|拍女巫|女巫身份|女巫牌)[^。！？；\n]{0,28}(?:我先认|先认|暂认|先不打|没人对跳|没有对跳|没对跳|目前没人对跳)/,
   /(?:不替|不能替|没法替|无法替|不帮|不能帮)[^。！？；\n]{0,18}(?:女巫)?[^。！？；\n]{0,18}(?:确认|报|认|定)[^。！？；\n]{0,12}(?:解药|毒药|药|银水)/,
   /(?:只按|按|当作|视作|看成|盘成)[^。！？；\n]{0,18}(?:平安夜|死亡形态|公开信息|公开形态|药线)[^。！？；\n]{0,18}(?:盘|推理|处理)?/,
   /(?:平安夜|死亡形态|公开药线|药线|女巫用药)[^。！？；\n]{0,24}(?:不等于|不是|并非|不能算|不能当成)[^。！？；\n]{0,18}(?:女巫声明|身份声明|我(?:明牌|拍)?女巫|自称女巫)/,
@@ -37,13 +43,13 @@ const ROLE_PATTERNS: Array<{ role: Role; pattern: RegExp }> = [
   {
     role: "SEER",
     pattern: new RegExp(
-      `我是${SELF_INTRO_ROLE_CLAIM_GAP}预言家|(?:我跳|我起跳|我拍|我这里是|我底牌是|明牌)${ROLE_CLAIM_GAP}预言家|预言家${ROLE_CLAIM_GAP}(?:我来报验|我报验|我跳|我拍)|我报验人`,
+      `我是${SELF_INTRO_ROLE_CLAIM_GAP}预言家|(?:我跳|我起跳|我拍|我这里是|我底牌是|明牌)${ROLE_CLAIM_GAP}预言家|${SEAT_NAME_SELF_ROLE_PREFIX}预言家|预言家${ROLE_CLAIM_GAP}(?:我来报验|我报验|我跳|我拍)|我报验人`,
     ),
   },
   {
     role: "WITCH",
     pattern: new RegExp(
-      `${WITCH_DIRECT_ROLE_PATTERN.source}|我[^。！？!?\\n]{0,18}(?:药还在|解药|毒药|救过|银水)|(?:^|[，,。；;：:\\s])(?:药还在|解药还在|毒药还在)`,
+      `${WITCH_DIRECT_ROLE_PATTERN.source}|${WITCH_COLLOQUIAL_SELF_ROLE_PATTERN.source}|${WITCH_CONCISE_SAVE_REPORT_PATTERN.source}|我[^。！？!?\\n]{0,18}(?:药还在|解药|毒药|救过|救了|救的是|银水)|(?:^|[，,。；;：:\\s])(?:药还在|解药还在|毒药还在)`,
     ),
   },
   {
@@ -220,20 +226,51 @@ function extractClaimChecks(params: {
 
 function inferClaimStrength(message: string, role: Role): ClaimStrength {
   if (role === "SEER" && hasExplicitHardSeerClaim(message)) return "hard";
+  if (role === "WITCH" && hasExplicitHardWitchClaim(message)) return "hard";
+  if (hasExplicitHardNonSeerRoleClaim(message, role)) return "hard";
   if (/软|不跳|不拍|不明说|不急着跳|底牌不虚|偏神|神职/.test(message)) return "soft";
   if (role === "SEER" || /我是|我跳|我起跳|我拍|我这里是|我这张|明牌|我底牌是/.test(message)) return "hard";
   return "soft";
 }
 
+function hasExplicitHardWitchClaim(message: string): boolean {
+  return (
+    WITCH_DIRECT_ROLE_PATTERN.test(message) ||
+    WITCH_COLLOQUIAL_SELF_ROLE_PATTERN.test(message) ||
+    WITCH_CONCISE_SAVE_REPORT_PATTERN.test(message)
+  );
+}
+
+function hasExplicitHardNonSeerRoleClaim(message: string, role: Role): boolean {
+  const roleWords: Partial<Record<Role, string>> = {
+    HUNTER: "(?:猎人|猎人牌)",
+    IDIOT: "(?:白痴|白痴牌)",
+    KNIGHT: "(?:骑士|骑士牌)",
+    GUARD: "(?:守卫|守卫牌)",
+    VILLAGER: "(?:平民|平民牌|民牌)",
+    WHITE_WOLF_KING: "(?:白狼王|白狼王牌)",
+    WOLF_BEAUTY: "(?:狼美人|狼美人牌)",
+    WOLF_KING: "(?:狼王|狼王牌)",
+    WEREWOLF: "狼人",
+  };
+  const rolePattern = roleWords[role];
+  if (!rolePattern) return false;
+  return new RegExp(
+    `(?:我是|我跳|我起跳|我拍|我这里是|我底牌是|明牌|我这张|我作为)${SELF_INTRO_ROLE_CLAIM_GAP}${rolePattern}`,
+  ).test(message);
+}
+
 function hasExplicitHardSeerClaim(message: string): boolean {
   return new RegExp(
-    `我是${SELF_INTRO_ROLE_CLAIM_GAP}预言家|(?:我跳|我起跳|我拍|我这里是|我底牌是|明牌)${ROLE_CLAIM_GAP}预言家|预言家${ROLE_CLAIM_GAP}(?:我来报验|我报验|我跳|我拍)|我报验人`,
+    `我是${SELF_INTRO_ROLE_CLAIM_GAP}预言家|(?:我跳|我起跳|我拍|我这里是|我底牌是|明牌)${ROLE_CLAIM_GAP}预言家|${SEAT_NAME_SELF_ROLE_PREFIX}预言家|预言家${ROLE_CLAIM_GAP}(?:我来报验|我报验|我跳|我拍)|我报验人`,
   ).test(message);
 }
 
 function hasSelfCheckCue(message: string): boolean {
   return (
     /我(?:来)?(?:报验|报|验了|验|查验|查了|查|摸了|给).{0,18}(\d{1,2})\s*号/.test(message) ||
+    /我的(?:查验结果|验人结果|查验信息|验人信息)/.test(message) ||
+    /这就是我的(?:查验结果|验人结果|查验信息|验人信息)/.test(message) ||
     /我的(?:查杀|金水).{0,10}(\d{1,2})\s*号/.test(message) ||
     /(\d{1,2})\s*号(?:玩家|位|AI)?.{0,6}是我的(?:查杀|金水)/.test(message)
   );

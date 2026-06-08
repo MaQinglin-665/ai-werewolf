@@ -406,6 +406,53 @@ describe("routed action provider", () => {
     expect(input.candidates.find((candidate) => candidate.id === `vote:${target.seatId}`)?.reasonHint).toMatch(/上一轮发言|speech-vote/i);
   });
 
+  it("adds ordinary persona strategy and live intent to day-vote action input", () => {
+    const state = createGame({ seed: 91, humanSeatId: null });
+    state.phase = "DAY_VOTE";
+    const voter = state.seats.find((seat) => seat.isAi && seat.name === "DeepSeek")!;
+    const baseView = buildAgentView(state, voter.seatId);
+    const voteAction = baseView.allowedActions.find((action) => action.type === "vote");
+    const legalTargets = voteAction?.type === "vote" ? voteAction.targets : [];
+    const oldTarget = legalTargets[0];
+    const newTarget = legalTargets.find((target) => target.seatId !== oldTarget?.seatId);
+    if (!oldTarget || !newTarget) throw new Error("expected at least two vote targets");
+    const view = {
+      ...baseView,
+      privateKnowledge: {
+        ...baseView.privateKnowledge,
+        aiMemory: {
+          seatId: voter.seatId,
+          day: state.day,
+          lastSpeechTargetSeatId: oldTarget.seatId,
+          lastSpeechStance: `${oldTarget.seatId}号上一轮发言缺少投票动机`,
+          beliefs: [],
+        },
+      },
+    };
+    const tableRead = buildAiTableRead(view);
+    const votePlan = {
+      ...createVotePlan(view, tableRead),
+      target: { seatId: newTarget.seatId, name: newTarget.name },
+      reason: `${newTarget.seatId}号公开票型和发言转向冲突更硬`,
+      alternatives: [],
+    };
+
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      votePlan,
+      fallbackCommand: createMockCommand(view, tableRead, votePlan),
+    });
+
+    expect(input.personaStrategyCard?.modelName).toBe(voter.persona?.name);
+    expect(input.personaStrategyCard?.activeSummary).toMatch(/普通好人|神职|狼人/);
+    expect(input.ordinaryLiveIntent?.intent).toBe("explain_pivot");
+    expect(input.ordinaryLiveIntent?.previousTarget?.seatId).toBe(oldTarget.seatId);
+    expect(input.ordinaryLiveIntent?.focusTarget?.seatId).toBe(newTarget.seatId);
+    expect(input.constraints.join("\n")).toContain("普通局模型人格策略");
+    expect(input.constraints.join("\n")).toContain("普通局临场意图");
+    expect(JSON.stringify(input.ordinaryLiveIntent)).not.toMatch(/狼队|队友|真实身份|隐藏身份/);
+  });
+
   it("adds a speech-vote continuity hint when pivoting away from the previous speech target", () => {
     const state = createGame({ seed: 91, humanSeatId: null });
     state.phase = "DAY_VOTE";

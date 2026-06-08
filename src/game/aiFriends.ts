@@ -1,5 +1,10 @@
 import { getAiPersonaById, getAiRoster } from "./personas";
 import { formatAiFriendLlmModelLabel, sanitizeAiFriendLlmConfig, sanitizeAiFriendTtsConfig } from "./llmConfig";
+import {
+  defaultOrdinaryPlayerProfile,
+  inferOrdinaryPlayerTypeId,
+  sanitizeOrdinaryPlayerProfile,
+} from "./ordinaryPlayerProfiles";
 import type { AiCharacterRoleCard, AiFriendConfig, AiFriendSeatSetup, AiPersona, AiPersonaPreferences } from "./types";
 
 export const AI_FRIENDS_STORAGE_KEY = "ai-werewolf-ai-friends-v1";
@@ -7,6 +12,16 @@ export const AI_FRIEND_SELECTION_STORAGE_KEY = "ai-werewolf-selected-ai-friends-
 export const AI_FRIENDS_EXPORT_VERSION = 1;
 export const DEFAULT_AI_FRIEND_ID_PREFIX = "default:";
 export const AI_FRIEND_AVATAR_DATA_URL_MAX_LENGTH = 220_000;
+export const DEFAULT_ORDINARY_PLAYER_TYPES = [
+  "one-line-catcher",
+  "cautious-backpacker",
+  "soft-follower",
+  "impatient-pusher",
+  "pivot-admitter",
+  "quiet-watcher",
+  "emotional-reactor",
+  "role-sensitive",
+] as const;
 
 const AI_FRIEND_AVATAR_DATA_URL_PATTERN = /^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/]+=*$/;
 
@@ -34,10 +49,13 @@ export type ResolvedAiFriend = {
 };
 
 export function getDefaultAiFriends(now = "built-in"): AiFriendConfig[] {
-  return getAiRoster().map((persona) => ({
+  return getAiRoster().map((persona, index) => ({
     id: `${DEFAULT_AI_FRIEND_ID_PREFIX}${persona.id}`,
     nickname: persona.name,
     basePersonaId: persona.id,
+    ordinaryPlayerProfile: defaultOrdinaryPlayerProfile(
+      DEFAULT_ORDINARY_PLAYER_TYPES[index % DEFAULT_ORDINARY_PLAYER_TYPES.length] ?? "soft-follower",
+    ),
     riskTolerance: persona.riskTolerance,
     bluffing: persona.bluffing,
     preferences: normalizePreferences(persona.preferences),
@@ -68,9 +86,15 @@ export function copyAiFriend(friend: AiFriendConfig, options: { id?: string; now
 export function applyAiFriendPersonaTemplate(friend: AiFriendConfig, basePersonaId: string): AiFriendConfig {
   const basePersona = getAiPersonaById(basePersonaId) ?? getAiPersonaById(friend.basePersonaId);
   if (!basePersona) return friend;
+  const inferredTypeId = inferOrdinaryPlayerTypeId({
+    riskTolerance: basePersona.riskTolerance,
+    bluffing: basePersona.bluffing,
+    preferences: basePersona.preferences,
+  });
   return {
     ...friend,
     basePersonaId: basePersona.id,
+    ordinaryPlayerProfile: sanitizeOrdinaryPlayerProfile(friend.ordinaryPlayerProfile, inferredTypeId),
     riskTolerance: basePersona.riskTolerance,
     bluffing: basePersona.bluffing,
     preferences: normalizePreferences(basePersona.preferences),
@@ -124,6 +148,11 @@ export function sanitizeAiFriendConfig(value: unknown): AiFriendConfig | undefin
   if (!basePersona) return undefined;
 
   const now = new Date().toISOString();
+  const riskTolerance = clampUnit(value.riskTolerance, basePersona.riskTolerance);
+  const bluffing = clampUnit(value.bluffing, basePersona.bluffing);
+  const basePreferences = normalizePreferences(basePersona.preferences);
+  const preferences = normalizePreferences(isRecord(value.preferences) ? value.preferences : basePreferences, basePreferences);
+  const inferredTypeId = inferOrdinaryPlayerTypeId({ riskTolerance, bluffing, preferences });
   return {
     id: readString(value.id, 80) || createAiFriendId(),
     nickname: sanitizeNickname(readString(value.nickname, 16) || basePersona.name),
@@ -133,9 +162,10 @@ export function sanitizeAiFriendConfig(value: unknown): AiFriendConfig | undefin
     ttsVoice: sanitizeTtsVoice(readString(value.ttsVoice, 80)),
     ttsConfig: sanitizeAiFriendTtsConfig(value.ttsConfig),
     roleCard: sanitizeAiCharacterRoleCard(value.roleCard),
-    riskTolerance: clampUnit(value.riskTolerance, basePersona.riskTolerance),
-    bluffing: clampUnit(value.bluffing, basePersona.bluffing),
-    preferences: normalizePreferences(isRecord(value.preferences) ? value.preferences : basePersona.preferences),
+    ordinaryPlayerProfile: sanitizeOrdinaryPlayerProfile(value.ordinaryPlayerProfile, inferredTypeId),
+    riskTolerance,
+    bluffing,
+    preferences,
     createdAt: readString(value.createdAt, 40) || now,
     updatedAt: readString(value.updatedAt, 40) || now,
   };
@@ -150,6 +180,14 @@ export function buildAiPersonaFromFriend(friend: AiFriendConfig): AiPersona {
     riskTolerance: clampUnit(friend.riskTolerance, base.riskTolerance),
     bluffing: clampUnit(friend.bluffing, base.bluffing),
     preferences: normalizePreferences(friend.preferences),
+    ordinaryPlayerProfile: sanitizeOrdinaryPlayerProfile(
+      friend.ordinaryPlayerProfile,
+      inferOrdinaryPlayerTypeId({
+        riskTolerance: friend.riskTolerance,
+        bluffing: friend.bluffing,
+        preferences: friend.preferences,
+      }),
+    ),
   };
 }
 
@@ -178,6 +216,7 @@ export function resolveAiFriendsForGame(selectedFriends: AiFriendConfig[] | unde
         ttsVoice: config.ttsVoice,
         ttsConfig: config.ttsConfig,
         roleCard: config.roleCard,
+        ordinaryPlayerProfile: config.ordinaryPlayerProfile,
         isDefault: isDefaultAiFriend(config),
       },
     });
@@ -212,10 +251,10 @@ function withUniqueDisplayNames(friends: ResolvedAiFriend[]): ResolvedAiFriend[]
   });
 }
 
-function normalizePreferences(value: unknown): AiPersonaPreferences {
+function normalizePreferences(value: unknown, fallbackPreferences?: AiPersonaPreferences): AiPersonaPreferences {
   const record = isRecord(value) ? value : {};
   return AI_FRIEND_PREFERENCE_KEYS.reduce((preferences, key) => {
-    preferences[key] = clampUnit(record[key], 0.5);
+    preferences[key] = clampUnit(record[key], fallbackPreferences?.[key] ?? 0.5);
     return preferences;
   }, {} as AiPersonaPreferences);
 }
@@ -361,7 +400,7 @@ function sanitizeAiFriendAvatarDataUrl(value: unknown): string | undefined {
 }
 
 function clampUnit(value: unknown, fallback: number): number {
-  const number = typeof value === "number" ? value : Number(value);
+  const number = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
   if (!Number.isFinite(number)) return fallback;
   return Math.min(1, Math.max(0, number));
 }

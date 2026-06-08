@@ -39,6 +39,14 @@ import {
   getClassTrialCharacterLens,
   type ClassTrialCharacterLens,
 } from "./classTrialCharacterLens";
+import {
+  adaptPersonaStrategyForView,
+  buildOrdinaryLiveIntent,
+  formatOrdinaryLiveIntentForPrompt,
+  formatPersonaStrategyForPrompt,
+  type AdaptedPersonaStrategyCard,
+  type AiOrdinaryLiveIntentState,
+} from "./personaStrategyCards";
 import type { AiActionProvider, AiActionProviderContext, AiActionResult } from "./types";
 
 const ActionDecisionSchema = z
@@ -68,6 +76,8 @@ export type LlmActionInput = {
   persona?: AgentView["persona"];
   characterRole?: NonNullable<AgentView["roleCard"]>;
   characterLens?: ClassTrialCharacterLens;
+  personaStrategyCard?: AdaptedPersonaStrategyCard;
+  ordinaryLiveIntent?: AiOrdinaryLiveIntentState;
   aliveSeats: ActionTarget[];
   publicContext: {
     recentSpeeches: AgentView["publicSummary"]["recentSpeeches"];
@@ -278,6 +288,8 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
   const candidates = buildActionCandidates(view, context.tableRead, votePlan, context.fallbackCommand);
   const fallbackCandidateId = candidates.find((candidate) => sameCommand(candidate.command, context.fallbackCommand))?.id;
   const debateAgenda = buildDebateAgenda(view, { tableRead: context.tableRead, target: votePlan?.target });
+  const personaStrategyCard = adaptPersonaStrategyForView(view);
+  const ordinaryLiveIntent = view.roleCard?.theme === "class-trial" ? undefined : buildOrdinaryLiveIntent(view, undefined, votePlan);
 
   return {
     day: view.day,
@@ -287,6 +299,8 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
     persona: view.persona,
     characterRole: view.roleCard,
     characterLens: shouldUseClassTrialActionLens(view) ? getClassTrialCharacterLens(view.roleCard) : undefined,
+    personaStrategyCard,
+    ordinaryLiveIntent,
     aliveSeats: view.aliveSeats,
     publicContext: {
       recentSpeeches: view.publicSummary.recentSpeeches.slice(-8),
@@ -326,7 +340,7 @@ export function buildConstrainedActionInput(view: AgentView, context: AiActionPr
     votePlan,
     fallbackCandidateId,
     candidates,
-    constraints: buildActionConstraints(view, votePlan),
+    constraints: buildActionConstraints(view, votePlan, personaStrategyCard, ordinaryLiveIntent),
     llmConfig: view.llmConfig,
   };
 }
@@ -1304,7 +1318,12 @@ function describeLastWordsGap(message: string): string {
   return "公开证据还没有闭合";
 }
 
-function buildActionConstraints(view: AgentView, votePlan?: VotePlan): string[] {
+function buildActionConstraints(
+  view: AgentView,
+  votePlan?: VotePlan,
+  personaStrategyCard = adaptPersonaStrategyForView(view),
+  ordinaryLiveIntent?: AiOrdinaryLiveIntentState,
+): string[] {
   const constraints = [
     "Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\",\"message\":\"optional for last words\"}.",
     "Choose exactly one candidateId from candidates. Do not invent targets, commands, or extra actions.",
@@ -1324,6 +1343,17 @@ function buildActionConstraints(view: AgentView, votePlan?: VotePlan): string[] 
     "Consider counter-logic: if one behavior can be wolf push, distancing, or good-side mistake, choose the target whose public benefit trail is clearest.",
     "When two candidates are close, prefer the one whose public evidence forms a clearer loop from speech to stance to vote; do not select only because their suspicion number is higher.",
   ];
+
+  if (view.roleCard?.theme !== "class-trial") {
+    constraints.push(`普通局模型人格策略：${formatPersonaStrategyForPrompt(personaStrategyCard)}`);
+    const ordinaryLiveIntentPrompt = formatOrdinaryLiveIntentForPrompt(
+      ordinaryLiveIntent ?? buildOrdinaryLiveIntent(view, undefined, votePlan),
+    );
+    if (ordinaryLiveIntentPrompt) {
+      constraints.push(`普通局临场意图：${ordinaryLiveIntentPrompt}`);
+      constraints.push("普通局投票必须接住临场意图：延续上一轮发言压力，或说明为什么公开证据升级导致转票。");
+    }
+  }
 
   if (view.roleCard) {
     constraints.push(

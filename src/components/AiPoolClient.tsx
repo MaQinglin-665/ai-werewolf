@@ -7,7 +7,19 @@ import {
   applyAiFriendPersonaTemplate,
   copyAiFriend,
 } from "@/game/aiFriends";
-import type { AiFriendConfig, AiFriendLlmConfig, AiFriendTtsConfig, AiRuntimeMode } from "@/game/types";
+import {
+  ORDINARY_PLAYER_TYPE_OPTIONS,
+  applyOrdinaryPlayerTypePreset,
+  sanitizeOrdinaryPlayerProfile,
+} from "@/game/ordinaryPlayerProfiles";
+import type {
+  AiFriendConfig,
+  AiFriendLlmConfig,
+  AiFriendTtsConfig,
+  AiOrdinaryPlayerProfileSliders,
+  AiOrdinaryPlayerTypeId,
+  AiRuntimeMode,
+} from "@/game/types";
 import {
   buildAiFriendOptions,
   getDefaultSelectedAiFriendIds,
@@ -286,6 +298,34 @@ function customLlmKeyState(apiKey: string | undefined): string {
 
 function customTtsKeyState(apiKey: string | undefined): string {
   return apiKey?.trim() ? "TTS Key 已填" : "缺少 TTS Key";
+}
+
+function buildEditableAiFriendConfig(
+  friend: AiFriendOption,
+  targetId: string,
+  now: string,
+  patch: Partial<AiFriendConfig> = {},
+): AiFriendConfig {
+  return {
+    id: targetId,
+    nickname: friend.nickname,
+    basePersonaId: friend.basePersonaId,
+    avatarDataUrl: friend.avatarDataUrl,
+    llmConfig: friend.llmConfig,
+    ttsVoice: friend.ttsVoice,
+    ttsConfig: friend.ttsConfig,
+    roleCard: friend.roleCard,
+    ordinaryPlayerProfile: friend.ordinaryPlayerProfile,
+    riskTolerance: friend.riskTolerance,
+    bluffing: friend.bluffing,
+    preferences: friend.preferences,
+    createdAt: friend.isDefault ? now : friend.createdAt,
+    updatedAt: now,
+    ...patch,
+    id: targetId,
+    createdAt: friend.isDefault ? now : friend.createdAt,
+    updatedAt: now,
+  };
 }
 
 function configuredFriendId(source: Pick<AiFriendOption, "basePersonaId">): string {
@@ -575,20 +615,10 @@ export function AiPoolClient() {
   const saveAiFriendLlmConfig = useCallback((friend: AiFriendOption, llmConfig: AiFriendLlmConfig, apiKey: string) => {
     const now = new Date().toISOString();
     const targetId = friend.isDefault ? configuredFriendId(friend) : friend.id;
-    const nextFriend: AiFriendConfig = {
-      id: targetId,
-      nickname: friend.nickname,
-      basePersonaId: friend.basePersonaId,
-      avatarDataUrl: friend.avatarDataUrl,
+    const nextFriend = buildEditableAiFriendConfig(friend, targetId, now, {
       llmConfig,
-      ttsVoice: friend.ttsVoice,
-      ttsConfig: friend.ttsConfig,
-      riskTolerance: friend.riskTolerance,
-      bluffing: friend.bluffing,
-      preferences: friend.preferences,
-      createdAt: friend.isDefault ? now : friend.createdAt,
-      updatedAt: now,
-    };
+      ordinaryPlayerProfile: friend.ordinaryPlayerProfile,
+    });
 
     setCustomAiFriends((current) => {
       const withoutTarget = current.filter((item) => item.id !== targetId && item.id !== friend.id);
@@ -617,20 +647,11 @@ export function AiPoolClient() {
   const saveAiFriendTtsConfig = useCallback((friend: AiFriendOption, ttsConfig: AiFriendTtsConfig, apiKey: string) => {
     const now = new Date().toISOString();
     const targetId = friend.isDefault ? configuredFriendId(friend) : friend.id;
-    const nextFriend: AiFriendConfig = {
-      id: targetId,
-      nickname: friend.nickname,
-      basePersonaId: friend.basePersonaId,
-      avatarDataUrl: friend.avatarDataUrl,
-      llmConfig: friend.llmConfig,
+    const nextFriend = buildEditableAiFriendConfig(friend, targetId, now, {
       ttsVoice: ttsConfig.voice,
       ttsConfig,
-      riskTolerance: friend.riskTolerance,
-      bluffing: friend.bluffing,
-      preferences: friend.preferences,
-      createdAt: friend.isDefault ? now : friend.createdAt,
-      updatedAt: now,
-    };
+      ordinaryPlayerProfile: friend.ordinaryPlayerProfile,
+    });
 
     setCustomAiFriends((current) => {
       const withoutTarget = current.filter((item) => item.id !== targetId && item.id !== friend.id);
@@ -729,25 +750,76 @@ export function AiPoolClient() {
     );
   }, []);
 
+  const saveEditableAiFriend = useCallback((friend: AiFriendOption, patch: Partial<AiFriendConfig>) => {
+    const now = new Date().toISOString();
+    const targetId = friend.isDefault ? configuredFriendId(friend) : friend.id;
+    const nextFriend = buildEditableAiFriendConfig(friend, targetId, now, patch);
+    setCustomAiFriends((current) => {
+      const withoutTarget = current.filter((item) => item.id !== targetId && item.id !== friend.id);
+      return [...withoutTarget, nextFriend];
+    });
+    setSelectedAiFriendIds((current) => {
+      let replaced = false;
+      const next = current
+        .map((id) => {
+          if (id === friend.id || id === targetId) {
+            replaced = true;
+            return targetId;
+          }
+          return id;
+        })
+        .filter((id, index, values) => values.indexOf(id) === index);
+      return replaced ? next : [...next, targetId];
+    });
+    setCustomAiError(null);
+  }, []);
+
+  const applyAiFriendOrdinaryPlayerType = useCallback(
+    (friend: AiFriendOption, typeId: AiOrdinaryPlayerTypeId) => {
+      const nextFriend = applyOrdinaryPlayerTypePreset(friend, typeId);
+      saveEditableAiFriend(friend, {
+        ordinaryPlayerProfile: nextFriend.ordinaryPlayerProfile,
+        riskTolerance: nextFriend.riskTolerance,
+        bluffing: nextFriend.bluffing,
+        preferences: nextFriend.preferences,
+      });
+    },
+    [saveEditableAiFriend],
+  );
+
+  const updateAiFriendOrdinarySlider = useCallback(
+    (friend: AiFriendOption, sliderKey: keyof AiOrdinaryPlayerProfileSliders, value: number) => {
+      const profile = sanitizeOrdinaryPlayerProfile(friend.ordinaryPlayerProfile);
+      saveEditableAiFriend(friend, {
+        ordinaryPlayerProfile: {
+          ...profile,
+          sliders: {
+            ...profile.sliders,
+            [sliderKey]: value,
+          },
+        },
+      });
+    },
+    [saveEditableAiFriend],
+  );
+
+  const refreshAiFriendStrategy = useCallback(
+    (friend: AiFriendOption) => {
+      if (friend.isDefault) return;
+      updateCustomAiFriend(friend.id, { updatedAt: new Date().toISOString() });
+    },
+    [updateCustomAiFriend],
+  );
+
   const saveAiFriendAvatar = useCallback(async (friend: AiFriendOption, file: File) => {
     try {
       const avatarDataUrl = await buildAiFriendAvatarDataUrl(file);
       const now = new Date().toISOString();
       const targetId = friend.isDefault ? configuredFriendId(friend) : friend.id;
-      const nextFriend: AiFriendConfig = {
-        id: targetId,
-        nickname: friend.nickname,
-        basePersonaId: friend.basePersonaId,
+      const nextFriend = buildEditableAiFriendConfig(friend, targetId, now, {
         avatarDataUrl,
-        llmConfig: friend.llmConfig,
-        ttsVoice: friend.ttsVoice,
-        ttsConfig: friend.ttsConfig,
-        riskTolerance: friend.riskTolerance,
-        bluffing: friend.bluffing,
-        preferences: friend.preferences,
-        createdAt: friend.isDefault ? now : friend.createdAt,
-        updatedAt: now,
-      };
+        ordinaryPlayerProfile: friend.ordinaryPlayerProfile,
+      });
 
       setCustomAiFriends((current) => {
         const withoutTarget = current.filter((item) => item.id !== targetId && item.id !== friend.id);
@@ -864,6 +936,9 @@ export function AiPoolClient() {
             onClearAvatar={clearAiFriendAvatar}
             onSaveLlmConfig={saveAiFriendLlmConfig}
             onSaveTtsConfig={saveAiFriendTtsConfig}
+            onApplyOrdinaryPlayerType={applyAiFriendOrdinaryPlayerType}
+            onUpdateOrdinarySlider={updateAiFriendOrdinarySlider}
+            onRefreshStrategy={refreshAiFriendStrategy}
             onDelete={deleteCustomAiFriend}
           />
           <div className="mobile-ai-pool-side grid content-start gap-4">
@@ -1198,6 +1273,9 @@ function AiPoolList({
   onClearAvatar,
   onSaveLlmConfig,
   onSaveTtsConfig,
+  onApplyOrdinaryPlayerType,
+  onUpdateOrdinarySlider,
+  onRefreshStrategy,
   onDelete,
 }: {
   friends: AiFriendOption[];
@@ -1212,6 +1290,9 @@ function AiPoolList({
   onClearAvatar: (friend: AiFriendOption) => void;
   onSaveLlmConfig: (friend: AiFriendOption, llmConfig: AiFriendLlmConfig, apiKey: string) => void;
   onSaveTtsConfig: (friend: AiFriendOption, ttsConfig: AiFriendTtsConfig, apiKey: string) => void;
+  onApplyOrdinaryPlayerType: (friend: AiFriendOption, typeId: AiOrdinaryPlayerTypeId) => void;
+  onUpdateOrdinarySlider: (friend: AiFriendOption, sliderKey: keyof AiOrdinaryPlayerProfileSliders, value: number) => void;
+  onRefreshStrategy: (friend: AiFriendOption) => void;
   onDelete: (friendId: string) => void;
 }) {
   const baseOptions = templateFriends;
@@ -1268,6 +1349,9 @@ function AiPoolList({
                             {formatLlmStatus(aiRuntimeConfig, friend)}
                           </span>
                         )}
+                        <span className="mobile-ai-card-strategy max-w-full truncate rounded-full border border-[#77d898]/18 bg-[#0f2118]/45 px-2 py-0.5 text-[11px] text-[#a8f0b6]" title={friend.strategySummary}>
+                          策略卡 · {friend.strategySummary}
+                        </span>
                       </div>
                     </div>
                     <span className="mobile-ai-config-entry shrink-0 rounded-full border border-[#f1c76e]/24 bg-black/18 px-3 py-1.5 text-xs font-semibold text-[#f1d796]">
@@ -1345,9 +1429,27 @@ function AiPoolList({
                         删除
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => onRefreshStrategy(friend)}
+                      disabled={friend.isDefault}
+                      className="rounded-full border border-[#77d898]/22 bg-[#0f2118]/45 px-3 py-1.5 text-xs font-semibold text-[#a8f0b6] transition hover:bg-[#1d4e33]/70 disabled:opacity-45"
+                      title={friend.isDefault ? "内置 AI 的策略卡随模板自动生成" : "按当前昵称、模型人格和角色卡重新推导策略摘要"}
+                    >
+                      刷新策略卡
+                    </button>
                   </div>
 
                   <div className="mobile-ai-config-stack mt-3 grid gap-3">
+                    <section className="mobile-ai-strategy-card rounded-2xl border border-[#77d898]/14 bg-[#0f2118]/42 p-3">
+                      <div className="text-xs font-semibold text-[#dff4df]">策略卡</div>
+                      <p className="mt-1 text-xs leading-5 text-[#a8f0b6]/82">{friend.strategySummary}</p>
+                    </section>
+                    <OrdinaryPlayerTypePanel
+                      friend={friend}
+                      onApplyType={onApplyOrdinaryPlayerType}
+                      onUpdateSlider={onUpdateOrdinarySlider}
+                    />
                     <details className="mobile-ai-config-section rounded-2xl border border-[#7da8e3]/14 bg-[#0d1623]/42 p-3">
                       <summary className="mobile-ai-config-summary cursor-pointer list-none text-xs font-semibold text-[#d8e7ff]">
                         <span className="mobile-ai-config-title">模型接口</span>
@@ -1500,6 +1602,89 @@ function PersonaTypeBriefList({
             </div>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+const ORDINARY_PLAYER_SLIDER_CONTROLS: Array<{
+  key: keyof AiOrdinaryPlayerProfileSliders;
+  label: string;
+  hint: string;
+}> = [
+  { key: "directness", label: "说话方式", hint: "越高越直接给结论" },
+  { key: "emotion", label: "情绪强度", hint: "越高越容易有即时情绪" },
+  { key: "questionBias", label: "追问倾向", hint: "越高越爱追问别人补逻辑" },
+  { key: "factBias", label: "思考偏好", hint: "越高越依赖公开事实" },
+  { key: "nightAggression", label: "行动策略", hint: "越高夜间和投票越主动" },
+];
+
+function OrdinaryPlayerTypePanel({
+  friend,
+  onApplyType,
+  onUpdateSlider,
+}: {
+  friend: AiFriendOption;
+  onApplyType: (friend: AiFriendOption, typeId: AiOrdinaryPlayerTypeId) => void;
+  onUpdateSlider: (friend: AiFriendOption, sliderKey: keyof AiOrdinaryPlayerProfileSliders, value: number) => void;
+}) {
+  const profile = sanitizeOrdinaryPlayerProfile(friend.ordinaryPlayerProfile);
+
+  return (
+    <section className="mobile-ai-ordinary-type-panel rounded-2xl border border-[#f1c76e]/14 bg-[#1a120b]/42 p-3">
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="text-xs font-semibold text-[#f1d796]">普通局玩家类型</div>
+          <p className="mt-1 text-[11px] leading-4 text-[#dcc9a7]/76">
+            模型只决定调用接口，玩家类型决定发言和打法。
+          </p>
+        </div>
+        <span className="rounded-full border border-[#f1c76e]/18 bg-black/18 px-2 py-0.5 text-[11px] text-[#f1d796]">
+          {friend.ordinaryPlayerTypeLabel}
+        </span>
+      </div>
+      <p className="mb-2 text-[11px] leading-4 text-[#dcc9a7]/76">{friend.ordinaryPlayerTypeSummary}</p>
+      <div className="grid grid-cols-2 gap-2">
+        {ORDINARY_PLAYER_TYPE_OPTIONS.map((preset) => {
+          const active = preset.id === profile.playerTypeId;
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => onApplyType(friend, preset.id)}
+              aria-pressed={active}
+              className={[
+                "rounded-2xl border px-3 py-2 text-left transition",
+                active ? "border-[#f1c76e]/38 bg-[#2b220e]/72" : "border-[#f1c76e]/10 bg-black/16 hover:border-[#f1c76e]/30",
+              ].join(" ")}
+            >
+              <span className="block text-xs font-semibold text-[#f1d796]">{preset.label}</span>
+              <span className="mt-1 line-clamp-2 block text-[11px] leading-4 text-[#dcc9a7]/74">{preset.summary}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-3 grid gap-2">
+        {ORDINARY_PLAYER_SLIDER_CONTROLS.map((control) => (
+          <label key={control.key} className="grid gap-1 rounded-xl border border-[#f1c76e]/10 bg-black/14 px-2.5 py-2">
+            <span className="flex items-center justify-between gap-3 text-[11px] text-[#dcc9a7]">
+              <span>
+                <span className="font-semibold text-[#f1d796]">{control.label}</span>
+                <span className="ml-2 text-[#dcc9a7]/64">{control.hint}</span>
+              </span>
+              <span className="font-mono text-[#f1d796]">{Math.round(profile.sliders[control.key] * 100)}</span>
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={profile.sliders[control.key]}
+              onChange={(event) => onUpdateSlider(friend, control.key, Number(event.currentTarget.value))}
+              className="w-full accent-[#f1c76e]"
+            />
+          </label>
+        ))}
       </div>
     </section>
   );

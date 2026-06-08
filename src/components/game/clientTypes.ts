@@ -1,4 +1,4 @@
-import type { AiFriendRuntimeTtsConfig, AvailableHumanAction, HumanGameView } from "@/game/types";
+import type { AiFriendRuntimeTtsConfig, AiOrdinaryPlayerProfile, AvailableHumanAction, HumanGameView } from "@/game/types";
 import type { AiFriendConfig } from "@/game/types";
 
 export type CommandPayload =
@@ -90,6 +90,10 @@ export type AiFriendOption = AiFriendConfig & {
   basePersonaName: string;
   basePersonaModelLabel?: string;
   basePersonaLabel: string;
+  strategySummary: string;
+  ordinaryPlayerProfile?: AiOrdinaryPlayerProfile;
+  ordinaryPlayerTypeLabel: string;
+  ordinaryPlayerTypeSummary: string;
 };
 export type AiLineupPreviewItem = {
   seatId: number;

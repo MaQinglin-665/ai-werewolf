@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { createGame } from "../game/engine";
 import { advanceOneAiStep, createConfiguredAiOptions } from "./mockAgent";
+import type { AiDecisionLog } from "./types";
 import {
   buildClassTrialAiFriends,
   CLASS_TRIAL_DEFAULT_BOARD_ID,
@@ -12,6 +13,49 @@ import {
 } from "../components/game/classTrialTheme";
 
 const root = path.resolve(__dirname, "../..");
+
+type SpeechReportSeat = {
+  seatId: number;
+  name: string;
+  role: string;
+  alive: boolean;
+};
+
+type D2SpeechReportSpeech = {
+  day: number;
+  seatId: number;
+  name: string;
+  role: string;
+  provider: string;
+  isFallback: boolean;
+  validationErrors: string[];
+  text: string;
+};
+
+type D2SpeechReport = {
+  generatedAt: string;
+  result: {
+    phase: string;
+    day: number;
+    winner?: string;
+    reason?: string;
+    durationMs: number;
+    aiLogs: number;
+    fallback: number;
+    speechFallback: number;
+    d2SpeechFallback: number;
+  };
+  finalSeats: SpeechReportSeat[];
+  speeches: D2SpeechReportSpeech[];
+};
+
+type D2SpeechLog = AiDecisionLog & {
+  output: Extract<AiDecisionLog["output"], { type: "speak" }>;
+};
+
+function isD2SpeechLog(log: AiDecisionLog): log is D2SpeechLog {
+  return log.output.type === "speak";
+}
 
 describe("class-trial Mimo D2 speech sample", () => {
   test(
@@ -32,7 +76,7 @@ describe("class-trial Mimo D2 speech sample", () => {
         aiFriends,
         seatRoleOverrides: CLASS_TRIAL_FIXED_SEAT_ROLES,
       });
-      const aiLogs: any[] = [];
+      const aiLogs: AiDecisionLog[] = [];
       const startedAt = Date.now();
       let sawD2Speech = false;
 
@@ -49,7 +93,7 @@ describe("class-trial Mimo D2 speech sample", () => {
       }
 
       const speeches = aiLogs
-        .filter((log) => log.output?.type === "speak")
+        .filter(isD2SpeechLog)
         .map((log) => ({
           day: log.day,
           seatId: log.seatNumber,
@@ -114,7 +158,7 @@ function countBy(values: Array<string | undefined>) {
   return counts;
 }
 
-function formatMarkdown(report: any) {
+function formatMarkdown(report: D2SpeechReport) {
   const lines = [
     "# Class Trial Mimo D2 Speeches",
     "",
@@ -131,13 +175,13 @@ function formatMarkdown(report: any) {
     "",
     "## Final Seats",
     "",
-    ...report.finalSeats.map((seat: any) => `- ${seat.seatId}号 ${seat.name} / ${seat.role} / ${seat.alive ? "alive" : "dead"}`),
+    ...report.finalSeats.map((seat) => `- ${seat.seatId}号 ${seat.name} / ${seat.role} / ${seat.alive ? "alive" : "dead"}`),
     "",
     "## D2 Speeches",
     "",
   ];
 
-  const d2Speeches = report.speeches.filter((speech: any) => speech.day === 2);
+  const d2Speeches = report.speeches.filter((speech) => speech.day === 2);
   if (d2Speeches.length === 0) {
     lines.push("_No D2 speeches reached._", "");
   }

@@ -2,12 +2,27 @@
 
 ## Current Objective
 
+- Latest completed objective: ordinary Werewolf AI decision upgrade. The ordinary single-player/multiplayer AI path now keeps existing model personas while adding inferred strategy cards, camp-aware live intent, public speech motive, anti-template moves, and speech-vote continuity. This applies to real LLM input and mock/fallback paths; night actions only store light private intent and do not expose hidden information in public speech.
 - Goal: Improve class-trial Day 1 speech so characters look like themselves participating in a Werewolf incident, not skilled Werewolf players wearing character skins.
 - Current status: Mimo is now the fixed current class-trial brain for this local theme slice, but this is not a final subjective "ideal" claim. The current follow-up is paused after a full-game Mimo viability check and one targeted local fix. Latest real evidence is still `tmp/class-trial-mimo-full-game-1780746535599.md` / `.json`: completed on D2, good side won by `所有狼人出局`, 40 AI logs, 18 speeches, 22 actions, all actions on `mimo-action:mimo-v2.5-pro`, all real speeches on `mimo-speech:mimo-v2.5-pro`, `actionFallback: 0`, `speechFallback: 1`. This proves full-game completion/playability with Mimo, but not a clean 0-fallback speech run.
 - Local note: This is a local AI text planning/validation slice. No Tencent Cloud, Render, browser UI, or audio deployment check is in scope.
 
 ## Completed This Session
 
+- [x] Added `src/ai/personaStrategyCards.ts` and tests for built-in model cards, custom AI inference, camp-layer adaptation, public live intent, anti-template move, and hidden-info redaction.
+- [x] Wired ordinary persona strategy/live intent into `src/ai/speechProviders.ts` and `src/ai/actionProviders.ts`, including LLM inputs, prompt constraints, mock/fallback speech lead lines, and day-vote continuity requirements.
+- [x] Extended `AiSeatMemory` plus `src/ai/seatMemory.ts` so speech, vote, and light night actions store internal live intent, target, public reason, commitment, and vote-continuity notes.
+- [x] Added AI pool strategy summaries and a `刷新策略卡` entry for custom AI cards through `AiFriendOption`, `aiFriendStorage`, and `AiPoolClient`.
+- [x] Fixed `AI_LLM_SPEECH_FALLBACK_PERSONAS=off` to truly disable persona fallback routing for real speech checks.
+- [x] Verification: related Vitest files passed 5 files / 252 tests; targeted ESLint passed; default 9p ordinary simulation passed 10/10 games with 0 fallback decisions; `12p-sheriff-seer-witch-hunter-guard` simulation passed 10/10 games with 0 fallback decisions. Real Mimo-only LLM smoke was attempted with fallback disabled, but failed on external credentials: Mimo `401 Invalid API Key`.
+- [x] Broader verification caveat follow-up: stale `.next` output was removed and the class-trial Mimo harness test `any` usages were replaced with explicit report/log types. `npx tsc --noEmit`, full `npm run lint`, and `npm run build` now pass; build still reports the existing Turbopack NFT trace warning. `.next` was removed again after build verification to avoid leaving a large local cache.
+- [x] Ordinary AI speech-template follow-up: removed internal live-intent/template phrases from LLM prompt surfaces and mock/fallback speech, varied gold-water protection and evidence phrasing, and added regressions for the repeated ordinary scaffolding. Latest checked command: `npm run audit:ai -- --board=9p-seer-witch-hunter --games=1 --seed-start=91 --sample=1 --json --out=tmp/ordinary-ai-speech-audit-seed91-after-intent-surface-v4.json`; result completed with 0 fallback and 0 audit issues. Repeated mock fragments dropped from 16 to 8 on this seed, but mock prose still has residual generator phrases, so do not call subjective speech quality final. Real DeepSeek speech smoke with fallback disabled still failed externally with `402 Insufficient Balance`.
+- [x] Ordinary real-Mimo speech follow-up: carried the class-trial anti-template mechanisms further into ordinary speech validation without replacing model personas. Added ordinary hard guards for low-info opening copy-paste, non-opening seats saying `我首置位`, repeated `压力源/只有观察点没结论` axes, stronger ordinary repair instructions, and claim parsing fixes for `我女巫` / concise witch save reports / `8号Kimi，预言家` style reports. Latest real Mimo report is `tmp/ordinary-mimo-real-speech-seed91-day1-after-repeat-fix.md` / `.json`: 9 speeches, 7 real non-fallback rows, fallback 2, `repeatedPressureSourceCount: 0`, repeated fragments none. No key was written to files; Mimo was used through temporary process env only.
+- [x] Renamed fixed host/system audio assets in `public/audio/host` to Chinese content filenames and removed the English audio files after stopping the locking `JianyingPro.exe` process with user approval. Added `src/components/game/hostAudioFiles.ts` to map stable logic keys like `night-wolves` and `seat-1` to Chinese file paths, wired local and room host-audio cue construction through that mapping, and updated the host-audio generator/README so future generated clips use the same Chinese filename convention.
+- [x] Local cleanup follow-up removed disposable build/cache output, old generated AI speech cache, and clean unused worktrees, freeing about 5.07 GB. Current retained large local state is intentional: `prisma/dev.db`, smaller `tmp`, current `public/audio/ai-speech`, and `local-assets`.
+- [x] Verification for the audio rename: host audio cue regression passed, `npm run audio:host -- --dry-run --only=night-wolves,seat-1,speak` prints Chinese output names, `rg` found no old `/audio/host/<english>.mp3` references, and `public/audio/host` contains no English-named audio files other than `README.md`.
+- [x] Fixed the latest D1 1号苗木诚 reports 3号金水 / 2号雾切响子 responds failure. Root cause: the LLM and validators still allowed a D1 gold-water check to be attacked as "why check 3号 / result is incomplete /提前保护金水票型". The speech pipeline now treats self-owned check-result/gold-water wording as a hard seer claim, tells observers not to demand D1 first-check motive, and rejects "reporting gold water then leaving the gold water out of today's outing focus is over-protection" framing. Regression coverage includes the exact screenshot wording and preserves valid planned seer counterclaim black-check speech.
+- [x] Verification for this follow-up: `npm run test -- src/ai/speechProviders.test.ts -t "keeps planned Monokuma counterclaim"`, `npm run test -- src/ai/speechProviders.test.ts -t "check-result gold-water"`, `npm run test -- src/ai/speechProviders.test.ts`, `npm run test -- src/game/claims.test.ts`, `npm run test -- src/components/game/aiSpeechAudio.test.ts`, targeted `npx eslint src/game/claims.ts src/game/claims.test.ts src/ai/speechProviders.ts src/ai/speechProviders.test.ts`, and `git diff --check` passed. `npx tsc --noEmit` is blocked by existing malformed `.next/dev/types/routes.d.ts`, not by these source edits.
 - [x] Ran repeated real full-game Mimo harness checks with temporary process env only. No key was written to files.
 - [x] Latest full-game evidence: `tmp/class-trial-mimo-full-game-1780746535599.md` / `.json`; `GAME_OVER` on D2, good side won, `fallback: 1`, `speechFallback: 1`, `actionFallback: 0`, providers all Mimo.
 - [x] Practical stop decision: the game is currently completable/playable end-to-end, but chasing the last D1 黑白熊 speech fallback via repeated real full-game runs is too expensive. Continue later with targeted replay/unit tests or transcript review, not broad Mimo full-game reruns.
@@ -732,3 +747,29 @@ Remaining risks:
 - This proves D2 fallback is 0 for the latest generated D2 sample, not that the full game or subjective character quality is ideal.
 - D1 in the same run still had 3 fallback rows; that was not the target of this D2 pass.
 - The latest D2 text is usable but still has some table jargon such as `票口`; future work should improve character texture and complete-game consistency, not claim the line quality is final.
+
+## 2026-06-08 Ordinary Real-Mimo Speech Follow-up
+
+Completed:
+- Continued the ordinary Werewolf AI migration by bringing over the class-trial-style anti-template guardrails while preserving model personas.
+- Ordinary speech now keeps up to 4 sentences / 520 chars, while class-trial compact repair stays at 3 sentences / 360 chars so old class-trial repair behavior is not loosened.
+- Added hard validation and repair guidance for low-info opening copy-paste, non-opening seats saying `我首置位`, repeated `压力源/只有观察点没结论` axes, and ordinary false positives around already-spoken seats and witch attribution.
+- Fixed claim parsing for concise or colloquial hard claims: `我女巫`, public witch save reports, ordinary hunter self reports, and `8号Kimi，预言家。昨晚验2号查杀。`.
+- Latest real Mimo sample: `tmp/ordinary-mimo-real-speech-seed91-day1-after-repeat-fix.md` / `.json`; 9 speeches, 7 real non-fallback Mimo rows, fallback 2, `repeatedPressureSourceCount: 0`, repeated fragments none.
+
+Changed files:
+- `src/ai/speechProviders.ts`
+- `src/ai/speechProviders.test.ts`
+- `src/game/claims.ts`
+- `src/game/claims.test.ts`
+- `progress.md`
+- `session-handoff.md`
+
+Verification:
+- `npm run test -- src/game/claims.test.ts src/ai/speechProviders.test.ts src/ai/tableRead.test.ts src/ai/personaStrategyCards.test.ts src/ai/actionProviders.test.ts src/ai/seatMemory.test.ts` passed: 6 files / 304 tests.
+- Real Mimo temporary-env harness passed and generated `tmp/ordinary-mimo-real-speech-seed91-day1-after-repeat-fix.md`.
+
+Remaining risks:
+- The final sample is much less copy-paste-like than the earlier ordinary run, but not final subjective quality: 5号 still fell back after repeating the 1号 pressure axis, and 7号 fell back after requiring an already-spoken 4号 to supply logic.
+- Several non-fallback rows still share ordinary-player phrasing such as `先认这个身份` / `这个点先记`, so the next quality pass should add more model-persona-specific expression without weakening rules correctness.
+- The temporary real-Mimo test file was removed after generating the report; rerun by recreating a temporary harness or using a dedicated checked-in smoke script that does not contain secrets.

@@ -13,6 +13,44 @@ import {
 
 const root = path.resolve(__dirname, "../..");
 
+type SpeechReportSeat = {
+  seatId: number;
+  name: string;
+  role: string;
+  alive: boolean;
+};
+
+type FullGameSpeechReportSpeech = {
+  day: number;
+  phase: string;
+  seatId: number;
+  name: string;
+  role: string;
+  provider: string;
+  isFallback: boolean;
+  validationErrors: string[];
+  text: string;
+};
+
+type FullGameSpeechReport = {
+  generatedAt: string;
+  result: {
+    completed: boolean;
+    phase: string;
+    day: number;
+    winner?: string;
+    reason?: string;
+    durationMs: number;
+    aiLogs: number;
+    fallback: number;
+    speechFallback: number;
+    actionFallback: number;
+    providerCounts: Record<string, number>;
+  };
+  finalSeats: SpeechReportSeat[];
+  speeches: FullGameSpeechReportSpeech[];
+};
+
 describe("class-trial Mimo full-game speech sample", () => {
   test(
     "writes a full-game speech report",
@@ -127,7 +165,7 @@ function countBy(values: Array<string | undefined>) {
   return counts;
 }
 
-function formatMarkdown(report: any) {
+function formatMarkdown(report: FullGameSpeechReport) {
   const lines = [
     "# Class Trial Mimo Full Game",
     "",
@@ -149,7 +187,7 @@ function formatMarkdown(report: any) {
     "",
     "## Final Seats",
     "",
-    ...report.finalSeats.map((seat: any) => `- ${seat.seatId}号 ${seat.name} / ${seat.role} / ${seat.alive ? "alive" : "dead"}`),
+    ...report.finalSeats.map((seat) => `- ${seat.seatId}号 ${seat.name} / ${seat.role} / ${seat.alive ? "alive" : "dead"}`),
     "",
     "## Speeches",
     "",
