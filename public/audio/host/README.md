@@ -1,6 +1,12 @@
 # 主持音频包
 
-这里放固定的狼人杀主持音频。文件使用 `mp3` 或 `wav`。前端会优先尝试 `mp3`，缺失时尝试同名 `wav`。
+这里放固定的狼人杀主持音频。运行时文件名使用中文朗读内容，例如 `天黑请闭眼-狼人请睁眼-请选择今晚的击杀目标.mp3`。
+
+代码里仍使用稳定逻辑 key，例如 `night-wolves`、`seat-1`，再通过 `src/components/game/hostAudioFiles.ts` 映射到中文文件名。这样业务逻辑不用直接依赖中文长文件名。
+
+前端会优先尝试 `mp3`，缺失时尝试同名 `wav`。
+
+## 重新生成
 
 可以用 OpenAI TTS 离线生成一次：
 
@@ -33,7 +39,7 @@ npm run audio:host -- --provider=mimo --dry-run
 npm run audio:host -- --force
 ```
 
-只生成指定片段：
+只生成指定片段时仍使用逻辑 key：
 
 ```bash
 npm run audio:host -- --only=night-wolves,seat-1,speak
@@ -43,68 +49,66 @@ npm run audio:host -- --only=night-wolves,seat-1,speak
 
 默认不会把 `MIMO_TTS_STYLE` 写进待朗读文本，避免模型把风格要求念出来。只有明确设置 `MIMO_TTS_USE_STYLE_TAG=true` 或传入 `--style-tag` 时，才会使用 `<style>...</style>` 形式。
 
-需要的基础片段：
+## 当前文件名
 
-- `night-wolves.mp3` / `night-wolves.wav`：天黑请闭眼，狼人请睁眼，选择今晚击杀目标
-- `night-wolf-beauty.mp3` / `night-wolf-beauty.wav`：狼美人请睁眼，选择魅惑目标或跳过
-- `night-guard.mp3` / `night-guard.wav`：守卫请睁眼，选择守护目标或空守
-- `night-seer.mp3` / `night-seer.wav`：预言家请睁眼，选择查验目标
-- `night-witch.mp3` / `night-witch.wav`：女巫请睁眼，确认刀口并选择是否用药
-- `dawn-report.mp3` / `dawn-report.wav`：天亮了，公布昨夜情况
-- `dawn-peaceful.mp3` / `dawn-peaceful.wav`：昨夜平安夜
-- `dawn-deaths.mp3` / `dawn-deaths.wav`：昨夜死亡的是
-- `dead.mp3` / `dead.wav`：死亡
-- `day-speech-start.mp3` / `day-speech-start.wav`：开始白天发言
-- `please.mp3` / `please.wav`：请
-- `speak.mp3` / `speak.wav`：发言
-- `please-speak.mp3` / `please-speak.wav`：请发言
-- `sheriff-nomination-start.mp3` / `sheriff-nomination-start.wav`：警长竞选开始
-- `sheriff-nomination-human.mp3` / `sheriff-nomination-human.wav`：轮到你选择是否上警
-- `sheriff-nomination-prompt.mp3` / `sheriff-nomination-prompt.wav`：请选择是否上警
-- `sheriff-nominated.mp3` / `sheriff-nominated.wav`：选择上警
-- `sheriff-nomination-none.mp3` / `sheriff-nomination-none.wav`：无人选择上警
-- `sheriff-speech-start.mp3` / `sheriff-speech-start.wav`：警上发言开始
-- `sheriff-speech-human.mp3` / `sheriff-speech-human.wav`：轮到你发表警长竞选发言
-- `sheriff-speech-prompt.mp3` / `sheriff-speech-prompt.wav`：请发表警长竞选发言
-- `sheriff-withdrawal-start.mp3` / `sheriff-withdrawal-start.wav`：进入退水阶段
-- `sheriff-withdrew.mp3` / `sheriff-withdrew.wav`：选择退水
-- `sheriff-vote-start.mp3` / `sheriff-vote-start.wav`：进入警长投票阶段
-- `sheriff-pk-speech-start.mp3` / `sheriff-pk-speech-start.wav`：警长投票平票，进入 PK 发言
-- `sheriff-pk-speech-human.mp3` / `sheriff-pk-speech-human.wav`：轮到你发表警长 PK 发言
-- `sheriff-pk-speech-prompt.mp3` / `sheriff-pk-speech-prompt.wav`：请发表警长 PK 发言
-- `sheriff-pk-vote-start.mp3` / `sheriff-pk-vote-start.wav`：进入警长 PK 复投
-- `sheriff-handoff-start.mp3` / `sheriff-handoff-start.wav`：警徽移交窗口开启
-- `sheriff-handoff-human.mp3` / `sheriff-handoff-human.wav`：轮到你选择移交警徽或撕掉警徽
-- `sheriff-handoff-prompt.mp3` / `sheriff-handoff-prompt.wav`：请选择移交警徽或撕掉警徽
-- `vote.mp3` / `vote.wav`：投票
-- `day-vote-start.mp3` / `day-vote-start.wav`：进入投票阶段
-- `vote-revealed.mp3` / `vote-revealed.wav`：公布票数
-- `vote-tie.mp3` / `vote-tie.wav`：平票，今日无人放逐
-- `exiled.mp3` / `exiled.wav`：被放逐出局
-- `idiot-revealed.mp3` / `idiot-revealed.wav`：白痴翻牌免死，失去投票权
-- `hunter-taken.mp3` / `hunter-taken.wav`：被猎人带走
-- `wolf-king-taken.mp3` / `wolf-king-taken.wav`：被狼王带走
-- `white-wolf-king-exploded.mp3` / `white-wolf-king-exploded.wav`：白狼王自爆
-- `white-wolf-king-taken.mp3` / `white-wolf-king-taken.wav`：被白狼王带走
-- `wolf-beauty-charmed.mp3` / `wolf-beauty-charmed.wav`：狼美人出局，触发魅惑
-- `wolf-beauty-taken.mp3` / `wolf-beauty-taken.wav`：殉情出局
-- `hunter-shot.mp3` / `hunter-shot.wav`：猎人进入开枪窗口
-- `hunter-shot-human.mp3` / `hunter-shot-human.wav`：猎人出局，轮到你选择是否开枪
-- `wolf-king-shot.mp3` / `wolf-king-shot.wav`：狼王进入开枪窗口
-- `wolf-king-shot-human.mp3` / `wolf-king-shot-human.wav`：狼王出局，轮到你选择是否开枪
-- `knight-duel.mp3` / `knight-duel.wav`：骑士进入决斗窗口
-- `knight-duel-human.mp3` / `knight-duel-human.wav`：轮到你选择是否发动骑士决斗
-- `knight-duel-success.mp3` / `knight-duel-success.wav`：骑士决斗成功
-- `knight-duel-failed.mp3` / `knight-duel-failed.wav`：骑士决斗失败，骑士出局
-- `knight-duel-taken.mp3` / `knight-duel-taken.wav`：被骑士决斗带走
-- `your-turn-speak.mp3` / `your-turn-speak.wav`：轮到你发言
-- `your-turn-vote.mp3` / `your-turn-vote.wav`：轮到你投票
-- `game-over-good.mp3` / `game-over-good.wav`：好人阵营获胜
-- `game-over-wolves.mp3` / `game-over-wolves.wav`：狼人阵营获胜
-- `flow-next.mp3` / `flow-next.wav`：流程继续推进
-
-座位号片段：
-
-- `seat-1.mp3` 到 `seat-12.mp3`，或 `seat-1.wav` 到 `seat-12.wav`
+- `天黑请闭眼-狼人请睁眼-请选择今晚的击杀目标.mp3`
+- `狼美人请睁眼-请选择今晚魅惑的玩家-也可以选择不魅惑.mp3`
+- `守卫请睁眼-请选择一名玩家守护-也可以选择空守.mp3`
+- `预言家请睁眼-请选择一名玩家查验身份.mp3`
+- `女巫请睁眼-请确认昨夜刀口-选择是否使用药品.mp3`
+- `天亮了-公布昨夜情况.mp3`
+- `昨夜平安夜.mp3`
+- `昨夜死亡的是.mp3`
+- `死亡.mp3`
+- `开始白天发言.mp3`
+- `请.mp3`
+- `发言.mp3`
+- `请发言.mp3` / `请发言.wav`
+- `警长竞选开始-所有存活玩家选择是否上警.mp3`
+- `轮到你选择是否上警.mp3`
+- `请选择是否上警.mp3`
+- `选择上警.mp3`
+- `无人选择上警-本局没有产生警长.mp3`
+- `警上发言开始.mp3`
+- `轮到你发表警长竞选发言.mp3`
+- `请发表警长竞选发言.mp3`
+- `进入退水阶段-警上候选人依次选择是否退水.mp3`
+- `选择退水.mp3`
+- `进入警长投票阶段-警下玩家开始投票.mp3`
+- `警长投票平票-进入PK发言.mp3`
+- `轮到你发表警长PK发言.mp3`
+- `请发表警长PK发言.mp3`
+- `进入警长PK复投.mp3`
+- `警徽移交窗口开启.mp3`
+- `轮到你选择移交警徽或撕掉警徽.mp3`
+- `请选择移交警徽或撕掉警徽.mp3`
+- `投票.mp3`
+- `进入投票阶段.mp3`
+- `公布票数.mp3`
+- `平票-今日无人放逐.mp3`
+- `被放逐出局.mp3`
+- `白痴翻牌免死-失去投票权.mp3`
+- `被猎人带走.mp3` / `被猎人带走.wav`
+- `被狼王带走.mp3`
+- `白狼王自爆.mp3`
+- `被白狼王带走.mp3`
+- `狼美人出局-触发魅惑.mp3`
+- `殉情出局.mp3`
+- `请发表遗言.mp3` / `请发表遗言.wav`
+- `猎人进入开枪窗口.mp3`
+- `猎人出局-轮到你选择是否开枪.mp3`
+- `狼王进入开枪窗口.mp3`
+- `狼王出局-轮到你选择是否开枪.mp3`
+- `骑士进入决斗窗口.mp3`
+- `轮到你选择是否发动骑士决斗.mp3`
+- `骑士决斗成功.mp3`
+- `骑士决斗失败-骑士出局.mp3`
+- `被骑士决斗带走.mp3`
+- `轮到你发言.mp3`
+- `轮到你投票.mp3`
+- `好人阵营获胜.mp3`
+- `狼人阵营获胜.mp3`
+- `流程继续推进.mp3`
+- `1号.mp3` 到 `12号.mp3`
 
 请只放入自己录制、购买授权、或明确允许在项目中使用的音频。

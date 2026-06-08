@@ -147,10 +147,18 @@ describe("aiSpeechAudio helpers", () => {
       }),
     ).toBe(false);
     expect(estimateClassTrialTextFallbackDurationMs("很短。")).toBeGreaterThanOrEqual(2600);
-    expect(estimateClassTrialTextFallbackDurationMs("这是一段更长的学级裁判发言。".repeat(20))).toBeLessThanOrEqual(12000);
+    expect(estimateClassTrialTextFallbackDurationMs("这是一段更长的学级裁判发言。".repeat(20))).toBeLessThanOrEqual(16000);
     expect(estimateClassTrialTextFallbackDurationMs("证".repeat(100))).toBeGreaterThanOrEqual(7000);
     expect(getClassTrialFinalTextHoldMs("完整台词。")).toBe(1000);
     expect(getClassTrialFinalTextHoldMs("   ")).toBe(0);
+  });
+
+  it("keeps long class-trial Chinese text readable after compressed Japanese voice", () => {
+    const longText = "我把这个结果放在桌上，后面如果有人要质疑我，或者要硬打3号，就必须给出共同验证的理由。".repeat(4);
+
+    expect(estimateClassTrialTextFallbackDurationMs(longText)).toBeGreaterThan(12000);
+    expect(estimateClassTrialTextFallbackDurationMs(longText)).toBeLessThanOrEqual(16000);
+    expect(getClassTrialReadableAudioTailHoldMs(longText, { currentTime: 10, duration: 10 })).toBeGreaterThan(2000);
   });
 
   it("takes only stable TTS chunks unless forced", () => {

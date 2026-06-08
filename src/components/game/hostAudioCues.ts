@@ -1,7 +1,6 @@
 import type { HumanGameView } from "@/game/types";
 import { formatSystemMessage } from "./viewHelpers";
-
-const HOST_AUDIO_BASE_PATH = "/audio/host";
+import { hostAudioSrc } from "./hostAudioFiles";
 
 export function latestPublicEvent(game: HumanGameView): HumanGameView["publicEvents"][number] | undefined {
   return game.publicEvents.at(-1);
@@ -39,7 +38,7 @@ export type HostAudioCue = {
 };
 
 export function hostClip(name: string, options?: Omit<Extract<HostAudioClip, { src: string }>, "src">): HostAudioClip {
-  const src = `${HOST_AUDIO_BASE_PATH}/${name}.mp3`;
+  const src = hostAudioSrc(name);
   return options ? { src, ...options } : src;
 }
 

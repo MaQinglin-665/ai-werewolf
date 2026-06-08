@@ -43,6 +43,15 @@ function sanitizeOpenAiError(message) {
   return message.replace(/sk-[A-Za-z0-9_-]+/g, "sk-***").replace(/tp-[A-Za-z0-9_-]+/g, "tp-***");
 }
 
+function hostAudioFileName(text) {
+  return text
+    .trim()
+    .replace(/[，。！？、；：,.!?;:]+/g, "-")
+    .replace(/\s+/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 const clips = [
   ["night-wolves", "天黑请闭眼，狼人请睁眼。请选择今晚的击杀目标。"],
   ["night-wolf-beauty", "狼美人请睁眼。请选择今晚魅惑的玩家，也可以选择不魅惑。"],
@@ -112,7 +121,8 @@ if (clips.length === 0) {
 
 if (dryRun) {
   for (const [name, text] of clips) {
-    console.log(`${name}.${provider === "mimo" ? mimoFormat : "mp3"} <- ${text}`);
+    const extension = provider === "mimo" ? mimoFormat : "mp3";
+    console.log(`${hostAudioFileName(text)}.${extension} (${name}) <- ${text}`);
   }
   process.exit(0);
 }
@@ -136,13 +146,14 @@ await mkdir(outputDir, { recursive: true });
 
 for (const [name, text] of clips) {
   const extension = provider === "mimo" ? mimoFormat : "mp3";
-  const filePath = path.join(outputDir, `${name}.${extension}`);
+  const fileName = hostAudioFileName(text);
+  const filePath = path.join(outputDir, `${fileName}.${extension}`);
   if (!force && existsSync(filePath)) {
-    console.log(`skip ${name}.${extension}`);
+    console.log(`skip ${fileName}.${extension}`);
     continue;
   }
 
-  console.log(`generate ${name}.${extension}`);
+  console.log(`generate ${fileName}.${extension}`);
   const audioBytes = provider === "mimo" ? await generateWithMimo(text, name) : await generateWithOpenAi(text, name);
   await writeFile(filePath, audioBytes);
 }

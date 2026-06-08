@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HumanGameView } from "@/game/types";
+import { hostAudioFileName } from "./hostAudioFiles";
 import { buildHostAudioCue, buildThemedHostAudioCue, hostClipPreDelayMs, hostClipSrc } from "./hostAudioCues";
 
 describe("hostAudioCues", () => {
@@ -12,7 +13,7 @@ describe("hostAudioCues", () => {
 
     expect(buildHostAudioCue(game)).toEqual({
       key: "game-1:1:speech:human",
-      clips: ["/audio/host/your-turn-speak.mp3"],
+      clips: ["/audio/host/轮到你发言.mp3"],
     });
   });
 
@@ -25,7 +26,7 @@ describe("hostAudioCues", () => {
 
     expect(buildHostAudioCue(game)).toEqual({
       key: "game-1:1:speech:2",
-      clips: ["/audio/host/seat-2.mp3", { src: "/audio/host/please-speak.mp3", playbackRate: 1.16, volume: 0.88 }],
+      clips: ["/audio/host/2号.mp3", { src: "/audio/host/请发言.mp3", playbackRate: 1.16, volume: 0.88 }],
     });
   });
 
@@ -40,7 +41,7 @@ describe("hostAudioCues", () => {
 
     expect(buildHostAudioCue(game)).toEqual({
       key: "game-1:1:dawn:2",
-      clips: ["/audio/host/dawn-report.mp3", "/audio/host/dawn-deaths.mp3", "/audio/host/seat-2.mp3", "/audio/host/dead.mp3"],
+      clips: ["/audio/host/天亮了-公布昨夜情况.mp3", "/audio/host/昨夜死亡的是.mp3", "/audio/host/2号.mp3", "/audio/host/死亡.mp3"],
     });
   });
 
@@ -53,16 +54,22 @@ describe("hostAudioCues", () => {
 
     expect(buildThemedHostAudioCue(game, new Set(), { classTrialThemeActive: true })).toEqual({
       key: "class-trial:game-1:1:speech:2",
-      clips: ["/audio/host/seat-2.mp3", { src: "/audio/host/please-speak.mp3", playbackRate: 1.16, volume: 0.88 }],
+      clips: ["/audio/host/2号.mp3", { src: "/audio/host/请发言.mp3", playbackRate: 1.16, volume: 0.88 }],
     });
     expect(buildThemedHostAudioCue(game, new Set(), { classTrialThemeActive: false })).toEqual(buildHostAudioCue(game));
   });
 
   it("resolves clip source and pre-delay for playback orchestration", () => {
-    expect(hostClipSrc("/audio/host/day-vote-start.mp3")).toBe("/audio/host/day-vote-start.mp3");
-    expect(hostClipSrc({ src: "/audio/host/please.mp3", preDelayMs: 180 })).toBe("/audio/host/please.mp3");
-    expect(hostClipPreDelayMs("/audio/host/day-vote-start.mp3")).toBe(0);
-    expect(hostClipPreDelayMs({ src: "/audio/host/please.mp3", preDelayMs: 180 })).toBe(180);
+    expect(hostClipSrc("/audio/host/进入投票阶段.mp3")).toBe("/audio/host/进入投票阶段.mp3");
+    expect(hostClipSrc({ src: "/audio/host/请.mp3", preDelayMs: 180 })).toBe("/audio/host/请.mp3");
+    expect(hostClipPreDelayMs("/audio/host/进入投票阶段.mp3")).toBe(0);
+    expect(hostClipPreDelayMs({ src: "/audio/host/请.mp3", preDelayMs: 180 })).toBe(180);
+  });
+
+  it("maps stable host audio keys to Chinese content file names", () => {
+    expect(hostAudioFileName("night-wolves")).toBe("天黑请闭眼-狼人请睁眼-请选择今晚的击杀目标");
+    expect(hostAudioFileName("sheriff-handoff-human")).toBe("轮到你选择移交警徽或撕掉警徽");
+    expect(hostAudioFileName("seat-12")).toBe("12号");
   });
 });
 

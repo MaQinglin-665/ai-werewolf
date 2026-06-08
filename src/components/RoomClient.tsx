@@ -19,12 +19,12 @@ import {
   type IdiotRevealCue,
 } from "@/components/game/GamePanels";
 import type { CommandPayload, HostAudioStatus } from "@/components/game/clientTypes";
+import { hostAudioSrc } from "@/components/game/hostAudioFiles";
 import type { HumanCommandInput } from "@/game/commandSchemas";
 import type { HumanGameView } from "@/game/types";
 import type { RoomPlayerView, RoomSeatView, RoomView } from "@/server/roomService";
 
 const ROOM_SESSION_STORAGE_KEY = "ai-werewolf-room-session";
-const ROOM_HOST_AUDIO_BASE_PATH = "/audio/host";
 const ROOM_FAST_POLL_LOBBY_MS = 1500;
 const ROOM_FAST_POLL_IN_GAME_MS = 1000;
 const ROOM_SSE_FALLBACK_POLL_MS = 1500;
@@ -155,7 +155,7 @@ type RoomHostAudioCue = {
 const AlphaPreflightPanel = AlphaPreflightPanelImpl;
 
 function roomHostClip(name: string, options?: Omit<Extract<RoomHostAudioClip, { src: string }>, "src">): RoomHostAudioClip {
-  const src = `${ROOM_HOST_AUDIO_BASE_PATH}/${name}.mp3`;
+  const src = hostAudioSrc(name);
   return options ? { src, ...options } : src;
 }
 
