@@ -445,6 +445,15 @@ function buildCustomModelRoute(config: AiFriendRuntimeLlmConfig): ModelRoute {
   };
 }
 
+function isMimoLikeRoute(route: ModelRoute): boolean {
+  if (route.id === "mimo") return true;
+  const routeText = [route.personaName, route.defaultModel, route.customModel, route.customBaseUrl]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return /mimo|xiaomimimo|token-plan/.test(routeText);
+}
+
 function withCustomTaskModelOverride(
   config: AiFriendRuntimeLlmConfig,
   task: RoutedJsonOptions["task"],
@@ -549,7 +558,7 @@ function readThinkingMode(route: ModelRoute): "disabled" | "enabled" | undefined
   const globalDisable = readOptionalEnv("AI_LLM_DISABLE_THINKING")?.toLowerCase();
   if (globalDisable === "false" || globalDisable === "off" || globalDisable === "0") return undefined;
   if (route.id === "deepseek") return "disabled";
-  return route.id === "kimi" || route.id === "mimo" ? "disabled" : undefined;
+  return route.id === "kimi" || isMimoLikeRoute(route) ? "disabled" : undefined;
 }
 
 function collectJsonCandidates(rawOutput: string): string[] {
@@ -655,7 +664,7 @@ function reasoningModelTokenFloor(route: ModelRoute, task: RoutedJsonOptions["ta
     if (task === "speech") return 900;
     if (task === "action") return 900;
   }
-  if (route.id !== "kimi" && route.id !== "mimo") return 0;
+  if (route.id !== "kimi" && !isMimoLikeRoute(route)) return 0;
   if (task === "speech") return 2400;
   if (task === "action") return 1800;
   return 0;
@@ -674,8 +683,8 @@ function readTaskTimeoutMs(route: ModelRoute, task: RoutedJsonOptions["task"]): 
 
   if (task !== "speech") return readNumberEnv("AI_LLM_TIMEOUT_MS", 12000);
   const timeoutMs = readNumberEnv("AI_LLM_SPEECH_TIMEOUT_MS", readNumberEnv("AI_LLM_TIMEOUT_MS", 45000));
-  const routeDefault = route.id === "glm" ? 90000 : route.id === "mimo" ? 180000 : timeoutMs;
-  const defaultCap = route.id === "glm" ? 90000 : route.id === "mimo" ? 180000 : 60000;
+  const routeDefault = route.id === "glm" ? 90000 : isMimoLikeRoute(route) ? 180000 : timeoutMs;
+  const defaultCap = route.id === "glm" ? 90000 : isMimoLikeRoute(route) ? 180000 : 60000;
   const cap = readNumberEnv("AI_LLM_SPEECH_TIMEOUT_MS_CAP", defaultCap);
   return Math.min(Math.max(routeDefault, timeoutMs), Math.max(routeDefault, cap));
 }

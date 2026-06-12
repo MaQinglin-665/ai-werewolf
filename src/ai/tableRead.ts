@@ -15,6 +15,7 @@ import type {
 import { clampProbability, stableRoll, stableSignedJitter } from "@/game/decisionNoise";
 import { ROLE_LABELS } from "@/game/labels";
 import { isWolfRole } from "@/game/roleUtils";
+import { renderedSpeechSupportsSeatTarget } from "./seatMemory";
 import {
   findDeadSeerBlackLegacyForSeat,
   findDeadSeerGoldLegacyForSeat,
@@ -138,7 +139,7 @@ export function buildAiTableRead(view: AgentView): AiTableRead {
         suspicion -= weighted((isHardSeer ? 18 : 14) * dayOneCaution, protectionWeight);
         pressure.push(`${protectedClaim.claimedRoleLabel}未对跳，先不弱推`);
         if (view.day === 1) {
-          pressure.push(`${protectedClaim.claimedRoleLabel}未对跳，首日先留身份空间`);
+          pressure.push(`${protectedClaim.claimedRoleLabel}未对跳，首日先暂认这个身份`);
         }
       }
     }
@@ -544,7 +545,7 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
         stance: "女巫拍身份带队收票型",
         talkingPoints: [
           buildDramaticWitchLeadPoint(view, savedTarget),
-          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 先正面解释` : "先按公开身份线归票"),
+          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 先正面解释` : "先按公开身份说法归票"),
         ],
         risk: Math.max(0.64, personaRisk),
         claimIntent: {
@@ -685,7 +686,7 @@ export function createSpeechPlan(view: AgentView, tableRead = buildAiTableRead(v
         stance: "骑士拍身份压住归票",
         talkingPoints: [
           "我拍骑士，今天不要散票，也不要把决斗当替代推理",
-          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 如果是狼人要拿公开逻辑坐实` : "先按身份线和票型归票"),
+          memoryPoint ?? stancePoint ?? (focus ? `${focus.name} 如果是狼人要拿公开逻辑坐实` : "先按身份说法和票型归票"),
         ],
         risk: Math.max(0.64, personaRisk),
         claimIntent: {
@@ -1027,7 +1028,7 @@ function buildSpeechPlayMotive(view: AgentView, plan: SpeechPlan): SpeechPlan["p
   if (view.myRole === "VILLAGER" && GOD_ROLES.includes(plan.claimIntent.claimedRole)) {
     return {
       kind: "protect_power_role",
-      line: "给真神留身份空间，狼夜里可以来试，但发言还要落在公开逻辑上。",
+      line: "真神先留余地，狼夜里可以来试，但发言还要落在公开逻辑上。",
       allowIdentityClaim: true,
     };
   }
@@ -1074,7 +1075,7 @@ function buildHiddenSeerCheckPoint(view: AgentView, target: ActionTarget | undef
     const targetText = target ? `${target.seatId}号这条验人线` : "我手里的验人线";
     return `${targetText}我暂时不白白交给夜刀；这是我压在裁判席上的可追问边界`;
   }
-  return "我手里有一张偏好信息，今天先不把身份线打满";
+  return "我手里有一张偏好信息，今天先不把话说满";
 }
 
 function buildDramaticWitchLeadPoint(view: AgentView, savedTarget: ActionTarget | undefined): string {
@@ -1196,15 +1197,15 @@ function buildSpeechTableTask(
     const deathShape = getCurrentDayPublicDeathShape(view);
     const deathInstruction =
       deathShape === "death"
-        ? "天亮有夜死时先短句报死亡名单；若聊女巫用药、刀口或毒口，要给公开规则依据或反面解释，也不要求下一位立刻表态或交投票方向。"
+        ? "天亮有夜死时先短句报死亡名单；无守卫女巫首夜单死只当狼刀打中，别讲规则，马上说我现在想听谁或先暂放。"
         : deathShape === "peaceful"
-          ? "平安夜只作背景，一句带过后接自己的观察动作，不主动展开药线或空刀，也不要求下一位立刻表态或交投票方向。"
-          : "没有公开死讯时不主动讲平安夜、药线、刀口或毒口，也不要求下一位立刻表态或交投票方向。";
+          ? "平安夜只作背景，按女巫用了救药一句带过；不要展开药线或空刀，也不要要求下一位立刻表态或交投票方向。"
+          : "没有公开死讯时不主动讲平安夜、药线、刀口或毒口；可以说信息少，先听一圈，别要求下一位立刻表态或交投票方向。";
     return {
       mode: "set-standard",
-      line: `首置位先给一个可验证观察点；${deathInstruction}`,
+      line: `首置位前面没人可接，可以直接说我现在信息少、先听一圈；${deathInstruction}`,
       directives: [
-        "给观察点",
+        "前面没人可接，先说当前听感",
         deathShape === "death" ? "夜死只报名单" : deathShape === "peaceful" ? "平安夜只作背景" : "无死讯不讲药线",
         "不要求表态投票",
       ],
@@ -1411,7 +1412,7 @@ function buildSpeechInteraction(
     return {
       kind: "rally",
       target: toTargetFromSeatRead(target),
-      line: `这轮我会把票型往${target.seatId}号集中，不想让票散掉`,
+      line: buildRallyInteractionLine(view, target),
       goal: "推动归票集中",
     };
   }
@@ -1425,7 +1426,7 @@ function buildSpeechInteraction(
         kind: "challenge",
         sourceSpeaker,
         target: previousTarget,
-        line: `我接一下上一位${sourceSpeaker.name}，他这段发言还缺把结论推出来的过程`,
+        line: buildChallengeInteractionLine(view, sourceSpeaker),
         goal: "追问上一位的逻辑链",
       };
     }
@@ -1435,7 +1436,7 @@ function buildSpeechInteraction(
         kind: "support",
         sourceSpeaker,
         target: previousTarget,
-        line: `上一位${sourceSpeaker.name}的视角我先认可一部分，再对照${target.seatId}号的解释`,
+        line: buildSupportInteractionLine(view, target, sourceSpeaker),
         goal: "借可信发言建立对照",
       };
     }
@@ -1445,7 +1446,7 @@ function buildSpeechInteraction(
         kind: "pivot",
         sourceSpeaker,
         target: toTargetFromSeatRead(target),
-        line: `上一位${sourceSpeaker.name}先记下，但我这轮要转回${target.seatId}号的发言缺口`,
+        line: buildPivotInteractionLine(view, target, sourceSpeaker),
         goal: "从上一位转回主焦点",
       };
     }
@@ -1494,8 +1495,8 @@ function buildSpeechInteraction(
     kind: "probe",
     target: toTargetFromSeatRead(target),
     line: hasSpokenThisDay(view, target.seatId)
-      ? `我先把${target.seatId}号放进观察位，只回看他已经说出口的逻辑`
-      : `我先把${target.seatId}号放进观察位，等他发言时讲清自己的逻辑`,
+      ? `我先不把${target.seatId}号投死，只回看他已经说出口的逻辑`
+      : `我先不提前定${target.seatId}号，等他发言时讲清自己的逻辑`,
     goal: "保持可变判断",
   };
 }
@@ -1731,6 +1732,86 @@ function buildMemorySpeechPoint(
   return undefined;
 }
 
+function buildRallyInteractionLine(view: AgentView, target: SeatRead): string {
+  const targetText = `${target.seatId}号`;
+  const seed = view.day * 31 + view.mySeatId * 17 + target.seatId * 13 + 89 + view.day * 103;
+  return pickUnusedInteractionLine(view, seed, [
+    `我的票先往${targetText}靠，后面要改就给更硬理由`,
+    `${targetText}可以先进主票口，别把票摊开`,
+    `今天先把${targetText}放到出人方向里听反证`,
+    `我这票先给到${targetText}，谁要保他就把理由讲清`,
+    `${targetText}先放进主票口，保他的牌自己出来说`,
+    `我先把票压到${targetText}附近，后面只听反证`,
+    `我先把票口收到${targetText}这里，等他自己回`,
+    `${targetText}先吃这一票，后面有硬反证我再撤`,
+  ]);
+}
+
+function buildPivotInteractionLine(view: AgentView, target: SeatRead, sourceSpeaker: { name: string }): string {
+  const targetText = `${target.seatId}号`;
+  const seed = view.day * 31 + view.mySeatId * 17 + target.seatId * 13 + sourceSpeaker.name.length * 7 + 97;
+  return pickByIndex(seed, [
+    `${sourceSpeaker.name}那段我先放一下，先回到${targetText}没讲顺的地方`,
+    `我不顺着上一位往外铺，先听${targetText}怎么把话说圆`,
+    `上一位先记着，我这票口还在${targetText}身上`,
+    `${sourceSpeaker.name}那点先不照搬，我先问${targetText}怎么接票`,
+  ]);
+}
+
+function buildSupportInteractionLine(view: AgentView, target: SeatRead, sourceSpeaker: { name: string }): string {
+  const targetText = `${target.seatId}号`;
+  const seed = view.day * 31 + view.mySeatId * 17 + target.seatId * 13 + sourceSpeaker.name.length * 7 + 109 + view.day * 103;
+  return pickUnusedInteractionLine(view, seed, [
+    `上一位${sourceSpeaker.name}的视角我先认可一部分，再对照${targetText}的解释`,
+    `${sourceSpeaker.name}这段我先当参考，但${targetText}还得自己把话接上`,
+    `我接一点${sourceSpeaker.name}的判断，不过最后还是听${targetText}怎么回`,
+    `${sourceSpeaker.name}说得有道理，我先拿来对照${targetText}的回应`,
+  ]);
+}
+
+function buildChallengeInteractionLine(view: AgentView, sourceSpeaker: { name: string }): string {
+  const seed = view.day * 31 + view.mySeatId * 17 + sourceSpeaker.name.length * 11 + 101;
+  return pickUnusedInteractionLine(view, seed, [
+    `我接一下上一位${sourceSpeaker.name}，他这段发言还缺把结论推出来的过程`,
+    `上一位${sourceSpeaker.name}这段我没完全吃下，结论怎么落票还要补一句`,
+    `${sourceSpeaker.name}刚才的方向我先记着，但他从理由到票口中间少了一步`,
+    `我先问上一位${sourceSpeaker.name}，你这段判断最后准备怎么处理`,
+  ]);
+}
+
+function pickUnusedInteractionLine(view: AgentView, seed: number, options: string[]): string {
+  const usedText = interactionReuseWindowText(view);
+  const normalizedUsed = normalizeInteractionLineForReuse(usedText);
+  const start = Math.abs(seed) % Math.max(1, options.length);
+  for (let offset = 0; offset < options.length; offset += 1) {
+    const option = options[(start + offset) % options.length] ?? options[0] ?? "";
+    if (!normalizedUsed.includes(normalizeInteractionLineForReuse(option))) return option;
+  }
+  return options[start] ?? options[0] ?? "";
+}
+
+function interactionReuseWindowText(view: AgentView): string {
+  return [
+    ...view.publicSummary.recentSpeeches.map((speech) => speech.message),
+    ...view.publicSummary.tableMemory.seats.map((seat) => seat.lastSpeech ?? ""),
+    ...view.publicSummary.tableMemory.speechInfluence.map((item) => item.summary),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function normalizeInteractionLineForReuse(text: string): string {
+  return text
+    .replace(/[0-9一二三四五六七八九十两]+\s*号/g, "{seat}号")
+    .replace(/(?:DeepSeek|Claude|Gemini|Kimi|Mimo|GPT|GLM|Human|豆包)\d*/gi, "{name}")
+    .replace(/我先把/g, "我把")
+    .replace(/[，。！？、,.!?;；:\s]+/g, "");
+}
+
+function pickByIndex(seed: number, options: string[]): string {
+  return options[Math.abs(seed) % options.length] ?? options[0] ?? "";
+}
+
 function buildPublicTrustSpeechPoint(
   view: AgentView,
   tableRead: AiTableRead,
@@ -1738,28 +1819,28 @@ function buildPublicTrustSpeechPoint(
   focus: SeatRead,
 ): string | undefined {
   if (trustedSeat.publicChecksAgainst.some((check) => check.result === "GOOD")) {
-    return `${trustedSeat.seatId}号有公开金水信息，当前先审${focus.seatId}号的发言缺口`;
+    return `${trustedSeat.seatId}号有公开金水信息，当前先听${focus.seatId}号哪里没说清`;
   }
 
   if (trustedSeat.publicClaims.length > 0) {
-    return `${trustedSeat.seatId}号已经给过公开身份信息，当前先审${focus.seatId}号的发言缺口`;
+    return `${trustedSeat.seatId}号已经给过公开身份信息，当前先听${focus.seatId}号哪里没说清`;
   }
 
   const supportiveStance = trustedSeat.publicStancedBy.find((stance) => stance.kind === "SUPPORT" || stance.kind === "FOLLOW");
   if (supportiveStance) {
-    return `${supportiveStance.actor.name}${supportiveStance.kindLabel}${trustedSeat.seatId}号，当前先审${focus.seatId}号的发言缺口`;
+    return `${supportiveStance.actor.name}${supportiveStance.kindLabel}${trustedSeat.seatId}号，当前先听${focus.seatId}号哪里没说清`;
   }
 
   if (trustedSeat.lastSpeechDay !== undefined) {
-    return `${trustedSeat.seatId}号已经给过公开发言，当前先审${focus.seatId}号的发言缺口`;
+    return `${trustedSeat.seatId}号已经给过公开发言，当前先听${focus.seatId}号哪里没说清`;
   }
 
   if (hasCurrentDaySeatMention(view, trustedSeat.seatId)) {
-    return `${trustedSeat.seatId}号已经进入公开讨论，当前先审${focus.seatId}号的发言缺口`;
+    return `${trustedSeat.seatId}号已经进入公开讨论，当前先听${focus.seatId}号哪里没说清`;
   }
 
   if (tableRead.voteSnapshot.votes.some((vote) => vote.voter.seatId === trustedSeat.seatId || vote.target?.seatId === trustedSeat.seatId)) {
-    return `${trustedSeat.seatId}号已经进过公开票型，当前先审${focus.seatId}号的发言缺口`;
+    return `${trustedSeat.seatId}号已经进过公开票型，当前先听${focus.seatId}号哪里没说清`;
   }
 
   return undefined;
@@ -1957,9 +2038,11 @@ export function createVotePlan(view: AgentView, tableRead = buildAiTableRead(vie
       isSoftSplitVote(view, tableRead, picked, sorted),
   );
 
+  const baseReason = divergentSoftTarget ? buildSoftDivergentVoteReason(view, tableRead, picked, topPublicTarget) : buildVoteReason(view, tableRead, picked);
+
   return {
     target: { seatId: picked.seatId, name: picked.name },
-    reason: divergentSoftTarget ? buildSoftDivergentVoteReason(view, tableRead, picked, topPublicTarget) : buildVoteReason(view, tableRead, picked),
+    reason: withSpeechVoteContinuityReason(view, picked, baseReason),
     confidence: picked.isKnownWolf
       ? 0.95
       : Math.max(0.32, Math.min(divergentSoftTarget ? 0.66 : 0.86, picked.suspicion / 100 - (divergentSoftTarget ? 0.08 : 0))),
@@ -1969,6 +2052,47 @@ export function createVotePlan(view: AgentView, tableRead = buildAiTableRead(vie
       .map((seat) => ({ seatId: seat.seatId, name: seat.name })),
     wolfVoteTactic: isWolfRole(view.myRole, view.rules.wolfRoles) ? wolfVoteChoice?.tactic : undefined,
   };
+}
+
+export function withSpeechVoteContinuityReason(view: AgentView, target: ActionTarget, reason: string): string {
+  if (view.phase !== "DAY_VOTE") return reason;
+  const lastSpeechTargetSeatId = view.privateKnowledge.aiMemory?.lastSpeechTargetSeatId;
+  if (!lastSpeechTargetSeatId) return reason;
+  const lastSpeechStance = view.privateKnowledge.aiMemory?.lastSpeechStance;
+  if (!renderedSpeechSupportsSeatTarget(lastSpeechStance, lastSpeechTargetSeatId)) return reason;
+
+  if (target.seatId === lastSpeechTargetSeatId) {
+    if (/(上一轮|刚才|延续|继续|未解除|没解释|没补清楚|同一条线)/.test(reason)) return reason;
+    return `上一轮我发言点过${voteReasonSeatLabel(target)}，这个疑点还没解除；${reason}`;
+  }
+
+  if (/(转票|改票|改投|从.{0,12}(到|转|改)|新增|更硬|票型|对跳)/.test(reason)) return reason;
+  const roleDoubt = buildPublicRoleClaimDoubtVoteReason(view, target, reason);
+  if (roleDoubt) return roleDoubt;
+  const previousTarget = view.aliveSeats.find((seat) => seat.seatId === lastSpeechTargetSeatId) ?? {
+    seatId: lastSpeechTargetSeatId,
+    name: "",
+  };
+  return `上一轮我发言点过${voteReasonSeatLabel(previousTarget)}，但现在${voteReasonSeatLabel(target)}这条公开证据更硬，我转票到这里；${reason}`;
+}
+
+function buildPublicRoleClaimDoubtVoteReason(view: AgentView, target: ActionTarget, reason: string): string | undefined {
+  const claim = view.publicSummary.claimBoard.find(
+    (item) =>
+      item.claimant.seatId === target.seatId &&
+      (item.claimedRole === "WITCH" || item.claimedRole === "HUNTER" || item.claimedRole === "IDIOT" || item.claimedRole === "KNIGHT" || item.claimedRole === "GUARD"),
+  );
+  if (!claim) return undefined;
+  const savedSelf = claim.claimedRole === "WITCH" && claim.checks.some((check) => check.target.seatId === view.mySeatId && check.result === "GOOD");
+  const roleLine = savedSelf
+    ? `${voteReasonSeatLabel(target)}说救过我，但这条银水链我不完全认`
+    : `${voteReasonSeatLabel(target)}的${claim.claimedRoleLabel}身份真假我没认死`;
+  return `${roleLine}，先用这一票压他把身份逻辑说清；${reason}`;
+}
+
+function voteReasonSeatLabel(target: ActionTarget): string {
+  const name = target.name?.trim();
+  return name ? `${target.seatId}号${name}` : `${target.seatId}号`;
 }
 
 function withoutProtectedGoodVoteTargets(view: AgentView, tableRead: AiTableRead, candidates: SeatRead[]): SeatRead[] {
@@ -2017,7 +2141,7 @@ function buildSoftDivergentVoteReason(
 ): string {
   const pressure = target.pressure.find((item) => !/私密|真实身份|WEREWOLF/i.test(item));
   const mainText = `${mainTarget.name}是主焦点`;
-  const targetText = pressure ? `${target.name}${pressure}` : `${target.name}也有公开发言缺口`;
+  const targetText = pressure ? `${target.name}${pressure}` : `${target.name}也有地方没说清`;
   const personaLine =
     (view.persona?.preferences?.caution ?? 0) >= 0.68
       ? "我这票按谨慎分歧处理"
@@ -2067,9 +2191,9 @@ function buildVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRe
         : `${target.name}这轮发言留白较多，先压一票看反应。`;
     }
     if (assignment?.target?.seatId === target.seatId) {
-      return `${target.name}是今天适合集中处理的公开焦点，按这条线归票。`;
+      return `${target.name}今天已经被推到台面上了，我这票先压这里，看他投票前能不能补清楚。`;
     }
-    return target.pressure[0] ? `${target.pressure[0]}，这个位置适合先压一票。` : "这个位置发言留白较多，先压票看反应。";
+    return target.pressure[0] ? `${target.pressure[0]}，我先压一票看回应。` : "这个位置说得太少，我先压一票看反应。";
   }
 
   const memory = view.privateKnowledge.aiMemory;
@@ -2077,9 +2201,12 @@ function buildVoteReason(view: AgentView, tableRead: AiTableRead, target: SeatRe
     return `上一轮我票过${target.name}，疑点还没有解除，这一轮继续压这里。`;
   }
 
-  if (memory?.lastSpeechTargetSeatId === target.seatId) {
+  if (memory?.lastSpeechTargetSeatId === target.seatId && renderedSpeechSupportsSeatTarget(memory.lastSpeechStance, target.seatId)) {
     return `我上一轮发言已经点过${target.name}，这一轮投票先保持一致。`;
   }
+
+  const roleDoubtReason = buildPublicRoleClaimDoubtVoteReason(view, target, "这票先压出解释。");
+  if (roleDoubtReason) return roleDoubtReason;
 
   const deadSeerCounterclaim = findDeadSeerCounterclaimAgainst(tableRead, target);
   if (deadSeerCounterclaim) {

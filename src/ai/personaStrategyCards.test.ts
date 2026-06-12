@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getAiPersonaById } from "@/game/personas";
+import { defaultOrdinaryPlayerProfile } from "@/game/ordinaryPlayerProfiles";
 import type { ActionTarget, AgentView, AiCharacterRoleCard, SpeechPlan, VotePlan } from "@/game/types";
 import {
   adaptPersonaStrategyForView,
@@ -9,7 +10,7 @@ import {
 } from "./personaStrategyCards";
 
 describe("persona strategy cards", () => {
-  it("keeps built-in model personas distinct while adding camp-aware motives", () => {
+  it("infers ordinary player type for built-in personas without model-name stereotypes", () => {
     const deepseek = inferPersonaStrategyCard({
       persona: getAiPersonaById("deepseek-calm-analyst")!,
     });
@@ -17,11 +18,25 @@ describe("persona strategy cards", () => {
       persona: getAiPersonaById("kimi-identity-focused")!,
     });
 
-    expect(deepseek.summary).toContain("逻辑链");
-    expect(deepseek.camp.good.speechMotives.join(" ")).toContain("公开事实");
-    expect(deepseek.camp.werewolf.speechMotives.join(" ")).toContain("伪装");
-    expect(kimi.summary).toContain("身份线");
+    expect(deepseek.summary).toContain("谨慎怕背锅型");
+    expect(deepseek.camp.good.speechMotives.join(" ")).toContain("说清");
+    expect(deepseek.camp.werewolf.speechMotives.join(" ")).toContain("公开发言");
+    expect(kimi.summary).toContain("身份信息敏感型");
     expect(kimi.summary).not.toBe(deepseek.summary);
+    expect(`${deepseek.summary}\n${kimi.summary}`).not.toMatch(/逻辑链推演|边界审查|平衡组织|细节校验|身份线长记忆|快节奏压迫/);
+  });
+
+  it("uses ordinary player profile before built-in model stereotype", () => {
+    const card = inferPersonaStrategyCard({
+      persona: {
+        ...getAiPersonaById("deepseek-calm-analyst")!,
+        ordinaryPlayerProfile: defaultOrdinaryPlayerProfile("emotional-reactor"),
+      },
+    });
+
+    expect(card.summary).toContain("情绪反应型");
+    expect(card.summary).not.toContain("逻辑链推演");
+    expect(card.antiTemplateMoves.join(" ")).toContain("公开话");
   });
 
   it("adapts the same persona differently for good, wolf, and power roles", () => {
@@ -38,7 +53,7 @@ describe("persona strategy cards", () => {
     expect(wolf.activeSummary).toContain("狼人");
   });
 
-  it("infers a strategy card for custom role-card based AI without needing a fixed template", () => {
+  it("infers a strategy card for class-trial role-card based AI without needing a fixed template", () => {
     const card = inferPersonaStrategyCard({
       persona: {
         ...getAiPersonaById("gpt-balanced-organizer")!,
@@ -49,6 +64,7 @@ describe("persona strategy cards", () => {
         goal: "用稳定审查让桌面不要被快节奏带偏。",
       },
       roleCard: roleCardFixture({
+        theme: "class-trial",
         reasoningBias: "优先检查前后口径、票型动机和防守姿态。",
         voteBias: "不到硬证据不轻易跟票。",
         speechStyleZh: "克制、迟疑、先审查再给结论。",

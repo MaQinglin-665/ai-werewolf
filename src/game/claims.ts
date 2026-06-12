@@ -26,6 +26,9 @@ const SELF_CHECK_RESULT_PREFIX = "[，,：:\\s]*(?:是|为|出)?\\s*(?:我(?:昨
 const WITCH_DIRECT_ROLE_PATTERN = new RegExp(
   `(?:我是|我拍|(?<!在)我这里是|我底牌是|明牌|我这张|我作为)${ROLE_CLAIM_GAP}(?:女巫|女巫牌)`,
 );
+const WITCH_SELF_INTRO_ROLE_PATTERN = new RegExp(
+  `(?:我是|我拍)${SELF_INTRO_ROLE_CLAIM_GAP}(?:女巫|女巫牌)(?:[，,。！？!?；;：:\\s]|$)`,
+);
 const WITCH_COLLOQUIAL_SELF_ROLE_PATTERN =
   /(?:^|[，,。！？!?；;：:\s])我(?:是)?\s*(?:女巫|女巫牌)(?:[，,。！？!?；;：:\s]|$)/;
 const WITCH_CONCISE_SAVE_REPORT_PATTERN =
@@ -49,7 +52,7 @@ const ROLE_PATTERNS: Array<{ role: Role; pattern: RegExp }> = [
   {
     role: "WITCH",
     pattern: new RegExp(
-      `${WITCH_DIRECT_ROLE_PATTERN.source}|${WITCH_COLLOQUIAL_SELF_ROLE_PATTERN.source}|${WITCH_CONCISE_SAVE_REPORT_PATTERN.source}|我[^。！？!?\\n]{0,18}(?:药还在|解药|毒药|救过|救了|救的是|银水)|(?:^|[，,。；;：:\\s])(?:药还在|解药还在|毒药还在)`,
+      `${WITCH_DIRECT_ROLE_PATTERN.source}|${WITCH_SELF_INTRO_ROLE_PATTERN.source}|${WITCH_COLLOQUIAL_SELF_ROLE_PATTERN.source}|${WITCH_CONCISE_SAVE_REPORT_PATTERN.source}|我[^。！？!?\\n]{0,18}(?:药还在|解药|毒药|救过|救了|救的是|报(?:了)?银水|给(?:出)?银水|银水是)|(?:^|[，,。；;：:\\s])(?:药还在|解药还在|毒药还在)`,
     ),
   },
   {
@@ -142,8 +145,15 @@ function shouldSuppressWitchExplicitRoleClaim(
 ): boolean {
   if (classTrialSignal?.claimedRole === "WITCH") return false;
   if (hasClassTrialWitchSelfClaimDenial(message)) return true;
+  if (isRecognizingAnotherWitchClaim(message)) return true;
   if (WITCH_DIRECT_ROLE_PATTERN.test(message)) return false;
   return WITCH_PUBLIC_MEDICINE_CONTEXT_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+function isRecognizingAnotherWitchClaim(message: string): boolean {
+  return /(?:\d{1,2}\s*号|[A-Za-z0-9_\-\u4e00-\u9fa5]{1,24})[^。！？；\n]{0,36}(?:女巫声明|跳女巫|拍女巫|女巫身份|女巫牌)[^。！？；\n]{0,64}(?:我先认|先认|暂认|暂时先认|先当真女巫听|没人对跳|没有对跳|没对跳|目前没人对跳|具体银水目标|报(?:了)?银水|给(?:出)?银水)/.test(
+    message,
+  );
 }
 
 export function upsertRoleClaim(existingClaims: RoleClaim[], draft: SpeechClaimDraft): RoleClaim {

@@ -654,12 +654,78 @@ describe("createSpeechPlan", () => {
     const plan = createSpeechPlan(view, tableRead);
 
     expect(plan.tableTask?.mode).toBe("set-standard");
-    expect(plan.tableTask?.line).toContain("可验证观察点");
+    expect(plan.tableTask?.line).toContain("前面没人可接");
+    expect(plan.tableTask?.line).toContain("信息少");
     expect(plan.tableTask?.line).toContain("平安夜");
     expect(plan.tableTask?.line).toContain("只作背景");
-    expect(plan.tableTask?.line).toContain("观察动作");
-    expect(plan.tableTask?.line).not.toMatch(/主盘药线|给可验证的发言标准|后置位任务/);
-    expect(plan.tableTask?.directives.join("\n")).not.toMatch(/给标准|给后置位任务/);
+    expect(plan.tableTask?.line).not.toMatch(/处理边界|处理动作|主盘药线|给可验证的发言标准|后置位任务/);
+    expect(plan.tableTask?.directives.join("\n")).toContain("前面没人可接");
+    expect(plan.tableTask?.directives.join("\n")).not.toMatch(/处理边界|给标准|给后置位任务|给观察点/);
+  });
+
+  it("treats ordinary day-one no-guard single death as settled common sense instead of a rule lecture", () => {
+    const tableMemory = createTableMemory({
+      deathAnnouncements: ["第1天清晨，4号 死亡。"],
+      reasoningCues: [
+        {
+          cueId: "death-shape:1:single:4",
+          day: 1,
+          kind: "death_shape",
+          weight: "medium",
+          summary: "首夜单死（4号）：狼刀成功，女巫没救；发言里只一句带过，马上接怀疑、暂放、追问或投票条件。",
+          target: target(4, "Dead"),
+          evidence: ["第1天清晨，4号 死亡。"],
+        },
+      ],
+    });
+    const view = {
+      ...createView(tableMemory),
+      mySeatId: 1,
+      myRole: "VILLAGER",
+      phase: "DAY_SPEECH",
+      publicEvents: [
+        {
+          seq: 1,
+          type: "DAY_STARTED",
+          day: 1,
+          phase: "DAY_ANNOUNCEMENT",
+          message: "第1天清晨，4号 死亡。",
+          payload: { deadSeatIds: [4] },
+        },
+      ],
+      publicSummary: {
+        ...createView(tableMemory).publicSummary,
+        recentSpeeches: [],
+        recentDeaths: ["第1天清晨，4号 死亡。"],
+        tableMemory,
+      },
+      allowedActions: [{ type: "speak" }],
+    } as AgentView;
+    const tableRead: AiTableRead = {
+      mySeatId: 1,
+      myRole: "VILLAGER",
+      day: 1,
+      seats: [
+        createSeat({ seatId: 1, name: "Speaker", isSelf: true, suspicion: 0, trust: 100 }),
+        createSeat({ seatId: 2, name: "Later", suspicion: 45, trust: 45 }),
+      ],
+      knownWolfSeatIds: [],
+      knownGoodSeatIds: [],
+      wolfTeammateSeatIds: [],
+      voteSnapshot: emptyVoteSnapshot,
+      recentSpeeches: [],
+      recentDeaths: ["第1天清晨，4号 死亡。"],
+      tableMemory,
+      tableMood: "首日单死",
+    };
+
+    const plan = createSpeechPlan(view, tableRead);
+    const planText = [plan.tableTask?.line, ...(plan.tableTask?.directives ?? [])].join("\n");
+
+    expect(planText).toContain("狼刀打中");
+    expect(planText).toContain("我现在想听谁");
+    expect(planText).toContain("先暂放");
+    expect(planText).not.toMatch(/处理动作|公开规则依据|反面解释|毒口|药瓶|狼首夜必刀|解药/);
   });
 
   it("marks already-spoken targets as review-only in the speech plan", () => {

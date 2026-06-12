@@ -303,6 +303,49 @@ describe("model LLM routing", () => {
     expect(result).toEqual({ text: "{\"speech\":\"我继续盘公开信息。\"}", providerId: "custom-speech:deepseek-reasoner" });
   });
 
+  it("applies Mimo speech safeguards to runtime custom Mimo configs", async () => {
+    process.env.AI_LLM_API_KEY = "tp-test";
+    process.env.AI_LLM_SPEECH_MAX_TOKENS_CAP = "3200";
+    delete process.env.AI_LLM_TIMEOUT_MS;
+    delete process.env.AI_LLM_SPEECH_TIMEOUT_MS;
+    delete process.env.AI_LLM_SPEECH_TIMEOUT_MS_CAP;
+
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "{\"speech\":\"我继续盘公开信息。\"}" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await callRoutedModelJson({
+      personaName: "Claude",
+      task: "speech",
+      system: "Return JSON.",
+      input: { seat: 2 },
+      maxTokens: 900,
+      customLlm: {
+        provider: "openai-compatible",
+        label: "mimo-v2.5-pro",
+        baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+        model: "mimo-v2.5-pro",
+        mergeSystemIntoUser: true,
+      },
+    });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[string | URL | Request, RequestInit | undefined]>;
+    const [url, init] = calls[0]!;
+    const request = JSON.parse(String(init?.body)) as { max_tokens: number; thinking?: { type?: string } };
+    const headers = init?.headers as Record<string, string>;
+    expect(String(url)).toBe("https://token-plan-cn.xiaomimimo.com/v1/chat/completions");
+    expect(headers.Authorization).toBe("Bearer tp-test");
+    expect(request.max_tokens).toBeGreaterThanOrEqual(2400);
+    expect(request.thinking).toEqual({ type: "disabled" });
+    expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 180000);
+    expect(result).toEqual({ text: "{\"speech\":\"我继续盘公开信息。\"}", providerId: "custom-speech:mimo-v2.5-pro" });
+  });
+
   it("disables DeepSeek action thinking to avoid reasoning-token empty JSON attempts", async () => {
     process.env.AI_LLM_API_KEY = "test-key";
     process.env.AI_MODEL_DEEPSEEK = "deepseek-v4-flash";

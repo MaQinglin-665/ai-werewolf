@@ -489,7 +489,7 @@ function buildDeathShapeCues(state: GameState): TableMemory["reasoningCues"] {
         day: event.day,
         kind: "death_shape",
         weight: "medium",
-        summary: "首夜平安夜：无守卫女巫局发言里可简称女巫用药了；空刀不作为发言主线，不需要让后置位重复解释平安夜本身，且不能确认女巫身份、具体救人目标或刀口。",
+        summary: "首夜平安夜：无守卫女巫局里按女巫用了救药一句带过；低信息位可以只说暂放、不压票或先听，首置位说完就停，不要补“后面看谁反应”的未来标准，且不能确认女巫身份、具体救人目标或刀口。",
         evidence: [event.message, "本局无守卫且有女巫，死亡形态本身是公开信息。"],
       });
       continue;
@@ -502,7 +502,7 @@ function buildDeathShapeCues(state: GameState): TableMemory["reasoningCues"] {
         day: event.day,
         kind: "death_shape",
         weight: "medium",
-        summary: `首夜单死${deadTarget ? `（${deadTarget.name}）` : ""}：无守卫女巫局里，狼必刀且女巫夜里救、毒、跳过三选一，“女巫没救/没用解药/没用药”可以作为公开规则推理；若讨论毒药重合刀口，要说明这是反面解释，不能伪装成私密女巫视角。`,
+        summary: `首夜单死${deadTarget ? `（${deadTarget.name}）` : ""}：无守卫女巫局里按狼刀成功、女巫没救一句带过；发言马上接怀疑、暂放、追问或投票条件，不能讲成规则课或追问首夜狼刀意图。`,
         ...(deadTarget ? { target: deadTarget } : {}),
         evidence: [event.message, "本局无守卫且有女巫，死亡形态本身是公开信息。"],
       });

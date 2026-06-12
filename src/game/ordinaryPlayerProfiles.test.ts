@@ -7,6 +7,7 @@ import {
   defaultOrdinaryPlayerProfile,
   inferOrdinaryPlayerTypeId,
   isOrdinaryPlayerTypeId,
+  ordinaryPlayerProfileTuning,
   ordinaryPlayerProfileSummary,
   sanitizeOrdinaryPlayerProfile,
 } from "./ordinaryPlayerProfiles";
@@ -100,5 +101,20 @@ describe("ordinary player profiles", () => {
     expect(result.preferences.memory).toBeGreaterThan(0.65);
     expect(result.preferences.leadership).toBeLessThan(0.6);
     expect(ordinaryPlayerProfileSummary(result.ordinaryPlayerProfile)).toContain("爱抓一句话");
+  });
+
+  it("derives legacy tuning from custom profile sliders", () => {
+    const profile = defaultOrdinaryPlayerProfile("emotional-reactor");
+    profile.sliders.directness = 0.9;
+    profile.sliders.voteBias = 0.6;
+    profile.sliders.nightAggression = 0.3;
+    profile.sliders.deception = 0.2;
+
+    const tuning = ordinaryPlayerProfileTuning(profile);
+
+    expect(tuning.riskTolerance).toBeCloseTo(0.6);
+    expect(tuning.bluffing).toBe(0.2);
+    expect(tuning.preferences.leadership).toBe(0.9);
+    expect(tuning.ordinaryPlayerProfile?.sliders.directness).toBe(0.9);
   });
 });

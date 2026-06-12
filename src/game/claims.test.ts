@@ -146,6 +146,18 @@ describe("role claim extraction", () => {
     expect(claim).toBeUndefined();
   });
 
+  it("does not treat quoted witch-claim wording while recognizing another witch as a self claim", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 3,
+      message:
+        "2号Claude跳女巫救了4号豆包，这个身份我暂时先认，因为没有对跳，而且他给了具体银水目标，这个比单纯说“我是女巫”要硬一点。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+    });
+
+    expect(claim).toBeUndefined();
+  });
+
   it("does not treat referenced black-check positions as a new self seer check", () => {
     const claim = extractRoleClaimFromSpeech({
       day: 1,
@@ -168,6 +180,18 @@ describe("role claim extraction", () => {
     });
 
     expect(claim).toBeUndefined();
+  });
+
+  it("parses seat-only comma witch reveals as hard witch claims", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 2,
+      message: "我是2号，女巫。昨晚救的是4号豆包，4号是银水。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+    });
+
+    expect(claim?.claimedRole).toBe("WITCH");
+    expect(claim?.strength).toBe("hard");
   });
 
   it("treats dramatic class-trial witch reveals as hard witch claims", () => {
@@ -205,6 +229,17 @@ describe("role claim extraction", () => {
 
     expect(claim?.claimedRole).toBe("WITCH");
     expect(claim?.strength).toBe("hard");
+  });
+
+  it("does not treat a silver-water recipient acknowledgement as a witch claim", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 4,
+      message: "我是4号豆包。2号Claude说我是银水，我先接这个信息。但今天先不聊这个，我手里没东西。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+    });
+
+    expect(claim).toBeUndefined();
   });
 
   it("does not turn dramatic class-trial witch wording on for ordinary games", () => {

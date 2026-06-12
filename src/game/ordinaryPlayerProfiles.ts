@@ -277,10 +277,20 @@ export function applyOrdinaryPlayerTypePreset<T extends AiFriendConfig>(
   const profile = defaultOrdinaryPlayerProfile(typeId);
   return {
     ...friend,
-    ordinaryPlayerProfile: profile,
-    riskTolerance: sliderAverage(profile.sliders.directness, profile.sliders.voteBias, profile.sliders.nightAggression),
-    bluffing: profile.sliders.deception,
-    preferences: preferencesFromSliders(profile.sliders),
+    ...ordinaryPlayerProfileTuning(profile),
+  };
+}
+
+export function ordinaryPlayerProfileTuning(profile: AiOrdinaryPlayerProfile): Pick<
+  AiFriendConfig,
+  "ordinaryPlayerProfile" | "riskTolerance" | "bluffing" | "preferences"
+> {
+  const safeProfile = sanitizeOrdinaryPlayerProfile(profile);
+  return {
+    ordinaryPlayerProfile: safeProfile,
+    riskTolerance: sliderAverage(safeProfile.sliders.directness, safeProfile.sliders.voteBias, safeProfile.sliders.nightAggression),
+    bluffing: safeProfile.sliders.deception,
+    preferences: preferencesFromSliders(safeProfile.sliders),
   };
 }
 

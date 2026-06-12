@@ -47,6 +47,7 @@ import {
   type AdaptedPersonaStrategyCard,
   type AiOrdinaryLiveIntentState,
 } from "./personaStrategyCards";
+import { renderedSpeechSupportsSeatTarget } from "./seatMemory";
 import type { AiActionProvider, AiActionProviderContext, AiActionResult } from "./types";
 
 const ActionDecisionSchema = z
@@ -394,8 +395,10 @@ function buildSpeechVoteContinuityLines(view: AgentView, candidateTargets: Actio
   if (!memory) return [];
   const lines: string[] = [];
   const speechTarget = memory.lastSpeechTargetSeatId
-    ? candidateTargets.find((target) => target.seatId === memory.lastSpeechTargetSeatId) ??
-      view.aliveSeats.find((target) => target.seatId === memory.lastSpeechTargetSeatId)
+    ? renderedSpeechSupportsSeatTarget(memory.lastSpeechStance, memory.lastSpeechTargetSeatId)
+      ? candidateTargets.find((target) => target.seatId === memory.lastSpeechTargetSeatId) ??
+        view.aliveSeats.find((target) => target.seatId === memory.lastSpeechTargetSeatId)
+      : undefined
     : undefined;
   if (speechTarget) {
     lines.push(
@@ -428,6 +431,7 @@ function withSpeechVoteReasonHint(
   if (view.phase !== "DAY_VOTE") return reasonHint;
   const lastSpeechTargetSeatId = view.privateKnowledge.aiMemory?.lastSpeechTargetSeatId;
   if (!lastSpeechTargetSeatId || /speech-vote continuity/i.test(reasonHint ?? "")) return reasonHint;
+  if (!renderedSpeechSupportsSeatTarget(view.privateKnowledge.aiMemory?.lastSpeechStance, lastSpeechTargetSeatId)) return reasonHint;
 
   const baseReason = reasonHint ?? "公开票型压力";
   if (target.seatId === lastSpeechTargetSeatId) {
@@ -436,7 +440,22 @@ function withSpeechVoteReasonHint(
 
   const previousTarget = view.aliveSeats.find((seat) => seat.seatId === lastSpeechTargetSeatId);
   if (!previousTarget) return reasonHint;
+  const roleDoubt = buildActionPublicRoleDoubtContinuityHint(view, target);
+  if (roleDoubt) return `${baseReason}; speech-vote continuity: ${roleDoubt}`;
   return `${baseReason}; speech-vote continuity: 从上一轮发言点过的${seatLabel(previousTarget)}转票到${seatLabel(target)}，说明新增公开证据更硬。`;
+}
+
+function buildActionPublicRoleDoubtContinuityHint(view: AgentView, target: ActionTarget): string | undefined {
+  const claim = view.publicSummary.claimBoard.find(
+    (item) =>
+      item.claimant.seatId === target.seatId &&
+      (item.claimedRole === "WITCH" || item.claimedRole === "HUNTER" || item.claimedRole === "IDIOT" || item.claimedRole === "KNIGHT" || item.claimedRole === "GUARD"),
+  );
+  if (!claim) return undefined;
+  const savedSelf = claim.claimedRole === "WITCH" && claim.checks.some((check) => check.target.seatId === view.mySeatId && check.result === "GOOD");
+  return savedSelf
+    ? `从上一轮发言目标转到${seatLabel(target)}，理由是这条银水链和女巫身份真假需要压出解释。`
+    : `从上一轮发言目标转到${seatLabel(target)}，理由是这个公开${claim.claimedRoleLabel}身份真假需要压出解释。`;
 }
 
 function publicEvidenceForTarget(view: AgentView, target: ActionTarget): string[] {
@@ -511,7 +530,7 @@ function speechMentionsTarget(message: string, target: ActionTarget): boolean {
 }
 
 function seatLabel(seat: ActionTarget): string {
-  return `${seat.seatId}#${seat.name}`;
+  return `${seat.seatId}号${seat.name}`;
 }
 
 function compactPublicLine(line: string | undefined): string {
@@ -690,6 +709,15 @@ export function validateActionDecision(view: AgentView, input: LlmActionInput, d
   if (continuityIssue) {
     errors.push(continuityIssue);
   }
+  if (containsFirstNightInventedPublicDiscussion(view, effectiveReason)) {
+    errors.push("first-night reason invents public discussion");
+  }
+  if (containsSeerCheckTargetMismatch(candidate, effectiveReason)) {
+    errors.push("seer-check reason names a different target");
+  }
+  if (containsFabricatedPublicCheckAttribution(view, effectiveReason)) {
+    errors.push("凭空引用未公开查验结果");
+  }
 
   if (candidate.command.type === "lastWords" && message && containsActionPrivateLeak(message)) {
     errors.push("last words leak private or system context");
@@ -699,6 +727,92 @@ export function validateActionDecision(view: AgentView, input: LlmActionInput, d
   }
 
   return errors;
+}
+
+type ActionPublicCheckAttribution = {
+  claimantSeatId: number;
+  targetSeatId: number;
+  result: "WEREWOLF" | "GOOD";
+};
+
+function containsFabricatedPublicCheckAttribution(view: AgentView, reason: string | undefined): boolean {
+  if (!reason) return false;
+  const attributions = collectActionPublicCheckAttributions(reason, view.aliveSeats);
+  if (attributions.length === 0) return false;
+  const claimBoards = [...view.publicSummary.claimBoard, ...view.publicSummary.tableMemory.claimBoard];
+  return attributions.some(
+    (attribution) =>
+      !claimBoards.some(
+        (claim) =>
+          claim.claimant.seatId === attribution.claimantSeatId &&
+          claim.claimedRole === "SEER" &&
+          claim.checks.some(
+            (check) => check.target.seatId === attribution.targetSeatId && check.result === attribution.result,
+          ),
+      ),
+  );
+}
+
+function collectActionPublicCheckAttributions(
+  reason: string,
+  seats: Array<{ seatId: number; name?: string }>,
+): ActionPublicCheckAttribution[] {
+  const attributions: ActionPublicCheckAttribution[] = [];
+  for (const sentence of reason.split(/[。！？；]/)) {
+    if (deniesActionPublicCheckAttribution(sentence)) continue;
+    const patterns = [
+      {
+        pattern:
+          /(\d{1,2})\s*号[^。！？；]{0,48}(?:报(?:了|出)?|给(?:了|出)?|甩(?:了)?|打(?:出)?|留(?:了)?|查(?:了)?|验(?:了)?)[^。！？；]{0,28}(\d{1,2})\s*号[^。！？；]{0,12}(查杀|金水)/g,
+        claimantGroup: 1,
+        targetGroup: 2,
+        resultGroup: 3,
+      },
+      {
+        pattern:
+          /(\d{1,2})\s*号[^。！？；]{0,48}(?:报(?:了|出)?|给(?:了|出)?|甩(?:了)?|打(?:出)?|留(?:了)?|查(?:了)?|验(?:了)?)[^。！？；]{0,18}?([A-Za-z][A-Za-z0-9_-]{1,24}|[\u4e00-\u9fa5]{1,12})[^。！？；]{0,4}(查杀|金水)/g,
+        claimantGroup: 1,
+        targetGroup: 2,
+        resultGroup: 3,
+      },
+      {
+        pattern:
+          /(\d{1,2})\s*号[^。！？；]{0,12}(?:是|作为|接了|吃了)?[^。！？；]{0,12}(\d{1,2})\s*号[^。！？；]{0,24}(?:报|给|甩|打|留)(?:的)?[^。！？；]{0,8}(查杀|金水)/g,
+        claimantGroup: 2,
+        targetGroup: 1,
+        resultGroup: 3,
+      },
+    ];
+    for (const { pattern, claimantGroup, targetGroup, resultGroup } of patterns) {
+      for (const match of sentence.matchAll(pattern)) {
+        const claimantSeatId = Number(match[claimantGroup]);
+        const targetSeatId = resolveActionPublicCheckSeatRef(match[targetGroup], seats);
+        const result = match[resultGroup] === "查杀" ? "WEREWOLF" : "GOOD";
+        if (!Number.isFinite(claimantSeatId) || targetSeatId === undefined) continue;
+        if (claimantSeatId === targetSeatId) continue;
+        attributions.push({ claimantSeatId, targetSeatId, result });
+      }
+    }
+  }
+  return attributions;
+}
+
+function resolveActionPublicCheckSeatRef(value: string | undefined, seats: Array<{ seatId: number; name?: string }>): number | undefined {
+  if (!value) return undefined;
+  const numeric = value.match(/(\d{1,2})/);
+  if (numeric) {
+    const parsed = Number(numeric[1]);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  const clean = value.trim().toLowerCase();
+  const match = seats.find((seat) => seat.name && seat.name.trim().toLowerCase() === clean);
+  return match?.seatId;
+}
+
+function deniesActionPublicCheckAttribution(sentence: string): boolean {
+  return /(?:没|没有|并没|并没有|从未|未|不|不能|别把|不要把|别说成|别说|不是)[^。！？；]{0,32}(?:报|给|甩|打|留|查|验)[^。！？；]{0,32}(?:查杀|金水)/.test(
+    sentence,
+  );
 }
 
 function buildSelfActionContext(view: AgentView, tableRead: AiTableRead): LlmActionInput["selfContext"] {
@@ -784,6 +898,7 @@ function buildActionCandidates(
     }
     case "NIGHT_WOLVES": {
       const action = getAction(view, "wolfKill");
+      const firstNight = isFirstNightWithoutPublicDiscussion(view);
       const plannedTarget = action?.targets.find(
         (target) => target.seatId === view.privateKnowledge.wolfTeamPlan?.nightStrategy?.nightTarget?.seatId,
       );
@@ -794,7 +909,9 @@ function buildActionCandidates(
           command: { type: "wolfKill", actorSeatId: view.mySeatId, targetSeatId: plannedTarget.seatId },
           target: plannedTarget,
           recommended: true,
-          reasonHint: targetReasonHint(tableRead, plannedTarget, "夜刀目标能用公开票型和发言压力解释。"),
+          reasonHint: firstNight
+            ? "第一夜无白天信息，只能按位置、身份威胁和通用风险做低信息夜刀。"
+            : targetReasonHint(tableRead, plannedTarget, "夜刀目标能用公开票型和发言压力解释。"),
         });
       }
       for (const target of sortTargets(action?.targets ?? [], tableRead, (seat) => seat.trust - seat.suspicion * 0.25)) {
@@ -804,7 +921,11 @@ function buildActionCandidates(
           label: `Kill ${target.name}`,
           command: { type: "wolfKill", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint: privateWolfTarget ? "夜间魅惑线可以制造药线压力" : targetReasonHint(tableRead, target, "公开信任或身份压力较高。"),
+          reasonHint: firstNight
+            ? "第一夜无白天信息，只能按位置、身份威胁和通用风险做低信息夜刀。"
+            : privateWolfTarget
+              ? "夜间魅惑线可以制造药线压力"
+              : targetReasonHint(tableRead, target, "公开信任或身份压力较高。"),
         });
       }
       break;
@@ -858,6 +979,7 @@ function buildActionCandidates(
       const action = getAction(view, "seerCheck");
       const checked = new Set(view.privateKnowledge.seerChecks?.map((check) => check.targetSeatId) ?? []);
       const legalTargets = action?.targets ?? [];
+      const firstNight = isFirstNightWithoutPublicDiscussion(view);
       const preferredTargets = legalTargets.some((target) => !checked.has(target.seatId))
         ? legalTargets.filter((target) => !checked.has(target.seatId))
         : legalTargets;
@@ -867,20 +989,23 @@ function buildActionCandidates(
           label: `Check ${target.name}`,
           command: { type: "seerCheck", actorSeatId: view.mySeatId, targetSeatId: target.seatId },
           target,
-          reasonHint: targetReasonHint(tableRead, target, "验人信息量最高。"),
+          reasonHint: firstNight
+            ? `第一夜无白天信息，先验${seatLabel(target)}，只按位置、身份坑和通用风险做低信息查验。`
+            : targetBoundReasonHint(tableRead, target, "验人信息量最高。"),
         });
       }
       break;
     }
     case "NIGHT_WITCH": {
       const action = getAction(view, "witchAction");
+      const firstNight = isFirstNightWithoutPublicDiscussion(view);
       if (action?.canSave && action.saveTarget) {
         add({
           id: "witch:save",
           label: `Save ${action.saveTarget.name}`,
           command: { type: "witchAction", actorSeatId: view.mySeatId, mode: "save" },
           target: action.saveTarget,
-          reasonHint: "开解药保住夜里刀口。",
+          reasonHint: firstNight ? "第一夜无白天信息，救药只按夜里刀口保人，不引用白天信息。" : "开解药保住夜里刀口。",
         });
       }
       if (action?.canPoison) {
@@ -890,7 +1015,9 @@ function buildActionCandidates(
             label: `Poison ${target.name}`,
             command: { type: "witchAction", actorSeatId: view.mySeatId, mode: "poison", targetSeatId: target.seatId },
             target,
-            reasonHint: targetReasonHint(tableRead, target, "公开嫌疑最高，适合考虑毒杀。"),
+            reasonHint: firstNight
+              ? "第一夜无白天信息，毒药没有明确公开依据时优先不用。"
+              : targetReasonHint(tableRead, target, "公开嫌疑最高，适合考虑毒杀。"),
           });
         }
       }
@@ -1233,8 +1360,8 @@ function buildLastWordsCandidates(view: AgentView, tableRead: AiTableRead): stri
       ? `最后我点一条线：${latestText}刚才那段发言要和后面的投票对照，谁顺着单点带节奏，明天优先回看。`
       : `最后我点一条线：今天不要被单点结论带走，先把身份声明、死讯和票型三件事对起来。`,
     voteText
-      ? `我的遗言看票型：如果今天票集中到${voteText}，明天一定复盘谁起票、谁补票、谁最后跟票。`
-      : `我的遗言看票型：明天别只听谁声音大，重点复盘谁起票、谁补票、谁最后跟票。`,
+      ? `我的遗言看票型：如果今天票集中到${voteText}，明天一定回看谁先把票带起来、谁顺着跟上。`
+      : `我的遗言看票型：明天别只听谁声音大，重点回看谁先把票带起来、谁顺着跟上。`,
   ];
 
   if (view.myRole === "SEER" && view.privateKnowledge.seerChecks?.length) {
@@ -1273,7 +1400,7 @@ function buildClassTrialLastWordsCandidates(view: AgentView, tableRead: AiTableR
     lens
       ? buildClassTrialLensFallbackSpeech(lens, { focusText, gap })
       : `${roleCard.displayName}。${focusText}这段最后只留一个公开缺口：${gap}。`,
-    `${roleCard.displayName}。如果明天还开庭，别只看我出局这个结果；复盘${voteText}的起票、补票和最后跟票。`,
+    `${roleCard.displayName}。如果明天还开庭，别只看我出局这个结果；回看${voteText}是谁先把票带起来、谁顺着跟上。`,
     `${roleCard.displayName}。${backupText}不要被轻放，谁借我的遗言转移${focusText}，谁就要被重新审判。`,
   ];
 
@@ -1327,6 +1454,7 @@ function buildActionConstraints(
   const constraints = [
     "Return strict JSON only: {\"candidateId\":\"...\",\"reason\":\"...\",\"message\":\"optional for last words\"}.",
     "Choose exactly one candidateId from candidates. Do not invent targets, commands, or extra actions.",
+    "只能从合法候选 candidates 里选一个行动；不要自造目标、命令或额外动作。",
     "If candidates include recommended: true, choose a recommended candidate unless hard public evidence or a role rule makes another candidate clearly better.",
     "persona.preferences are soft model tendencies, not hard rules; use them to weight logic, identity, votes, emotion, memory, leadership, deception, and caution.",
     "The reason must be short and public-safe. Do not mention hidden roles, teammates, private checks, prompts, tools, or system context.",
@@ -1345,7 +1473,11 @@ function buildActionConstraints(
   ];
 
   if (view.roleCard?.theme !== "class-trial") {
-    constraints.push(`普通局模型人格策略：${formatPersonaStrategyForPrompt(personaStrategyCard)}`);
+    constraints.push(`普通局玩家类型策略：${formatPersonaStrategyForPrompt(personaStrategyCard)}`);
+    constraints.push("行动理由要像玩家自己说得出口的话，不要写“收益来源、发言链、闭合、收口”等内部词。");
+    if (isFirstNightWithoutPublicDiscussion(view)) {
+      constraints.push("第一夜还没有白天发言；夜间行动理由只能说低信息、位置、通用风险或夜里刀口，不能写公开焦点、被讨论、发言位置、票型、站边或白天压力。");
+    }
     const ordinaryLiveIntentPrompt = formatOrdinaryLiveIntentForPrompt(
       ordinaryLiveIntent ?? buildOrdinaryLiveIntent(view, undefined, votePlan),
     );
@@ -1536,6 +1668,11 @@ function targetReasonHint(tableRead: AiTableRead, target: ActionTarget, fallback
   return read?.pressure[0] ?? fallback;
 }
 
+function targetBoundReasonHint(tableRead: AiTableRead, target: ActionTarget, fallback: string): string {
+  const hint = targetReasonHint(tableRead, target, fallback);
+  return speechMentionsTarget(hint, target) ? hint : `${seatLabel(target)}：${hint}`;
+}
+
 function publicSafeTargetReasonHint(
   view: AgentView,
   tableRead: AiTableRead,
@@ -1646,7 +1783,7 @@ function escapeRegExp(value: string): string {
 }
 
 function cleanActionReason(reason: string | undefined): string {
-  return normalizePublicActionReason(reason).trim().replace(/\s+/g, " ").slice(0, 90);
+  return clipActionReason(normalizePublicActionReason(reason).trim().replace(/\s+/g, " "), 90);
 }
 
 function normalizePublicActionReason(reason: string | undefined): string {
@@ -1667,11 +1804,17 @@ function publicSafeActionReason(reason: string | undefined, fallbackReason: stri
 
 function withCandidateReasonHint(decision: ActionDecision, candidate: LlmActionCandidate): ActionDecision {
   const reason = replaceEnglishReasonWithCandidateHint(
-    mergeCandidateContinuityHint(decision.reason, candidate.reasonHint),
+    replaceMismatchedSeerCheckReason(mergeCandidateContinuityHint(decision.reason, candidate.reasonHint), candidate),
     candidate.reasonHint,
   );
   if (reason === undefined) return decision;
   return reason === decision.reason ? decision : { ...decision, reason };
+}
+
+function replaceMismatchedSeerCheckReason(reason: string | undefined, candidate: LlmActionCandidate): string | undefined {
+  if (!containsSeerCheckTargetMismatch(candidate, reason)) return reason;
+  const cleanHint = cleanActionReason(candidate.reasonHint);
+  return cleanHint && !looksLikeMalformedActionReason(cleanHint) ? cleanHint : reason;
 }
 
 function mergeCandidateContinuityHint(reason: string | undefined, reasonHint: string | undefined): string | undefined {
@@ -1682,7 +1825,10 @@ function mergeCandidateContinuityHint(reason: string | undefined, reasonHint: st
   if (hasEnglishActionReasonFragment(cleanReason)) return continuityHint;
   if (reasonCoversSpeechVoteContinuityHint(cleanReason, continuityHint)) return reason;
   if (containsActionPrivateLeak(cleanReason) || containsActionPrivateLeak(continuityHint)) return reason;
-  return `${clipActionReasonBase(cleanReason)}；${continuityHint}`;
+  const base = clipActionReasonBase(cleanReason);
+  if (!base || looksLikeDanglingActionReasonBase(base)) return continuityHint;
+  const merged = `${base}；${continuityHint}`;
+  return merged.length > 90 ? continuityHint : merged;
 }
 
 function replaceEnglishReasonWithCandidateHint(reason: string | undefined, reasonHint: string | undefined): string | undefined {
@@ -1720,7 +1866,52 @@ function hasEnglishActionReasonFragment(reason: string): boolean {
 
 function clipActionReasonBase(reason: string): string {
   const clipped = reason.length <= 46 ? reason : reason.slice(0, 46);
-  return clipped.replace(/[。.!！?？；;，,：:、\s-]*$/g, "");
+  return clipped.replace(/[。.!！?？；;，,：:、]\s*\d+\s*$/g, "").replace(/[。.!！?？；;，,：:、\s-]*$/g, "");
+}
+
+function looksLikeDanglingActionReasonBase(reason: string): boolean {
+  return /(?:一直没|还没|没有|没|未|不|但|因为|如果|这个|那笔|这条|给|对|在)$/.test(reason);
+}
+
+function clipActionReason(reason: string, maxLength: number): string {
+  if (reason.length <= maxLength) return reason;
+  const continuitySentence = findContinuityActionReasonSentence(reason, maxLength);
+  if (continuitySentence) return continuitySentence;
+
+  const head = reason.slice(0, maxLength);
+  const sentenceEnd = lastIndexOfAny(head, ["。", "！", "？", ".", "!", "?"]);
+  if (sentenceEnd >= 18) return head.slice(0, sentenceEnd + 1).trim();
+
+  const clauseEnd = lastIndexOfAny(head, ["；", ";", "，", ",", "：", ":", "、"]);
+  const base = (clauseEnd >= 18 ? head.slice(0, clauseEnd) : head).replace(/[。.!！?？；;，,：:、\s-]*$/g, "").trim();
+  return base ? `${base}。` : head.trim();
+}
+
+function lastIndexOfAny(value: string, tokens: string[]): number {
+  return tokens.reduce((max, token) => Math.max(max, value.lastIndexOf(token)), -1);
+}
+
+function findContinuityActionReasonSentence(reason: string, maxLength: number): string | undefined {
+  const sentences = reason.match(/[^。！？.!?]+[。！？.!?]?/g) ?? [reason];
+  const continuitySentence = sentences
+    .map((sentence) => sentence.trim())
+    .find((sentence) => hasNaturalContinuityCue(sentence) && sentence.length >= 12);
+  if (!continuitySentence) return undefined;
+  if (continuitySentence.length <= maxLength) {
+    return /[。！？.!?]$/.test(continuitySentence) ? continuitySentence : `${continuitySentence}。`;
+  }
+
+  const head = continuitySentence.slice(0, maxLength);
+  const clauseEnd = lastIndexOfAny(head, ["；", ";", "，", ",", "：", ":", "、"]);
+  const base = (clauseEnd >= 18 ? head.slice(0, clauseEnd) : head).replace(/[。.!！?？；;，,：:、\s-]*$/g, "").trim();
+  return base ? `${base}。` : undefined;
+}
+
+function hasNaturalContinuityCue(value: string): boolean {
+  return (
+    /(上一轮|上轮|刚才|前面|之前).{0,60}(但|不过|现在|这轮|今天|转|改|换|更|先)/.test(value) ||
+    /(转票|改票|改投|新增|更硬|同一证据链|疑点未解除)/.test(value)
+  );
 }
 
 function validateActionReasonQuality(reason: string | undefined): string | undefined {
@@ -1728,6 +1919,44 @@ function validateActionReasonQuality(reason: string | undefined): string | undef
   if (!clean) return "reason is empty";
   if (looksLikeMalformedActionReason(clean)) return "reason is malformed";
   return undefined;
+}
+
+function isFirstNightWithoutPublicDiscussion(view: AgentView): boolean {
+  if (view.day !== 1) return false;
+  if (!view.phase.startsWith("NIGHT_")) return false;
+  return !view.publicSummary.recentSpeeches.some((speech) => speech.speaker);
+}
+
+function containsFirstNightInventedPublicDiscussion(view: AgentView, reason: string | undefined): boolean {
+  if (!isFirstNightWithoutPublicDiscussion(view)) return false;
+  const clean = cleanActionReason(reason);
+  if (!clean) return false;
+  return /(?:公开(?:可信|焦点|压力|票型)|被讨论|白天讨论|发言位置|稳定发言位|当前焦点|站边|票型|前置发言|后置发言)/.test(clean);
+}
+
+function containsSeerCheckTargetMismatch(candidate: LlmActionCandidate, reason: string | undefined): boolean {
+  if (candidate.command.type !== "seerCheck" || !candidate.command.targetSeatId) return false;
+  const clean = cleanActionReason(reason);
+  if (!clean) return false;
+  const targetSeatId = candidate.command.targetSeatId;
+  const explicitCheckedSeats = extractExplicitSeerCheckSeatRefs(clean);
+  if (explicitCheckedSeats.some((seatId) => seatId !== targetSeatId)) return true;
+  const resultSeats = extractCheckResultSeatRefs(clean);
+  if (resultSeats.length === 0 || resultSeats.every((seatId) => seatId === targetSeatId)) return false;
+  const target = candidate.target ?? { seatId: targetSeatId, name: `${targetSeatId}` };
+  return !speechMentionsTarget(clean, target);
+}
+
+function extractExplicitSeerCheckSeatRefs(reason: string): number[] {
+  return [...reason.matchAll(/(?:验|查验|查)(?:了|一下|一手|过)?\s*(\d{1,2})\s*号/g)]
+    .map((match) => Number(match[1]))
+    .filter((seatId) => Number.isInteger(seatId));
+}
+
+function extractCheckResultSeatRefs(reason: string): number[] {
+  const beforeResult = [...reason.matchAll(/(\d{1,2})\s*号[^。！？；;，,]{0,12}(?:查杀|金水)/g)].map((match) => Number(match[1]));
+  const afterResult = [...reason.matchAll(/(?:查杀|金水)[^。！？；;，,]{0,8}(\d{1,2})\s*号/g)].map((match) => Number(match[1]));
+  return [...beforeResult, ...afterResult].filter((seatId) => Number.isInteger(seatId));
 }
 
 function validateSpeechVoteContinuityReason(
@@ -1738,14 +1967,41 @@ function validateSpeechVoteContinuityReason(
   if (view.phase !== "DAY_VOTE" || candidate.command.type !== "vote") return undefined;
   if (!candidate.reasonHint || !/speech-vote continuity/i.test(candidate.reasonHint)) return undefined;
   const clean = cleanActionReason(reason);
+  const lastSpeechTargetSeatId = view.privateKnowledge.aiMemory?.lastSpeechTargetSeatId;
+  if (
+    lastSpeechTargetSeatId &&
+    /(?:上一轮|上轮|刚才|前面|之前).{0,16}(?:我)?(?:发言)?(?:已经)?(?:点过|压过|打过|盯过|提过|说过)/.test(clean) &&
+    !renderedSpeechSupportsSeatTarget(view.privateKnowledge.aiMemory?.lastSpeechStance, lastSpeechTargetSeatId)
+  ) {
+    return "reason claims unsupported speech-vote continuity";
+  }
   if (candidate.command.targetSeatId === view.privateKnowledge.aiMemory?.lastSpeechTargetSeatId) {
     return /(上一轮|刚才|延续|继续|未解除|没解释|没补清楚|同一条线)/.test(clean)
       ? undefined
       : "reason misses required speech-vote continuity";
   }
-  return /(转票|改票|改投|从.{0,12}(到|转|改)|新增|更硬|票型|对跳)/.test(clean)
+  return /(转票|改票|改投|从.{0,12}(到|转|改)|新增|更硬|票型|对跳)/.test(clean) ||
+    hasNaturalTargetChangeContinuityReason(view, candidate, clean)
     ? undefined
     : "reason misses required speech-vote continuity";
+}
+
+function hasNaturalTargetChangeContinuityReason(view: AgentView, candidate: LlmActionCandidate, reason: string): boolean {
+  if (candidate.command.type !== "vote") return false;
+  const previousTargetSeatId = view.privateKnowledge.aiMemory?.lastSpeechTargetSeatId;
+  const currentTargetSeatId = candidate.command.targetSeatId;
+  if (!previousTargetSeatId || !currentTargetSeatId || previousTargetSeatId === currentTargetSeatId) return false;
+
+  const previousPattern = `${previousTargetSeatId}\\s*号`;
+  const currentPattern = `${currentTargetSeatId}\\s*号`;
+  return (
+    new RegExp(
+      `(?:上一轮|上轮|刚才|前面|之前)[^。！？；]{0,36}${previousPattern}[^。！？；]{0,70}(?:但|不过|现在|这轮|今天|转|改|换|更|先)[^。！？；]{0,70}${currentPattern}`,
+    ).test(reason) ||
+    new RegExp(
+      `${previousPattern}[^。！？；]{0,50}(?:但|不过|现在|这轮|今天|转|改|换|更|先)[^。！？；]{0,70}${currentPattern}`,
+    ).test(reason)
+  );
 }
 
 function looksLikeMalformedActionReason(reason: string): boolean {

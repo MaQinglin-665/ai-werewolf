@@ -23,6 +23,7 @@ import {
   createVotePlan,
   isDayOneSoftPowerHintBlackCheckProtectedTarget,
   isProtectedSeerGoldTarget,
+  withSpeechVoteContinuityReason,
 } from "./tableRead";
 import type { AiActionProvider, AiDecisionLog, AiSpeechProvider, AiSpeechProviderContext } from "./types";
 
@@ -313,7 +314,7 @@ export function createMockCommand(
         type: "seerCheck",
         actorSeatId,
         targetSeatId: target.seatId,
-        reason: buildSeerCheckReason(tableRead, target),
+        reason: buildSeerCheckReason(view, tableRead, target),
       };
     }
     case "NIGHT_WITCH":
@@ -400,7 +401,7 @@ export function createMockCommand(
         type: "vote",
         actorSeatId,
         targetSeatId: plan.target.seatId,
-        reason: plan.reason,
+        reason: withSpeechVoteContinuityReason(view, plan.target, plan.reason),
       };
     }
     case "KNIGHT_DUEL": {
@@ -727,7 +728,9 @@ function chooseWitchAction(view: AgentView, tableRead: AiTableRead): Command {
       type: "witchAction",
       actorSeatId: view.mySeatId,
       mode: "save",
-      reason: `${victim.name} 当前不像焦点狼，优先保夜间信息。`,
+      reason: isFirstNightWithoutDaySpeech(view)
+        ? `第一夜还没有白天信息，先救${seatNameText(victim)}，保住今晚刀口，明天再看桌面怎么走。`
+        : `${victim.name} 当前不像焦点狼，优先保夜间信息。`,
     };
   }
 
@@ -1125,12 +1128,15 @@ function publicCueAttentionScore(tableRead: AiTableRead, seat: SeatRead): number
   }, 0);
 }
 
-function buildSeerCheckReason(tableRead: AiTableRead, target: ActionTarget): string {
+function buildSeerCheckReason(view: AgentView, tableRead: AiTableRead, target: ActionTarget): string {
+  if (isFirstNightWithoutDaySpeech(view)) {
+    return `第一夜还没有白天信息，先验${seatNameText(target)}，明天用查验结果开局。`;
+  }
   const seat = findSeatRead(tableRead, target);
   const evidence = seat ? describePublicActionEvidence(tableRead, seat) : undefined;
   return evidence
     ? `${target.name}这条线有验人收益：${evidence}，今晚先查清。`
-    : `${target.name}是当前焦点，查验收益最高。`;
+    : `先验${seatNameText(target)}，我需要用查验把这个位置落下来。`;
 }
 
 function buildWitchPoisonReason(tableRead: AiTableRead, target: SeatRead): string {
@@ -1374,16 +1380,27 @@ function seerCheckScore(view: AgentView, tableRead: AiTableRead, seat: SeatRead)
 }
 
 function buildWolfKillReason(view: AgentView, target: ActionTarget): string {
+  if (isFirstNightWithoutDaySpeech(view)) {
+    return `第一夜还没有白天信息，先刀${seatNameText(target)}，让白天从低信息局面开始。`;
+  }
   if (isPrivateWolfSeat(view, target.seatId)) {
-    return `${target.name} 适合做反向刀口，夜里赌一手药线和白天身份空间。`;
+    return `${target.name} 适合做反向刀口，夜里赌一手药线和白天节奏。`;
   }
   if (view.privateKnowledge.wolfTeamPlan?.threat?.seatId === target.seatId) {
-    return `${target.name} 公开占到关键身份线，夜里优先拆掉。`;
+    return `${target.name} 白天身份说法能带队，夜里优先拆掉。`;
   }
   if (view.privateKnowledge.wolfTeamPlan?.primaryTarget?.seatId === target.seatId) {
-    return `${target.name} 是当前公开焦点，夜里顺势处理。`;
+    return `${target.name} 白天已经被推到台面上，夜里顺势处理。`;
   }
-  return `${target.name} 当前可信度较高，夜里先拆稳定发言位。`;
+  return `${target.name} 白天相对不容易被出，夜里先处理。`;
+}
+
+function isFirstNightWithoutDaySpeech(view: AgentView): boolean {
+  return view.day === 1 && view.phase.startsWith("NIGHT_") && !view.publicSummary.recentSpeeches.some((speech) => speech.speaker);
+}
+
+function seatNameText(target: ActionTarget): string {
+  return `${target.seatId}号${target.name}`;
 }
 
 function buildMockLastWords(view: AgentView, tableRead: AiTableRead): string {

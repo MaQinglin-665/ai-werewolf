@@ -169,7 +169,7 @@ describe("table memory seer legacies", () => {
 });
 
 describe("table memory death-shape public cues", () => {
-  it("treats a day-one single death as public potion-line context on no-guard witch boards", () => {
+  it("treats a day-one single death as settled common sense on no-guard witch boards", () => {
     const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 91 });
     const deadSeat = state.seats.find((seat) => seat.role !== "WEREWOLF")!;
     state.events.push({
@@ -190,16 +190,15 @@ describe("table memory death-shape public cues", () => {
           kind: "death_shape",
           weight: "medium",
           target: expect.objectContaining({ seatId: deadSeat.seatId }),
-          summary: expect.stringMatching(/首夜单死.*女巫没救.*公开.*推理/),
+          summary: expect.stringMatching(/首夜单死.*狼刀成功.*女巫没救.*一句带过/),
         }),
       ]),
     );
-    expect(memory.publicSignals.join("\n")).toMatch(/首夜单死.*女巫没救.*公开.*推理/);
-    expect(memory.publicSignals.join("\n")).not.toMatch(/不能说成确定事实|不确定性/);
-    expect(memory.publicSignals.join("\n")).not.toContain("狼人不能空刀");
+    expect(memory.publicSignals.join("\n")).toMatch(/首夜单死.*狼刀成功.*女巫没救.*一句带过/);
+    expect(memory.publicSignals.join("\n")).not.toMatch(/毒药重合刀口|反面解释|药瓶状态|狼首夜必刀|女巫夜里救、毒、跳过三选一/);
   });
 
-  it("treats a day-one peace night as potion-line context while keeping wolf no-kill low probability", () => {
+  it("treats a day-one peace night as settled common sense instead of potion-line homework", () => {
     const state = createGame({ boardId: "9p-seer-witch-hunter", seed: 91 });
     state.events.push({
       seq: state.events.length + 1,
@@ -213,10 +212,11 @@ describe("table memory death-shape public cues", () => {
 
     const memory = buildTableMemory(state);
 
-    expect(memory.publicSignals.join("\n")).toMatch(/平安夜.*女巫用药了/);
-    expect(memory.publicSignals.join("\n")).toMatch(/不需要让后置位重复解释平安夜本身/);
-    expect(memory.publicSignals.join("\n")).toMatch(/空刀.*不作为发言主线/);
-    expect(memory.publicSignals.join("\n")).not.toContain("狼人不能空刀");
+    expect(memory.publicSignals.join("\n")).toMatch(/平安夜.*女巫用了救药.*一句带过/);
+    expect(memory.publicSignals.join("\n")).not.toMatch(/救药\/解药|没救\/没用解药/);
+    expect(memory.publicSignals.join("\n")).toMatch(/暂放、不压票或先听/);
+    expect(memory.publicSignals.join("\n")).toMatch(/首置位说完就停/);
+    expect(memory.publicSignals.join("\n")).not.toMatch(/空刀|药瓶状态|后置位重复解释/);
   });
 
   it("does not add no-guard potion-line cues on guard boards", () => {

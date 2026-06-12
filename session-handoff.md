@@ -2,13 +2,226 @@
 
 ## Current Objective
 
-- Latest completed objective: ordinary Werewolf AI decision upgrade. The ordinary single-player/multiplayer AI path now keeps existing model personas while adding inferred strategy cards, camp-aware live intent, public speech motive, anti-template moves, and speech-vote continuity. This applies to real LLM input and mock/fallback paths; night actions only store light private intent and do not expose hidden information in public speech.
-- Goal: Improve class-trial Day 1 speech so characters look like themselves participating in a Werewolf incident, not skilled Werewolf players wearing character skins.
-- Current status: Mimo is now the fixed current class-trial brain for this local theme slice, but this is not a final subjective "ideal" claim. The current follow-up is paused after a full-game Mimo viability check and one targeted local fix. Latest real evidence is still `tmp/class-trial-mimo-full-game-1780746535599.md` / `.json`: completed on D2, good side won by `所有狼人出局`, 40 AI logs, 18 speeches, 22 actions, all actions on `mimo-action:mimo-v2.5-pro`, all real speeches on `mimo-speech:mimo-v2.5-pro`, `actionFallback: 0`, `speechFallback: 1`. This proves full-game completion/playability with Mimo, but not a clean 0-fallback speech run.
-- Local note: This is a local AI text planning/validation slice. No Tencent Cloud, Render, browser UI, or audio deployment check is in scope.
+- Current objective: ordinary Werewolf Mimo invocation and speech quality roadmap.
+- Task card: `docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md`.
+- Long-running task id: `lrt-ordinary-mimo-speech-quality` in `long_running_tasks.json`.
+- User-approved priority order:
+  1. First diagnose the Mimo calling problem.
+  2. Then continue improving ordinary game speech quality until the user is very satisfied.
+  3. Only after that, explore token reduction while preserving speech/action quality.
+- Latest v46 status: same-seed bounded live Mimo completed after the final narrow hard-fact guards. Evidence: `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-report.json`, `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-cases.json`, and `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-eval.json`. v46 summary: 28 calls, 16 speech, 12 action, D1 speech/vote plus D2 speech/vote, `validationFailureCount 0`; local eval averageScore 100, issueCount 0, highRiskCaseIds empty. Acceptance scans found no malformed fragments, no logic-boundary errors, no speech-vote discontinuities, no ungrounded public-check attributions, and no forward-commitment tails. Current acceptance note: `docs/evaluations/2026-06-12-ordinary-mimo-v46-final-acceptance-gate.md`.
+- Local note: Do not write or persist API keys. Do not edit `.env`. Any real Mimo check must use temporary process env only and should be bounded unless the user explicitly approves a larger spend.
+- Current handoff update, 2026-06-12 17:55: the latest Fable5-required hard fixes are implemented and verified. v46 is a final user-acceptance candidate, not a Fable5 stop point. Residual risk: v46 still had `fallbackCount 3` / `errorCount 3`, and D2 8号's game-legal Werewolf fake-Seer claim came from fallback, so the transcript is not pure no-fallback Mimo.
+- Next-session startup: read `AGENTS.md`, `docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md`, `docs/evaluations/2026-06-12-ordinary-mimo-v46-final-acceptance-gate.md`, `progress.md`, and `long_running_tasks.json`. Do not start token reduction. Next action is final user acceptance unless the user explicitly asks for another subjective style pass or a no-fallback sample.
 
 ## Completed This Session
 
+- [x] Implemented the final narrow hard-fact guard: fabricated public check attributions now fail provider/action validation and ordinary eval unless grounded by a Seer claim in the public claim board.
+- [x] Extended forward-commitment truncation coverage for tail variants such as `有个更让我别扭的地方。`.
+- [x] Preserved `metadata.aliveSeats` names and public claim-board summaries in ordinary eval cases.
+- [x] Ran v46 same-seed bounded live Mimo: `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-report.json`, `-cases.json`, and `-eval.json`.
+- [x] v46 reached the target D1 speech/vote plus D2 speech/vote envelope with 28 calls, local eval averageScore 100, issueCount 0, and highRiskCaseIds empty.
+- [x] v46 acceptance scans found no malformed fragments, no logic-boundary errors, no vote discontinuities, no ungrounded public-check attributions, and no forward-commitment tails.
+- [x] Added `docs/evaluations/2026-06-12-ordinary-mimo-v46-final-acceptance-gate.md`.
+- [x] Latest verification passed: focused action/eval/eval-utils/speech tests, 8-file related AI/claim aggregate (453 tests), `npx tsc --noEmit --pretty false`, targeted eslint, existing v45 eval replay, and v46 live/eval gate scans.
+- [x] Ran v44 same-seed bounded live after the v43 Fable5 fixes: `tmp/ordinary-mimo-v44-post-fable5-live-20260612-161030-report.json`, `-cases.json`, and `-eval.json`.
+- [x] v44 reached the target envelope with D1 speech/vote plus D2 speech/vote: 28 calls, 16 speech, 12 action, `fallbackCount 1`, `errorCount 1`, `validationFailureCount 0`.
+- [x] Replayed v43 through the current eval constructor; `tmp/ordinary-mimo-v43-day-vote-d2-live-20260612-151541-post-fable5-review-eval.json` now reports 10 `speech_vote_discontinuity` issues, proving the old silent mismatch is covered.
+- [x] Fixed the new v44 hard defect locally: non-Witch speakers accepting a misattributed self-Witch identity now fail provider validation and ordinary eval flags the shape as `logic_boundary_error`.
+- [x] Added `docs/evaluations/2026-06-12-ordinary-mimo-v44-post-fable5-live-review.md` as the current compact Fable5 review pack and stop point.
+- [x] Latest v44/self-Witch verification passed: focused speech/evaluator tests, 8-file related AI/claim aggregate (449 tests), `npx tsc --noEmit --pretty false`, and targeted eslint.
+- [x] v43 bounded live Mimo completed after the temporary key was entered through the helper: `tmp/ordinary-mimo-v43-day-vote-d2-live-20260612-151541-report.json`, `-cases.json`, and `-eval.json`; status file records `complete`.
+- [x] v43 reached the target envelope: 28 calls, 16 speech, 12 action, D1 speech/vote plus D2 speech/vote, `fallbackCount 0`, `errorCount 0`, `validationFailureCount 0`.
+- [x] Fixed the v43 false Witch counterclaim pollution: quoted/recognized 3号 GPT wording no longer creates `女巫对跳：Claude、GPT`.
+- [x] Fixed the v43 D2 stale Witch save timing: old-save self-claims on D2+ reject `昨晚/昨夜/夜里救的是...` unless the current night save actually happened.
+- [x] Added `docs/evaluations/2026-06-12-ordinary-mimo-v43-day-vote-d2-fable5-review.md` as the current compact Fable5 review pack.
+- [x] Latest post-v43 verification passed: focused claim and Witch timing tests, Fable5 narrow-fix focused tests, eval-utils test, 8-file related AI/claim aggregate (441 tests), `npx tsc --noEmit --pretty false`, targeted eslint, and existing-case evals for v41 and v43.
+- [x] Checked process/user/machine env and local env-file variable presence without printing values. Process/user/machine env had no relevant Mimo variables; `.env`/`.env.local` contained candidate key names but were not printed.
+- [x] Ran two 1-call v43 live preflights with local env-file candidates loaded only into temporary process env, then cleared from the process. Both wrote report/cases files and failed with HTTP 401 `invalid_key`, with `fallbackCount 1`, `errorCount 1`, `validationFailureCount 0`; do not treat those fallback rows as Mimo speech-quality evidence.
+- [x] Added/kept `tmp/run-mimo-day-vote-d2-live.ps1` as the safe temp-env helper: it uses existing process `AI_LLM_API_KEY` / `MIMO_LLM_API_KEY` if present; otherwise it prompts for a temporary key, writes a per-process temp env file under `tmp`, runs the bounded DAY_VOTE + D2 sample plus eval, then deletes the temp env file in `finally`.
+- [x] Earlier v43 gate check: the helper was waiting for hidden token input, no v43 DAY_VOTE + D2 report/cases/eval files existed, and the helper was stopped at that time. This is now historical; the later valid-key helper run completed v43 live and overwrote the latest status to `complete`.
+- [x] Checked current process env without printing values. `AI_LLM_PROVIDER`, `AI_LLM_API_KEY`, `MIMO_LLM_API_KEY`, `MIMO_LLM_BASE_URL`, `AI_MODEL_MIMO`, `AI_LLM_BASE_URL`, and `OPENAI_BASE_URL` were all missing, so paid live was not run.
+- [x] Ran mock-only v42 command-shape dry-run for the intended next live envelope: `tmp/ordinary-mimo-v42-day-vote-d2-shape-dryrun-report.json` and `tmp/ordinary-mimo-v42-day-vote-d2-shape-dryrun-cases.json`. Same seed 91, max 28 calls, final state D2 `DAY_VOTE`, phase coverage D1 speech 9 / D1 vote 9 / D2 speech 7 / D2 vote 3, fallback 0, error 0, validationFailure 0.
+- [x] Ran local eval on the dry-run cases: `tmp/ordinary-mimo-v42-day-vote-d2-shape-dryrun-eval.json`, 28 cases, averageScore 99.4, issueCount 1 (`future_audit_hook`), highRiskCaseIds empty. This is mock evidence only.
+- [x] Applied Fable5's three required v41 narrow fixes without broad phrase bans or hard fallback expansion:
+  - public-role-claim repeated-axis steering now still steers away from same-axis quote/follow pressure while preserving `roleHandle`;
+  - forward-commitment endings such as `我先说一下为什么现在跳。` and `我现在想换个方向看。` are treated as `普通局发言疑似被截断`;
+  - ordinary eval case construction can count `recentSpeeches`, `speechInfluence`, and `voteLeaders` as referenced public cues.
+- [x] Added provider-level regression coverage where both render attempts return `我是女巫...我先说一下为什么现在跳。`; the result is 2 attempts, non-fallback, and final speech with the trailing promise cut.
+- [x] Added evaluator regressions for forward-commitment endings in both `analyzeLlmCallQuality` and `analyzeOrdinaryAiEvalCase`, with landed follow-up text not flagged.
+- [x] Added eval-utils regression for `buildEvalCaseFromAiLog` counting a reference to `publicSummary.recentSpeeches`.
+- [x] Re-ran v41 existing-case eval to `tmp/ordinary-mimo-v41-live-d1-cn-base-after-fable5-narrow-fix-eval.json`: 8 cases, averageScore 95.5, issueCount 2, both `malformed_output_fragment`, highRiskCaseIds empty; sampleMetrics still warns repeated same-axis phrasing at 4/8.
+- [x] Verified the current constructor is not silent on public cue references by rebuilding v41 report input summaries in memory: 4/8 rows had `referencedPublicCueCount > 0`. The old exported cases remain historical 0s because existing-case eval reads persisted case counts.
+- [x] Latest verification passed: focused speech-provider, evaluator, and eval-utils tests; 7-file AI/table-memory aggregate (413 tests); `npx tsc --noEmit --pretty false`; targeted eslint; task-card gate; long-task check; JSON parse; harness check; `git diff --check` with LF/CRLF warnings only.
+- [x] Corrected the current quota/provider diagnosis: the temporary Token Plan route now works; old v26/v27 HTTP 403 notes are no longer the active blocker.
+- [x] Ran direct provider and 1-call project preflight without persisting the key. The project preflight returned `fallbackCount 0`, `errorCount 0`, `validationFailureCount 0`.
+- [x] Ran v41 bounded live Mimo Day 1 speech sample: `tmp/ordinary-mimo-v41-live-d1-cn-base-report.json`, `tmp/ordinary-mimo-v41-live-d1-cn-base-cases.json`, and `tmp/ordinary-mimo-v41-live-d1-cn-base-eval.json`.
+- [x] v41 result: 8 speech calls, providers all `custom-speech:mimo-v2.5-pro`, fallback 0, error 0, validation failure 0, total quality issues 0, case-level local eval averageScore 100.
+- [x] v41 remaining subjective issue: seats 3/5/6/7 repeatedly chase 1号's `底牌不虚 + 信息少暂时不压票`; report-only sampleMetrics correctly warns `repeated_surface_phrase 4/8` and `repeated_clause_rate 4/8`.
+- [x] Updated `docs/evaluations/2026-06-11-ordinary-mimo-stage-close-fable5-review.md` as the current compact Fable5 review pack.
+- [x] Final v41 verification passed: 7-file AI/table-memory test aggregate (408 tests), v41 existing-case eval, TypeScript, targeted eslint, task-card gate, long-task check, harness check, and `git diff --check` with LF/CRLF warnings only.
+- [x] Local-only follow-up after v14/v15: fixed action continuity hints so they no longer emit `N#Name` seat labels; they now use `N号Name`.
+- [x] Fixed Seer night-action target/reason mismatch locally. `seerCheck` candidate hints now include the selected target; direct validation rejects a seer-check reason naming a different checked target; routed action output repairs that mismatch by using the selected candidate hint instead of falling back.
+- [x] Added soft ordinary speech-rhythm guidance for repeated `我先接上一位 / 这个判断我听到了 / 我听进去了` surfaces. This is prompt/context guidance, not a hard fallback rule.
+- [x] Latest local verification passed: focused action red-green tests, focused speech-rhythm red-green test, `npm run test -- src/ai/actionProviders.test.ts src/ai/speechProviders.test.ts` (328 tests), 5-file AI aggregate test (382 tests), and `npx tsc --noEmit --pretty false`.
+- [x] Local-only v20 mock/fallback cleanup after v16-v19 dry runs: removed old action text surfaces (`当前可信度较高`, `稳定发言位`, `当前焦点，查验收益最高`, `身份空间`) from mock night reasons.
+- [x] Cleaned ordinary first-seat mock/fallback speech so it no longer copies `tableTask` text, invents pressure on unspoken later seats, says `刚才那句最卡` with no front speech, or waits for generic 后置位 homework.
+- [x] Naturalized public-claim audit wording from `身份空间 / 公开处理方向和边界` to `这个身份先认下来，但今天票准备往哪放要说清`.
+- [x] Ran v20 local bounded transcript/eval: `tmp/ordinary-mimo-v20-local-polish-dryrun-20260611-0827.json`, `-cases.json`, and `tmp/ordinary-mimo-v20-local-polish-mock-eval-20260611-0827.json`. Result: 25 mock calls, `fallbackCount 0`, `errorCount 0`, `validationFailureCount 0`, bad-pattern grep 0 hits; local eval averageScore 92.0, highRiskCaseIds empty.
+- [x] Latest v20 verification passed: focused speech/action/table-read tests, 5-file AI aggregate test (384 tests), `npx tsc --noEmit --pretty false`, and local bounded transcript/eval commands.
+- [x] Local v21d vote-continuity follow-up: mock/fallback day-vote reasons now explain either continuing the previous speech target or pivoting from it to a harder current public reason; `createMockCommand` applies the same continuity naturalizer to supplied fallback `votePlan`s.
+- [x] Local v21d text polish: player-visible mock vote/speech text no longer uses `公开焦点 / 按这条线归票`, `当前焦点是...`, `我接的公开点是`, or `我接到的是...`.
+- [x] v21d local eval: `tmp/ordinary-mimo-v21d-local-vote-continuity-mock-eval-20260611-1025.json`, 42 cases, averageScore 98.3, issueCount 4, `speech_vote_discontinuity` 0, highRiskCaseIds empty.
+- [x] v21d bounded dry run: `tmp/ordinary-mimo-v21d-local-vote-continuity-dryrun-20260611-1026.json` and `-cases.json`, 25 mock calls, 12 speech / 13 action, `fallbackCount 0`, `errorCount 0`, `validationFailureCount 0`, `totalQualityIssues 0`.
+- [x] Latest v21d verification passed: focused vote-continuity tests, `npm run test -- src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts` (332 tests), 5-file AI aggregate test (386 tests), and `npx tsc --noEmit --pretty false`.
+- [x] v22 direction update: accepted the positive-context-supply direction for ordinary speech. Broad soft word-list expansion should no longer be the default response; prefer per-seat player mini-bio, self-history, candidate-action diversity, and sample-level transcript review.
+- [x] v22 implementation start: `ordinarySpeechDirector.playerVoiceCard` now derives a stable mini-biography from the existing ordinary player profile; `ordinarySpeechDirector.selfHistory` surfaces the speaker's prior public speech, last speech target/stance, and last vote target/reason.
+- [x] v22 candidate diversity: repeated pickup/quote surfaces such as `接上一位/我听到了` now remove `quoteOneLine`/`halfAccept` from the next ordinary candidate set and push moves like discomfort, hold, or voteBoundary.
+- [x] Latest v22 verification passed: RED/GREEN focused tests for player voice card, self-history, and repeated pickup candidate shifting; full `npm run test -- src/ai/speechProviders.test.ts` passed 290 tests; 5-file AI aggregate passed 388 tests; `npx tsc --noEmit --pretty false` passed; task-card, long-task, harness, and JSON parse checks passed.
+- [x] v22 bounded local mock readback: in-memory `node scripts/evaluate-llm-game.mjs --provider=mock --allow-mock --board=9p-seer-witch-hunter --human=none --games=1 --max-llm-calls=14 --json` summary had 14 calls, 9 speech / 5 action, fallback/error/validation/quality all 0. The text still repeated some mock-local surfaces like `刚才给了一个方向，我会拿后面的票和回应对照`, so do not treat this as subjective quality acceptance.
+- [x] v23 sample-level evaluator reporting: `summarizeOrdinaryAiEvalCases` now returns `summary.sampleMetrics` for repeated surface phrases, seat voice similarity, action distribution skew, and positive-signal coverage. These are report-only and do not change per-case score, issue count, high-risk cases, validation, retry, or fallback.
+- [x] v23 Markdown reporting: `scripts/eval-ordinary-ai-utils.mjs` now prints a `Sample Metrics` section between Summary and Cases; JSON output carries the same `summary.sampleMetrics`.
+- [x] v23 mock eval smoke: `node scripts/eval-ordinary-ai.mjs --source=mock --games=1 --seed-start=91 --max-cases=20 --json` reported 20 cases, averageScore 98, issueCount 2, and 2 sample metrics: `repeated_surface_phrase 4/9` and `action_distribution_skew 0.78`.
+- [x] Latest v23 verification passed: RED/GREEN sample metric tests, RED/GREEN Markdown report test, 2-file eval tests (28 tests), 6-file AI aggregate (391 tests), and `npx tsc --noEmit --pretty false`.
+- [x] v24 stage close: used `summary.sampleMetrics` on bounded mock seed 91, fixed repeated previous-speaker bridges, naturalized player-visible mock public reasoning cues, varied public role vote/rally wording, and calibrated `no_concrete_progression` for weak but landed ordinary actions.
+- [x] v24 final local eval: `tmp/ordinary-mimo-v24-stage-close-final-mock-eval.json`, 30 cases, averageScore 100, issueCount 0, highRiskCaseIds empty, sampleMetrics empty.
+- [x] v24 Fable5 review package: `docs/evaluations/2026-06-11-ordinary-mimo-stage-close-fable5-review.md`, with minimal read list, sample excerpt, known residual concerns, and review questions.
+- [x] v24 final verification passed: 6-file AI aggregate test (395 tests), `npx tsc --noEmit --pretty false`, targeted eslint for touched AI files, task-card gate, long-task registry check, JSON parse check, harness check, and `git diff --check` with LF/CRLF warnings only.
+- [x] v25 post-Fable-feedback repair: fixed repeated bridge/pivot wording, reduced repeated full seat labels inside mock speech, added shared-pressure citation budget in the ordinary speech director/candidate layer, and reworded old public-review register in mock/agenda text.
+- [x] v25 evaluator visibility: added report-only sample metrics for repeated long clauses and dominant target-axis concentration. These remain quality review signals only; they do not trigger fallback or change case scoring.
+- [x] v25 final local eval: `tmp/ordinary-mimo-v25-post-fable-feedback-mock-eval.json`, 30 cases, averageScore 100, issueCount 0, highRiskCaseIds empty, sampleMetrics empty.
+- [x] v25 Fable5 review package: `docs/evaluations/2026-06-11-ordinary-mimo-v25-fable5-review.md`, with minimal read list, changed-surface summary, sample excerpt, review questions, and explicit "do not recommend" boundaries.
+- [x] v25 final verification passed: 6-file AI aggregate test (397 tests), `npx tsc --noEmit --pretty false`, targeted eslint for touched AI files, task-card gate, long-task registry check, JSON parse check, harness check, and `git diff --check` with LF/CRLF warnings only.
+- [x] Ran full 9-player ordinary Mimo v14 with the temporary Token Plan key only through process env. Evidence: `tmp/ordinary-mimo-v14-fullgame-9p-validkey-20260611-004235.json`, `-cases.json`, `-eval.json`, and `.run.log`.
+- [x] v14 completed one game: wolves won on Day 4 by eliminating all gods. It made 55 LLM calls, with 20 speech calls, 35 action calls, `fallbackCount 1`, `errorCount 1`, and `validationFailureCount 0`. Local eval averageScore was 97.5 with 8 low-risk issues and no high-risk cases.
+- [x] Manual v14 review found three focused defects: Day 1 first-seat premature pressure on unspoken 3号 (`3号GPT，我先记你一笔`), first-night action reasons inventing public discussion/focus/pressure, and dangling action-continuity merge fragments such as `没；从上一轮...` or orphan target digits.
+- [x] Added regression coverage and fixes for those defects in `src/ai/speechProviders.ts`, `src/ai/speechProviders.test.ts`, `src/ai/actionProviders.ts`, and `src/ai/actionProviders.test.ts`.
+- [x] Ran post-fix bounded v15: `tmp/ordinary-mimo-v15-post-fullgame-fixes-bounded-20260611-005920.json`, `-cases.json`, and `-eval.json`. Result: 15 calls, 9 speech / 6 action, `fallbackCount 0`, `errorCount 0`, `validationFailureCount 0`, local eval averageScore 98.7, one low-risk issue.
+- [x] v15 confirmed the first-seat opener no longer pre-points 3号 and first wolf-kill reason stays on first-night low-information rationale. It also exposed one first-night `seerCheck` mixed contradiction before the final validator tightening; this is locally covered but not rerun live.
+- [x] Latest verification passed: focused red-green speech/action tests, `npm run test -- src/ai/actionProviders.test.ts src/ai/speechProviders.test.ts`, the 5-file AI aggregate test, and `npx tsc --noEmit --pretty false`.
+- [x] Used the user-provided temporary Token Plan key only through process env; no key was written to `.env`, source, docs, reports, or provider config.
+- [x] Ran valid-key bounded ordinary Mimo samples v08-v13. v08 and v09 had 0 fallback / 0 error and showed the route was usable again; v10-v13 exposed remaining landing/fallback/provider edge cases rather than the earlier invalid-key failure.
+- [x] Recorded v08/v09/v10/v11/v12/v13 evidence in `tmp/ordinary-mimo-v08-validkey-small-20260610-2345*`, `tmp/ordinary-mimo-v09-validkey-landing-20260610-2353*`, `tmp/ordinary-mimo-v10-validkey-landing-20260611-0000*`, `tmp/ordinary-mimo-v11-validkey-landing-20260611-0006*`, `tmp/ordinary-mimo-v12-validkey-short-20260611-0015*`, and `tmp/ordinary-mimo-v13-speech-only-20260611-0027*`.
+- [x] Added ordinary carry-over prompt guidance: quote at most one prior line, then land a first-person handling action instead of stopping at someone else's words.
+- [x] Added soft retry coverage for recap-without-landing / unfinished endings such as `多看一步`, `转一下视线`, `原话我再过一遍`, `能撑住的只有`, `背后藏着一个前提`, and `我记到现在`.
+- [x] Fixed first-seat fallback so ordinary Witch/Seer fallback does not quote an unspoken later seat as `刚才那句`.
+- [x] Tightened planned seer claim contracts and repair so `claim_gold_check` / `claim_black_check` starts from `我是预言家` instead of vague `先报身份`.
+- [x] Extended Day 1 first-check motive attack validation to ordinary mode, and cleaned black-check target repair so leftover `首验心路太薄` residue is removed after attribution repair.
+- [x] Latest local verification passed: focused speech-provider tests for unfinished endings, first-check motive, first-seat fallback, and planned seer claims; full `src/ai/speechProviders.test.ts`; `npx tsc --noEmit --pretty false`; AI aggregate tests across action/speech/eval/table-read/seat-memory; task-card, long-task, harness, and diff checks.
+- [x] User reviewed the surfaced v05/v06 transcript excerpts and agreed with the diagnosis: the remaining speech-feel problem is review/register wording such as `身份空间`, `发言缺口`, `怎么用这个信息`, and formulaic `起票/补票/最后跟票`.
+- [x] Added focused regressions for those exact surfaces in `src/ai/speechProviders.test.ts`, with positive coverage for natural alternatives like `我先当真女巫听`, `票准备往哪放`, and `谁先把票带起来、谁顺着跟上`.
+- [x] Extended ordinary speech naturalization and prompt avoid-lines in `src/ai/speechProviders.ts` so accepted LLM output is steered away from those terms without forcing fallback.
+- [x] Changed one internal table-task label from `发言缺口` to `没说清的地方`, and changed mock vote-review wording away from `起票和补票位置`.
+- [x] Extended `src/ai/llmEvaluation.ts` / `.test.ts` so local eval now flags the review-register surfaces as `ordinary_jargon_stack`.
+- [x] Re-scored existing v06/v05 case exports with the new evaluator. v06: `tmp/ordinary-mimo-v06-d1vote-after-review-register-fix-20260610-eval.json`, averageScore 97.0, issueCount 4, highRiskCaseIds empty. v05: `tmp/ordinary-mimo-v05-fullgame-after-review-register-fix-20260610-eval.json`, averageScore 91.8, issueCount 34, mostly `ordinary_jargon_stack`.
+- [x] Verification for this review-register pass: focused speech/evaluator tests failed first then passed; `npm run test -- src/ai/actionProviders.test.ts src/ai/speechProviders.test.ts src/ai/llmEvaluation.test.ts` passed 343 tests; `npx tsc --noEmit --pretty false` passed; existing-case re-evals passed.
+- [x] Attempted post-cleanup v07 bounded Mimo run: `tmp/ordinary-mimo-v07-d1vote-after-review-register-cleanup-20260610-2310.json` plus `-cases.json`. It is not a valid quality sample because all 25 calls returned provider errors: `fallbackCount 25`, `errorCount 25`, `byRetryIssue.provider_request 25`, repeated `401 Invalid API Key`.
+- [x] Ran local eval on the fallback-only v07 cases: `tmp/ordinary-mimo-v07-d1vote-after-review-register-cleanup-20260610-2310-eval.json`, averageScore 88.5, issueCount 14. Treat this only as fallback-pollution evidence, not Mimo speech quality evidence.
+- [x] Fixed provider-error fallback pollution found in v07: duplicate `这段我先记下`, Kimi/Gemini `身份线/观察位/长线记忆` fallback openers, and eval transcript player names that included model suffixes such as `Mimo-mimo-v25-pr`.
+- [x] Cleaned upstream prompt/action/memory fallback wording away from review-register terms where those strings could enter player-visible text or LLM-visible soft guidance.
+- [x] Verification for the fallback-pollution pass: focused speech fallback and eval nickname tests failed first then passed; `npm run test -- src/ai/actionProviders.test.ts src/ai/speechProviders.test.ts src/ai/llmEvaluation.test.ts src/ai/tableRead.test.ts src/ai/seatMemory.test.ts` passed 374 tests; `npx tsc --noEmit --pretty false` passed.
+- [x] Ran a full 9-player all-AI ordinary Mimo game on `9p-seer-witch-hunter`: `tmp/ordinary-mimo-v05-fullgame-9p-all-ai-after-claim-action-fixes-20260610-2034.json` and `-cases.json`. It completed one game with 56 LLM calls; wolves won on Day 4. The 5 fallbacks were action/provider-error vote-continuity fallbacks, not speech fallbacks.
+- [x] Fixed `scripts/evaluate-llm-game.mjs` so `--human=none|null|all-ai|all_ai` runs all AI seats instead of leaving seat 9 as a default human/model-routed seat.
+- [x] Fixed full-game review issues in ordinary speech validation: later public death after an earlier peaceful day, previous-day seer-claim attribution across another seat number, named-focus speech ending unfinished, and repetitive provider-error fallback wording.
+- [x] After inspecting v06 text, added a soft unfinished-speech guard for the live 5号 shape: quote/re-listen to a prior line and end at `越想越不对 / 越想越怪 / 不舒服` without a handling action. Positive coverage keeps the same wording valid when it lands a `所以我这轮...` action.
+- [x] Fixed action-provider fallback causes from the full-game run: reason clipping now prefers complete sentences/clean clauses, preserves target-change continuity sentences, and accepts natural human target-change wording.
+- [x] Fixed local evaluator false positives for true Witch self-reveal formats such as `我是2号，女巫...` and `我底牌是女巫...` while preserving non-Witch hidden-information failures.
+- [x] Ran post-fix bounded live confirmation: `tmp/ordinary-mimo-v06-d1vote-after-action-continuity-fix-20260610-2052.json`, `-cases.json`, and `-eval-after-evaluator-fix.json`. It covered Day 1 speech/vote into Day 2 night start with 25 LLM calls, fallbackCount 0, errorCount 0, validationFailureCount 0, local eval averageScore 97.4, and no high-risk cases.
+- [x] Verification for the latest fix set: `npm run test -- src/ai/speechProviders.test.ts -t "cut-off seat reference"` passed after the v06 5号 guard; `npm run test -- src/ai/actionProviders.test.ts src/ai/speechProviders.test.ts src/ai/llmEvaluation.test.ts` passed 342 tests; `npx tsc --noEmit --pretty false` passed; full-game v05 completed; v05/v06 existing-case evals passed; bounded v06 live confirmation passed.
+- [x] Followed the user's latest constraint: avoid forcing LLM fallback for ordinary speech-quality issues unless there is a rule, public-information, role-claim, death-state, or private-info problem.
+- [x] Split speech validation handling so ordinary soft quality issues still trigger retry repair, but if only soft issues remain after retries the provider returns the latest LLM speech as non-fallback.
+- [x] Added focused coverage for the soft-quality behavior: a repeated ordinary quality issue such as `普通局不要用卡句式口癖` remains reported by validation, but no longer forces fallback after retry exhaustion.
+- [x] Kept hard correctness failures hard; this pass did not soften fake deaths, hidden potion/death info, wrong role/check claims, death-shape rule overclaim, or invalid public-info claims.
+- [x] Added a true-Witch boundary exception for publicly revealed real Witch speech, preserving public role-action talk while still rejecting false hidden-info Witch-use attacks.
+- [x] Fixed natural public Witch-claim parsing for `我是2号，女巫...` shapes in `src/game/claims.ts`, with regression coverage in `src/game/claims.test.ts`.
+- [x] Ran the latest bounded ordinary Mimo transcript with the temporary Token Plan key only through process env. Evidence: `tmp/ordinary-mimo-v04-day1-6calls-retry2-soft-quality-claimfix-20260610-1935.json`, `-cases.json`, `-eval.json`, and `-eval.md`. Result: 6 calls, fallbackCount 0, errorCount 0, validationFailureCount 0.
+- [x] Local eval on the latest case export passed with averageScore 95 and one likely-overstrict `logic_boundary_error` around 3号 acknowledging 2号's public Witch claim/save target; the run summary also has one non-blocking `death_cause_overclaim` quality hint.
+- [x] Latest verification: `npm run test -- src/ai/speechProviders.test.ts` passed 279 tests; `npm run test -- src/game/claims.test.ts src/ai/speechProviders.test.ts` passed 305 tests; `npx tsc --noEmit --pretty false` passed.
+- [x] User reviewed the latest post-fallback-fix transcript and said 4号/5号 felt unfinished while the other rows were acceptable enough for this pass.
+- [x] Added focused TDD coverage for the 4号 shape: a line that says a prior speech is `听着有点怪` and ends on quoted prior speech now fails as `普通局发言疑似被截断`; the same quote followed by a handling action still passes.
+- [x] Confirmed the 5号 shape remains covered by the changed-read guard: `可能要改口 / 判断要变` must land a new read.
+- [x] Verification for this user-review follow-up: `npm run test -- src/ai/speechProviders.test.ts -t "cut-off seat reference"` failed first then passed, `npm run test -- src/ai/speechProviders.test.ts -t "changed read"` passed, full `npm run test -- src/ai/speechProviders.test.ts` passed 273 tests, and `npx tsc --noEmit --pretty false` passed.
+- [x] Used the user-provided temporary Token Plan key only through process env; no key was written to `.env`, source, docs, reports, or provider config.
+- [x] Ran the first fresh v0.4 bounded ordinary Mimo transcript: `tmp/ordinary-mimo-v04-day1-6calls-20260610-180612.json` plus cases/eval files. It produced 6 speech calls, 4 real non-fallback rows, 2 fallback rows, and local eval average 100, but manual review rejected it because fallback misread a concrete `有点滑` read as no suspicion and repeated `我先说一个地方`.
+- [x] Added focused speech-provider tests and a narrow fallback fix so prior `有点滑 / 别扭 / 不舒服` reads are treated as concrete discomfort/suspicion, and fallback connector wording varies instead of repeating the same phrase.
+- [x] Ran the post-fallback-fix bounded transcript: `tmp/ordinary-mimo-v04-day1-6calls-post-fallback-fix-20260610-181729.json`, cases/eval files, and review `tmp/ordinary-mimo-v04-day1-6calls-post-fallback-fix-20260610-181729-review.md`. It produced 6 speech calls, 4 real non-fallback rows, 2 fallback rows, and local eval average 93.3.
+- [x] Manual review of the post-fix transcript says it is still not accepted quality: 1号 is weak/procedural, 2号 true-witch fallback action is too thin, and 5号 says `可能要改口` without landing a new read.
+- [x] Added a final local changed-read guard: `可能要改口 / 判断要变` now requires a new landed read, while quoted prior speech is ignored when checking for that read. No fresh live transcript has been run after this final guard.
+- [x] Verification for the latest pass: targeted red-green tests for spoken-seat question, concrete slippery-read fallback, and changed-read guard; full `npm run test -- src/ai/speechProviders.test.ts` passed 273 tests; `npx tsc --noEmit --pretty false` passed.
+- [x] Public human-speech deep research v0.4: continued docs-only research after the latest 12:31 Mimo transcript; no `src/**`, `.env`, provider config, real LLM call, UI, rules, or token-reduction work was done.
+- [x] v0.4 local implementation pass: after user approval, added focused failing tests and minimal speech provider/evaluator changes for latest accepted audit surfaces, v0.4 soft-director units, repeated same-axis pile-on, weak but human low-information speech, grounded emotion, self-defense motive, weak wolf-as-villager, and public role-action speech.
+- [x] v0.4 implementation verification passed: `npm run test -- src/ai/llmEvaluation.test.ts` (23 tests), `npm run test -- src/ai/speechProviders.test.ts` (271 tests), combined `npm run test -- src/ai/speechProviders.test.ts src/ai/llmEvaluation.test.ts` (294 tests), `npx tsc --noEmit --pretty false`, task-card gate, long-task registry check, and harness check. No real Mimo call was made in this pass.
+- [x] v0.4 post-implementation local re-eval: the latest valid 12:31 Mimo cases were re-scored with the new evaluator, writing `tmp/ordinary-mimo-phase2-day1-6to9calls-transcript-review-20260610-123140-v04-eval.json` and `.md`; result average 90.7, issueCount 4, `ordinary_jargon_stack` 3.
+- [x] v0.4 fresh-live attempt was blocked by credentials: a one-call Token Plan probe with `.env` loading disabled via `DOTENV_CONFIG_PATH=__codex_no_env_file__` returned `401 Invalid API Key` and wrote fallback-only blocker evidence to `tmp/ordinary-mimo-v04-no-temp-key-blocker.json` / `-cases.json`. This is not a valid quality transcript.
+- [x] Re-read project harness docs, AI speech thread, ordinary Mimo task/eval cards, latest transcript review, progress, handoff, and long-running registry before editing.
+- [x] Added `2026-06-10 公开真人发言深研与机制 v0.4` to `docs/evaluations/2026-06-09-ordinary-werewolf-speech-research.md`.
+- [x] Added/rechecked public sources: GitHub `boluoweifenda/werewolf`, FanLang-9, `Werewolf Among Us`, `Werewolf Arena`, Foaster benchmark, Werewolf-XL, MaKTO-Werewolf, and Chinese role/first-round/new-player guidance.
+- [x] Re-ran a no-write public demo aggregation: 11 JSON files, 98 Day 1 `audio` speeches, average about 560 chars, min 10, max 1001; 95/98 first-person, 96/98 direct-address, 85/98 temporary/uncertain handling, 90/98 questions, 71/98 low-information/opening-position, 53/98 defense/explanation, 40/98 hold/pass/defer, 37/98 emotion/pressure hits.
+- [x] Mechanism updated to v0.4: `seatState`, `localObject`, `playerMove`, `socialTexture`, `tableContinuation`. The next implementation should use soft action-space steering and positive protection for weak but human lines, not broad bans or large if/else tables.
+- [x] Next code gate: user approval. If approved, start with focused tests for `firstSeatWeakWaterPasses`, `firstSeatAuditTaskFails`, accepted audit surfaces, `repeatedAxisPileOnFails`, `underQuestionDefendsSelfFirst`, `weakWolfCanPassAsVillager`, and `trueRolePublicActionPasses`.
+- [x] Docs-only v0.4 verification passed: `long_running_tasks.json` parsed, task-card gate passed, long-task registry check passed, harness check passed, and `git diff --check` passed with LF/CRLF warnings only.
+- [x] v0.3 prompt/fallback pass: ordinary soft-director prompt lines now name current self-state, local public object, handling action, and voice texture; low-information first-seat/table-read wording now says state and handling boundary instead of `铺观察点 / 可验证观察点`; true-witch soft hidden-state hints such as `我手里的信息先不摊开` are rejected; structured mock hard-claim fallback no longer emits `我卡这里`.
+- [x] Focused TDD coverage was used: the new/updated speech and table-read tests failed first for missing v0.3 prompt beats, soft witch hidden-state leak, stale `可验证观察点 / 观察动作`, and structured mock `我卡这里`; after the minimal fixes they passed.
+- [x] Latest real Mimo sample used the user-provided temporary process env key only; no key was written to `.env`, docs, reports, or source. Evidence files are `tmp/ordinary-mimo-phase2-day1-6to9calls-transcript-review-20260610-123140.json`, `tmp/ordinary-mimo-phase2-day1-6to9calls-transcript-review-20260610-123140-cases.json`, `tmp/ordinary-mimo-phase2-day1-6to9calls-transcript-review-20260610-123140-eval.json`, and `tmp/ordinary-mimo-phase2-day1-6to9calls-transcript-review-20260610-123140.md`.
+- [x] Latest result: 6 Day 1 speech calls, all `custom-speech:mimo-v2.5-pro`, fallbackCount 1, errorCount 1, accepted validation failures 0, local eval average 94.7 with `no_concrete_progression` 1 and `ordinary_jargon_stack` 1.
+- [x] Manual review says the latest sample is not accepted quality: 1号 real Mimo still tried future-audit first-seat wording and fell back; 4号 says `当前先审你的发言缺口`; 5号 says `观察位`; 6号 says `这话本身` / `观察条件`; and seats 2-6 over-focus on 1号's fallback line.
+- [x] Verification: `npm run test -- src/ai/speechProviders.test.ts` passed with 269 tests, `npm run test -- src/ai/tableRead.test.ts` passed with 28 tests, `npx tsc --noEmit --pretty false` passed, real bounded Mimo command passed, local existing-case eval passed, task-card gate passed, long-task registry check passed, harness check passed, `git diff --check` passed with CRLF warnings only, and a temporary-key prefix scan returned no persisted key matches.
+- [x] Public human-speech research v0.3: continued docs/spec work only, with no `src/**`, provider config, `.env`, real LLM call, or token-reduction work.
+- [x] Re-ran a read-only public demo aggregation over GitHub `boluoweifenda/werewolf` `data/demo/opensource`: 11 JSON files and 98 precise Day 1 `audio` speeches. The aggregation found 95/98 first-person or us-perspective rows, 95/98 direct-address rows, 86/98 hedge/temporary rows, 95/98 question/response rows, 71/98 low-information/opening-position rows, 40/98 defense/explanation rows, and 36/98 hold/pass/defer rows.
+- [x] Cross-checked with public sources: Werewolf Among Us, FanLang-9, Langrensha first-round/villager strategy pages, Foaster Werewolf benchmark, and Werewolf-XL.
+- [x] Updated `docs/evaluations/2026-06-09-ordinary-werewolf-speech-research.md` with `公开真人语料再抽样与人味节奏 v0.3`: current self-state, one local public object, one handling action, optional emotional texture. Low-information water remains allowed when it has a personal state and temporary boundary.
+- [x] Next code pass should make v0.3 concrete through focused tests and soft prompt/director inputs, not broad word bans or a large if/else table.
+- [x] Docs-only verification for v0.3 passed: task-card gate, long-task registry check, harness check, `git diff --check` with LF/CRLF warnings only, and a temporary-key prefix scan with no persisted key matches.
+- [x] v0.2 validator/evaluator pass: added or tightened focused coverage for first-seat future-audit hooks (`观察点/后面谁`, `有一个点我先记下来`, `这点记下，后面再看谁`), courtroom/debate register (`举证责任`, `打法是打算验谁`), half-accept without landing, visible audit jargon (`划一条线/划条线`), fallback audit surfaces, and truncated `你留了` tails.
+- [x] Preserved positive speech paths while tightening guards: bounded low-information water, direct witch reveal, landed half-accept, challenge-to-half-accept, and true-witch self reveal should still pass.
+- [x] Ran bounded real Mimo samples with the temporary process env route only; no key was written to `.env`, docs, reports, or source. The first sample `tmp/ordinary-mimo-phase2-day1-6to9calls-transcript-review-20260610-111754.json` exposed first-seat future-audit, `你留了`, and fallback audit surfaces that are now covered locally.
+- [x] Latest real Mimo sample: `tmp/ordinary-mimo-phase2-day1-6to9calls-transcript-review-20260610-113300.json` plus cases/eval/review files. It produced 6 Day 1 calls, 4 non-fallback rows, 2 provider-error fallback rows, validationFailureCount 0, and local post-fix eval average 89.7 with 4 issues.
+- [x] Manual review of the latest sample: it is useful evidence but not accepted quality. 1号 still says `这点记下，后面再看谁...` and hints at hidden state; 2号/4号 still use line-drawing language; 3号/5号 fallback rows are short and thin.
+- [x] Latest verification: `npm run test -- src/ai/speechProviders.test.ts` passed with 268 tests, `npm run test -- src/ai/llmEvaluation.test.ts` passed with 21 tests, `npx tsc --noEmit --pretty false` passed, task-card gate passed, long-task registry check passed, harness check passed, `git diff --check` passed with LF/CRLF warnings only, and a temporary-key prefix scan returned no persisted key matches.
+- [x] Docs-only human speech source refresh: updated `docs/evaluations/2026-06-09-ordinary-werewolf-speech-research.md` with `2026-06-10 最新样本缺口与公开素材再校准`. This pass did not edit `src/**`, did not run Mimo, did not touch provider config or `.env`, and did not do token reduction.
+- [x] Latest sample failure mapping is now explicit: 1号 first-seat `观察点 / 后面谁` is a future-audit hook, 2号 true-witch `举证责任` style is courtroom/debate register, and 3号 `认同一半` is invalid when it does not land accepted part, reserved part, and current handling.
+- [x] Added `普通局发言动作 v0.2`: `entryBeat`, `publicObject`, `moveLanding`, `voiceTexture`, and `antiTemplatePressure`. Next code work should start with focused failing tests for `futureAuditHook`, `courtroomRegister`, `halfAcceptWithoutLanding`, plus positive protections `boundedLowInfoWater` and `emotionalButGrounded`.
+- [x] Docs-only verification for the source refresh passed: task-card gate, long-task registry check, harness check, and `git diff --check` with LF/CRLF warnings only.
+- [x] Ordinary soft-director implementation: ordinary speech input now carries current pressure, local public table objects, allowed player moves, recent surface moves, and prompt lines for first-person player rendering. Under-question seats are steered toward defending or clarifying their own motive before broader table review.
+- [x] Latest user-feedback guard pass: added or tightened focused coverage for visible player-jargon (`布置作业 / 划线 / 触线 / 这句话本身`), copied prior surface phrasing, duplicated-word slips, peace-night public-common-sense misreads, provider-error fallback suffix/template leakage, planned true-witch fallback, and silver-water recipient acknowledgement parsing.
+- [x] Latest real Mimo transcript after the fixes: `tmp/ordinary-mimo-phase2-day1-final-transcript-real-20260610-013114.json` with cases/eval/review summary beside it. It produced 6 Day 1 speech calls, all `custom-speech:mimo-v2.5-pro`, fallbackCount 0, errorCount 0, validationFailureCount 0, local eval average 91.7.
+- [x] Manual review of the latest sample: covered `卡 / 这句话本身 / 划线 / 触线 / 布置作业` surfaces are gone and 4号's challenge to 3号 is more concrete; remaining risks are 1号 prompt-shaped opener, 2号 debate-like wording, 3号 half-finished `认同一半`, and a likely evaluator false positive against true-witch saved-target reveal. Do not report ordinary speech as fully fixed or accepted.
+- [x] Latest verification passed after state updates: `npm run test -- src/ai/speechProviders.test.ts src/ai/llmEvaluation.test.ts src/game/claims.test.ts` (3 files / 307 tests), `npx tsc --noEmit --pretty false`, task-card gate, long-task registry check, harness check, and `git diff --check` with LF/CRLF warnings only.
+- [x] Ordinary Mimo invocation follow-up: confirmed the temporary Token Plan route can answer direct tiny requests and project-shaped requests without writing secrets; local saved credentials remain invalid with `401 invalid_key`.
+- [x] Fixed runtime custom Mimo route safeguards in `src/ai/modelLlms.ts`: Mimo-like custom routes now use disabled thinking, the Mimo speech token floor, and 180s speech timeout. Regression coverage is in `src/ai/modelLlms.test.ts`.
+- [x] Tightened ordinary speech quality around the newest real-sample failures: peace-night wolf/witch rule lectures, identity-line pivots after pressure-source callbacks, external counterclaim waiting, and truncated endings such as `你铺的那句`.
+- [x] Latest bounded real sample: `tmp/ordinary-mimo-phase2-day1-3calls-after-truncation.json`; 3 custom-Mimo calls, 2 non-fallback rows, 1 intended fallback for low-information skipped-seat tasking. This is evidence for the next narrow prompt/fallback pass, not proof that ordinary speech quality is finished.
+- [x] Verification for this follow-up: `npm run test -- src/ai/modelLlms.test.ts`, `npm run test -- src/ai/speechProviders.test.ts`, `npx tsc --noEmit --pretty false`, and `git diff --check` passed; diff check reported CRLF warnings only.
+- [x] Ordinary first-seat low-info follow-up: prompt guidance now says first seat should default to no named future-seat homework; validator rejects first-seat named future homework; provider-error first-seat fallback no longer says `下一位正常接麦`.
+- [x] Ordinary fallback gap wording now recognizes peace-night lines that already contain a concrete action such as `谁急着带票` or `先不把票压死`, instead of misreading them as no suspicion.
+- [x] Current persisted local Mimo environment still fails with `401 invalid_key`; the latest bounded sample `tmp/ordinary-mimo-phase2-day1-6calls-first-seat-fix-fallback-check.json` is fallback-pollution evidence only, not a real Mimo quality transcript.
+- [x] Verification for the first-seat follow-up: `npm run test -- src/ai/speechProviders.test.ts -t "first-seat low-info|player-mouth guidance|provider-error first-seat fallback"`, `npm run test -- src/ai/speechProviders.test.ts -t "peace-night action"`, full `npm run test -- src/ai/speechProviders.test.ts`, `npm run test -- src/ai/modelLlms.test.ts`, `npx tsc --noEmit --pretty false`, and `git diff --check` passed.
+- [x] Ordinary bounded Mimo transcript review: `tmp/ordinary-mimo-phase2-day1-6to9calls-transcript-review-20260609-192336.json` generated 6 Day 1 speech calls through `custom-speech:mimo-v2.5-pro`, with 4 real non-fallback rows and 2 provider-error fallback rows. Review summary is `tmp/ordinary-mimo-phase2-day1-6to9calls-transcript-review-20260609-192336.md`; local eval output is `tmp/ordinary-mimo-phase2-day1-6to9calls-transcript-review-20260609-192336-eval.json`.
+- [x] The bounded transcript exposed three narrow bad shapes: one real row ending on dangling `但`, provider-error fallback still using `身份线 / 先留一处疑问 / 这轮我只听谁把怀疑落到具体人身上`, and one real row using `放进观察位` plus `接这条线`.
+- [x] Added focused regressions and narrow fixes in `src/ai/speechProviders.ts` / `src/ai/speechProviders.test.ts`: ordinary truncation validation catches dangling `但`; provider-error fallback avoids the covered audit-template skeleton; ordinary validation rejects observation-slot plus later-chain-review wording.
+- [x] Verification so far for this transcript pass: real bounded Mimo command passed, local eval on exported cases passed, focused red-green speech tests passed, and full `npm run test -- src/ai/speechProviders.test.ts` passed with 249 tests.
+- [x] Ordinary human-speech research follow-up: after user review of `tmp/ordinary-mimo-phase2-day1-after-user-review-20260609-205637.json`, paused code changes and expanded `docs/evaluations/2026-06-09-ordinary-werewolf-speech-research.md` around speech validity conditions.
+- [x] User-reviewed failures now recorded: 1号 used meta wording `我先说我会卡什么`, first speaker pre-attacked unspoken 3号, 2/4号 treated public peace-night `女巫用药了` as a hidden-info wolf point, 3号 fallback was nearly empty, and later seats repeated `卡 / 这句话本身 / 这段我先...` audit wording.
+- [x] New source-backed research note: a no-write aggregation of 11 public GitHub demo JSON files found 98 precise Day 1 audio speech rows and all 11 demo games had Day 1 peace night with `Witch antidote` present. This supports treating no-guard 9p peace-night witch use as public background, not an attack axis.
+- [x] Added a stricter 89-row Day 1 speech-act aggregation and action-card mechanism draft. The next prompt/fallback design should select one player action card first, then render it in first person, instead of generating a table-audit paragraph and cleaning it with broad phrase bans.
+- [x] Next implementation tests should cover `unspokenSpecificSeatFraming`, `peaceNightPublicCommonSenseMisattack`, `emptyMicroMove`, and `templateSurfaceLoop`. Do not claim ordinary speech is fixed until a fresh post-fix transcript is user-reviewed.
+- [x] Docs-only verification for the research/action-card handoff passed: `npm run harness:task-card -- docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md`, `npm run harness:long-tasks`, `npm run harness:check`, and `git diff --check` passed; diff check reported LF/CRLF warnings only.
+- [x] Follow-up no-code research mapping added explicit test entries for the user's latest comments: first-seat meta-audit opener, 1号 pre-attacking unspoken 3号, 2/4号 misreading peace-night witch use, empty 3号 fallback, repeated `卡 / 这句话本身 / 这段我先...`, and 6号 speaker-order confused later-chain wording.
+- [x] Follow-up also records the non-goal: do not solve ordinary speech by adding a broad black-talk glossary, blanket word bans, or a large if/else table. The implementation should stay with soft action-card candidates, first-person rendering, and narrow validation.
+- [x] Latest docs-only verification after the mapping follow-up passed: `node -e "JSON.parse(...long_running_tasks.json...)"`, `npm run harness:task-card -- docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md`, `npm run harness:long-tasks`, `npm run harness:check`, and `git diff --check` with LF/CRLF warnings only.
+- [x] Follow-up public-source calibration added `Werewolf Among Us`, `ReneeYe/werewolf_game_reasoning`, `Playing the Werewolf game with artificial intelligence for language understanding`, `Werewolf Arena`, and role-speech guidance as source anchors. The next prompt design should use soft fields like `currentPressure`, `allowedSpeechMoves`, and `recentSurfaceMoves`, then render first-person speech without printing card names.
+- [x] Latest docs-only verification after the public-source calibration passed: `node -e "JSON.parse(...long_running_tasks.json...)"`, `npm run harness:task-card -- docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md`, `npm run harness:long-tasks`, `npm run harness:check`, and `git diff --check` with LF/CRLF warnings only.
+- [x] Follow-up ordinary speech contract added a pre-code checklist: speaker order, first-person motive, public/local table object, handling boundary, whole-sample move variety, no repeated audit surface, public role differences, and short non-polluting fallback. It also adds `lowInfoHumanWaterPasses` as a positive target so natural low-info speech remains allowed.
+- [x] Latest docs-only verification after the speech-contract follow-up passed: `node -e "JSON.parse(...long_running_tasks.json...)"`, `npm run harness:task-card -- docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md`, `npm run harness:long-tasks`, `npm run harness:check`, and `git diff --check` with LF/CRLF warnings only.
+- [x] Follow-up soft director spec added implementation-facing fields `currentPressure`, `tableObjects`, `allowedSpeechMoves`, and `recentSurfaceMoves`, plus LLM/fallback/evaluator responsibility boundaries. This keeps the next implementation away from broad phrase bans and large if/else tables.
+- [x] Latest docs-only verification after the soft-director spec follow-up passed: `node -e "JSON.parse(...long_running_tasks.json...)"`, `npm run harness:task-card -- docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md`, `npm run harness:long-tasks`, `npm run harness:check`, and `git diff --check` with LF/CRLF warnings only.
+- [x] Ordinary user-feedback validator/fallback pass: converted the user's latest transcript complaints into focused regressions and narrow fixes for meta-audit openers, first-seat future homework, peace-night public-common-sense attacks, empty micro-moves, confused later-chain wording, repeated/single `卡` surfaces, unresolved `没听明白...这部分我理解` endings, and peace-night `定义刀口/找女巫` rule lectures.
+- [x] Ordinary fallback/prompt cleanup: ordinary prompt no longer recommends `卡一句 / 卡我的是`; provider-error fallback was shortened and removed `后面我看谁继续复读这个点` and `等他自己把立场落下来`.
+- [x] Latest bounded real sample before the final local death-shape guard: `tmp/ordinary-mimo-phase2-day1-final-local-fix-real-20260609-233444.json`; 6 speech calls, 4 non-fallback, 2 provider-error fallback, 1 `death_cause_overclaim` quality issue. That issue is now covered locally, but no further paid rerun was made after the final guard.
+- [x] Latest local verification for this pass: `npm run test -- src/ai/speechProviders.test.ts` passed, 1 file / 258 tests.
+- [x] Ordinary public-source deep-dive follow-up: expanded `docs/evaluations/2026-06-09-ordinary-werewolf-speech-research.md` with additional public-source calibration from Werewolf papers/datasets and Chinese role-speech guidance, then distilled a three-layer real-player rhythm: seat pressure/state, one local public table object, and a temporary handling action.
+- [x] Added no-code implementation guidance for the next pass: preserve positive low-information water, prioritize self-defense/clarification when a seat is under question, and use a public role-state matrix for villager/wolf/seer/witch/hunter rather than fixed scripts or broad if/else branches.
+- [x] Latest docs-only verification for the public-source deep-dive passed: `node -e "JSON.parse(...long_running_tasks.json...)"`, `npm run harness:task-card -- docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md`, `npm run harness:long-tasks`, `npm run harness:check`, and `git diff --check` with LF/CRLF warnings only.
 - [x] Added `src/ai/personaStrategyCards.ts` and tests for built-in model cards, custom AI inference, camp-layer adaptation, public live intent, anti-template move, and hidden-info redaction.
 - [x] Wired ordinary persona strategy/live intent into `src/ai/speechProviders.ts` and `src/ai/actionProviders.ts`, including LLM inputs, prompt constraints, mock/fallback speech lead lines, and day-vote continuity requirements.
 - [x] Extended `AiSeatMemory` plus `src/ai/seatMemory.ts` so speech, vote, and light night actions store internal live intent, target, public reason, commitment, and vote-continuity notes.
@@ -773,3 +986,262 @@ Remaining risks:
 - The final sample is much less copy-paste-like than the earlier ordinary run, but not final subjective quality: 5号 still fell back after repeating the 1号 pressure axis, and 7号 fell back after requiring an already-spoken 4号 to supply logic.
 - Several non-fallback rows still share ordinary-player phrasing such as `先认这个身份` / `这个点先记`, so the next quality pass should add more model-persona-specific expression without weakening rules correctness.
 - The temporary real-Mimo test file was removed after generating the report; rerun by recreating a temporary harness or using a dedicated checked-in smoke script that does not contain secrets.
+
+## 2026-06-08 Ordinary Player-Type Consistency And Player-Mouth Follow-up
+
+Completed:
+- Added stable ordinary player-type profiles for the AI Pool and default AI seats, with sliders/tuning feeding the existing risk, bluffing, and preference fields.
+- Carried `ordinaryPlayerProfile` through `/api/games`, `/api/rooms`, room creation, local AI Pool storage, and selected AI friend payloads so ordinary single-player and room AI use the same AI configuration surface.
+- Replaced model-name strategy stereotypes in ordinary mode with ordinary player-type strategy cards, while class-trial role cards still keep their own role-card strategy path.
+- Updated ordinary speech/action prompts toward first-person player language and ordinary player-type strategy wording.
+- Added ordinary speech validation/retry for global table review and stacked internal jargon such as `收益来源/发言链/闭合/收口/压力源`.
+- Naturalized ordinary fallback speech so provider-error output stays in ordinary player language and avoids report-like death/audit wording in the covered paths.
+- Removed the AI Pool legacy `打法类型速览` block, duplicate `普通局玩家类型速览` block, and right-side `参数说明/调参参考` card because they conflicted with the new ordinary player-type panel.
+- Added ordinary successful-LLM speech naturalization for lighter report/rules-class wording such as `死亡形态/反面可能性/按规则推`, while stacked black jargon still triggers validation/retry before naturalization.
+
+Changed files:
+- `src/game/types.ts`
+- `src/game/ordinaryPlayerProfiles.ts`
+- `src/game/ordinaryPlayerProfiles.test.ts`
+- `src/game/aiFriends.ts`
+- `src/game/aiFriends.test.ts`
+- `src/components/game/aiFriendStorage.ts`
+- `src/components/game/aiFriendStorage.test.ts`
+- `src/components/game/aiFriendLlmPresets.ts`
+- `src/components/game/aiFriendLlmPresets.test.ts`
+- `src/components/AiPoolClient.tsx`
+- `src/components/AiPoolClient.mobile.test.ts`
+- `src/app/globals.css`
+- `src/components/RoomClient.tsx`
+- `src/app/api/games/route.ts`
+- `src/app/api/games/aiFriends.test.ts`
+- `src/app/api/rooms/route.ts`
+- `src/app/api/rooms/api.test.ts`
+- `src/ai/personaStrategyCards.ts`
+- `src/ai/personaStrategyCards.test.ts`
+- `src/ai/actionProviders.ts`
+- `src/ai/actionProviders.test.ts`
+- `src/ai/seatMemory.ts`
+- `src/ai/seatMemory.test.ts`
+- `src/ai/speechProviders.ts`
+- `src/ai/speechProviders.test.ts`
+- `progress.md`
+- `session-handoff.md`
+
+Verification:
+- `npm run test -- src/ai/speechProviders.test.ts src/ai/personaStrategyCards.test.ts src/ai/actionProviders.test.ts src/ai/seatMemory.test.ts src/game/ordinaryPlayerProfiles.test.ts src/game/aiFriends.test.ts src/components/game/aiFriendStorage.test.ts src/app/api/games/aiFriends.test.ts src/app/api/rooms/api.test.ts` passed: 9 files / 313 tests.
+- `npm run test -- src/ai/speechProviders.test.ts src/components/AiPoolClient.mobile.test.ts` passed: 2 files / 231 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run lint` passed.
+- Real Mimo short sample using `.env.local` to override stale `.env` credentials wrote `tmp/ordinary-mimo-player-mouth-seed91-retry.md` / `.json`: seed 91, 3 Day1 speeches, providers `mimo-speech:mimo-v2.5-pro`, fallback 0, errors 0, validation failures 0, covered jargon/rules-class hits 0.
+- The AI Pool page was opened at `http://127.0.0.1:51625/ai-pool`; latest report file `D:\ai-werewolf\tmp\ordinary-mimo-player-mouth-seed91-retry.md` was opened for manual review.
+
+Remaining risks:
+- The real Mimo sample is only 3 Day1 speeches for cost/time control, not a full 9-speech or full-game subjective pass.
+- The latest Mimo rows are more first-person and no longer use the covered black jargon, but D1 still leans into death/witch-rule discussion (`毒口/药瓶`) more than a casual human player might. A later quality pass can push that further toward "我听谁哪里不对" instead of rules explanation.
+- This pass did not run a browser room smoke; room consistency is covered by API/client unit tests and source wiring.
+
+## 2026-06-08 Ordinary Death-Shape Rule-Lecture Follow-up
+
+Completed:
+- Tightened ordinary no-guard witch death-shape handling in table memory, table-read speech tasks, LLM prompt guidance, validator, retry repair, and fallback/naturalize paths.
+- D1 single death is now framed as one-line common sense: `狼刀成功，女巫没救/没用解药`; peace night is framed as one-line common sense: `女巫用了救药/解药`.
+- Ordinary speeches that expand into rule lessons such as `狼首夜必刀`, `女巫手里有解药`, `毒口重合刀口`, or `药瓶状态` now fail validation unless the actual witch is publicly claiming true potion information.
+- Ordinary speeches that mention the death shape but do not push a concrete game action now fail validation; accepted actions include suspicion, temporary hold, direct question, pressure, identity boundary, or voting condition.
+- Real Mimo seed 12 single-death sample: 4号 died, 5号 Mimo produced non-fallback `mimo-speech:mimo-v2.5-pro`, validation errors 0, covered rule-lecture/jargon hit false, and the line moved into asking 1号 to give concrete initial reads.
+
+Changed files:
+- `src/game/tableMemory.ts`
+- `src/game/tableMemory.test.ts`
+- `src/ai/tableRead.ts`
+- `src/ai/tableRead.test.ts`
+- `src/ai/speechProviders.ts`
+- `src/ai/speechProviders.test.ts`
+- `progress.md`
+- `session-handoff.md`
+
+Verification:
+- `npm run test -- src/ai/speechProviders.test.ts src/ai/tableRead.test.ts src/game/tableMemory.test.ts` passed: 3 files / 260 tests.
+- `npm run test -- src/game/claims.test.ts src/ai/speechProviders.test.ts src/ai/tableRead.test.ts src/ai/personaStrategyCards.test.ts src/ai/actionProviders.test.ts src/ai/seatMemory.test.ts src/game/tableMemory.test.ts` passed: 7 files / 322 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `node scripts/check-llm-output.mjs --task=speech --persona=mimo --retries=1` passed with temporary process env loaded from `.env` then `.env.local`: 1 Mimo speech, OK, provider `mimo-speech:mimo-v2.5-pro`.
+- One-off real Mimo ordinary single-death sample passed with temporary process env loaded from `.env` then `.env.local`: seed 12, deaths `[4]`, seat 5 Mimo, non-fallback, no validation errors, no covered rule-lecture/jargon hits, and concrete game action detected.
+
+Remaining risks:
+- The real Mimo sample is one targeted single-death line, not a full 9-speech or full-game subjective pass.
+- Earlier lineup-based `evaluate-llm-game.mjs` attempt still routed through other persona fallbacks and hit external balance errors, so use direct Mimo/persona-specific harnesses for future Mimo checks unless the evaluation script is fixed.
+- This pass targets death-shape rule lectures and no-action descriptions; broader personality/emotion variety can still be improved in a later subjective pass.
+
+## 2026-06-08 Ordinary Day1 Mimo Quality Repair Follow-up
+
+Completed:
+- Ran a full ordinary Day1 Mimo seed 12 speech-quality check after the death-shape fix. The check used the ordinary `9p-seer-witch-hunter` board, all AI seats configured through runtime custom Mimo LLM config, mock night/actions, and real Mimo for Day1 speeches only.
+- Fixed ordinary validator gaps for cut-off non-fallback speech endings such as `我先把1`, `有个点我卡住了：1号`, and `我倒想知道`.
+- Fixed ordinary fallback wording that repeated audit-like templates: `我只抓一个点`, `结论给出来了`, `中间过程没完全说透`, `刚才那句话我先记下来`, and `接一下这条发言链`.
+- Replaced the ordinary Mimo fallback opener `我抓一个细节` with less repetitive player-mouth wording.
+- Added ordinary validator coverage for two quality failures found in real samples: attacking settled no-guard witch single-death common sense as `带节奏`, and saying `我改口了` without giving the new read.
+
+Changed files:
+- `src/ai/speechProviders.ts`
+- `src/ai/speechProviders.test.ts`
+- `progress.md`
+- `session-handoff.md`
+
+Verification:
+- Red tests first failed for ordinary cut-off speech and repeated fallback templates.
+- `npm run test -- src/ai/speechProviders.test.ts -t "ordinary speeches that end with a cut-off"` passed after the final cut-off fix.
+- `npm run test -- src/ai/speechProviders.test.ts` passed: 1 file / 230 tests.
+- `npm run test -- src/game/claims.test.ts src/ai/speechProviders.test.ts src/ai/tableRead.test.ts src/ai/personaStrategyCards.test.ts src/ai/actionProviders.test.ts src/ai/seatMemory.test.ts src/game/tableMemory.test.ts` passed: 7 files / 326 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed with CRLF warnings only.
+- Latest real Mimo seed 12 Day1 sample after most fixes: 8 speeches, all `custom-speech:mimo-v2.5-pro`, fallback 1, covered bad-template hits 0, but one non-fallback line ended with `我倒想知道`; this exact shape is now covered by the final local cut-off validator test.
+
+Remaining risks:
+- The final validator fix for `我倒想知道` was not followed by another real Mimo run to avoid another expensive provider cycle; it is covered by focused and full local tests.
+- Subjective quality is improved but not perfect: the latest real sample still circles around the death/intention topic more than a strong human table would.
+- Future work should reduce malformed-output fallback rate and add a reusable ordinary Day1 Mimo harness script, rather than continuing to paste one-off inline scripts.
+
+## 2026-06-08 Ordinary Day1 Mimo Intent Repair Follow-up
+
+Completed:
+- Fixed the latest user-reviewed ordinary D1 bad speech shape: prompt/table-read/table-memory now use single ordinary-player wording for no-guard witch death shape: `狼刀成功，女巫没救` and `女巫用了救药`. The old combined wording `没救/没用解药` and `救药/解药` is no longer emitted by source guidance.
+- Added ordinary validation for first-night wolf-kill-intent homework. D1 no-guard ordinary speeches that ask `狼队为什么刀`, discuss `刀法意图`, or say `后置位有人答上来我倒想知道` now fail with `普通局首夜不要追问狼刀意图`.
+- Added a specific ordinary low-info repair reason for arbitrary future-seat tasking when a speaker skips the next unspoken seat and directly assigns a later seat a generic explanation task.
+- After a real Mimo sample hallucinated `7号走的，狼刀成功女巫没救` in a peace-night/no-public-death context, added validators and regressions for invented night deaths: `平安夜不能凭空报夜死` and `没有公开死讯不能报夜死`.
+- Restored the dirty `llmEvaluation` helper implementation so the existing ordinary AI evaluation tests compile and run.
+
+Changed files:
+- `src/ai/speechProviders.ts`
+- `src/ai/speechProviders.test.ts`
+- `src/ai/tableRead.ts`
+- `src/ai/tableRead.test.ts`
+- `src/ai/llmEvaluation.ts`
+- `src/ai/llmEvaluation.test.ts`
+- `src/game/tableMemory.ts`
+- `src/game/tableMemory.test.ts`
+- `progress.md`
+- `session-handoff.md`
+
+Verification:
+- Red tests first failed for old `没救/没用解药` prompt wording, first-night wolf-kill-intent questions, and arbitrary skipped future-seat tasks.
+- `npm run test -- src/ai/speechProviders.test.ts -t "death-shape wording|first-night wolf kill intent|skip the next unspoken seat|peace-night wording"` passed: 4 focused tests.
+- `npm run test -- src/ai/speechProviders.test.ts -t "invent night deaths|hallucinate a dead seat"` passed after adding the invented-death validators.
+- Real Mimo sample using temporary process env loaded from `.env` then `.env.local`: `tmp/ordinary-mimo-d1-intent-repair-1780935075255.md` / `.json`, 4 speeches, fallback 2, old bad-pattern hits 0, providers all `custom-speech:mimo-v2.5-pro`; it still exposed a non-fallback invented `7号走的` line, which is now covered locally.
+- `npm run test -- src/ai/llmEvaluation.test.ts` passed: 1 file / 15 tests.
+- `npm run test -- src/game/claims.test.ts src/ai/speechProviders.test.ts src/ai/tableRead.test.ts src/ai/personaStrategyCards.test.ts src/ai/actionProviders.test.ts src/ai/seatMemory.test.ts src/game/tableMemory.test.ts src/ai/llmEvaluation.test.ts` passed: 8 files / 346 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed with CRLF warnings only.
+
+Remaining risks:
+- No third real Mimo sample was run after the invented-death validator. The latest real sample is useful evidence and the exact failure is covered locally, but do not claim the spoken transcript is solved until a fresh Mimo sample shows it.
+- The broader ordinary Day1 personality/emotion issue is improved by guardrails, not fully solved; future work should continue reviewing real transcripts rather than only adding phrase bans.
+
+## 2026-06-09 Ordinary Day1 Mimo Post-validator Follow-up
+
+Completed:
+- Ran the next approved real Mimo sample after the invented-death validator: `tmp/ordinary-mimo-d1-post-validator-1780981545992.md` / `.json`, 6 D1 speeches, fallback 5, old death wording 0, kill-intent 0, rule-lecture 0. It showed two remaining issues: fallback invented `平安夜` despite a death board, and fallback still assigned generic future-seat homework.
+- Fixed provider-error fallback so public death announcements produce death-aligned fallback wording (`狼刀成功，女巫没救`) instead of fake `平安夜`, and removed generic lines like `轮到X号时，说清你最想暂放或怀疑谁`.
+- Reran real Mimo after the fallback fix: `tmp/ordinary-mimo-d1-post-fallback-fix-1780982116448.md` / `.json`, 6 D1 speeches, fallback 3, old death wording 0, kill-intent 0, rule-lecture 0, false-peace 0, generic future-task 0.
+- The rerun still showed a subjective issue in non-fallback 4号: it skipped 5号 and directly asked 6号 despite 6号 not having spoken. Added a validator regression for single skipped future-seat questions, so this shape now fails with `普通局低信息不要跳过下一位直接布置后置任务`.
+
+Changed files:
+- `src/ai/speechProviders.ts`
+- `src/ai/speechProviders.test.ts`
+- `progress.md`
+- `session-handoff.md`
+
+Verification:
+- Red tests first failed for death-board fallback saying `平安夜`, fallback assigning generic future-seat homework, and a single named skipped future-seat question.
+- `npm run test -- src/ai/speechProviders.test.ts -t "provider-error fallback aligned|provider-error fallback from assigning generic"` passed.
+- `npm run test -- src/ai/speechProviders.test.ts -t "only one future seat is named"` passed.
+- `npm run test -- src/game/claims.test.ts src/ai/speechProviders.test.ts src/ai/tableRead.test.ts src/ai/personaStrategyCards.test.ts src/ai/actionProviders.test.ts src/ai/seatMemory.test.ts src/game/tableMemory.test.ts src/ai/llmEvaluation.test.ts` passed: 8 files / 349 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed with CRLF warnings only.
+- Real Mimo temporary-env sample after fallback fix: `tmp/ordinary-mimo-d1-post-fallback-fix-1780982116448.md`, 6 speeches, fallback 3, covered bad-pattern hits 0.
+
+Remaining risks:
+- No fresh real Mimo sample was run after the single-future-seat skip validator; the exact bad 4号 shape is covered locally, but another sample is needed before claiming this transcript issue is gone live.
+- Fallback rate is still high at 3/6 in the latest sample, with provider `fetch failed` and malformed-output errors. The next useful work is reducing fallback causes and making fallback less repetitive, not adding broad phrase bans.
+
+## 2026-06-09 Ordinary AI Evaluation Tooling
+
+Completed:
+- Built the first local ordinary Werewolf AI evaluation command for speech/action scoring and report output.
+- Added reusable local scoring helpers in `src/ai/llmEvaluation.ts` and focused tests.
+- Added `scripts/eval-ordinary-ai.mjs` with `source=mock`, `source=existing`, JSON/Markdown output, and promptfoo case export.
+- Added `scripts/evaluate-llm-game.mjs --eval-cases-out` so future LLM samples can feed the same evaluator.
+- Added optional promptfoo judge prompt/config/provider without running a live judge call.
+
+Changed files:
+- `src/ai/llmEvaluation.ts`
+- `src/ai/llmEvaluation.test.ts`
+- `scripts/eval-ordinary-ai-utils.mjs`
+- `scripts/eval-ordinary-ai.mjs`
+- `scripts/evaluate-llm-game.mjs`
+- `scripts/promptfoo-ordinary-judge-provider.mjs`
+- `prompts/evals/ordinary-ai-judge.md`
+- `promptfoo.config.yaml`
+- `package.json`
+- `docs/tasks/2026-06-ordinary-ai-evaluation.md`
+- `progress.md`
+- `session-handoff.md`
+
+Verification:
+- `npm run test -- src/ai/llmEvaluation.test.ts` passed: 1 file / 15 tests.
+- `node --check` passed for the new/modified `.mjs` scripts.
+- `npm run eval:ordinary-ai -- --source=mock --games=1 --seed-start=91 --json --out=tmp/ordinary-ai-eval-smoke.json` passed and wrote 54 local cases.
+- `npm run llm:evaluate -- --provider=mock --allow-mock --games=1 --max-llm-calls=2 --json --out=tmp/llm-eval-smoke.json --eval-cases-out=tmp/ordinary-ai-eval-cases.json` passed and wrote 2 dry eval cases.
+- `npm run eval:ordinary-ai -- --source=existing --input=tmp/ordinary-ai-eval-cases.json --json --out=tmp/ordinary-ai-eval-existing.json` passed.
+- `npm run eval:ordinary-ai -- --source=mock --games=1 --seed-start=91 --judge=promptfoo --json --out=tmp/ordinary-ai-eval-promptfoo-prep.json` passed and wrote 54 promptfoo cases.
+- `npm run lint` passed.
+- `npx tsc --noEmit` passed.
+
+Remaining risks:
+- Scoring thresholds are a first pass and need calibration against manually reviewed ordinary transcripts.
+- Real LLM generation and promptfoo live judging were skipped for cost control.
+
+## 2026-06-11 Ordinary Mimo v26 Fable Minifix Handoff
+
+Completed:
+- Applied the latest Fable5 v25 critique as a minimal local repair, not a new broad prompt/validator iteration.
+- Fixed the mock/fallback splicing regression where repeated full labels could produce `边界放清：不把直接打死`; repeated full labels now degrade to `N号`.
+- Added used-once selection for mock bridge text across previous-speaker, support, rally, agenda, public-role, counter-push, and focus-evidence paths.
+- Strengthened `repeated_clause_rate` so it reads full output text and reports normalized repeated long clauses after replacing seat numbers and player names.
+- Added the review pack for external review: `docs/evaluations/2026-06-11-ordinary-mimo-v26-fable5-minifix-review.md`.
+
+Changed files:
+- `src/ai/speechProviders.ts`
+- `src/ai/tableRead.ts`
+- `src/ai/llmEvaluation.ts`
+- `src/ai/speechProviders.test.ts`
+- `src/ai/llmEvaluation.test.ts`
+- `docs/evaluations/2026-06-11-ordinary-mimo-v26-fable5-minifix-review.md`
+- `docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md`
+- `progress.md`
+- `session-handoff.md`
+- `long_running_tasks.json`
+
+Evidence:
+- `tmp/ordinary-mimo-v26-post-fable-minifix-mock-eval.json`: 30 cases, averageScore 100, issueCount 0, highRiskCaseIds empty, and 2 report-only `sampleMetrics` warnings. This proves the repeated-clause gate is no longer silent.
+- `tmp/ordinary-mimo-v26-post-fable-live-report.json` / `tmp/ordinary-mimo-v26-post-fable-live-eval-cases.json`: bounded live Mimo attempt reached the provider but all 8 speech calls failed with HTTP 403 `insufficient_user_quota`; the transcript is fallback-only.
+
+Verification:
+- Minifix loop passed focused speech/evaluator tests, 3-file AI aggregate, and local mock eval.
+- Final verification passed:
+  - `npm run test -- src/ai/actionProviders.test.ts src/ai/tableRead.test.ts src/ai/speechProviders.test.ts src/ai/llmEvaluation.test.ts src/ai/evalOrdinaryAiUtils.test.ts src/ai/seatMemory.test.ts`: 6 files / 398 tests passed.
+  - `npx tsc --noEmit --pretty false` passed.
+  - `npx eslint src/ai/tableRead.ts src/ai/speechProviders.ts src/ai/speechProviders.test.ts src/ai/llmEvaluation.ts src/ai/llmEvaluation.test.ts` passed.
+  - `npm run harness:task-card -- docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md` passed.
+  - `npm run harness:long-tasks` passed.
+  - JSON parse for `long_running_tasks.json` passed.
+  - `npm run harness:check` passed.
+  - `git diff --check` passed with LF/CRLF warnings only.
+
+Remaining risks:
+- No real live Mimo style sample is available after v26 because quota blocked all calls.
+- The remaining mock warnings should be treated as guardrail evidence, not as a reason for another broad local positive-supply pass.
+- Next engineering action after quota/key state is fixed: run a bounded paid live Mimo Day 1 sample of 6-9 speeches, then review manually plus `sampleMetrics`.
+
+Recommended next step:
+- Give `docs/evaluations/2026-06-11-ordinary-mimo-v26-fable5-minifix-review.md` to Fable5 now if external review is needed before another paid run.
+- Otherwise, top up/switch the temporary provider key and run the bounded live Mimo sample. Do not start phase 3 token reduction yet.

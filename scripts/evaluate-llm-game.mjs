@@ -3,12 +3,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
+import { buildEvalCaseFromAiLog } from "./eval-ordinary-ai-utils.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = parseArgs(process.argv.slice(2));
 const gameCount = readPositiveInt(args.games, 1);
 const seedStart = readNonNegativeInt(args.seed ?? args["seed-start"], 91);
-const humanSeatId = readPositiveInt(args.human, 9);
+const humanSeatId = readHumanSeatId(args.human, 9);
 const maxSteps = readPositiveInt(args["max-steps"], 120);
 const maxLlmCalls = readPositiveInt(args["max-llm-calls"], 8);
 const autoHuman = readAutoHuman(args["auto-human"]);
@@ -20,8 +21,10 @@ const lineupCount = readPositiveInt(args["lineup-count"], 12);
 const jsonMode = readJsonMode(args["json-mode"]);
 const jsonOutput = Boolean(args.json);
 const outPath = args.out ? path.resolve(root, String(args.out)) : undefined;
+const evalCasesOutPath = args["eval-cases-out"] ? path.resolve(root, String(args["eval-cases-out"])) : undefined;
 const allowMock = Boolean(args["allow-mock"]);
 const failOnError = Boolean(args["fail-on-error"]);
+const forceMockProviders = String(args.provider ?? "").toLowerCase() === "mock" || Boolean(args["force-mock"]);
 
 if (args.provider) process.env.AI_LLM_PROVIDER = String(args.provider);
 if (lineupModels.length > 0 && !args.provider) process.env.AI_LLM_PROVIDER = "models";
@@ -70,7 +73,7 @@ try {
     server.ssrLoadModule("/src/ai/llmEvaluation.ts"),
   ]);
 
-  const realProviders = createConfiguredAiOptions();
+  const realProviders = createConfiguredAiOptions(forceMockProviders ? { forceMock: true } : undefined);
   assertRealProviders(realProviders, allowMock);
   const aiFriends =
     lineupModels.length > 0
@@ -142,6 +145,15 @@ try {
     await fs.mkdir(path.dirname(outPath), { recursive: true });
     await fs.writeFile(outPath, output, "utf8");
   }
+  if (evalCasesOutPath) {
+    const cases = games.flatMap((game) => game.calls.map((call) => call.evalCase).filter(Boolean));
+    await fs.mkdir(path.dirname(evalCasesOutPath), { recursive: true });
+    await fs.writeFile(
+      evalCasesOutPath,
+      `${JSON.stringify({ generatedAt: report.generatedAt, source: "llm:evaluate", cases }, null, 2)}\n`,
+      "utf8",
+    );
+  }
   process.stdout.write(output);
   process.exitCode = failOnError && (report.summary.fallbackCount > 0 || report.summary.errorCount > 0) ? 1 : 0;
 } catch (error) {
@@ -189,6 +201,7 @@ async function evaluateGame(initialState, modules, options) {
     state = decision.state;
 
     if (useRealProvider) {
+      const callIndex = calls.length;
       calls.push(
         summarizeCall(
           decision.aiLog,
@@ -196,6 +209,11 @@ async function evaluateGame(initialState, modules, options) {
           options.analyzeLlmCallQuality,
           options.summarizeLlmAttemptDiagnostics,
           options.classifyLlmRetryIssueCodes,
+          {
+            callIndex,
+            seed: options.seed,
+            source: "llm:evaluate",
+          },
         ),
       );
     } else {
@@ -259,7 +277,14 @@ async function evaluateDecision(initialState, requirement, modules, providers) {
   };
 }
 
-function summarizeCall(log, durationMs, analyzeLlmCallQuality, summarizeLlmAttemptDiagnostics, classifyLlmRetryIssueCodes) {
+function summarizeCall(
+  log,
+  durationMs,
+  analyzeLlmCallQuality,
+  summarizeLlmAttemptDiagnostics,
+  classifyLlmRetryIssueCodes,
+  evalMetadata = {},
+) {
   const reasoningCues = log.prompt.publicSummary.tableMemory.reasoningCues ?? [];
   const speechInfluence = log.prompt.publicSummary.tableMemory.speechInfluence ?? [];
   const outputText = commandText(log.output);
@@ -286,6 +311,12 @@ function summarizeCall(log, durationMs, analyzeLlmCallQuality, summarizeLlmAttem
         },
       })
     : [];
+  const evalCase = buildEvalCaseFromAiLog(log, evalMetadata.callIndex ?? 0, {
+    ...evalMetadata,
+    durationMs,
+    isFallback: log.isFallback,
+    provider: log.provider,
+  });
 
   return {
     id: `${log.gameId}:${log.phase}:${log.seatNumber}:${durationMs}`,
@@ -302,6 +333,7 @@ function summarizeCall(log, durationMs, analyzeLlmCallQuality, summarizeLlmAttem
     validationErrors,
     qualityIssues,
     qualityIssueCodes: qualityIssues.map((issue) => issue.code),
+    evalCase,
     attemptDiagnostics,
     retryIssueCodes,
     primaryRetryIssue: retryIssueCodes[0],
@@ -654,6 +686,12 @@ function parseArgs(values) {
 function readPositiveInt(value, fallback) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function readHumanSeatId(value, fallback) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "none" || raw === "null" || raw === "all-ai" || raw === "all_ai") return null;
+  return readPositiveInt(value, fallback);
 }
 
 function readNonNegativeInt(value, fallback) {

@@ -31,7 +31,7 @@ export function buildClaimAudit(view: AgentView): AiClaimAudit {
   const protectedClaims = uniqueLines(
     liveClaims
       .filter((claim) => POWER_ROLES.has(claim.claimedRole) && !counterclaimedSeatIds.has(claim.claimant.seatId))
-      .map((claim) => `${seatText(claim.claimant)}未对跳${claim.claimedRoleLabel}，先保护其身份空间，但要求给公开处理方向和边界。`),
+      .map((claim) => `${seatText(claim.claimant)}未对跳${claim.claimedRoleLabel}，这个身份先认下来，但今天票准备往哪放要说清。`),
   ).slice(0, 5);
 
   const checkChains = uniqueLines([

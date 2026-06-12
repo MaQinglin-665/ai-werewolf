@@ -11,6 +11,7 @@
     "audio:host": "node scripts/generate-host-audio.mjs",
     "llm:check": "node scripts/check-llm-output.mjs",
     "llm:evaluate": "node scripts/evaluate-llm-game.mjs",
+    "eval:ordinary-ai": "node scripts/eval-ordinary-ai.mjs",
     "llm:evaluate:deepseek": "node scripts/evaluate-llm-game.mjs --models=deepseek-chat,deepseek-reasoner --base-url=https://api.deepseek.com --lineup-count=12 --json-mode=on",
     "audit:ai": "node scripts/audit-ai-experience.mjs",
     "audit:structure": "node scripts/structure-audit.mjs",

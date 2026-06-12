@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-05-27T16:45:00+08:00",
+  "updated_at": "2026-06-12T17:55:00+08:00",
   "tasks": [
     {
       "id": "lrt-harness-long-running-registry",
@@ -21,6 +21,43 @@
       "last_verified_command": "",
       "next_action": "Use this registry for the next multi-session optimization or long-running diagnostic.",
       "notes": "Initial registry entry for the harness capability itself."
+    },
+    {
+      "id": "lrt-ordinary-mimo-speech-quality",
+      "title": "Ordinary Mimo invocation and speech quality roadmap",
+      "status": "done",
+      "owner": "ai-speech",
+      "scope": [
+        "docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md",
+        "docs/evaluations/2026-06-09-ordinary-werewolf-speech-research.md",
+        "src/ai/modelLlms.ts",
+        "src/ai/speechProviders.ts",
+        "src/ai/speechProviders.test.ts",
+        "src/ai/tableRead.ts",
+        "src/ai/tableRead.test.ts",
+        "src/ai/actionProviders.ts",
+        "src/ai/actionProviders.test.ts",
+        "src/ai/seatMemory.ts",
+        "src/ai/seatMemory.test.ts",
+        "src/ai/llmEvaluation.ts",
+        "src/ai/llmEvaluation.test.ts",
+        "src/ai/evalOrdinaryAiUtils.test.ts",
+        "src/game/claims.ts",
+        "src/game/claims.test.ts",
+        "scripts/check-llm-output.mjs",
+        "scripts/evaluate-llm-game.mjs",
+        "scripts/eval-ordinary-ai-utils.mjs",
+        "scripts/eval-ordinary-ai.mjs",
+        "progress.md",
+        "session-handoff.md"
+      ],
+      "started_at": "2026-06-09T17:20:00+08:00",
+      "updated_at": "2026-06-12T17:55:00+08:00",
+      "related_task_card": "docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md",
+      "handoff_pointer": "session-handoff.md",
+      "last_verified_command": "2026-06-12 17:55 final v46 verification passed: focused action/eval/eval-utils/speech tests; related AI/claim aggregate 8 files / 453 tests; npx tsc --noEmit --pretty false; targeted eslint; existing v45 eval replay; v46 bounded live/eval at tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-report.json / -cases.json / -eval.json with local eval averageScore 100, issueCount 0, highRiskCaseIds empty.",
+      "next_action": "Send v46 to final user acceptance using docs/evaluations/2026-06-12-ordinary-mimo-v46-final-acceptance-gate.md. If the user rejects subjective style or asks for a no-fallback sample, resume from the v46 residual risks. Do not print, write, or persist the key.",
+      "notes": "Fable5's required final hard-fact fixes are implemented and verified: fabricated public check attribution is guarded in provider/action/eval, forward-commitment tail variants are covered, and eval metadata preserves alive seat names plus public claim board. v46 passes hard gates but has provider stability residual risk: fallbackCount 3/errorCount 3, including a game-legal Werewolf fake-Seer fallback on D2. Do not add broad phrase bans, do not expand hard fallback, and do not start token reduction before user acceptance."
     }
   ]
 }

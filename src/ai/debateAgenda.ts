@@ -105,9 +105,9 @@ function buildTargetCrossExamination(view: AgentView, target: ActionTarget, plan
     if (isLowInfoDayOneOpeningTarget(view, target)) {
       return `回看${targetText}只评价开口观察点是否过泛，不要要求首置位先交站边或票口。`;
     }
-    return `回看${targetText}已发言的站边和票口：哪些公开点能支撑或推翻这条线。`;
+    return `回看${targetText}已发言的表态和票口：哪句话能撑住这条线，哪句话会把它拆掉。`;
   }
-  return `等${targetText}发言时只留一个具体问题：他和当前身份线或票型哪一点能闭合。`;
+  return `等${targetText}发言时只留一个具体问题：他和当前身份说法或投票哪一点能说顺。`;
 }
 
 function buildTargetVoteCommitment(view: AgentView, target: ActionTarget, plan: SpeechPlan | undefined): string {
@@ -122,7 +122,7 @@ function buildTargetVoteCommitment(view: AgentView, target: ActionTarget, plan: 
     if (isLowInfoDayOneOpeningTarget(view, target)) {
       return `${targetText}作为首置位先记录观察点质量，不把“没站边/没票口”当今天票口。`;
     }
-    return `本轮围绕${targetText}回看已发表站边、票口和前后是否闭合。`;
+    return `本轮围绕${targetText}回看已发表态、票口和前后能不能说顺。`;
   }
   return `本轮只给${targetText}一个可验证问题，不要求他一次交站边、票口和身份线三件套。`;
 }

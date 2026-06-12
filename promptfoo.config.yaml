@@ -1,0 +1,14 @@
+description: Ordinary Werewolf AI speech/action judge
+
+prompts:
+  - file://prompts/evals/ordinary-ai-judge.md
+
+providers:
+  - id: file://scripts/promptfoo-ordinary-judge-provider.mjs
+    label: ordinary-ai-judge
+
+defaultTest:
+  assert:
+    - type: is-json
+
+tests: file://tmp/ordinary-ai-promptfoo-cases.json

@@ -1,4 +1,10 @@
 import { isWolfRole } from "@/game/roleUtils";
+import {
+  ORDINARY_PLAYER_TYPE_PRESETS,
+  defaultOrdinaryPlayerProfile,
+  inferOrdinaryPlayerTypeId,
+  sanitizeOrdinaryPlayerProfile,
+} from "@/game/ordinaryPlayerProfiles";
 import type {
   ActionTarget,
   AgentView,
@@ -71,8 +77,8 @@ export function inferPersonaStrategyCard({
   persona: AiPersona;
   roleCard?: AiCharacterRoleCard;
 }): PersonaStrategyCard {
-  const known = knownStrategyCard(persona);
-  if (known) return known;
+  const ordinaryCard = ordinaryPlayerProfileStrategyCard(persona, { inferWhenMissing: roleCard?.theme !== "class-trial" });
+  if (ordinaryCard) return ordinaryCard;
 
   const sourceText = [
     persona.label,
@@ -123,7 +129,7 @@ export function adaptPersonaStrategyForView(
     campLayer === "werewolf"
       ? `${card.summary}；本局狼人侧用公开理由伪装、切割或带节奏。`
       : campLayer === "power"
-        ? `${card.summary}；本局神职侧优先把能力收益转成公开可验证路径。`
+        ? `${card.summary}；本局神职侧优先把身份信息说成大家听得懂的安排。`
         : `${card.summary}；本局好人侧优先用公开事实推进。`;
 
   return {
@@ -195,127 +201,96 @@ export function formatOrdinaryLiveIntentForPrompt(state: AiOrdinaryLiveIntentSta
 export function formatPersonaStrategyForPrompt(strategy: AdaptedPersonaStrategyCard): string {
   return [
     strategy.activeSummary,
-    `发言动机：${strategy.activeSpeechMotives.join("；")}`,
-    `投票动机：${strategy.activeVoteMotives.join("；")}`,
+    `说话习惯：${strategy.activeSpeechMotives.join("；")}`,
+    `投票习惯：${strategy.activeVoteMotives.join("；")}`,
     `夜晚取舍：${strategy.activeNightMotives.join("；")}`,
-    `反模板动作：${strategy.antiTemplateMoves.join("；")}`,
-    `易犯问题：${strategy.activeFailureModes.join("；")}`,
+    `本轮不要套模板：${strategy.antiTemplateMoves.join("；")}`,
+    `容易犯的真实玩家错误：${strategy.activeFailureModes.join("；")}`,
   ].join("\n");
 }
 
 export function strategySummaryForAiFriend(persona: AiPersona, roleCard?: AiCharacterRoleCard): string {
   const card = inferPersonaStrategyCard({ persona, roleCard });
-  return `${card.summary}｜反模板：${card.antiTemplateMoves.slice(0, 2).join("、")}`;
+  return `${card.summary}｜本轮别套模板：${card.antiTemplateMoves.slice(0, 2).join("、")}`;
 }
 
-function knownStrategyCard(persona: AiPersona): PersonaStrategyCard | undefined {
-  const id = persona.id.toLowerCase();
-  if (id.includes("deepseek")) {
-    return baseCard(persona, {
-      summary: "逻辑链推演：用公开事实链拆发言顺序、票型因果和前后矛盾。",
-      temperament: ["克制", "证据链", "低情绪"],
-      antiTemplateMoves: ["引用一句公开发言再拆因果", "把票型动机和发言顺序连起来", "给下一轮可验证条件"],
-      goodFailure: "过度求稳，发言像审计报告",
-      wolfFailure: "伪装太干净，缺少自然反应",
-      powerFailure: "只报结论，少了公开验证路径",
-    });
-  }
-  if (id.includes("claude")) {
-    return baseCard(persona, {
-      summary: "边界审查：组织桌面、审查事实边界，并要求可疑位补清楚站边。",
-      temperament: ["稳健", "归纳", "领导"],
-      antiTemplateMoves: ["收束两条公开分歧", "要求一个明确回应", "把票口和边界分开说"],
-      goodFailure: "边界过厚，错过临场反应",
-      wolfFailure: "领导感太满，暴露控场收益",
-      powerFailure: "身份边界说得清，但压迫不足",
-    });
-  }
-  if (id.includes("gpt")) {
-    return baseCard(persona, {
-      summary: "平衡组织：把分散信息整理成能讨论的当前框架。",
-      temperament: ["均衡", "组织", "留余地"],
-      antiTemplateMoves: ["先承认不确定再给一个焦点", "把两名玩家做对照", "用当前票型提出验证方向"],
-      goodFailure: "过度折中，结论偏软",
-      wolfFailure: "转向理由太圆滑，像刻意控风险",
-      powerFailure: "组织很多，但身份收益不够尖",
-    });
-  }
-  if (id.includes("mimo")) {
-    return baseCard(persona, {
-      summary: "细节校验：追踪上一轮发言、票型变化和站边转向。",
-      temperament: ["细节", "记忆", "校验"],
-      antiTemplateMoves: ["抓前后两句话的变化", "延续自己上一轮压力", "用票型变化追问转向动机"],
-      goodFailure: "陷入细节循环，忽略更硬身份信息",
-      wolfFailure: "切割或转压时过度解释",
-      powerFailure: "盯细节太久，能力信息没有转成桌面行动",
-    });
-  }
-  if (id.includes("kimi")) {
-    return baseCard(persona, {
-      summary: "身份线长记忆：围绕对跳、金水、查杀和前后站边变化推进。",
-      temperament: ["身份线", "长线", "记忆"],
-      antiTemplateMoves: ["把身份声明和投票前后连起来", "追踪金水/查杀的后续反应", "比较昨天与今天的站边变化"],
-      goodFailure: "过度身份化，忽略普通发言破绽",
-      wolfFailure: "编身份线过重，容易前后冲突",
-      powerFailure: "沉迷身份框架，少给今天怎么投",
-    });
-  }
-  if (id.includes("doubao")) {
-    return baseCard(persona, {
-      summary: "快节奏压迫：用强压和即时反应带动桌面互动。",
-      temperament: ["强压", "反应", "带节奏"],
-      antiTemplateMoves: ["逼一个当场回应", "从反应差切票型收益", "用短句制造压力但留公开理由"],
-      goodFailure: "轻证据上头，误伤好人",
-      wolfFailure: "压迫过猛，暴露带票收益",
-      powerFailure: "强动作太早，身份价值被浪费",
-    });
-  }
-  if (id.includes("gemini")) {
-    return baseCard(persona, {
-      summary: "多线观察：短发言、保留判断，但留下清晰观察点。",
-      temperament: ["安静", "多线", "谨慎"],
-      antiTemplateMoves: ["只给一个观察点", "把焦点暂挂而非站死", "说明下一轮看什么回验"],
-      goodFailure: "存在感太低，像逃避责任",
-      wolfFailure: "过度低暴露，被看成划水",
-      powerFailure: "能力信息藏太久，桌面无法使用",
-    });
-  }
-  if (id.includes("glm")) {
-    return baseCard(persona, {
-      summary: "结构站边：从语气、态度和临场反应里找结构矛盾。",
-      temperament: ["结构", "态度", "反应"],
-      antiTemplateMoves: ["把态度变化落到具体句子", "比较强势位和回避位的收益", "说明反应为什么不像自然好人"],
-      goodFailure: "把态度读成铁证",
-      wolfFailure: "结构话太满，像预设结论",
-      powerFailure: "反应判断盖过身份信息",
-    });
-  }
-  return undefined;
-}
-
-function baseCard(
+function ordinaryPlayerProfileStrategyCard(
   persona: AiPersona,
-  options: {
-    summary: string;
-    temperament: string[];
-    antiTemplateMoves: string[];
-    goodFailure: string;
-    wolfFailure: string;
-    powerFailure: string;
-  },
-): PersonaStrategyCard {
+  options: { inferWhenMissing?: boolean } = {},
+): PersonaStrategyCard | undefined {
+  const profile = persona.ordinaryPlayerProfile
+    ? sanitizeOrdinaryPlayerProfile(persona.ordinaryPlayerProfile)
+    : options.inferWhenMissing
+      ? defaultOrdinaryPlayerProfile(
+          inferOrdinaryPlayerTypeId({
+            riskTolerance: persona.riskTolerance,
+            bluffing: persona.bluffing,
+            preferences: persona.preferences ?? fallbackPreferences(),
+          }),
+        )
+      : undefined;
+  if (!profile) return undefined;
+  const preset = ORDINARY_PLAYER_TYPE_PRESETS[profile.playerTypeId];
+  const summary = `${preset.label}：${preset.summary}`;
+  const antiTemplateMoves = ordinaryAntiTemplateMoves(profile.playerTypeId);
+
   return {
-    id: `strategy:${persona.id}`,
+    id: `strategy:${persona.id}:${profile.playerTypeId}`,
     modelName: persona.name,
-    personaLabel: persona.label,
-    summary: options.summary,
-    temperament: options.temperament,
-    antiTemplateMoves: options.antiTemplateMoves,
-    camp: buildCampStrategies(options.summary, options.antiTemplateMoves, {
-      goodFailure: options.goodFailure,
-      wolfFailure: options.wolfFailure,
-      powerFailure: options.powerFailure,
-    }),
+    personaLabel: preset.label,
+    summary,
+    temperament: [preset.shortLabel, profile.sliders.emotion >= 0.65 ? "反应明显" : "反应克制", profile.sliders.caution >= 0.65 ? "怕背锅" : "敢给判断"],
+    antiTemplateMoves,
+    camp: buildOrdinaryPlayerCampStrategies(preset),
+  };
+}
+
+function ordinaryAntiTemplateMoves(typeId: keyof typeof ORDINARY_PLAYER_TYPE_PRESETS): string[] {
+  switch (typeId) {
+    case "impatient-pusher":
+      return ["直接说自己卡谁和原因", "把投票压力落到一句公开话上", "承认自己可能急但先给判断"];
+    case "cautious-backpacker":
+      return ["说出自己没听懂哪一句", "保留判断但给下一步看什么", "不把平安夜硬说成攻击理由"];
+    case "one-line-catcher":
+      return ["引用一句具体发言再追问", "只抓一个没听懂的转折", "如果前面已经问过就换成自己的疑惑"];
+    case "soft-follower":
+      return ["说明自己被哪句话影响", "跟票时说清楚自己听懂的理由", "改口时承认新信息改变判断"];
+    case "role-sensitive":
+      return ["把女巫银水查杀这些信息说成人话", "先说暂时认不认身份", "不把身份术语堆成复盘"];
+    case "quiet-watcher":
+      return ["短句留下一个真实疑惑", "不急着打死别人", "说清下一轮会看谁怎么接"];
+    case "emotional-reactor":
+      return ["把不满落到一句公开话", "先说自己为什么觉得别扭", "情绪不能替代证据"];
+    case "pivot-admitter":
+      return ["承认自己想法变了", "说清哪条新信息让自己转向", "投票转向必须给普通玩家能懂的理由"];
+  }
+}
+
+function buildOrdinaryPlayerCampStrategies(
+  preset: (typeof ORDINARY_PLAYER_TYPE_PRESETS)[keyof typeof ORDINARY_PLAYER_TYPE_PRESETS],
+): Record<PersonaCampLayer, PersonaCampStrategy> {
+  return {
+    good: {
+      goal: "像普通好人一样用听得懂的公开理由推进，不把软感觉说成铁证。",
+      speechMotives: [preset.speechCue, "说清自己听懂了哪一点，没听懂哪一点", "给后面的人一个能接的话头"],
+      voteMotives: [preset.actionCue, "投谁就说普通玩家能听懂的理由", "跟票或改票都要说被哪句话影响"],
+      nightMotives: ["有夜晚能力时，按公开身份和白天发言价值做取舍"],
+      failureModes: ["把感觉当证据", "跟着桌面走但说不清为什么"],
+    },
+    werewolf: {
+      goal: "狼身份也只能说公开理由，装成真实玩家的迟疑、跟票或反应。",
+      speechMotives: [preset.speechCue, "把怀疑落在公开发言上", "需要转向时说是被新发言影响"],
+      voteMotives: [preset.actionCue, "跟能说出口的票，不暴露狼队想法", "切换目标时给普通玩家能懂的原因"],
+      nightMotives: ["夜晚优先处理白天公开有影响的人，但不要把夜晚想法写成公开话"],
+      failureModes: ["说得像在解释系统策略", "把带票想法说得太像提前设计"],
+    },
+    power: {
+      goal: "把身份信息说成人话，让桌面知道今天该怎么处理。",
+      speechMotives: [preset.speechCue, "公开身份信息只说到今天需要用的程度", "把银水、查杀、枪口这些话说清楚"],
+      voteMotives: [preset.actionCue, "围绕公开身份信息给今天能执行的票", "不把身份词堆成复盘"],
+      nightMotives: ["夜晚动作兼顾自己活着、公开身份价值和明天怎么说得清"],
+      failureModes: ["身份术语太多，别人听不出今天要投谁", "只报结果，不说接下来怎么看"],
+    },
   };
 }
 

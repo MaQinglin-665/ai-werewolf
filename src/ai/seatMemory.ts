@@ -54,24 +54,30 @@ export function rememberAiDecision(
   };
 
   if (command.type === "speak") {
-    const targetSeatId = speechPlan?.target?.seatId;
+    const plannedTargetSeatId = speechPlan?.target?.seatId;
+    const targetSeatId =
+      plannedTargetSeatId && renderedSpeechSupportsSeatTarget(command.message, plannedTargetSeatId)
+        ? plannedTargetSeatId
+        : undefined;
     const previousTargetSeatId = next.lastSpeechTargetSeatId ?? next.lastVoteTargetSeatId;
     if (targetSeatId) {
       next.lastSpeechTargetSeatId = targetSeatId;
       next.focusSeatId = targetSeatId;
       next.suspectedSeatId = targetSeatId;
+    } else {
+      next.lastSpeechTargetSeatId = undefined;
     }
-    next.lastSpeechStance = speechPlan?.stance;
+    next.lastSpeechStance = naturalizePublicMemoryLine(command.message) || speechPlan?.stance;
     next.liveIntent = targetSeatId
       ? previousTargetSeatId && previousTargetSeatId !== targetSeatId
         ? "explain_pivot"
         : "push_vote"
       : "observe";
     next.liveIntentTargetSeatId = targetSeatId;
-    next.liveIntentPublicReason = cleanPublicMemoryLine(speechPlan?.stance ?? firstSpeechTalkingPoint(speechPlan) ?? "保留一个公开观察点");
+    next.liveIntentPublicReason = naturalizePublicMemoryLine(speechPlan?.stance ?? firstSpeechTalkingPoint(speechPlan) ?? "保留一个公开观察点");
     next.liveIntentCommitment = targetSeatId
-      ? `${targetSeatId}号这条公开发言线后续要能接到投票；改票必须解释新增公开证据。`
-      : "没有固定目标时，后续投票要接公开发言、身份线或票型变化。";
+      ? naturalizePublicMemoryLine(`${targetSeatId}号这条公开发言线后续要能接到投票；改票必须解释新增公开证据。`)
+      : naturalizePublicMemoryLine("没有固定目标时，后续投票要接公开发言、身份说法或票型变化。");
     next.voteContinuity = targetSeatId
       ? `发言和投票围绕${targetSeatId}号保持同一条公开证据链。`
       : "投票要接住本轮公开观察点。";
@@ -89,11 +95,11 @@ export function rememberAiDecision(
           ? "explain_pivot"
           : "follow_vote_shape";
       next.liveIntentTargetSeatId = command.targetSeatId;
-      next.liveIntentPublicReason = cleanPublicMemoryLine(command.reason ?? votePlan?.reason ?? "按公开票型和发言压力投票");
+      next.liveIntentPublicReason = naturalizePublicMemoryLine(command.reason ?? votePlan?.reason ?? "按公开票型和发言压力投票");
       next.liveIntentCommitment =
         previousSpeechTargetSeatId && previousSpeechTargetSeatId !== command.targetSeatId
-          ? `从${previousSpeechTargetSeatId}号转到${command.targetSeatId}号，必须解释公开证据为什么升级。`
-          : `继续压${command.targetSeatId}号时，要说明上一轮发言疑点没有解除。`;
+          ? naturalizePublicMemoryLine(`从${previousSpeechTargetSeatId}号转到${command.targetSeatId}号，必须解释公开证据为什么升级。`)
+          : naturalizePublicMemoryLine(`继续压${command.targetSeatId}号时，要说明上一轮发言疑点没有解除。`);
       next.voteContinuity =
         previousSpeechTargetSeatId && previousSpeechTargetSeatId !== command.targetSeatId
           ? `上一轮发言点过${previousSpeechTargetSeatId}号，本轮转到${command.targetSeatId}号要给出更硬公开依据。`
@@ -112,8 +118,8 @@ export function rememberAiDecision(
       next.focusSeatId = command.targetSeatId;
       next.liveIntent = "light_night_targeting";
       next.liveIntentTargetSeatId = command.targetSeatId;
-      next.liveIntentPublicReason = "夜晚行动按角色收益和公开威胁轻量记录，不带入公开发言。";
-      next.liveIntentCommitment = "次日公开发言只能引用已公开死讯、查验或票型，不暴露夜晚私有判断。";
+      next.liveIntentPublicReason = naturalizePublicMemoryLine("夜晚行动按角色作用和公开威胁轻量记录，不带入公开发言。");
+      next.liveIntentCommitment = naturalizePublicMemoryLine("次日公开发言只能引用已公开死讯、查验或票型，不暴露夜晚私有判断。");
       next.voteContinuity = "夜晚行动记忆只影响内部优先级，不直接变成公开台词。";
     }
   }
@@ -122,12 +128,24 @@ export function rememberAiDecision(
     next.focusSeatId = command.targetSeatId;
     next.liveIntent = "light_night_targeting";
     next.liveIntentTargetSeatId = command.targetSeatId;
-    next.liveIntentPublicReason = "女巫行动按药品收益轻量记录，不带入公开发言。";
-    next.liveIntentCommitment = "次日只按公开死讯和发言解释，不暴露药品私有信息。";
+    next.liveIntentPublicReason = naturalizePublicMemoryLine("女巫行动按药品作用轻量记录，不带入公开发言。");
+    next.liveIntentCommitment = naturalizePublicMemoryLine("次日只按公开死讯和发言解释，不暴露药品私有信息。");
     next.voteContinuity = "夜晚行动记忆只影响内部优先级，不直接变成公开台词。";
   }
 
   return next;
+}
+
+export function renderedSpeechSupportsSeatTarget(speech: string | undefined, seatId: number | undefined): boolean {
+  if (!speech || !Number.isInteger(seatId)) return false;
+  const targetPattern = new RegExp(`${seatId}\\s*号`);
+  const sentences = speech.match(/[^。！？；;]+[。！？；;]?/g) ?? [speech];
+  return sentences.some((sentence) => {
+    if (!targetPattern.test(sentence)) return false;
+    return /(?:票|投|压|点|打|出|归|盯|看|问|追|怀疑|不认|认下|暂放|保|站|补|解释|说清|没说清|不舒服|别扭|矛盾|疑点|问题|狼|好|金水|银水|查杀|身份|女巫|预言家)/.test(
+      sentence,
+    );
+  });
 }
 
 export function storeAiSeatMemory(state: GameState, memory: AiSeatMemory): GameState {
@@ -170,4 +188,18 @@ function cleanPublicMemoryLine(value: string | undefined): string {
     .trim();
   if (!clean) return "";
   return clean.length <= 120 ? clean : `${clean.slice(0, 119)}。`;
+}
+
+function naturalizePublicMemoryLine(value: string | undefined): string {
+  const clean = cleanPublicMemoryLine(value)
+    .replace(/收益来源/g, "为什么这么想")
+    .replace(/收益/g, "作用")
+    .replace(/发言链/g, "前后说法")
+    .replace(/闭合/g, "说清楚")
+    .replace(/缺口/g, "没说清的地方")
+    .replace(/收口/g, "给出结论")
+    .replace(/压力源/g, "被怀疑的原因")
+    .replace(/liveIntent|publicReason|commitment/gi, "公开理由")
+    .trim();
+  return clean;
 }
