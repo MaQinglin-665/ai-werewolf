@@ -15,6 +15,7 @@ import {
   getOrCreatePreparedAiSpeechAudio,
   isAiSpeechAudioUnavailableError,
   prepareAiSpeechAudio,
+  shouldCommitAiSpeechAudioPlaybackStatus,
   shouldMarkAiSpeechAudioUnavailable,
   shouldUseClassTrialTextFallback,
   takeStableTtsChunk,
@@ -302,6 +303,45 @@ describe("aiSpeechAudio helpers", () => {
 
     expect(patch?.playbackProgress).toBeLessThan(0.2);
     expect(patch?.syncedTypewriter).toBe(true);
+  });
+
+  it("throttles playback-only status commits while preserving completion updates", () => {
+    const current = {
+      speechKey: "game-1:10:3",
+      speaker: { seatId: 3, name: "角色3" },
+      state: "playing",
+      text: "同步",
+      playbackDurationSec: 10,
+      playbackProgress: 0.2,
+      syncedTypewriter: true,
+    } as const;
+
+    expect(
+      shouldCommitAiSpeechAudioPlaybackStatus({
+        current,
+        next: { ...current, playbackProgress: 0.21 },
+        nowMs: 1100,
+        lastCommittedAtMs: 1000,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldCommitAiSpeechAudioPlaybackStatus({
+        current,
+        next: { ...current, playbackProgress: 0.24 },
+        nowMs: 1250,
+        lastCommittedAtMs: 1000,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldCommitAiSpeechAudioPlaybackStatus({
+        current,
+        next: { ...current, playbackProgress: 1 },
+        nowMs: 1100,
+        lastCommittedAtMs: 1000,
+      }),
+    ).toBe(true);
   });
 
   it("builds an audio loading status from a text cue", () => {

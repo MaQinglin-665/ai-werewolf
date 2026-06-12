@@ -34,6 +34,7 @@ import {
   getOrCreatePreparedAiSpeechAudio,
   getSeatTtsConfig,
   prepareAiSpeechAudio,
+  shouldCommitAiSpeechAudioPlaybackStatus,
   shouldMarkAiSpeechAudioUnavailable,
   shouldUseClassTrialTextFallback,
   waitForAudioReady,
@@ -237,6 +238,7 @@ export function GameClient() {
   const hostAudioRunRef = useRef(0);
   const aiSpeechAudioRef = useRef<HTMLAudioElement | null>(null);
   const aiSpeechAudioRunRef = useRef(0);
+  const lastAiSpeechAudioStatusCommitMsRef = useRef<number | null>(null);
   const manualAiSpeechPlaybackRef = useRef<ManualAiSpeechPlaybackRequest | null>(null);
   const preparedAiSpeechAudioRef = useRef<PreparedAiSpeechAudioCache>(new Map());
   const bufferedClassTrialContinueRef = useRef<ClassTrialAudioLookaheadRun<HumanGameView> | null>(null);
@@ -485,6 +487,7 @@ export function GameClient() {
       aiSpeechAudioRef.current = null;
     }
     setManualAiSpeechPlayback(null);
+    lastAiSpeechAudioStatusCommitMsRef.current = null;
     setAiSpeechAudioStatus(null);
   }, []);
 
@@ -858,6 +861,7 @@ export function GameClient() {
     options?.onPlaybackStarted?.();
 
     const updatePlaybackStatus = () => {
+      const nowMs = window.performance.now();
       const next = buildAiSpeechAudioPlaybackStatusPatch({
         audio,
         cue,
@@ -865,9 +869,23 @@ export function GameClient() {
         activeRunId: aiSpeechAudioRunRef.current,
         classTrialThemeActive: classTrialLocalThemeSelected,
         playbackStartedAtMs,
-        nowMs: window.performance.now(),
+        nowMs,
       });
-      if (next) setAiSpeechAudioStatus(next);
+      if (!next) return;
+      setAiSpeechAudioStatus((current) => {
+        if (
+          !shouldCommitAiSpeechAudioPlaybackStatus({
+            current,
+            next,
+            nowMs,
+            lastCommittedAtMs: lastAiSpeechAudioStatusCommitMsRef.current,
+          })
+        ) {
+          return current;
+        }
+        lastAiSpeechAudioStatusCommitMsRef.current = nowMs;
+        return next;
+      });
     };
     updatePlaybackStatus();
 
@@ -1272,6 +1290,7 @@ export function GameClient() {
 
   const phaseCurtainActive = Boolean(phaseCurtain);
   const idiotRevealActive = Boolean(idiotReveal);
+  const aiSpeechAudioActive = Boolean(aiSpeechAudioStatus);
 
   useEffect(() => {
     if (!game || loading || error || game.result || phaseCurtainActive || idiotRevealActive) return;
@@ -1291,7 +1310,7 @@ export function GameClient() {
     const pendingAiSpeechCue = buildAiSpeechAudioCue(game, completedAiSpeechAudioKeysRef.current, runtimeAiTtsConfigs);
     const latestAiSpeech = getLatestStreamableAiSpeech(game);
     const latestAiSpeechKey = latestAiSpeech ? speechStreamKey(game.id, latestAiSpeech) : undefined;
-    if (classTrialThemeActive && aiSpeechAudioStatus) {
+    if (classTrialThemeActive && aiSpeechAudioActive) {
       return;
     }
     if (effectiveAiSpeechAudioEnabled && pendingAiSpeechCue) {
@@ -1321,7 +1340,7 @@ export function GameClient() {
     return () => window.clearTimeout(timer);
   }, [
     aiSpeechAudioCompletionTick,
-    aiSpeechAudioStatus,
+    aiSpeechAudioActive,
     classTrialFlow,
     classTrialThemeActive,
     effectiveAiSpeechAudioEnabled,
@@ -1385,7 +1404,7 @@ export function GameClient() {
   }, [clearBufferedClassTrialContinue, game]);
 
   useEffect(() => {
-    if (!game || !classTrialThemeActive || !effectiveAiSpeechAudioEnabled || loading || aiSpeechAudioStatus) return;
+    if (!game || !classTrialThemeActive || !effectiveAiSpeechAudioEnabled || loading || aiSpeechAudioActive) return;
     if (classTrialFlow.pauseVoicePrewarm) return;
 
     const cue = buildClassTrialVoicePrewarmCue(game, prewarmedClassTrialVoiceKeysRef.current, runtimeAiTtsConfigs);
@@ -1397,7 +1416,7 @@ export function GameClient() {
       console.info(prewarmError instanceof Error ? prewarmError.message : "学级裁判语音预热失败。");
     });
   }, [
-    aiSpeechAudioStatus,
+    aiSpeechAudioActive,
     classTrialFlow,
     classTrialThemeActive,
     effectiveAiSpeechAudioEnabled,

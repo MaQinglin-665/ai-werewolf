@@ -12,6 +12,7 @@ const CLASS_TRIAL_TEXT_FALLBACK_MS_PER_CHAR = 72;
 const CLASS_TRIAL_FINAL_TEXT_HOLD_MS = 1000;
 const CLASS_TRIAL_AUDIO_SYNC_MIN_READ_RATIO = 0.7;
 const CLASS_TRIAL_VOICE_PREWARM_TEXT = "我想听1号解释。";
+const AI_SPEECH_AUDIO_PLAYBACK_STATUS_COMMIT_INTERVAL_MS = 220;
 
 type AudioPlaybackTiming = {
   currentTime: number;
@@ -255,6 +256,28 @@ export function buildAiSpeechAudioPlaybackStatusPatch(options: {
     text: options.cue.text,
     ...(playbackSync ?? {}),
   };
+}
+
+export function shouldCommitAiSpeechAudioPlaybackStatus(options: {
+  current: AiSpeechAudioStatus | null;
+  next: AiSpeechAudioStatus;
+  nowMs: number;
+  lastCommittedAtMs: number | null;
+}): boolean {
+  const { current, next, nowMs, lastCommittedAtMs } = options;
+  if (!current) return true;
+  if (current.speechKey !== next.speechKey) return true;
+  if (current.state !== next.state) return true;
+  if (current.preparationStage !== next.preparationStage) return true;
+  if (current.text !== next.text) return true;
+  if (current.speaker.seatId !== next.speaker.seatId || current.speaker.name !== next.speaker.name) return true;
+  if (current.playbackDurationSec !== next.playbackDurationSec) return true;
+  if (current.syncedTypewriter !== next.syncedTypewriter) return true;
+  if (next.playbackProgress === 1 && current.playbackProgress !== 1) return true;
+  if (typeof current.playbackProgress !== typeof next.playbackProgress) return true;
+  if (lastCommittedAtMs === null || !Number.isFinite(lastCommittedAtMs)) return true;
+  if (!Number.isFinite(nowMs)) return true;
+  return nowMs - lastCommittedAtMs >= AI_SPEECH_AUDIO_PLAYBACK_STATUS_COMMIT_INTERVAL_MS;
 }
 
 export function findNewAiSpeech(
