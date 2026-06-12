@@ -1,6 +1,6 @@
 # Current Release Status
 
-Last checked: 2026-06-12 18:34 Asia/Shanghai.
+Last checked: 2026-06-12 19:19 Asia/Shanghai.
 
 Use this file as the first stop before sharing the public Alpha link or starting a new deployment. Update it after every public-facing release.
 
@@ -14,7 +14,7 @@ Use this file as the first stop before sharing the public Alpha link or starting
 ## Current Source State
 
 - Working branch: `codex/class-trial-ui-polish-tomori`
-- Current public runtime baseline: `a0c100c Fix AI pool editable friend build blocker`
+- Current public runtime baseline: `fba0e45 Throttle AI speech playback status updates`
 - Local worktree at runtime check: pushed to `origin/codex/class-trial-ui-polish-tomori`
 - Render deployment branch at last check: `1cb8eb2 deploy: sync mobile interaction signals`
 
@@ -28,9 +28,9 @@ This file may be updated by documentation-only commits after the runtime baselin
 - Compose root: `/opt/ai-werewolf`
 - Live app source: `/opt/ai-werewolf/app`
 - Main service: `ai-werewolf-app`
-- Latest deployed source: `a0c100c Fix AI pool editable friend build blocker`
-- Rollback source tree: `/opt/ai-werewolf/app-backup-20260612-182833`
-- Last container status: `ai-werewolf-app` healthy, image `sha256:d96c4cac22463b6ca707df5b91b27a7374bcb88da0d05be6a0b5999d9fcec4d6`, nginx and Postgres running
+- Latest deployed source: `fba0e45 Throttle AI speech playback status updates`
+- Rollback source tree: `/opt/ai-werewolf/app-backup-20260612-191609`
+- Last container status: `ai-werewolf-app` healthy, image `sha256:2cf5bb4793396a7f790a7a2d7236bb82364049ace84fdbd938159f72339ae8ee`, nginx and Postgres running
 
 Latest verification:
 
@@ -38,7 +38,7 @@ Latest verification:
 npm run preflight:production -- --base-url=https://175.178.199.245
 ```
 
-Result at 2026-06-12 18:33 Asia/Shanghai: `ok=true`, all production minimum checks passed.
+Result at 2026-06-12 19:18 Asia/Shanghai: `ok=true`, all production minimum checks passed.
 
 Latest room smoke:
 
@@ -46,7 +46,7 @@ Latest room smoke:
 $env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-sse
 ```
 
-Result at 2026-06-12 18:33 Asia/Shanghai: `ok=true`, room `APJBIW`, host seat `1`, guest seat `2`.
+Result at 2026-06-12 19:18 Asia/Shanghai: `ok=true`, room `XMXW8A`, host seat `1`, guest seat `2`.
 
 Latest room action vote smoke:
 
@@ -54,7 +54,7 @@ Latest room action vote smoke:
 $env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-action:vote
 ```
 
-Result at 2026-06-12 18:34 Asia/Shanghai: `ok=true`, room `VGZV7X`, covered `wolfKill`, `seerCheck`, `speak`, and `vote`, final phase `LAST_WORDS`.
+Result at 2026-06-12 19:19 Asia/Shanghai: `ok=true`, room `EQC138`, covered `wolfKill`, `speak`, and `vote`, final phase `LAST_WORDS`.
 
 Latest main game smoke:
 
@@ -62,15 +62,15 @@ Latest main game smoke:
 npm run smoke:main-game -- --base-url=https://175.178.199.245
 ```
 
-Result at 2026-05-26 22:54 Asia/Shanghai: `ok=true`, board `6p-beginner-seer`, human seat `1`, submitted `wolfKill`, final phase `DAY_SPEECH`.
+Result at 2026-06-12 19:19 Asia/Shanghai: `ok=true`, board `6p-beginner-seer`, human seat `1`, role `SEER`, submitted `seerCheck`, final phase `DAY_SPEECH`.
 
-Latest mobile UI asset probe:
+Latest local production browser DOM smoke:
 
 ```powershell
-# fetched public HTML assets and searched for the shipped mobile UI classes
+# Chromium headless against http://127.0.0.1:3026
 ```
 
-Result: found `mobile-seat-token-action-ready`, `mobile-drawer-tab-has-activity`, and `mobile-speech-filter-chip-active`.
+Result at 2026-06-12 19:16 Asia/Shanghai: `/`, `/ai-pool`, and `/rooms` rendered expected production DOM markers including `mobile-dock-ai-pool-action`, `mobile-ai-pool-page`, `mobile-ai-pool-list`, `创建房间`, and `未进入房间`.
 
 ## Render Free Mirror
 
