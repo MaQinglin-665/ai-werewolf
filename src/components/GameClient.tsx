@@ -7,22 +7,13 @@ import type {
   HumanGameView,
 } from "@/game/types";
 import {
-  ActionPanel,
-  AuxiliaryInfoPanel,
-  ClassTrialGameTable,
-  FlowStatusBar,
   GlossaryOverlay,
-  HostStage,
   IdentityBookOverlay,
   IdiotRevealOverlay,
   LandingPanel,
   PhaseCurtain,
-  PhaseRhythm,
-  ReviewPanel,
   RoleIntroOverlay,
   RoomHeader,
-  SeatBoard,
-  VoteTable,
   buildIdiotRevealCue,
 } from "./game/GamePanels";
 import {
@@ -56,7 +47,6 @@ import {
   shouldStartClassTrialAudioLookahead,
   type ClassTrialAudioLookaheadRun,
 } from "./game/classTrialAudioLookahead";
-import { ClassTrialOpeningIntro } from "./game/ClassTrialOpeningIntro";
 import {
   getClassTrialIntroStatus,
   sanitizeClassTrialIntroConfig,
@@ -111,9 +101,9 @@ import {
 } from "./game/classTrialTheme";
 import type { IdiotRevealCue, PhaseCurtainCue } from "./game/GamePanels";
 import { getClassTrialFlowModel } from "./game/classTrialFlowModel";
+import { GameClientLoadedSurface } from "./game/GameClientLoadedSurface";
 import { getClassTrialOpeningNightCurtainCue, getThemedPhaseCurtainCue } from "./game/phaseCurtainModel";
 import { buildLandingLineupPreview } from "./game/landingLineupPreview";
-import { MobileGameTable } from "./game/MobileGameTable";
 import {
   clearCurrentGameId,
   getRecentGameIdsServerSnapshot,
@@ -122,7 +112,6 @@ import {
   subscribeRecentGameIds,
 } from "./game/recentGamesStore";
 import { submitStreamingContinue } from "./game/streamingContinue";
-import { buildTableEventFeed } from "./game/tableEventFeed";
 import type {
   AiSpeechAudioStatus,
   AiSpeechAudioTextCue,
@@ -1010,15 +999,9 @@ export function GameClient() {
       });
       rememberGame(view.id);
       setRoleIntroGameId(view.humanSeatId === null ? null : view.id);
-      if (useFixedClassTrialLineup) {
-        setClassTrialIntroGameId(view.id);
-        setCompletedClassTrialIntroGameId(null);
-        setCompletedClassTrialOpeningNightCurtainGameId(null);
-      } else {
-        setClassTrialIntroGameId(null);
-        setCompletedClassTrialIntroGameId(null);
-        setCompletedClassTrialOpeningNightCurtainGameId(null);
-      }
+      setClassTrialIntroGameId(useFixedClassTrialLineup ? view.id : null);
+      setCompletedClassTrialIntroGameId(null);
+      setCompletedClassTrialOpeningNightCurtainGameId(null);
       setGame(view);
     } catch {
       setError("创建对局失败。");
@@ -1549,7 +1532,6 @@ export function GameClient() {
     };
   }, [stopAiSpeechAudio, stopHostAudio]);
 
-  const latestEvents = useMemo(() => buildTableEventFeed(game), [game]);
   const classTrialIntroReady =
     Boolean(classTrialIntroConfig) && classTrialIntroStatus.available && Boolean(classTrialIntroAudioPreparation?.ready);
 
@@ -1577,7 +1559,7 @@ export function GameClient() {
             aiSpeechAudioEnabled={aiSpeechAudioEnabled}
             aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
             hostAudioEnabled={hostAudioEnabled}
-            onNewGame={startGame}
+            onNewGame={() => startGame()}
             onReturnHome={game ? returnHome : undefined}
             onOpenIdentityBook={() => setIdentityBookOpen(true)}
             onOpenGlossary={() => setGlossaryOpen(true)}
@@ -1617,93 +1599,40 @@ export function GameClient() {
             onSelectClassTrialThemeMode={selectClassTrialThemeMode}
           />
         ) : (
-          <div className="grid flex-1 gap-4">
-            {classTrialThemeActive && classTrialIntroPending && classTrialIntroReady && classTrialIntroConfig ? (
-              <ClassTrialOpeningIntro
-                config={classTrialIntroConfig}
-                onComplete={completeClassTrialIntro}
-                onSkip={skipClassTrialIntro}
-              />
-            ) : classTrialThemeActive && classTrialIntroPending ? (
-              <section className="class-trial-opening-wait class-trial-court-stage">
-                <div className="class-trial-table-background" aria-hidden="true" />
-                <div className="class-trial-opening-wait-panel">
-                  <h2>正在准备开场片头</h2>
-                  <p>{classTrialIntroMessage}</p>
-                  <button type="button" onClick={skipClassTrialIntro}>
-                    跳过片头，进入裁判席
-                  </button>
-                </div>
-              </section>
-            ) : classTrialThemeActive ? (
-              <ClassTrialGameTable
-                game={game}
-                loading={loading || Boolean(aiSpeechAudioStatus) || Boolean(bufferedClassTrialContinueKey)}
-                manifest={classTrialPackManifest}
-                audioTypewriter={aiSpeechAudioStatus ?? undefined}
-                manualAudioPlayback={
-                  manualAiSpeechPlayback ? { ...manualAiSpeechPlayback, onPlay: resumeManualAiSpeechPlayback } : null
-                }
-                liveAiSpeech={liveAiSpeech}
-                aiRuntimeMode={effectiveAiRuntimeMode}
-                hostAudioEnabled={hostAudioEnabled}
-                hostAudioStatus={hostAudioStatus}
-                onToggleHostAudio={toggleHostAudio}
-                onReturnHome={returnHome}
-                onSubmit={submitCommand}
-              />
-            ) : (
-              <MobileGameTable
-                game={game}
-                loading={loading}
-                pendingCommandType={pendingCommandType}
-                liveAiSpeech={liveAiSpeech}
-                hostAudioEnabled={hostAudioEnabled}
-                aiSpeechAudioEnabled={aiSpeechAudioEnabled}
-                hostAudioStatus={hostAudioStatus}
-                aiSpeechAudioStatus={aiSpeechAudioStatus}
-                aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
-                events={latestEvents}
-                onNewGame={() => startGame()}
-                onReturnHome={returnHome}
-                onSubmit={submitCommand}
-                onOpenIdentityBook={() => setIdentityBookOpen(true)}
-                onOpenGlossary={() => setGlossaryOpen(true)}
-                onToggleAiSpeechAudio={toggleAiSpeechAudio}
-                onToggleHostAudio={toggleHostAudio}
-              />
-            )}
-
-            {!classTrialThemeActive && <div className="hidden gap-4 sm:grid">
-              <PhaseRhythm game={game} />
-              <HostStage game={game} />
-              <FlowStatusBar
-                game={game}
-                loading={loading}
-                pendingCommandType={pendingCommandType}
-                liveAiSpeech={liveAiSpeech}
-                hostAudioStatus={hostAudioStatus}
-                aiSpeechAudioStatus={aiSpeechAudioStatus}
-                aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
-                onPauseAiSpeechAudio={pauseAiSpeechAudio}
-                onResumeAiSpeechAudio={resumeAiSpeechAudio}
-                onSkipAiSpeechAudio={skipAiSpeechAudio}
-                onToggleAiSpeechAudio={toggleAiSpeechAudio}
-              />
-              <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,420px)]">
-                <div className="grid content-start gap-4">
-                  <SeatBoard game={game} liveAiSpeech={liveAiSpeech} aiSpeechAudioStatus={aiSpeechAudioStatus} />
-                  {game.review && <ReviewPanel game={game} />}
-                </div>
-
-                <aside className="grid content-start gap-4">
-                  <ActionPanel game={game} loading={loading} onNewGame={startGame} onReturnHome={returnHome} onSubmit={submitCommand} />
-                  <VoteTable game={game} loading={loading} pendingCommandType={pendingCommandType} />
-                  <AuxiliaryInfoPanel game={game} events={latestEvents} />
-                </aside>
-              </section>
-            </div>}
-          </div>
+          <GameClientLoadedSurface
+            game={game}
+            loading={loading}
+            pendingCommandType={pendingCommandType}
+            liveAiSpeech={liveAiSpeech}
+            hostAudioEnabled={hostAudioEnabled}
+            aiSpeechAudioEnabled={aiSpeechAudioEnabled}
+            hostAudioStatus={hostAudioStatus}
+            aiSpeechAudioStatus={aiSpeechAudioStatus}
+            aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
+            bufferedClassTrialContinueKey={bufferedClassTrialContinueKey}
+            classTrialThemeActive={classTrialThemeActive}
+            classTrialIntroPending={classTrialIntroPending}
+            classTrialIntroReady={classTrialIntroReady}
+            classTrialIntroConfig={classTrialIntroConfig}
+            classTrialIntroMessage={classTrialIntroMessage}
+            classTrialPackManifest={classTrialPackManifest}
+            manualAiSpeechPlayback={
+              manualAiSpeechPlayback ? { ...manualAiSpeechPlayback, onPlay: resumeManualAiSpeechPlayback } : null
+            }
+            effectiveAiRuntimeMode={effectiveAiRuntimeMode}
+            onNewGame={() => startGame()}
+            onReturnHome={returnHome}
+            onSubmit={submitCommand}
+            onOpenIdentityBook={() => setIdentityBookOpen(true)}
+            onOpenGlossary={() => setGlossaryOpen(true)}
+            onToggleAiSpeechAudio={toggleAiSpeechAudio}
+            onToggleHostAudio={toggleHostAudio}
+            onPauseAiSpeechAudio={pauseAiSpeechAudio}
+            onResumeAiSpeechAudio={resumeAiSpeechAudio}
+            onSkipAiSpeechAudio={skipAiSpeechAudio}
+            onCompleteClassTrialIntro={completeClassTrialIntro}
+            onSkipClassTrialIntro={skipClassTrialIntro}
+          />
         )}
       </div>
 
