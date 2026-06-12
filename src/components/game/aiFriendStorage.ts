@@ -170,7 +170,10 @@ export function writeStoredSelectedAiFriendIds(friendIds: string[]): void {
 
 export function resolveSelectedAiFriends(options: AiFriendOption[], selectedIds: string[]): AiFriendConfig[] {
   const byId = new Map(options.map((friend) => [friend.id, friend]));
-  return selectedIds.map((id) => byId.get(id)).filter((friend): friend is AiFriendOption => Boolean(friend));
+  return selectedIds
+    .map((id) => byId.get(id))
+    .filter((friend): friend is AiFriendOption => Boolean(friend))
+    .map(toAiFriendConfig);
 }
 
 function toAiFriendOption(friend: AiFriendConfig, isDefault: boolean): AiFriendOption {
@@ -188,6 +191,25 @@ function toAiFriendOption(friend: AiFriendConfig, isDefault: boolean): AiFriendO
     strategySummary: strategySummaryForAiFriend(runtimePersona, friend.roleCard),
     ordinaryPlayerTypeLabel: ordinaryPreset.label,
     ordinaryPlayerTypeSummary: ordinaryPlayerProfileSummary(ordinaryProfile),
+  };
+}
+
+function toAiFriendConfig(friend: AiFriendOption): AiFriendConfig {
+  return {
+    id: friend.id,
+    nickname: friend.nickname,
+    basePersonaId: friend.basePersonaId,
+    avatarDataUrl: friend.avatarDataUrl,
+    llmConfig: friend.llmConfig,
+    ttsVoice: friend.ttsVoice,
+    ttsConfig: friend.ttsConfig,
+    roleCard: friend.roleCard,
+    ordinaryPlayerProfile: friend.ordinaryPlayerProfile,
+    riskTolerance: friend.riskTolerance,
+    bluffing: friend.bluffing,
+    preferences: friend.preferences,
+    createdAt: friend.createdAt,
+    updatedAt: friend.updatedAt,
   };
 }
 

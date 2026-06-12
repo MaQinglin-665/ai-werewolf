@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AI_FRIEND_AVATAR_DATA_URL_MAX_LENGTH,
-  applyAiFriendPersonaTemplate,
   copyAiFriend,
 } from "@/game/aiFriends";
 import {
   ORDINARY_PLAYER_TYPE_OPTIONS,
   applyOrdinaryPlayerTypePreset,
+  ordinaryPlayerProfileTuning,
   sanitizeOrdinaryPlayerProfile,
 } from "@/game/ordinaryPlayerProfiles";
 import type {
@@ -44,19 +44,6 @@ import {
   type AiFriendLlmPresetState,
 } from "./game/aiFriendLlmPresets";
 import { MODEL_CARD_IMAGES, ROLE_CARD_IMAGES } from "./game/viewHelpers";
-
-const AI_TUNING_EXPLANATIONS: Array<{ label: string; detail: string }> = [
-  { label: "逻辑链推演型", detail: "用公开事实链拆发言顺序、票型因果和前后矛盾，结论更克制。" },
-  { label: "边界审查型", detail: "盯事实边界和越界发言，适合稳定归票、要求可疑位补站边。" },
-  { label: "平衡组织型", detail: "先整理分散信息，再给综合判断，节奏稳但不会长期旁观。" },
-  { label: "快节奏压迫型", detail: "用强压和即时反应带动桌面，更敢给身份压力和结论。" },
-  { label: "细节校验型", detail: "抓上一轮发言、改口、票型变化和站边转向，适合查漏补缺。" },
-  { label: "多线观察型", detail: "发言短、少站死边，但会留下清晰观察点，生存感更强。" },
-  { label: "结构站边型", detail: "重视语气态度背后的结构矛盾，容易捕捉强势或回避的不自然感。" },
-  { label: "长线记忆型", detail: "围绕身份线和历史发言追踪长期冲突，重视对跳、金水和查杀变化。" },
-];
-
-const AI_TUNING_EXPLANATION_BY_LABEL = new Map(AI_TUNING_EXPLANATIONS.map((item) => [item.label, item.detail]));
 
 type AiRuntimeConfig = {
   llm: {
@@ -792,13 +779,13 @@ export function AiPoolClient() {
     (friend: AiFriendOption, sliderKey: keyof AiOrdinaryPlayerProfileSliders, value: number) => {
       const profile = sanitizeOrdinaryPlayerProfile(friend.ordinaryPlayerProfile);
       saveEditableAiFriend(friend, {
-        ordinaryPlayerProfile: {
+        ...ordinaryPlayerProfileTuning({
           ...profile,
           sliders: {
             ...profile.sliders,
             [sliderKey]: value,
           },
-        },
+        }),
       });
     },
     [saveEditableAiFriend],
@@ -926,13 +913,11 @@ export function AiPoolClient() {
         <section className="mobile-ai-pool-layout grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_360px]">
           <AiPoolList
             friends={aiPoolFriends}
-            templateFriends={baseAiFriends}
             aiRuntimeConfig={aiRuntimeConfig}
             aiLlmSecrets={aiLlmSecrets}
             selectedIds={selectedAiFriendIds}
             onToggle={toggleAiFriendSelection}
             onCopy={copyAiFriendToCustom}
-            onUpdate={updateCustomAiFriend}
             onAvatarUpload={saveAiFriendAvatar}
             onClearAvatar={clearAiFriendAvatar}
             onSaveLlmConfig={saveAiFriendLlmConfig}
@@ -972,7 +957,6 @@ export function AiPoolClient() {
               onRemove={removeSelectedAiFriend}
               onRandomize={randomizeSelectedAiFriends}
             />
-            <AiTuningReference className="mobile-ai-tuning-reference" />
           </div>
         </section>
       </div>
@@ -1263,13 +1247,11 @@ function BulkLlmPresetCard({
 
 function AiPoolList({
   friends,
-  templateFriends,
   aiRuntimeConfig,
   aiLlmSecrets,
   selectedIds,
   onToggle,
   onCopy,
-  onUpdate,
   onAvatarUpload,
   onClearAvatar,
   onSaveLlmConfig,
@@ -1280,13 +1262,11 @@ function AiPoolList({
   onDelete,
 }: {
   friends: AiFriendOption[];
-  templateFriends: AiFriendOption[];
   aiRuntimeConfig: AiRuntimeConfig | null;
   aiLlmSecrets: AiFriendLlmSecretMap;
   selectedIds: string[];
   onToggle: (friendId: string) => void;
   onCopy: (friendId: string) => void;
-  onUpdate: (friendId: string, patch: Partial<AiFriendConfig>) => void;
   onAvatarUpload: (friend: AiFriendOption, file: File) => void;
   onClearAvatar: (friend: AiFriendOption) => void;
   onSaveLlmConfig: (friend: AiFriendOption, llmConfig: AiFriendLlmConfig, apiKey: string) => void;
@@ -1296,8 +1276,6 @@ function AiPoolList({
   onRefreshStrategy: (friend: AiFriendOption) => void;
   onDelete: (friendId: string) => void;
 }) {
-  const baseOptions = templateFriends;
-
   return (
     <section className="mobile-ai-pool-list rounded-[28px] border border-[#77d898]/20 bg-[#0f2118]/76 p-4 shadow-2xl shadow-black/35 backdrop-blur-md sm:p-5">
       <div className="mobile-ai-pool-list-head mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -1490,15 +1468,6 @@ function AiPoolList({
                       </div>
                     </details>
                   </div>
-                  <PersonaTypeBriefList
-                    options={baseOptions}
-                    activeBasePersonaId={friend.basePersonaId}
-                    onSelect={
-                      friend.isDefault
-                        ? undefined
-                        : (basePersonaId) => onUpdate(friend.id, applyAiFriendPersonaTemplate(friend, basePersonaId))
-                    }
-                  />
                 </div>
               </details>
             </article>
@@ -1547,64 +1516,6 @@ function AiAvatarCardArt({ src }: { src: string }) {
         style={{ inset: "18% 16%", backgroundImage: `url(${src})` }}
       />
     </>
-  );
-}
-
-function PersonaTypeBriefList({
-  options,
-  activeBasePersonaId,
-  onSelect,
-}: {
-  options: AiFriendOption[];
-  activeBasePersonaId: string;
-  onSelect?: (basePersonaId: string) => void;
-}) {
-  return (
-    <section className="mobile-ai-persona-type-briefs mt-3 rounded-2xl border border-[#f1c76e]/12 bg-black/14 p-3">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <h3 className="text-xs font-semibold text-[#f1d796]">打法类型速览</h3>
-        <span className="text-[11px] text-[#dcc9a7]/62">选择类型会自动套用默认倾向</span>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {options.map((option) => {
-          const active = option.basePersonaId === activeBasePersonaId;
-          const className = `mobile-ai-persona-type-option rounded-2xl border px-3 py-2 text-left ${
-            active
-              ? "border-[#f1c76e]/32 bg-[#2b220e]/70"
-              : "border-[#f1c76e]/10 bg-black/16"
-          }`;
-          const content = (
-            <>
-              <div className="flex min-w-0 items-center justify-between gap-2">
-                <div className="truncate text-xs font-semibold text-[#f1d796]">{option.basePersonaLabel}</div>
-                {active && <span className="shrink-0 rounded-full bg-[#f1c76e]/14 px-2 py-0.5 text-[10px] text-[#f1d796]">当前</span>}
-              </div>
-              <div className="mt-1 line-clamp-2 text-[11px] leading-4 text-[#dcc9a7]/76">
-                {AI_TUNING_EXPLANATION_BY_LABEL.get(option.basePersonaLabel) ?? `${option.basePersonaName} 的默认打法倾向。`}
-              </div>
-            </>
-          );
-          if (onSelect) {
-            return (
-              <button
-                key={option.basePersonaId}
-                type="button"
-                onClick={() => onSelect(option.basePersonaId)}
-                className={`${className} transition hover:border-[#f1c76e]/30 hover:bg-[#2b220e]/48`}
-                aria-pressed={active}
-              >
-                {content}
-              </button>
-            );
-          }
-          return (
-            <div key={option.basePersonaId} className={className}>
-              {content}
-            </div>
-          );
-        })}
-      </div>
-    </section>
   );
 }
 
@@ -1688,25 +1599,6 @@ function OrdinaryPlayerTypePanel({
         ))}
       </div>
     </section>
-  );
-}
-
-function AiTuningReference({ className = "" }: { className?: string }) {
-  return (
-    <aside className={`rounded-[24px] border border-[#77d898]/22 bg-[#0f2118]/76 p-4 text-xs leading-5 text-[#9fc8a7] shadow-2xl shadow-black/30 backdrop-blur-md ${className}`}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="font-semibold text-[#dff4df]">参数说明</span>
-        <span className="text-[11px] text-[#77d898]/70">调参参考</span>
-      </div>
-      <div className="grid gap-2">
-        {AI_TUNING_EXPLANATIONS.map((item) => (
-          <div key={item.label} className="min-w-0 rounded-lg border border-[#77d898]/10 bg-[#07140d]/42 px-2.5 py-2">
-            <div className="font-semibold text-[#a8f0b6]">{item.label}</div>
-            <div className="mt-0.5 text-[#b8e8c0]/82">{item.detail}</div>
-          </div>
-        ))}
-      </div>
-    </aside>
   );
 }
 

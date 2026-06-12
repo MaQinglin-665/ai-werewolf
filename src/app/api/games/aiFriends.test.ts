@@ -4,6 +4,43 @@ import type { HumanGameView } from "@/game/types";
 import { POST as createGame } from "./route";
 
 describe("game creation ai friends", () => {
+  it("accepts ordinary player profiles and exposes safe setup metadata", async () => {
+    const friend = {
+      ...copyAiFriend(getDefaultAiFriends("test")[2], { id: "friend-api-profile", now: "2026-06-08T00:00:00.000Z" }),
+      nickname: "抓话好友",
+      ordinaryPlayerProfile: {
+        playerTypeId: "one-line-catcher",
+        sliders: {
+          directness: 0.56,
+          emotion: 0.34,
+          speechLength: 0.42,
+          questionBias: 0.72,
+          factBias: 0.76,
+          identityBias: 0.48,
+          voteBias: 0.58,
+          memoryBias: 0.82,
+          nightAggression: 0.46,
+          voteFollow: 0.34,
+          deception: 0.36,
+          caution: 0.56,
+        },
+      },
+    };
+
+    const response = await createGame(
+      new Request("http://localhost/api/games", {
+        method: "POST",
+        body: JSON.stringify({ boardId: "9p-seer-witch-hunter", aiFriends: [friend] }),
+      }),
+    );
+    const view = (await response.json()) as HumanGameView;
+    const firstAiSeat = view.seats.find((seat) => seat.isAi);
+
+    expect(response.status).toBe(200);
+    expect(firstAiSeat?.name).toBe("抓话好友");
+    expect(view.setup?.aiFriends[0]?.ordinaryPlayerProfile).toEqual(friend.ordinaryPlayerProfile);
+  });
+
   it("accepts selected AI friend snapshots", async () => {
     const friend = {
       ...copyAiFriend(getDefaultAiFriends("test")[2], { id: "friend-api", now: "2026-05-15T00:00:00.000Z" }),

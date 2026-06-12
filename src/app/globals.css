@@ -1715,7 +1715,6 @@ button:disabled {
   }
 
   .mobile-ai-quick-add-entry p,
-  .mobile-ai-tuning-reference,
   .mobile-ai-queue-card,
   .mobile-ai-custom-note {
     display: none;

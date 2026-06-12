@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { copyAiFriend, getDefaultAiFriends } from "@/game/aiFriends";
 import { clearRoomSessionsForTests, reloadRoomSessionsFromStorageForTests } from "@/server/roomService";
 import { clearRoomAnalyticsForTests } from "@/server/roomAnalytics";
 import { clearRoomRateLimitsForTests } from "@/server/roomRateLimit";
@@ -82,6 +83,51 @@ describe("room api routes", () => {
     expectVisibleRoleIsOnlySelfOrWolfTeammate(guestView, 1);
     expect(guestView.game?.seats.find((seat) => seat.seatId === 2)?.isHuman).toBe(true);
     expect(guestView.game?.seats.find((seat) => seat.seatId === 1)?.isHuman).toBe(false);
+  });
+
+  it("starts room games with the same ordinary AI friend profiles used by single-player", async () => {
+    const friend = {
+      ...copyAiFriend(getDefaultAiFriends("test")[2], { id: "room-friend-profile", now: "2026-06-08T00:00:00.000Z" }),
+      nickname: "房间抓话位",
+      ordinaryPlayerProfile: {
+        playerTypeId: "one-line-catcher",
+        sliders: {
+          directness: 0.56,
+          emotion: 0.34,
+          speechLength: 0.42,
+          questionBias: 0.72,
+          factBias: 0.76,
+          identityBias: 0.48,
+          voteBias: 0.58,
+          memoryBias: 0.82,
+          nightAggression: 0.46,
+          voteFollow: 0.34,
+          deception: 0.36,
+          caution: 0.56,
+        },
+      },
+    };
+    const createResponse = await createRoom(
+      new Request("http://localhost/api/rooms", {
+        method: "POST",
+        body: JSON.stringify({ boardId: "9p-seer-witch-hunter", hostName: "房主", hostSeatId: 1, aiFriends: [friend] }),
+      }),
+    );
+    expect(createResponse.status).toBe(200);
+    const created = (await createResponse.json()) as RoomView;
+
+    const startResponse = await startRoom(
+      new Request(`http://localhost/api/rooms/${created.room.id}/start`, {
+        method: "POST",
+        body: JSON.stringify({ playerId: created.playerId }),
+      }),
+      { params: Promise.resolve({ roomId: created.room.id }) },
+    );
+    expect(startResponse.status).toBe(200);
+    const started = (await startResponse.json()) as RoomView;
+
+    expect(started.game?.setup?.aiFriends[0]?.ordinaryPlayerProfile).toEqual(friend.ordinaryPlayerProfile);
+    expect(started.game?.seats.find((seat) => seat.isAi)?.name).toBe("房间抓话位");
   });
 
   it("reports room runtime health and online deployment constraints", async () => {

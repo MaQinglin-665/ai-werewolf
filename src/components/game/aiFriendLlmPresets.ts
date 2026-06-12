@@ -142,6 +142,8 @@ export function applyLlmPresetToSelectedAiFriends(input: ApplyLlmPresetInput): A
       llmConfig: buildLlmConfigFromPreset(input.preset),
       ttsVoice: friend.ttsVoice,
       ttsConfig: friend.ttsConfig,
+      roleCard: friend.roleCard,
+      ordinaryPlayerProfile: friend.ordinaryPlayerProfile,
       riskTolerance: friend.riskTolerance,
       bluffing: friend.bluffing,
       preferences: friend.preferences,

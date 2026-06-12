@@ -1,5 +1,6 @@
 import { createRoomSession } from "@/server/roomService";
 import { z } from "zod";
+import { aiFriendSchema } from "@/app/api/games/route";
 import { roomErrorResponse, roomRateLimitResponse } from "./routeUtils";
 
 export const runtime = "nodejs";
@@ -10,6 +11,7 @@ const createRoomSchema = z
     boardId: z.string().min(1).max(80).optional(),
     hostName: z.string().min(1).max(16).optional(),
     hostSeatId: z.number().int().min(1).max(20).optional(),
+    aiFriends: z.array(aiFriendSchema).max(20).optional(),
   })
   .optional();
 

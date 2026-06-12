@@ -6,7 +6,34 @@ import { z } from "zod";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const roleCardSchema = z.object({
+export const ordinaryPlayerProfileSchema = z.object({
+  playerTypeId: z.enum([
+    "impatient-pusher",
+    "cautious-backpacker",
+    "one-line-catcher",
+    "soft-follower",
+    "role-sensitive",
+    "quiet-watcher",
+    "emotional-reactor",
+    "pivot-admitter",
+  ]),
+  sliders: z.object({
+    directness: z.number().min(0).max(1),
+    emotion: z.number().min(0).max(1),
+    speechLength: z.number().min(0).max(1),
+    questionBias: z.number().min(0).max(1),
+    factBias: z.number().min(0).max(1),
+    identityBias: z.number().min(0).max(1),
+    voteBias: z.number().min(0).max(1),
+    memoryBias: z.number().min(0).max(1),
+    nightAggression: z.number().min(0).max(1),
+    voteFollow: z.number().min(0).max(1),
+    deception: z.number().min(0).max(1),
+    caution: z.number().min(0).max(1),
+  }),
+});
+
+export const roleCardSchema = z.object({
   id: z.string().min(1).max(80),
   displayName: z.string().min(1).max(40),
   theme: z.string().min(1).max(60),
@@ -63,58 +90,56 @@ const roleCardSchema = z.object({
     .optional(),
 });
 
+export const aiFriendSchema = z.object({
+  id: z.string().min(1).max(80),
+  nickname: z.string().min(1).max(16),
+  basePersonaId: z.string().min(1).max(80),
+  avatarDataUrl: z.string().min(1).max(AI_FRIEND_AVATAR_DATA_URL_MAX_LENGTH).startsWith("data:image/").optional(),
+  llmConfig: z
+    .object({
+      provider: z.literal("openai-compatible"),
+      label: z.string().min(1).max(40).optional(),
+      baseUrl: z.string().min(1).max(260),
+      model: z.string().min(1).max(120),
+      mergeSystemIntoUser: z.boolean().optional(),
+    })
+    .optional(),
+  ttsVoice: z.string().min(1).max(80).optional(),
+  ttsConfig: z
+    .object({
+      provider: z.literal("mimo-compatible"),
+      label: z.string().min(1).max(40).optional(),
+      baseUrl: z.string().min(1).max(260),
+      model: z.string().min(1).max(120),
+      voice: z.string().min(1).max(80),
+      format: z.string().min(1).max(16).optional(),
+      authHeader: z.string().min(1).max(80).optional(),
+    })
+    .optional(),
+  roleCard: roleCardSchema.optional(),
+  ordinaryPlayerProfile: ordinaryPlayerProfileSchema.optional(),
+  riskTolerance: z.number().min(0).max(1),
+  bluffing: z.number().min(0).max(1),
+  preferences: z.object({
+    logic: z.number().min(0).max(1),
+    identity: z.number().min(0).max(1),
+    vote: z.number().min(0).max(1),
+    emotion: z.number().min(0).max(1),
+    memory: z.number().min(0).max(1),
+    leadership: z.number().min(0).max(1),
+    deception: z.number().min(0).max(1),
+    caution: z.number().min(0).max(1),
+  }),
+  createdAt: z.string().min(1).max(40),
+  updatedAt: z.string().min(1).max(40),
+});
+
 const createGameSchema = z
   .object({
     boardId: z.string().min(1).max(80).optional(),
     humanSeatId: z.number().int().min(1).max(12).nullable().optional(),
     seatRoleOverrides: z.array(z.enum(ROLES)).max(12).optional(),
-    aiFriends: z
-      .array(
-        z.object({
-          id: z.string().min(1).max(80),
-          nickname: z.string().min(1).max(16),
-          basePersonaId: z.string().min(1).max(80),
-          avatarDataUrl: z.string().min(1).max(AI_FRIEND_AVATAR_DATA_URL_MAX_LENGTH).startsWith("data:image/").optional(),
-          llmConfig: z
-            .object({
-              provider: z.literal("openai-compatible"),
-              label: z.string().min(1).max(40).optional(),
-              baseUrl: z.string().min(1).max(260),
-              model: z.string().min(1).max(120),
-              mergeSystemIntoUser: z.boolean().optional(),
-            })
-            .optional(),
-          ttsVoice: z.string().min(1).max(80).optional(),
-          ttsConfig: z
-            .object({
-              provider: z.literal("mimo-compatible"),
-              label: z.string().min(1).max(40).optional(),
-              baseUrl: z.string().min(1).max(260),
-              model: z.string().min(1).max(120),
-              voice: z.string().min(1).max(80),
-              format: z.string().min(1).max(16).optional(),
-              authHeader: z.string().min(1).max(80).optional(),
-            })
-            .optional(),
-          roleCard: roleCardSchema.optional(),
-          riskTolerance: z.number().min(0).max(1),
-          bluffing: z.number().min(0).max(1),
-          preferences: z.object({
-            logic: z.number().min(0).max(1),
-            identity: z.number().min(0).max(1),
-            vote: z.number().min(0).max(1),
-            emotion: z.number().min(0).max(1),
-            memory: z.number().min(0).max(1),
-            leadership: z.number().min(0).max(1),
-            deception: z.number().min(0).max(1),
-            caution: z.number().min(0).max(1),
-          }),
-          createdAt: z.string().min(1).max(40),
-          updatedAt: z.string().min(1).max(40),
-        }),
-      )
-      .max(20)
-      .optional(),
+    aiFriends: z.array(aiFriendSchema).max(20).optional(),
   })
   .optional();
 

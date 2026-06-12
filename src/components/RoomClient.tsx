@@ -19,6 +19,12 @@ import {
   type IdiotRevealCue,
 } from "@/components/game/GamePanels";
 import type { CommandPayload, HostAudioStatus } from "@/components/game/clientTypes";
+import {
+  buildAiFriendOptions,
+  readStoredCustomAiFriends,
+  readStoredSelectedAiFriendIds,
+  resolveSelectedAiFriends,
+} from "@/components/game/aiFriendStorage";
 import { hostAudioSrc } from "@/components/game/hostAudioFiles";
 import type { HumanCommandInput } from "@/game/commandSchemas";
 import type { HumanGameView } from "@/game/types";
@@ -745,10 +751,13 @@ export function RoomClient() {
     setError(null);
     setNotice(null);
     try {
+      const aiFriendOptions = buildAiFriendOptions(readStoredCustomAiFriends());
+      const selectedAiFriends = resolveSelectedAiFriends(aiFriendOptions, readStoredSelectedAiFriendIds());
       const view = await postRoomView("/api/rooms", {
         boardId,
         hostName,
         hostSeatId: preferredSeatId,
+        aiFriends: selectedAiFriends,
       });
       applyRoomView(view);
       setNotice(`房间已创建：${view.room.code}`);

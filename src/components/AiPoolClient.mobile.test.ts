@@ -17,21 +17,27 @@ describe("AiPoolClient mobile layout", () => {
     expect(html).toContain("mobile-ai-card-main");
     expect(html).toContain("mobile-ai-config-stack");
     expect(html).toContain("mobile-ai-config-section");
-    expect(html).toContain("mobile-ai-persona-type-briefs");
     expect(html).toContain("mobile-ai-avatar-actions");
     expect(html).toContain("mobile-ai-card-config");
   });
 
-  it("shows concrete persona type explanations instead of generic tuning guidance", () => {
+  it("keeps player type controls in the main panel without duplicate briefs or legacy tuning guidance", () => {
     const html = renderToStaticMarkup(createElement(AiPoolClient));
 
     expect(html).not.toContain("普通用户只需要选类型");
-    expect(html).toContain("逻辑链推演型");
-    expect(html).toContain("用公开事实链拆发言顺序");
-    expect(html).toContain("快节奏压迫型");
-    expect(html).toContain("用强压和即时反应带动桌面");
-    expect(html).toContain("打法类型速览");
-    expect(html).toContain("选择类型会自动套用默认倾向");
+    expect(html).not.toContain("打法类型速览");
+    expect(html).not.toContain("普通局玩家类型速览");
+    expect(html).not.toContain("选择类型会自动套用默认倾向");
+    expect(html).not.toContain("选择后会同步发言和行动倾向");
+    expect(html).not.toContain("用公开事实链拆发言顺序");
+    expect(html).not.toContain("用强压和即时反应带动桌面");
+    expect(html).not.toContain("参数说明");
+    expect(html).not.toContain("调参参考");
+    expect(html).not.toContain("mobile-ai-persona-type-briefs");
+    expect(html).toContain("普通局玩家类型");
+    expect(html).toContain("急性子冲票型");
+    expect(html).toContain("说话直接，容易先怀疑一个人");
+    expect(html).toContain("情绪反应型");
   });
 
   it("shows inferred strategy-card summaries and a manual refresh entry", () => {
@@ -39,7 +45,7 @@ describe("AiPoolClient mobile layout", () => {
 
     expect(html).toContain("策略卡");
     expect(html).toContain("逻辑链推演");
-    expect(html).toContain("反模板");
+    expect(html).toContain("本轮别套模板");
     expect(html).toContain("刷新策略卡");
   });
 
@@ -89,10 +95,10 @@ describe("AiPoolClient mobile layout", () => {
     expect(html).not.toContain("导入 JSON");
     expect(html).toContain("mobile-ai-quick-add-entry");
     expect(html).toContain("mobile-ai-queue-card");
-    expect(html).toContain("mobile-ai-tuning-reference");
+    expect(html).not.toContain("mobile-ai-tuning-reference");
     expect(css).toMatch(/\.mobile-ai-pool-page\s*{\s*height: 100svh;\s*overflow: hidden;/);
     expect(css).toMatch(/\.mobile-ai-pool-layout\s*{\s*min-height: 0;\s*grid-template-rows: auto minmax\(0, 1fr\);/);
-    expect(css).toMatch(/\.mobile-ai-quick-add-entry p,\s*\.mobile-ai-tuning-reference,\s*\.mobile-ai-queue-card,\s*\.mobile-ai-custom-note\s*{\s*display: none;/);
+    expect(css).toMatch(/\.mobile-ai-quick-add-entry p,\s*\.mobile-ai-queue-card,\s*\.mobile-ai-custom-note\s*{\s*display: none;/);
   });
 
   it("keeps mobile AI cards in a compact two-column grid even when expanded", () => {

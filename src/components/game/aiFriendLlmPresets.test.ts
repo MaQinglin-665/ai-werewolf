@@ -101,6 +101,22 @@ describe("applyLlmPresetToSelectedAiFriends", () => {
     custom.nickname = "自定义玩家";
     custom.avatarDataUrl = "data:image/webp;base64,AAAA";
     custom.ttsVoice = "default_zh";
+    custom.roleCard = {
+      id: "local-role",
+      displayName: "本地角色",
+      theme: "ordinary",
+      styleTags: ["steady"],
+      speechStyleZh: "说人话，别绕。",
+      reasoningBias: "抓公开发言。",
+      voteBias: "按公开理由投。",
+      nightActionBias: "合法行动。",
+      asVillager: "正常找狼。",
+      asWerewolf: "正常伪装。",
+      pressureResponse: "解释自己听到的点。",
+      relationshipHints: [],
+      catchphrasePolicy: "不加口癖。",
+      forbidden: [],
+    };
     custom.llmConfig = {
       provider: "openai-compatible",
       label: "Old",
@@ -124,6 +140,8 @@ describe("applyLlmPresetToSelectedAiFriends", () => {
       nickname: "自定义玩家",
       avatarDataUrl: "data:image/webp;base64,AAAA",
       ttsVoice: "default_zh",
+      roleCard: custom.roleCard,
+      ordinaryPlayerProfile: custom.ordinaryPlayerProfile,
       llmConfig: {
         provider: "openai-compatible",
         label: "DeepSeek",
