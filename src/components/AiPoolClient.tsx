@@ -306,6 +306,10 @@ function buildEditableAiFriendConfig(
   now: string,
   patch: Partial<AiFriendConfig> = {},
 ): AiFriendConfig {
+  const safePatch = { ...patch };
+  delete safePatch.id;
+  delete safePatch.createdAt;
+  delete safePatch.updatedAt;
   return {
     id: targetId,
     nickname: friend.nickname,
@@ -321,10 +325,7 @@ function buildEditableAiFriendConfig(
     preferences: friend.preferences,
     createdAt: friend.isDefault ? now : friend.createdAt,
     updatedAt: now,
-    ...patch,
-    id: targetId,
-    createdAt: friend.isDefault ? now : friend.createdAt,
-    updatedAt: now,
+    ...safePatch,
   };
 }
 
