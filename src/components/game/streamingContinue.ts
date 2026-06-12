@@ -24,7 +24,7 @@ export async function submitStreamingContinue(
   }
 
   const requestBody = JSON.stringify({ ...payload, aiRuntimeMode, aiLlmConfigs: runtimeAiLlmConfigs });
-  const response = await fetch(`/api/games/${game.id}/commands/stream`, {
+  const response = await fetch(`/api/games/${game.id}/stream-command`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: requestBody,

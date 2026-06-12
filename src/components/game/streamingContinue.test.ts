@@ -17,7 +17,7 @@ describe("submitStreamingContinue", () => {
 
     expect(result).toEqual(nextView);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/games/game-1/commands/stream");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/games/game-1/stream-command");
     expect(fetchMock.mock.calls[1][0]).toBe("/api/games/game-1/commands");
   });
 });

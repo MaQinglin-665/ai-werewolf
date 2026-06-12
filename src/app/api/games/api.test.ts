@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as submitCommand } from "./[gameId]/commands/route";
-import { POST as submitStreamingCommand } from "./[gameId]/commands/stream/route";
+import { POST as submitStreamingCommand } from "./[gameId]/stream-command/route";
 import { GET as getGame } from "./[gameId]/route";
 import { POST as submitVoiceInput } from "./[gameId]/voice-input/route";
 import { POST as recordSiteAnalyticsEvent } from "../analytics/events/route";
@@ -179,7 +179,7 @@ describe("game api routes", () => {
     }
 
     const response = await submitStreamingCommand(
-      new Request(`http://localhost/api/games/${initialView.id}/commands/stream`, {
+      new Request(`http://localhost/api/games/${initialView.id}/stream-command`, {
         method: "POST",
         body: JSON.stringify({ type: "continue" }),
       }),

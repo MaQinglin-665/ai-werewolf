@@ -2,7 +2,7 @@
 
 ## Current State
 
-**Last Updated:** 2026-06-12 18:45 Asia/Shanghai
+**Last Updated:** 2026-06-12 20:20 Asia/Shanghai
 **Session ID:** public-alpha-consolidation-roadmap
 **Active Feature:** public-alpha-consolidation-roadmap - Summarize current project state, update harness handoff, and plan the next Public Alpha consolidation phase.
 
@@ -17,8 +17,39 @@
 - Tencent Cloud primary Alpha was deployed from `a0c100c` and verified on `https://175.178.199.245`.
 - Release documentation was updated in `6b79b8f docs: record Tencent deployment`.
 - Latest Tencent verification: production preflight `ok=true`, room SSE smoke `ok=true` room `APJBIW`, room vote action smoke `ok=true` room `VGZV7X`.
-- Next project priority: Public Alpha consolidation, not more default Fable5/Mimo repair. Start by triaging local dirty frontend/API changes, then run a small real-player mobile playtest and fix P0/P1 issues.
+- Next project priority: Public Alpha consolidation, not more default Fable5/Mimo repair. The current frontend/API triage patch has local test, build, smoke, and browser evidence; next step is review/stage it, then run a small real-player mobile playtest and fix P0/P1 issues.
 - Do not write or persist API keys. Do not edit `.env`. Any future real Mimo check must use temporary process env only and should be explicitly bounded.
+
+### 2026-06-12 Frontend/API Triage Patch
+
+Completed:
+- Moved the single-player streaming continue endpoint from `/api/games/[gameId]/commands/stream` to `/api/games/[gameId]/stream-command` after Next dev repeatedly returned 404 for the nested route shape.
+- Updated the main-game smoke path helper, client streaming helper, API tests, and smoke tests to use the new endpoint.
+- Optimized the loaded game surface so ordinary games hydrate from the SSR-safe dual surface to a viewport-specific mounted surface: desktop keeps `SeatBoard`; mobile keeps `MobileGameTable`.
+- Avoided ordinary table event-feed construction for class-trial surfaces.
+
+Changed files:
+- `scripts/main-game-smoke-logic.mjs`
+- `scripts/main-game-smoke.mjs`
+- `src/app/api/games/[gameId]/commands/stream/route.ts`
+- `src/app/api/games/[gameId]/stream-command/route.ts`
+- `src/app/api/games/api.test.ts`
+- `src/components/game/GameClientLoadedSurface.tsx`
+- `src/components/game/GameClientLoadedSurface.test.ts`
+- `src/components/game/streamingContinue.ts`
+- `src/components/game/streamingContinue.test.ts`
+- `src/game/mainGameSmokeLogic.test.ts`
+
+Verification:
+- Focused route/client/surface/smoke tests passed: 7 files / 65 tests.
+- `npx next typegen`, `npx tsc --noEmit --pretty false`, `npm run lint`, and `npm run build` passed.
+- `npm run smoke:main-game -- --base-url=http://127.0.0.1:3011` passed and reached `DAY_SPEECH`.
+- Browser CDP verification on `http://127.0.0.1:3012` passed for desktop `1280x900` and mobile `390x844`: both entered a 6-player game, dismissed role intro, reported no console/runtime errors, and mounted only the expected game surface for each viewport.
+- `git diff --check` exited 0 with LF/CRLF warnings only.
+
+Remaining risks:
+- The browser check covered entering a local single-player game and surface mounting, not a full night-to-vote manual playthrough.
+- `npm run build` still reports the existing Turbopack NFT trace warning through `next.config.ts -> src/server/roomService.ts -> src/app/api/rooms/debug-cleanup/route.ts`; this is unrelated to the current patch.
 
 ### 2026-06-12 Project Progress And Harness Roadmap Update
 

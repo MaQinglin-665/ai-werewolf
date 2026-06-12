@@ -2,7 +2,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { HumanGameView } from "@/game/types";
-import { GameClientLoadedSurface, type GameClientLoadedSurfaceProps } from "./GameClientLoadedSurface";
+import {
+  buildOrdinarySurfaceEventFeed,
+  GameClientLoadedSurface,
+  shouldRenderOrdinaryDesktopSurface,
+  shouldRenderOrdinaryMobileSurface,
+  type GameClientLoadedSurfaceProps,
+} from "./GameClientLoadedSurface";
 
 function buildGame(overrides: Partial<HumanGameView> = {}): HumanGameView {
   return {
@@ -79,6 +85,26 @@ describe("GameClientLoadedSurface", () => {
     expect(html).toContain("mobile-game-table");
     expect(html).toContain("hidden gap-4 sm:grid");
     expect(html).toContain("mobile-action-panel");
+  });
+
+  it("can drop the hidden ordinary surface after the viewport is known", () => {
+    expect(shouldRenderOrdinaryMobileSurface("both")).toBe(true);
+    expect(shouldRenderOrdinaryDesktopSurface("both")).toBe(true);
+    expect(shouldRenderOrdinaryMobileSurface("mobile")).toBe(true);
+    expect(shouldRenderOrdinaryDesktopSurface("mobile")).toBe(false);
+    expect(shouldRenderOrdinaryMobileSurface("desktop")).toBe(false);
+    expect(shouldRenderOrdinaryDesktopSurface("desktop")).toBe(true);
+  });
+
+  it("skips ordinary event-feed work for class-trial surfaces", () => {
+    const game = buildGame({
+      publicEvents: [
+        { seq: 1, day: 1, phase: "NIGHT_WOLVES", type: "NIGHT_STARTED", message: "夜晚事件", payload: {} },
+      ] as HumanGameView["publicEvents"],
+    });
+
+    expect(buildOrdinarySurfaceEventFeed(game, true)).toEqual([]);
+    expect(buildOrdinarySurfaceEventFeed(game, false)).toHaveLength(1);
   });
 
   it("shows the class-trial intro wait surface before the themed table", () => {

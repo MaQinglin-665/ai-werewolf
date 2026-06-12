@@ -1,4 +1,4 @@
-import { shouldRetryMainGameSmokeAttempt } from "./main-game-smoke-logic.mjs";
+import { buildMainGameStreamCommandPath, shouldRetryMainGameSmokeAttempt } from "./main-game-smoke-logic.mjs";
 
 const baseUrl = readOption("base-url", process.env.MAIN_GAME_SMOKE_BASE_URL ?? "http://127.0.0.1:3000").replace(/\/$/, "");
 const maxAttempts = readPositiveInt(readOption("attempts", process.env.MAIN_GAME_SMOKE_ATTEMPTS), 8);
@@ -109,14 +109,15 @@ function firstTargetSeatId(action, view) {
 }
 
 async function postStreamContinue(gameId) {
-  const response = await fetch(`${baseUrl}/api/games/${encodeURIComponent(gameId)}/commands/stream`, {
+  const streamPath = buildMainGameStreamCommandPath(gameId);
+  const response = await fetch(`${baseUrl}${streamPath}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ type: "continue", aiRuntimeMode: "mock" }),
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(`/api/games/${gameId}/commands/stream failed: ${response.status} ${text}`);
+    throw new Error(`${streamPath} failed: ${response.status} ${text}`);
   }
   assert(response.body, "Stream continue response has no body.");
   assert(

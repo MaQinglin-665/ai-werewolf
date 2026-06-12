@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type { AiRuntimeMode, HumanGameView } from "@/game/types";
 import type { ClassTrialIntroConfig } from "./classTrialIntro";
 import { ClassTrialOpeningIntro } from "./ClassTrialOpeningIntro";
@@ -21,7 +21,11 @@ import { PhaseRhythm } from "./PhaseRhythm";
 import { ReviewPanel } from "./ReviewPanel";
 import { SeatBoard } from "./SeatBoard";
 import { AuxiliaryInfoPanel, VoteTable } from "./TablePanels";
-import { buildTableEventFeed } from "./tableEventFeed";
+import { buildTableEventFeed, type TableEventFeedItem } from "./tableEventFeed";
+
+const ORDINARY_DESKTOP_SURFACE_QUERY = "(min-width: 640px)";
+
+export type OrdinarySurfaceMode = "both" | "mobile" | "desktop";
 
 export type GameClientLoadedSurfaceProps = {
   game: HumanGameView;
@@ -56,6 +60,18 @@ export type GameClientLoadedSurfaceProps = {
   onSkipClassTrialIntro: () => void;
 };
 
+export function shouldRenderOrdinaryMobileSurface(mode: OrdinarySurfaceMode): boolean {
+  return mode !== "desktop";
+}
+
+export function shouldRenderOrdinaryDesktopSurface(mode: OrdinarySurfaceMode): boolean {
+  return mode !== "mobile";
+}
+
+export function buildOrdinarySurfaceEventFeed(game: HumanGameView, classTrialThemeActive: boolean): TableEventFeedItem[] {
+  return classTrialThemeActive ? [] : buildTableEventFeed(game);
+}
+
 export function GameClientLoadedSurface({
   game,
   loading,
@@ -88,7 +104,14 @@ export function GameClientLoadedSurface({
   onCompleteClassTrialIntro,
   onSkipClassTrialIntro,
 }: GameClientLoadedSurfaceProps) {
-  const events = useMemo(() => buildTableEventFeed(game), [game]);
+  const ordinarySurfaceMode = useOrdinarySurfaceMode(classTrialThemeActive);
+  const renderMobileOrdinarySurface = shouldRenderOrdinaryMobileSurface(ordinarySurfaceMode);
+  const renderDesktopOrdinarySurface = shouldRenderOrdinaryDesktopSurface(ordinarySurfaceMode);
+  const ordinaryEvents = useMemo(
+    () => buildOrdinarySurfaceEventFeed(game, classTrialThemeActive),
+    [classTrialThemeActive, game],
+  );
+
   return (
     <div className="grid flex-1 gap-4">
       {classTrialThemeActive && classTrialIntroPending && classTrialIntroReady && classTrialIntroConfig ? (
@@ -123,7 +146,7 @@ export function GameClientLoadedSurface({
           onReturnHome={() => void onReturnHome()}
           onSubmit={onSubmit}
         />
-      ) : (
+      ) : renderMobileOrdinarySurface ? (
         <MobileGameTable
           game={game}
           loading={loading}
@@ -134,7 +157,7 @@ export function GameClientLoadedSurface({
           hostAudioStatus={hostAudioStatus}
           aiSpeechAudioStatus={aiSpeechAudioStatus}
           aiSpeechAudioUnavailable={aiSpeechAudioUnavailable}
-          events={events}
+          events={ordinaryEvents}
           onNewGame={onNewGame}
           onReturnHome={onReturnHome}
           onSubmit={onSubmit}
@@ -143,9 +166,9 @@ export function GameClientLoadedSurface({
           onToggleAiSpeechAudio={onToggleAiSpeechAudio}
           onToggleHostAudio={onToggleHostAudio}
         />
-      )}
+      ) : null}
 
-      {!classTrialThemeActive && (
+      {!classTrialThemeActive && renderDesktopOrdinarySurface && (
         <div className="hidden gap-4 sm:grid">
           <PhaseRhythm game={game} />
           <HostStage game={game} />
@@ -177,11 +200,36 @@ export function GameClientLoadedSurface({
                 onSubmit={onSubmit}
               />
               <VoteTable game={game} loading={loading} pendingCommandType={pendingCommandType} />
-              <AuxiliaryInfoPanel game={game} events={events} />
+              <AuxiliaryInfoPanel game={game} events={ordinaryEvents} />
             </aside>
           </section>
         </div>
       )}
     </div>
   );
+}
+
+function useOrdinarySurfaceMode(classTrialThemeActive: boolean): OrdinarySurfaceMode {
+  const viewportMode = useSyncExternalStore(
+    subscribeOrdinarySurfaceMode,
+    getOrdinarySurfaceModeSnapshot,
+    getOrdinarySurfaceModeServerSnapshot,
+  );
+  return classTrialThemeActive ? "both" : viewportMode;
+}
+
+function subscribeOrdinarySurfaceMode(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => undefined;
+  const mediaQuery = window.matchMedia(ORDINARY_DESKTOP_SURFACE_QUERY);
+  mediaQuery.addEventListener("change", onStoreChange);
+  return () => mediaQuery.removeEventListener("change", onStoreChange);
+}
+
+function getOrdinarySurfaceModeSnapshot(): OrdinarySurfaceMode {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return "both";
+  return window.matchMedia(ORDINARY_DESKTOP_SURFACE_QUERY).matches ? "desktop" : "mobile";
+}
+
+function getOrdinarySurfaceModeServerSnapshot(): OrdinarySurfaceMode {
+  return "both";
 }
