@@ -2,24 +2,57 @@
 
 ## Current State
 
-**Last Updated:** 2026-06-12 17:55 Asia/Shanghai
-**Session ID:** ordinary-mimo-speech-quality-roadmap
-**Active Feature:** ordinary-mimo-speech-quality-roadmap - Diagnose ordinary Mimo invocation reliability, continue ordinary speech quality work, and defer token-cost reduction until quality is accepted.
+**Last Updated:** 2026-06-12 18:45 Asia/Shanghai
+**Session ID:** public-alpha-consolidation-roadmap
+**Active Feature:** public-alpha-consolidation-roadmap - Summarize current project state, update harness handoff, and plan the next Public Alpha consolidation phase.
 
 ## Status
 
 ### Current Priority
 
-- Current task card: `docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md`.
-- Long-running task id: `lrt-ordinary-mimo-speech-quality`.
-- Priority order agreed with the user: first diagnose Mimo calling issues, then improve ordinary game speech quality until the user is very satisfied, then explore token reduction while preserving speech/action quality.
-- Do not write or persist API keys. Do not edit `.env`. Real Mimo checks must use temporary process env only and should stay bounded unless the user explicitly approves a larger full-game spend.
-- Current stage direction: shift phase 2 ordinary speech work away from expanding soft word bans and toward positive context supply: stable per-seat player mini-bio, self-history, candidate-action diversity, sample-level evaluator metrics, and user-reviewed transcript quality.
-- Latest v46 final acceptance evidence: `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-report.json`, `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-cases.json`, and `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-eval.json`.
-- v46 reached the intended same-seed `DAY_VOTE + D2` envelope: 28 calls, 16 speech, 12 action, D1 speech/vote plus D2 speech/vote, `validationFailureCount 0`.
-- Latest local eval on v46: 28 cases, averageScore 100, issueCount 0, highRiskCaseIds empty. Acceptance scans found 0 malformed fragments, 0 logic-boundary errors, 0 vote discontinuities, 0 ungrounded public-check attributions, and 0 forward-commitment tail hits.
-- Latest acceptance note: `docs/evaluations/2026-06-12-ordinary-mimo-v46-final-acceptance-gate.md`.
-- Next concrete action: send v46 to final user acceptance. Do not request another Fable5 review unless the user asks for a subjective style pass or a no-fallback sample. Do not print, write, or persist the Mimo key.
+- Current task card: `docs/tasks/2026-06-public-alpha-consolidation-roadmap.md`.
+- Ordinary Mimo speech-quality work is closed for now. It is not perfect, but the user accepted the current quality as good enough to submit after the long repair loop.
+- The ordinary Mimo changes were committed in `56c2785 Improve ordinary Mimo speech evaluation and guards`.
+- The narrow production build blocker was committed in `a0c100c Fix AI pool editable friend build blocker`.
+- Tencent Cloud primary Alpha was deployed from `a0c100c` and verified on `https://175.178.199.245`.
+- Release documentation was updated in `6b79b8f docs: record Tencent deployment`.
+- Latest Tencent verification: production preflight `ok=true`, room SSE smoke `ok=true` room `APJBIW`, room vote action smoke `ok=true` room `VGZV7X`.
+- Next project priority: Public Alpha consolidation, not more default Fable5/Mimo repair. Start by triaging local dirty frontend/API changes, then run a small real-player mobile playtest and fix P0/P1 issues.
+- Do not write or persist API keys. Do not edit `.env`. Any future real Mimo check must use temporary process env only and should be explicitly bounded.
+
+### 2026-06-12 Project Progress And Harness Roadmap Update
+
+Completed:
+- Summarized the project's current post-Mimo checkpoint in repository state files.
+- Updated `docs/roadmap.md` around Public Alpha consolidation:
+  - Tencent Cloud is the primary playable environment;
+  - ordinary Mimo is accepted enough to ship;
+  - Render may lag until a separate deployment task updates it;
+  - local dirty frontend/API changes must be triaged before the next release.
+- Added a new task card for the next planning anchor: `docs/tasks/2026-06-public-alpha-consolidation-roadmap.md`.
+- Updated harness state so future agents do not continue the old v41-v46 Fable5 loop by default.
+
+Changed files:
+- `docs/tasks/2026-06-public-alpha-consolidation-roadmap.md`
+- `docs/roadmap.md`
+- `docs/harness-state.md`
+- `progress.md`
+- `session-handoff.md`
+- `long_running_tasks.json`
+- `feature_list.json`
+
+Verification:
+- `npm run harness:task-card -- docs/tasks/2026-06-public-alpha-consolidation-roadmap.md` passed.
+- `npm run harness:long-tasks` passed: 3 tasks checked.
+- JSON parse for `feature_list.json` and `long_running_tasks.json` passed.
+- `npm run harness:check` passed.
+- `git diff --check -- docs/tasks/2026-06-public-alpha-consolidation-roadmap.md docs/roadmap.md docs/harness-state.md progress.md session-handoff.md long_running_tasks.json feature_list.json` passed with LF/CRLF warnings only.
+
+Remaining risks:
+- Public Alpha is smoke-tested but not yet open-beta stable.
+- Render mirror was not updated in the Tencent deployment turn.
+- The local worktree still has unrelated frontend/API modifications that need a separate triage task.
+- Ordinary Mimo quality is acceptable for now, but not final-polish quality.
 
 ### 2026-06-12 v46 Final Acceptance Gate
 

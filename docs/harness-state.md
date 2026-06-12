@@ -29,6 +29,15 @@ currently stands.
 
 ## Recent Harness Updates
 
+- Recorded the post-Mimo Public Alpha checkpoint on 2026-06-12:
+  - ordinary Mimo speech-quality work reached the user-accepted "good enough to
+    ship" bar and was committed;
+  - Tencent Cloud primary Alpha was deployed and verified;
+  - `docs/current-release.md` now records the deployed source, rollback tree,
+    preflight result, room SSE smoke, and vote action smoke.
+- Added `docs/tasks/2026-06-public-alpha-consolidation-roadmap.md` so future
+  agents treat the next phase as Public Alpha consolidation rather than another
+  default Fable5/Mimo repair loop.
 - Added root `AGENTS.md` so future agents start from repository instructions
   instead of chat memory.
 - Added `docs/tasks/HARNESS_TASK_TEMPLATE.md` for scoped work.
@@ -53,8 +62,20 @@ currently stands.
 
 ## Current Handoff Items
 
-- Harness files are currently useful but still uncommitted unless a later
-  session stages and commits them.
+- Current primary runtime target is Tencent Cloud:
+  `https://175.178.199.245`.
+- Latest Tencent runtime source is
+  `a0c100c Fix AI pool editable friend build blocker`; the later
+  `6b79b8f docs: record Tencent deployment` commit is release documentation.
+- Ordinary Mimo speech-quality work is accepted enough to ship. Do not reopen a
+  broad phrase-ban, hard-fallback, or repeated Fable5 review loop unless the
+  user explicitly asks for another subjective style pass or a no-fallback paid
+  sample.
+- The next large task is Public Alpha consolidation. Start from
+  `docs/tasks/2026-06-public-alpha-consolidation-roadmap.md`.
+- The local working tree may contain unrelated frontend/API changes. Before
+  deployment or feature work, inspect `git status --short` and group those
+  changes intentionally.
 - Before starting a new feature task, read `AGENTS.md`, this file,
   `docs/feature-registry.md`, `docs/verification-matrix.md`, the relevant
   `docs/threads/*.md`, and the relevant task card.
@@ -65,6 +86,13 @@ currently stands.
 
 ## Known Environment Notes
 
+- Do not print, write, or persist Mimo/API keys. Any paid live model check must
+  use temporary process environment only and stay bounded.
+- Render is a backup mirror and may lag behind Tencent Cloud until a separate
+  Render deployment task updates it.
+- The legacy `ai-werewolf` container on the Tencent host can be unhealthy; the
+  current success signal is nginx-fronted `ai-werewolf-app` plus public
+  preflight/smoke checks.
 - `npm run simulate:ai -- --games=10 --seed-start=91` completed successfully in
   the harness practice run with 10/10 games completed and zero fallback
   decisions.
@@ -78,8 +106,11 @@ currently stands.
 
 ## Suggested Next Harness Enhancements
 
-1. Use `npm run harness:check` on several real tasks and keep it limited to
-   mechanical checks unless repeated use proves another check is stable.
-2. Consider a browser-rendering smoke only when UI layout or hydration changes
-   need visual confidence beyond the HTTP main-game smoke.
-3. Run a clean staged review/commit once the current harness files are ready.
+1. Add a lightweight dirty-worktree triage routine or task-card pattern for
+   splitting unrelated frontend/API changes before release work.
+2. Keep `npm run harness:check` mechanical; use task cards and the verification
+   matrix for judgment-heavy decisions.
+3. Consider a browser-rendering smoke only when UI layout or hydration changes
+   need visual confidence beyond HTTP room/game smokes.
+4. After the first real Public Alpha playtest round, write a retrospective entry
+   for which smoke checks caught issues and which player reports escaped them.

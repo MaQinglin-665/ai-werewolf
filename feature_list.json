@@ -39,6 +39,27 @@
       "evidence": ""
     },
     {
+      "id": "ordinary-mimo-speech-quality-roadmap",
+      "name": "Ordinary Mimo Speech Quality Roadmap",
+      "description": "Ordinary Werewolf Mimo invocation reliability, speech/action hard-fact guards, local eval visibility, bounded live samples, and acceptance handoff.",
+      "dependencies": [
+        "task-execution-gate"
+      ],
+      "status": "done",
+      "evidence": "docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md; docs/evaluations/2026-06-12-ordinary-mimo-v46-final-acceptance-gate.md; commit 56c2785 Improve ordinary Mimo speech evaluation and guards; commit a0c100c Fix AI pool editable friend build blocker; Tencent deploy verified by preflight:production, smoke:room-sse, and smoke:room-action:vote on https://175.178.199.245"
+    },
+    {
+      "id": "public-alpha-consolidation-roadmap",
+      "name": "Public Alpha Consolidation Roadmap",
+      "description": "Next project phase for dirty-worktree triage, Tencent-first release hygiene, small real-player mobile playtests, P0/P1 fixes, and product narrative alignment.",
+      "dependencies": [
+        "ordinary-mimo-speech-quality-roadmap",
+        "long-running-task-registry"
+      ],
+      "status": "not-started",
+      "evidence": "docs/tasks/2026-06-public-alpha-consolidation-roadmap.md; docs/roadmap.md; docs/harness-state.md"
+    },
+    {
       "id": "structure-framework-audit",
       "name": "Structure Framework Audit",
       "description": "Repeatable structure audit command and task card for choosing low-risk framework optimization targets.",

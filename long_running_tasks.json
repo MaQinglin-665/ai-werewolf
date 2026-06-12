@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-12T17:55:00+08:00",
+  "updated_at": "2026-06-12T18:45:00+08:00",
   "tasks": [
     {
       "id": "lrt-harness-long-running-registry",
@@ -52,12 +52,38 @@
         "session-handoff.md"
       ],
       "started_at": "2026-06-09T17:20:00+08:00",
-      "updated_at": "2026-06-12T17:55:00+08:00",
+      "updated_at": "2026-06-12T18:45:00+08:00",
       "related_task_card": "docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md",
       "handoff_pointer": "session-handoff.md",
-      "last_verified_command": "2026-06-12 17:55 final v46 verification passed: focused action/eval/eval-utils/speech tests; related AI/claim aggregate 8 files / 453 tests; npx tsc --noEmit --pretty false; targeted eslint; existing v45 eval replay; v46 bounded live/eval at tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-report.json / -cases.json / -eval.json with local eval averageScore 100, issueCount 0, highRiskCaseIds empty.",
-      "next_action": "Send v46 to final user acceptance using docs/evaluations/2026-06-12-ordinary-mimo-v46-final-acceptance-gate.md. If the user rejects subjective style or asks for a no-fallback sample, resume from the v46 residual risks. Do not print, write, or persist the key.",
-      "notes": "Fable5's required final hard-fact fixes are implemented and verified: fabricated public check attribution is guarded in provider/action/eval, forward-commitment tail variants are covered, and eval metadata preserves alive seat names plus public claim board. v46 passes hard gates but has provider stability residual risk: fallbackCount 3/errorCount 3, including a game-legal Werewolf fake-Seer fallback on D2. Do not add broad phrase bans, do not expand hard fallback, and do not start token reduction before user acceptance."
+      "last_verified_command": "2026-06-12 18:34 Tencent deploy verification passed after commit a0c100c: npm run preflight:production -- --base-url=https://175.178.199.245 ok=true; ROOM_SMOKE_BASE_URL=https://175.178.199.245 npm run smoke:room-sse ok=true room APJBIW; ROOM_SMOKE_BASE_URL=https://175.178.199.245 npm run smoke:room-action:vote ok=true room VGZV7X.",
+      "next_action": "Closed unless the user explicitly asks for another subjective style pass, no-fallback paid Mimo sample, or token-cost phase. Future work should start from docs/tasks/2026-06-public-alpha-consolidation-roadmap.md, not from another default Fable5 loop.",
+      "notes": "Ordinary Mimo speech quality is accepted enough to ship after the long repair loop and Tencent deployment. It remains not-final-polish quality and v46 had provider fallback residual risk, but the user's direction is to stop repairing for now and submit this version. Do not print, write, or persist the key."
+    },
+    {
+      "id": "lrt-public-alpha-consolidation-roadmap",
+      "title": "Public Alpha consolidation roadmap",
+      "status": "planned",
+      "owner": "main",
+      "scope": [
+        "docs/tasks/2026-06-public-alpha-consolidation-roadmap.md",
+        "docs/roadmap.md",
+        "docs/current-release.md",
+        "docs/alpha-playtest.md",
+        "docs/alpha-feedback-ops.md",
+        "docs/promotion/social-playtest-kit.md",
+        "docs/harness-state.md",
+        "progress.md",
+        "session-handoff.md",
+        "long_running_tasks.json",
+        "feature_list.json"
+      ],
+      "started_at": "2026-06-12T18:45:00+08:00",
+      "updated_at": "2026-06-12T18:45:00+08:00",
+      "related_task_card": "docs/tasks/2026-06-public-alpha-consolidation-roadmap.md",
+      "handoff_pointer": "session-handoff.md",
+      "last_verified_command": "2026-06-12 18:45 planning/harness checks passed: npm run harness:task-card -- docs/tasks/2026-06-public-alpha-consolidation-roadmap.md; npm run harness:long-tasks; JSON parse for feature_list.json and long_running_tasks.json; npm run harness:check; git diff --check for touched docs/state files.",
+      "next_action": "Triage the local dirty frontend/API worktree into small scoped tasks, then run a 5-10 player Public Alpha mobile playtest on the Tencent Cloud primary link and fix P0/P1 issues first.",
+      "notes": "This is the next project phase after ordinary Mimo speech-quality acceptance and Tencent deployment. Keep Tencent as the primary public environment, Render as a separately verified backup, and avoid new feature scope until the playtest loop is stable."
     }
   ]
 }

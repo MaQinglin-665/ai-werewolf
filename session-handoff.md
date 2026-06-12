@@ -2,20 +2,33 @@
 
 ## Current Objective
 
-- Current objective: ordinary Werewolf Mimo invocation and speech quality roadmap.
-- Task card: `docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md`.
-- Long-running task id: `lrt-ordinary-mimo-speech-quality` in `long_running_tasks.json`.
-- User-approved priority order:
-  1. First diagnose the Mimo calling problem.
-  2. Then continue improving ordinary game speech quality until the user is very satisfied.
-  3. Only after that, explore token reduction while preserving speech/action quality.
-- Latest v46 status: same-seed bounded live Mimo completed after the final narrow hard-fact guards. Evidence: `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-report.json`, `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-cases.json`, and `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-eval.json`. v46 summary: 28 calls, 16 speech, 12 action, D1 speech/vote plus D2 speech/vote, `validationFailureCount 0`; local eval averageScore 100, issueCount 0, highRiskCaseIds empty. Acceptance scans found no malformed fragments, no logic-boundary errors, no speech-vote discontinuities, no ungrounded public-check attributions, and no forward-commitment tails. Current acceptance note: `docs/evaluations/2026-06-12-ordinary-mimo-v46-final-acceptance-gate.md`.
+- Current objective: Public Alpha consolidation after the ordinary Mimo speech-quality push.
+- Current task card: `docs/tasks/2026-06-public-alpha-consolidation-roadmap.md`.
+- Long-running task id: `lrt-public-alpha-consolidation-roadmap` in `long_running_tasks.json`.
+- Current project checkpoint:
+  - Ordinary Mimo speech-quality work is accepted enough to ship. It is not final-polish quality, but the user chose to stop the long repair loop and submit this version.
+  - Main ordinary Mimo commit: `56c2785 Improve ordinary Mimo speech evaluation and guards`.
+  - Narrow production build blocker fix: `a0c100c Fix AI pool editable friend build blocker`.
+  - Tencent Cloud primary Alpha deployed from `a0c100c` at `https://175.178.199.245`.
+  - Release record commit: `6b79b8f docs: record Tencent deployment`.
+  - Tencent verification passed: production preflight, room SSE smoke, and room vote action smoke.
+- Historical Mimo evidence: latest v46 same-seed bounded live sample remains at `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-report.json`, `-cases.json`, and `-eval.json`. v46 local eval was averageScore 100 with issueCount 0, but had residual provider fallback/error rows, so do not call it a pure no-fallback transcript.
 - Local note: Do not write or persist API keys. Do not edit `.env`. Any real Mimo check must use temporary process env only and should be bounded unless the user explicitly approves a larger spend.
-- Current handoff update, 2026-06-12 17:55: the latest Fable5-required hard fixes are implemented and verified. v46 is a final user-acceptance candidate, not a Fable5 stop point. Residual risk: v46 still had `fallbackCount 3` / `errorCount 3`, and D2 8号's game-legal Werewolf fake-Seer claim came from fallback, so the transcript is not pure no-fallback Mimo.
-- Next-session startup: read `AGENTS.md`, `docs/tasks/2026-06-ordinary-mimo-speech-quality-roadmap.md`, `docs/evaluations/2026-06-12-ordinary-mimo-v46-final-acceptance-gate.md`, `progress.md`, and `long_running_tasks.json`. Do not start token reduction. Next action is final user acceptance unless the user explicitly asks for another subjective style pass or a no-fallback sample.
+- Next-session startup: read `AGENTS.md`, `docs/tasks/2026-06-public-alpha-consolidation-roadmap.md`, `docs/roadmap.md`, `docs/current-release.md`, `progress.md`, and `long_running_tasks.json`.
+- Next concrete action: triage the local dirty frontend/API worktree into small tasks before any further deployment. Then run a small Public Alpha mobile playtest and fix P0/P1 issues.
 
 ## Completed This Session
 
+- [x] Committed the ordinary Mimo speech-quality bundle: `56c2785 Improve ordinary Mimo speech evaluation and guards`.
+- [x] Fixed the production build blocker in `src/components/AiPoolClient.tsx`: `a0c100c Fix AI pool editable friend build blocker`.
+- [x] Pushed `origin/codex/class-trial-ui-polish-tomori`.
+- [x] Deployed Tencent Cloud primary Alpha from `a0c100c`.
+- [x] Verified Tencent production preflight `ok=true`.
+- [x] Verified Tencent room SSE smoke `ok=true`, room `APJBIW`.
+- [x] Verified Tencent room vote action smoke `ok=true`, room `VGZV7X`.
+- [x] Updated release record: `6b79b8f docs: record Tencent deployment`.
+- [x] Updated project roadmap/harness state for the next Public Alpha consolidation phase.
+- [x] Added `docs/tasks/2026-06-public-alpha-consolidation-roadmap.md` as the next task-card anchor.
 - [x] Implemented the final narrow hard-fact guard: fabricated public check attributions now fail provider/action validation and ordinary eval unless grounded by a Seer claim in the public claim board.
 - [x] Extended forward-commitment truncation coverage for tail variants such as `有个更让我别扭的地方。`.
 - [x] Preserved `metadata.aliveSeats` names and public claim-board summaries in ordinary eval cases.
