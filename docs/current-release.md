@@ -14,8 +14,8 @@ Use this file as the first stop before sharing the public Alpha link or starting
 ## Current Source State
 
 - Working branch: `codex/12p-mimo-speech-mechanics`
-- Current public runtime baseline: local source archive from `5129eeb Fix stream command route and game surface hydration` plus uncommitted 12p hard-gate/evaluator-calibration worktree changes
-- Local worktree at runtime check: dirty local archive deployed directly to Tencent Cloud; not pushed as a clean branch head
+- Current public runtime baseline: `a214e67 Stabilize 12p Mimo hard gate`
+- Local worktree at runtime check: pushed to `origin/codex/12p-mimo-speech-mechanics`
 - Render deployment branch at last check: `1cb8eb2 deploy: sync mobile interaction signals`
 
 Render is intentionally tracked through `codex/room-render-production-minimum`. Tencent Cloud is deployed from the current source archive path. When a release should be visible in both public environments, update both lanes and record the two heads here.
@@ -28,7 +28,7 @@ This file may be updated by documentation-only commits after the runtime baselin
 - Compose root: `/opt/ai-werewolf`
 - Live app source: `/opt/ai-werewolf/app`
 - Main service: `ai-werewolf-app`
-- Latest deployed source: local source archive from `codex/12p-mimo-speech-mechanics` at `5129eeb` plus uncommitted 12p hard-gate/evaluator-calibration changes
+- Latest deployed source: `a214e67 Stabilize 12p Mimo hard gate`
 - Rollback source tree: `/opt/ai-werewolf/app-backup-20260613-192918`
 - Last container status: `ai-werewolf-app` healthy, image `sha256:22849e5c5a3cb9ddc5add801cb80dd718241b0fcb125fad233de193404158095`, nginx and Postgres running
 

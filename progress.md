@@ -2721,7 +2721,10 @@ Verification:
   `vote`, final phase `LAST_WORDS`.
 
 Remaining risks:
-- This deploy was from a dirty local source archive, not a pushed clean commit.
+- This deploy was originally cut from a dirty local source archive, then the
+  deployed content was committed and pushed as
+  `a214e67 Stabilize 12p Mimo hard gate` on
+  `origin/codex/12p-mimo-speech-mechanics`.
 - Render was not updated; Tencent Cloud remains the primary public Alpha path.
 - The deployed 12p hard-gate work still needs a separate paid full-game feel
   sample if the goal is subjective complete-game read-feel acceptance.

@@ -1538,7 +1538,9 @@ Verification:
   `vote`, final phase `LAST_WORDS`.
 
 Remaining risks:
-- Deployed from a dirty local archive, not a clean pushed commit.
+- Deployed from a local archive first, then the deployed content was committed
+  and pushed as `a214e67 Stabilize 12p Mimo hard gate` on
+  `origin/codex/12p-mimo-speech-mechanics`.
 - Render mirror was not updated.
 - This makes the hard-gate-passed work visible on Tencent Cloud, but does not
   replace a future paid Mimo complete-game feel sample.
