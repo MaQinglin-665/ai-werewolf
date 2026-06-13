@@ -81,18 +81,21 @@ export function buildClaimBoard(state: GameState): ClaimBoardItem[] {
   for (const claim of (state.roleClaims ?? []).filter(isStrongIdentityClaim)) {
     const claimant = getTarget(state, claim.claimantSeatId);
     if (!claimant) continue;
-    const checks = claim.checks
-      .map((check) => {
-        const target = getTarget(state, check.targetSeatId);
-        return target
-          ? {
-              day: check.day,
-              target,
-              result: check.result,
-            }
-          : undefined;
-      })
-      .filter((check): check is ClaimBoardItem["checks"][number] => Boolean(check));
+    const checks =
+      claim.claimedRole === "SEER"
+        ? claim.checks
+            .map((check) => {
+              const target = getTarget(state, check.targetSeatId);
+              return target
+                ? {
+                    day: check.day,
+                    target,
+                    result: check.result,
+                  }
+                : undefined;
+            })
+            .filter((check): check is ClaimBoardItem["checks"][number] => Boolean(check))
+        : [];
     const item: ClaimBoardItem = {
       claimId: claim.id,
       claimant,
@@ -101,7 +104,7 @@ export function buildClaimBoard(state: GameState): ClaimBoardItem[] {
       strength: claim.strength,
       checks,
       summary: summarizeClaim(claim.claimedRole, checks),
-      lastUpdatedDay: claim.checks.at(-1)?.day ?? claim.day,
+      lastUpdatedDay: checks.at(-1)?.day ?? claim.day,
     };
     if (claim.sourceSpeechSeq !== undefined) {
       item.sourceSpeechSeq = claim.sourceSpeechSeq;

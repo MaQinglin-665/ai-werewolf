@@ -1,6 +1,6 @@
 # Current Release Status
 
-Last checked: 2026-06-12 19:19 Asia/Shanghai.
+Last checked: 2026-06-13 19:35 Asia/Shanghai.
 
 Use this file as the first stop before sharing the public Alpha link or starting a new deployment. Update it after every public-facing release.
 
@@ -13,9 +13,9 @@ Use this file as the first stop before sharing the public Alpha link or starting
 
 ## Current Source State
 
-- Working branch: `codex/class-trial-ui-polish-tomori`
-- Current public runtime baseline: `fba0e45 Throttle AI speech playback status updates`
-- Local worktree at runtime check: pushed to `origin/codex/class-trial-ui-polish-tomori`
+- Working branch: `codex/12p-mimo-speech-mechanics`
+- Current public runtime baseline: local source archive from `5129eeb Fix stream command route and game surface hydration` plus uncommitted 12p hard-gate/evaluator-calibration worktree changes
+- Local worktree at runtime check: dirty local archive deployed directly to Tencent Cloud; not pushed as a clean branch head
 - Render deployment branch at last check: `1cb8eb2 deploy: sync mobile interaction signals`
 
 Render is intentionally tracked through `codex/room-render-production-minimum`. Tencent Cloud is deployed from the current source archive path. When a release should be visible in both public environments, update both lanes and record the two heads here.
@@ -28,9 +28,9 @@ This file may be updated by documentation-only commits after the runtime baselin
 - Compose root: `/opt/ai-werewolf`
 - Live app source: `/opt/ai-werewolf/app`
 - Main service: `ai-werewolf-app`
-- Latest deployed source: `fba0e45 Throttle AI speech playback status updates`
-- Rollback source tree: `/opt/ai-werewolf/app-backup-20260612-191609`
-- Last container status: `ai-werewolf-app` healthy, image `sha256:2cf5bb4793396a7f790a7a2d7236bb82364049ace84fdbd938159f72339ae8ee`, nginx and Postgres running
+- Latest deployed source: local source archive from `codex/12p-mimo-speech-mechanics` at `5129eeb` plus uncommitted 12p hard-gate/evaluator-calibration changes
+- Rollback source tree: `/opt/ai-werewolf/app-backup-20260613-192918`
+- Last container status: `ai-werewolf-app` healthy, image `sha256:22849e5c5a3cb9ddc5add801cb80dd718241b0fcb125fad233de193404158095`, nginx and Postgres running
 
 Latest verification:
 
@@ -38,7 +38,7 @@ Latest verification:
 npm run preflight:production -- --base-url=https://175.178.199.245
 ```
 
-Result at 2026-06-12 19:18 Asia/Shanghai: `ok=true`, all production minimum checks passed.
+Result at 2026-06-13 19:34 Asia/Shanghai: `ok=true`, all production minimum checks passed.
 
 Latest room smoke:
 
@@ -46,7 +46,7 @@ Latest room smoke:
 $env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-sse
 ```
 
-Result at 2026-06-12 19:18 Asia/Shanghai: `ok=true`, room `XMXW8A`, host seat `1`, guest seat `2`.
+Result at 2026-06-13 19:35 Asia/Shanghai: `ok=true`, room `6JTSJC`, host seat `1`, guest seat `2`.
 
 Latest room action vote smoke:
 
@@ -54,7 +54,7 @@ Latest room action vote smoke:
 $env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-action:vote
 ```
 
-Result at 2026-06-12 19:19 Asia/Shanghai: `ok=true`, room `EQC138`, covered `wolfKill`, `speak`, and `vote`, final phase `LAST_WORDS`.
+Result at 2026-06-13 19:35 Asia/Shanghai: `ok=true`, room `T95XIB`, covered `wolfKill`, `witchAction`, `speak`, and `vote`, final phase `LAST_WORDS`.
 
 Latest main game smoke:
 

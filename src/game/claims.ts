@@ -127,7 +127,7 @@ export function extractRoleClaimFromSpeech(params: {
     claimantSeatId: params.claimantSeatId,
     claimedRole,
     strength: classTrialStrength ?? inferClaimStrength(normalized, claimedRole),
-    checks,
+    checks: checksForClaimedRole(claimedRole, checks),
     message,
     sourceSpeechSeq: params.sourceSpeechSeq,
   };
@@ -166,7 +166,7 @@ export function upsertRoleClaim(existingClaims: RoleClaim[], draft: SpeechClaimD
       claimantSeatId: draft.claimantSeatId,
       claimedRole: draft.claimedRole,
       strength: draft.strength,
-      checks: dedupeChecks(draft.checks),
+      checks: checksForClaimedRole(draft.claimedRole, draft.checks),
       message: draft.message,
       sourceSpeechSeq: draft.sourceSpeechSeq,
       updatedAtSeq: draft.sourceSpeechSeq,
@@ -176,7 +176,7 @@ export function upsertRoleClaim(existingClaims: RoleClaim[], draft: SpeechClaimD
   }
 
   existing.strength = existing.strength === "hard" || draft.strength === "hard" ? "hard" : "soft";
-  existing.checks = dedupeChecks([...existing.checks, ...draft.checks]);
+  existing.checks = checksForClaimedRole(existing.claimedRole, [...existing.checks, ...draft.checks]);
   existing.message = draft.message;
   existing.sourceSpeechSeq = draft.sourceSpeechSeq ?? existing.sourceSpeechSeq;
   existing.updatedAtSeq = draft.sourceSpeechSeq ?? existing.updatedAtSeq;
@@ -186,9 +186,10 @@ export function upsertRoleClaim(existingClaims: RoleClaim[], draft: SpeechClaimD
 export function describeRoleClaim(claim: RoleClaim, claimantName: string): string {
   const roleText = ROLE_LABELS[claim.claimedRole];
   const strengthText = claim.strength === "hard" ? "明确声称" : "软声明";
+  const checks = checksForClaimedRole(claim.claimedRole, claim.checks);
   const checkText =
-    claim.checks.length > 0
-      ? `，并报出${claim.checks
+    checks.length > 0
+      ? `，并报出${checks
           .map((check) => `${check.targetSeatId}号${check.result === "WEREWOLF" ? "查杀" : "金水"}`)
           .join("、")}`
       : "";
@@ -294,6 +295,10 @@ function dedupeChecks(checks: ClaimCheck[]): ClaimCheck[] {
     seen.add(key);
     return true;
   });
+}
+
+function checksForClaimedRole(role: Role, checks: ClaimCheck[]): ClaimCheck[] {
+  return role === "SEER" ? dedupeChecks(checks) : [];
 }
 
 function normalizeDigits(value: string): string {

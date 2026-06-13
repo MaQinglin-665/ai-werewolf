@@ -1,0 +1,100 @@
+import { findOrdinaryForwardCommitmentTail } from "./ordinarySurface";
+
+export function naturalizeOrdinarySpeechText(text: string): string {
+  return repairDuplicatedWordSlipText(text)
+    .replace(/从全桌视角看/g, "按我现在听到的")
+    .replace(/站在全桌视角/g, "按我现在听到的")
+    .replace(/全桌视角/g, "我现在听到的")
+    .replace(/上帝视角/g, "我自己这边听到的")
+    .replace(/收益来源/g, "为什么现在怀疑他")
+    .replace(/死亡形态/g, "这个死法")
+    .replace(/死亡播报/g, "昨晚的死讯")
+    .replace(/死亡名单/g, "昨晚的死讯")
+    .replace(/反面可能性/g, "另一种可能")
+    .replace(/按公开规则/g, "按大家都知道的规则")
+    .replace(/按规则推/g, "按我理解")
+    .replace(/规则推/g, "按我理解")
+    .replace(/毒药重合刀口/g, "女巫毒的人刚好也是狼刀的人")
+    .replace(/信息边界/g, "能确定的事")
+    .replace(/我先报名单/g, "我先说我看到的")
+    .replace(/铺全场/g, "把全场都盘一遍")
+    .replace(/收票口/g, "把票往一个人身上带")
+    .replace(/发言链条/g, "前后说法")
+    .replace(/发言链/g, "前后说法")
+    .replace(/证据链/g, "前后说法")
+    .replace(/信息闭合/g, "说清楚")
+    .replace(/过程闭合/g, "过程说清楚")
+    .replace(/(?:没有|没|不)闭合/g, "没说清楚")
+    .replace(/闭合|闭环/g, "说清楚")
+    .replace(/当前先审你的发言缺口/g, "我先听你哪里没说清")
+    .replace(/先审(.{0,18})的发言缺口/g, "先听$1哪里没说清")
+    .replace(/发言缺口/g, "没说清的地方")
+    .replace(/我先认这个身份空间/g, "这个身份我先认下来")
+    .replace(/先认这个身份空间/g, "先认这个身份")
+    .replace(/认了这个身份空间/g, "认了这个身份")
+    .replace(/认这个身份空间/g, "认这个身份")
+    .replace(/认了身份空间/g, "认了这个身份")
+    .replace(/认身份空间/g, "认这个身份")
+    .replace(/身份空间/g, "身份")
+    .replace(/你打算怎么用这个信息/g, "你的票准备往哪放")
+    .replace(/自己打算怎么用这个信息/g, "自己的票准备往哪放")
+    .replace(/打算怎么用这个信息/g, "票准备往哪放")
+    .replace(/怎么用这个信息/g, "票往哪放")
+    .replace(/谁是起票的、谁是补票的、谁是最后跟票的/g, "谁先把票带起来、谁顺着跟上")
+    .replace(/起票、补票、最后跟票/g, "谁先带票、谁顺着跟、谁最后补上")
+    .replace(/起票和补票位置/g, "谁先把票带起来、谁顺着跟上")
+    .replace(/最后跟票/g, "最后跟上")
+    .replace(/起票/g, "先把票带起来")
+    .replace(/补票/g, "顺着跟票")
+    .replace(/收口/g, "最后想投谁")
+    .replace(/压力源/g, "让人开始怀疑他的点")
+    .replace(/这(?:句|段)?话本身/g, "这句话")
+    .replace(/这(?:句|段)?话其实/g, "这句话")
+    .replace(/这话本身/g, "这句话")
+    .replace(/这个点卡得有道理/g, "这个点说得有道理")
+    .replace(/卡得有道理/g, "说得有道理")
+    .replace(/听着有点卡/g, "听着有点没听明白")
+    .replace(/觉得有点卡/g, "有点没听明白")
+    .replace(/有点卡/g, "有点没听明白")
+    .replace(/我有个地方卡住了/g, "我有个地方没听明白")
+    .replace(/有个地方卡住了/g, "有个地方没听明白")
+    .replace(/卡住了/g, "没听明白")
+    .replace(/有个地方卡我/g, "有个地方我没听明白")
+    .replace(/这个点卡我/g, "这个点我没听明白")
+    .replace(/我卡的点/g, "我没听明白的点")
+    .replace(/卡我/g, "我没听明白")
+    .replace(/(?:把|将)(\d+\s*号[^。！？；，,]{0,16})放进观察位/g, "先不把$1投死")
+    .replace(/(?:把|将)(\d+\s*号[^。！？；，,]{0,16})放观察位/g, "先不把$1投死")
+    .replace(/先放观察位/g, "先不急着投")
+    .replace(/看前后理由能不能接上/g, "看后面能不能把话说清楚")
+    .replace(/平安夜只是背景，真正的判断动作太轻/g, "只说了平安夜，但没说自己怀疑谁")
+    .replace(/和刚才那段发言放一起核/g, "刚才那句话我先记下来")
+    .replace(/放一起核/g, "放一起看")
+    .replace(/昨夜死讯我先只当成死亡名单：[^。！？；]*[。！？；]?，?不直接反推狼刀、毒或自刀。?/g, "昨夜是平安夜，我先当背景，不拿这个直接定人。")
+    .replace(/我先按公开信息盘/g, "我先说我听到的东西")
+    .replace(/按当前公开发言和票型走/g, "按我听到的发言和投票来判断")
+    .replace(/审计跟压收益/g, "看谁在跟着压人")
+    .replace(/跟压收益/g, "跟着压人的理由")
+    .replace(/身份收益/g, "身份说法对今天投票的影响");
+}
+
+export function repairDuplicatedWordSlipText(text: string): string {
+  return text
+    .replace(/我先先/g, "我先")
+    .replace(/先先/g, "先")
+    .replace(/现在现在/g, "现在")
+    .replace(/然后然后/g, "然后")
+    .replace(/但是但是/g, "但是")
+    .replace(/就是就是/g, "就是")
+    .replace(/这个这个/g, "这个")
+    .replace(/那句那句/g, "那句");
+}
+
+export function trimOrdinaryForwardCommitmentEnding(speech: string): string | undefined {
+  const clean = speech.trim();
+  const tail = findOrdinaryForwardCommitmentTail(clean);
+  if (!tail) return undefined;
+  const head = clean.slice(0, tail.index).replace(/[，,;；:：、-]+$/g, "").trim();
+  if (!head) return undefined;
+  return /[。！？!?；;」』”"）)]$/.test(head) ? head : `${head}。`;
+}

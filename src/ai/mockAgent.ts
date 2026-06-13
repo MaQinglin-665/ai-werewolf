@@ -1454,20 +1454,55 @@ function isPrivateWolfSeat(view: AgentView, seatId: number): boolean {
 }
 
 function messageFromSpeechPlan(plan: ReturnType<typeof createSpeechPlan>): string {
+  const spokenPoints = plan.talkingPoints.filter((point) => !isMockSpeechInternalMotivePoint(point));
   if (plan.claimIntent?.claimedRole === "SEER" && plan.claimIntent.check) {
+    const { targetSeatId } = plan.claimIntent.check;
     const resultText = plan.claimIntent.check.result === "WEREWOLF" ? "查杀" : "金水";
-    return `我跳预言家，${plan.claimIntent.check.targetSeatId}号是${resultText}。${plan.talkingPoints.join("。")}`;
+    const lead = `我跳预言家，${targetSeatId}号是${resultText}`;
+    return joinMockSpeechParts([
+      lead,
+      ...spokenPoints.filter((point) => !isSameSeerClaimPoint(point, targetSeatId, resultText)),
+    ]);
   }
   if (plan.claimIntent?.claimedRole === "WITCH") {
-    return `女巫牌先不急着跳。${plan.talkingPoints.join("。")}`;
+    return joinMockSpeechParts(["我拍女巫，今天先收住票型", ...spokenPoints.filter((point) => !isSameRoleClaimPoint(point, "女巫"))]);
   }
   if (plan.claimIntent?.claimedRole === "HUNTER") {
-    return `底牌不虚但不乱拍身份。${plan.talkingPoints.join("。")}`;
+    return joinMockSpeechParts(["我拍猎人，底牌不虚但发言还看公开逻辑", ...spokenPoints.filter((point) => !isSameRoleClaimPoint(point, "猎人"))]);
   }
   if (plan.claimIntent?.claimedRole === "KNIGHT") {
-    return `底牌不虚，骑士技能不替代推理。${plan.talkingPoints.join("。")}`;
+    return joinMockSpeechParts(["我拍骑士，技能不替代推理", ...spokenPoints.filter((point) => !isSameRoleClaimPoint(point, "骑士"))]);
   }
-  return plan.talkingPoints.join("。");
+  return joinMockSpeechParts(spokenPoints);
+}
+
+function joinMockSpeechParts(parts: string[]): string {
+  return parts
+    .map(stripMockSpeechPart)
+    .filter(Boolean)
+    .join("。");
+}
+
+function isSameSeerClaimPoint(point: string, targetSeatId: number, resultText: "查杀" | "金水"): boolean {
+  return normalizeMockSpeechPoint(point) === normalizeMockSpeechPoint(`我跳预言家，${targetSeatId}号是${resultText}`);
+}
+
+function isSameRoleClaimPoint(point: string, roleLabel: "女巫" | "猎人" | "骑士"): boolean {
+  return normalizeMockSpeechPoint(point) === normalizeMockSpeechPoint(`我拍${roleLabel}`);
+}
+
+function isMockSpeechInternalMotivePoint(point: string): boolean {
+  return /^(拍身份是为了|用悍跳身份制造|真神先留余地|可以用底牌不虚|保留底牌威慑|用公开视角制造错位和压力)/.test(
+    stripMockSpeechPart(point),
+  ) || /狼队视角|狼队|队友|夜间计划|制造分歧/.test(stripMockSpeechPart(point));
+}
+
+function normalizeMockSpeechPoint(text: string): string {
+  return stripMockSpeechPart(text).replace(/\s+/g, "").replace(/[，,。！？!？；;：:、]/g, "");
+}
+
+function stripMockSpeechPart(text: string): string {
+  return text.replace(/\s+/g, " ").replace(/[。！？；.!?;]+$/g, "").trim();
 }
 
 function getAction<T extends AgentView["allowedActions"][number]["type"]>(

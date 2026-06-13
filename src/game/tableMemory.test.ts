@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, createGame } from "./engine";
-import { buildTableMemory } from "./tableMemory";
+import { buildClaimBoard, buildTableMemory } from "./tableMemory";
 
 describe("table memory stance shifts", () => {
   it("detects role-side switches across different seer claimants", () => {
@@ -236,5 +236,50 @@ describe("table memory death-shape public cues", () => {
 
     expect(memory.reasoningCues.some((cue) => cue.kind === "death_shape")).toBe(false);
     expect(memory.publicSignals.join("\n")).not.toMatch(/药线假设/);
+  });
+});
+
+describe("table memory claim board", () => {
+  it("only exposes checks on seer claims", () => {
+    const state = createGame({
+      boardId: "12p-sheriff-seer-witch-hunter-guard",
+      humanSeatId: null,
+      seed: 91,
+    });
+
+    state.roleClaims.push(
+      {
+        id: "5:HUNTER",
+        day: 2,
+        claimantSeatId: 5,
+        claimedRole: "HUNTER",
+        strength: "hard",
+        checks: [{ day: 2, claimantSeatId: 5, targetSeatId: 4, result: "WEREWOLF" }],
+        message: "我是猎人。4号豆包查杀2号这条线我听到了。",
+      },
+      {
+        id: "3:SEER",
+        day: 2,
+        claimantSeatId: 3,
+        claimedRole: "SEER",
+        strength: "hard",
+        checks: [{ day: 2, claimantSeatId: 3, targetSeatId: 2, result: "WEREWOLF" }],
+        message: "我跳预言家，2号Claude是查杀。",
+      },
+    );
+
+    const claimBoard = buildClaimBoard(state);
+    const hunterClaim = claimBoard.find((claim) => claim.claimedRole === "HUNTER");
+    const seerClaim = claimBoard.find((claim) => claim.claimedRole === "SEER");
+
+    expect(hunterClaim?.checks).toEqual([]);
+    expect(hunterClaim?.summary).not.toContain("查杀");
+    expect(seerClaim?.checks).toEqual([
+      expect.objectContaining({
+        target: expect.objectContaining({ seatId: 2 }),
+        result: "WEREWOLF",
+      }),
+    ]);
+    expect(seerClaim?.summary).toContain("查杀");
   });
 });

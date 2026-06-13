@@ -718,6 +718,13 @@ export function validateActionDecision(view: AgentView, input: LlmActionInput, d
   if (containsFabricatedPublicCheckAttribution(view, effectiveReason)) {
     errors.push("凭空引用未公开查验结果");
   }
+  if (isPublicActionReasonCommand(candidate.command) && containsSelfActionPrivateLeak(effectiveReason)) {
+    errors.push("公开行动理由泄露私有身份或夜晚信息");
+  }
+
+  if (candidate.command.type === "sheriffSpeech" && containsPublicSpeechPrivateLeak(candidate.command.message)) {
+    errors.push("警长发言泄露私有身份或狼队策略");
+  }
 
   if (candidate.command.type === "lastWords" && message && containsActionPrivateLeak(message)) {
     errors.push("last words leak private or system context");
@@ -799,14 +806,15 @@ function collectActionPublicCheckAttributions(
 
 function resolveActionPublicCheckSeatRef(value: string | undefined, seats: Array<{ seatId: number; name?: string }>): number | undefined {
   if (!value) return undefined;
+  const clean = value.trim().toLowerCase();
+  const exactNameMatch = seats.find((seat) => seat.name && seat.name.trim().toLowerCase() === clean);
+  if (exactNameMatch) return exactNameMatch.seatId;
   const numeric = value.match(/(\d{1,2})/);
   if (numeric) {
     const parsed = Number(numeric[1]);
     return Number.isFinite(parsed) ? parsed : undefined;
   }
-  const clean = value.trim().toLowerCase();
-  const match = seats.find((seat) => seat.name && seat.name.trim().toLowerCase() === clean);
-  return match?.seatId;
+  return undefined;
 }
 
 function deniesActionPublicCheckAttribution(sentence: string): boolean {
@@ -1046,15 +1054,16 @@ function buildActionCandidates(
     }
     case "SHERIFF_SPEECH":
     case "SHERIFF_PK_SPEECH": {
+      const message = buildSheriffSpeechCandidateMessage(view, tableRead);
       add({
         id: "sheriff:speech",
         label: "Give sheriff speech",
         command: {
           type: "sheriffSpeech",
           actorSeatId: view.mySeatId,
-          message: "我竞选警长会按公开发言、身份声明和票型来归票，先把警徽给能组织桌面的人。",
+          message,
         },
-        reasonHint: "发表公开安全的警上竞选发言。",
+        reasonHint: "普通局玩家类型警长竞选发言：用自己的风险姿态、口吻和当前公开焦点争取警徽，不复用固定竞选模板。",
       });
       break;
     }
@@ -1475,6 +1484,9 @@ function buildActionConstraints(
   if (view.roleCard?.theme !== "class-trial") {
     constraints.push(`普通局玩家类型策略：${formatPersonaStrategyForPrompt(personaStrategyCard)}`);
     constraints.push("行动理由要像玩家自己说得出口的话，不要写“收益来源、发言链、闭合、收口”等内部词。");
+    if (isPublicActionPhase(view.phase)) {
+      constraints.push("公开行动理由只讲桌面公开信息；不要说“我作为女巫/预言家/猎人/守卫/狼人”，也不要说自己昨晚救、毒、验、守或刀了谁。");
+    }
     if (isFirstNightWithoutPublicDiscussion(view)) {
       constraints.push("第一夜还没有白天发言；夜间行动理由只能说低信息、位置、通用风险或夜里刀口，不能写公开焦点、被讨论、发言位置、票型、站边或白天压力。");
     }
@@ -1484,6 +1496,9 @@ function buildActionConstraints(
     if (ordinaryLiveIntentPrompt) {
       constraints.push(`普通局临场意图：${ordinaryLiveIntentPrompt}`);
       constraints.push("普通局投票必须接住临场意图：延续上一轮发言压力，或说明为什么公开证据升级导致转票。");
+    }
+    if (view.phase === "SHERIFF_SPEECH" || view.phase === "SHERIFF_PK_SPEECH") {
+      constraints.push("警长竞选发言也要带普通局玩家口吻：可短、可强势、可谨慎，但必须围绕警徽、警上站边或当前公开焦点，不要复用固定竞选模板。");
     }
   }
 
@@ -1685,6 +1700,45 @@ function publicSafeTargetReasonHint(
     : hint;
 }
 
+function buildSheriffSpeechCandidateMessage(view: AgentView, tableRead: AiTableRead): string {
+  const personaText = `${view.persona?.name ?? ""} ${view.persona?.label ?? ""} ${
+    view.persona?.ordinaryPlayerProfile?.playerTypeId ?? ""
+  }`;
+  const seed = view.mySeatId * 17 + view.day * 13 + (view.phase === "SHERIFF_PK_SPEECH" ? 5 : 0);
+  const focus = tableRead.focus && tableRead.focus.seatId !== view.mySeatId ? tableRead.focus : undefined;
+  const focusText = focus ? `${focus.seatId}号${focus.name}` : "当前公开焦点";
+  if (/情绪|豆包|emotional/i.test(personaText) || (view.persona?.riskTolerance ?? 0) >= 0.68) {
+    return pickActionLine(seed, [
+      `我上警先把态度打出来，警徽给我，我会直接压住${focusText}这类最别扭的位置，不让票口散掉。`,
+      `我警上不想念模板，谁发言让我不舒服我会直接点；警徽要的是能收票的人，不是声音最好听的人。`,
+      `这轮我争警徽就是为了把票口收住，前面谁敢绕身份和站边，我会当场压回去。`,
+    ]);
+  }
+  if (/谨慎|低调|Claude|Gemini|careful|quiet/i.test(personaText) || (view.persona?.riskTolerance ?? 0.5) <= 0.36) {
+    return pickActionLine(seed, [
+      `我警上话说短一点，警徽先看谁能把身份、发言和票型接顺；我不会只跟声音大的位置。`,
+      `我上警不是抢带队，先给一个标准：警徽要给能听完对跳、还能把票口说清的人。`,
+      `我竞选警长会偏稳，先看公开发言能不能落票，${focusText}这条线我不会一上来打死。`,
+    ]);
+  }
+  if (/身份|Kimi|identity/i.test(personaText)) {
+    return pickActionLine(seed, [
+      `我警上先看身份声明怎么落票，警徽不能给只会喊站边的人；谁拍身份，谁就要给处理方式。`,
+      `警徽这轮要服务身份线，不是装饰。谁报身份、谁接身份、谁改票，我会按这几件事归票。`,
+      `我竞选警长先把身份线收住，后面有人对跳或保人，就按公开身份和票型往回验。`,
+    ]);
+  }
+  return pickActionLine(seed, [
+    `我警上先给标准：警徽不是给会复盘的人，是给能把公开发言、身份声明和票口接起来的人。`,
+    `我竞选警长会先看${focusText}这条公开线，再看谁的站边和投票能接上，不急着听一个结论。`,
+    `警徽如果到我手里，我先按公开发言和票型收票；谁只给态度不给处理，我会压回去。`,
+  ]);
+}
+
+function pickActionLine(seed: number, options: string[]): string {
+  return options[Math.abs(seed) % options.length] ?? options[0] ?? "";
+}
+
 function getAction<T extends AvailableHumanAction["type"]>(
   view: AgentView,
   type: T,
@@ -1804,7 +1858,10 @@ function publicSafeActionReason(reason: string | undefined, fallbackReason: stri
 
 function withCandidateReasonHint(decision: ActionDecision, candidate: LlmActionCandidate): ActionDecision {
   const reason = replaceEnglishReasonWithCandidateHint(
-    replaceMismatchedSeerCheckReason(mergeCandidateContinuityHint(decision.reason, candidate.reasonHint), candidate),
+    replaceSelfPrivateLeakWithCandidateHint(
+      replaceMismatchedSeerCheckReason(mergeCandidateContinuityHint(decision.reason, candidate.reasonHint), candidate),
+      candidate.reasonHint,
+    ),
     candidate.reasonHint,
   );
   if (reason === undefined) return decision;
@@ -1815,6 +1872,18 @@ function replaceMismatchedSeerCheckReason(reason: string | undefined, candidate:
   if (!containsSeerCheckTargetMismatch(candidate, reason)) return reason;
   const cleanHint = cleanActionReason(candidate.reasonHint);
   return cleanHint && !looksLikeMalformedActionReason(cleanHint) ? cleanHint : reason;
+}
+
+function replaceSelfPrivateLeakWithCandidateHint(reason: string | undefined, reasonHint: string | undefined): string | undefined {
+  if (!containsSelfActionPrivateLeak(reason)) return reason;
+  const cleanHint = cleanActionReason(reasonHint);
+  return cleanHint &&
+    !looksLikeMalformedActionReason(cleanHint) &&
+    !containsSelfActionPrivateLeak(cleanHint) &&
+    !containsActionPrivateLeak(cleanHint) &&
+    !hasEnglishActionReasonFragment(cleanHint)
+    ? cleanHint
+    : reason;
 }
 
 function mergeCandidateContinuityHint(reason: string | undefined, reasonHint: string | undefined): string | undefined {
@@ -2021,6 +2090,55 @@ function containsActionPrivateLeak(reason: string): boolean {
   if (!reason) return false;
   return /privateKnowledge|wolfTeamPlan|wolfPlan|system|prompt|hidden role|true role|WEREWOLF|WOLF_KING|WHITE_WOLF_KING|WOLF_BEAUTY|VILLAGER|SEER|WITCH|HUNTER|IDIOT|KNIGHT|GUARD|队友|狼队|同狼|真实身份|隐藏身份|私密|系统|提示词|上帝视角|我知道.*身份|wolf teammate|teammate/i.test(
     reason,
+  );
+}
+
+function containsPublicSpeechPrivateLeak(message: string): boolean {
+  if (containsActionPrivateLeak(message)) return true;
+  return /(?:隐藏|压低|暴露|藏住)[^。！？；]{0,12}(?:狼队|狼人|私密|夜间|真实身份|上帝视角)|(?:围绕|利用|借)[^。！？；]{0,18}制造分歧|(?:狼队|狼人)[^。！？；]{0,18}(?:策略|视角|节奏|计划|收益)/.test(
+    message,
+  );
+}
+
+function isPublicActionPhase(phase: AgentView["phase"]): boolean {
+  return (
+    phase === "SHERIFF_NOMINATION" ||
+    phase === "SHERIFF_SPEECH" ||
+    phase === "SHERIFF_PK_SPEECH" ||
+    phase === "SHERIFF_VOTE" ||
+    phase === "SHERIFF_PK_VOTE" ||
+    phase === "SHERIFF_WITHDRAWAL" ||
+    phase === "DAY_VOTE" ||
+    phase === "HUNTER_REVEAL" ||
+    phase === "HUNTER_SHOT" ||
+    phase === "WOLF_KING_SHOT"
+  );
+}
+
+function isPublicActionReasonCommand(command: Command): boolean {
+  return (
+    command.type === "sheriffNominate" ||
+    command.type === "sheriffSpeech" ||
+    command.type === "sheriffVote" ||
+    command.type === "sheriffWithdraw" ||
+    command.type === "vote" ||
+    command.type === "hunterReveal" ||
+    command.type === "hunterShoot" ||
+    command.type === "wolfKingShoot"
+  );
+}
+
+function containsSelfActionPrivateLeak(reason: string | undefined): boolean {
+  const clean = cleanActionReason(reason);
+  if (!clean) return false;
+  const ownRoleLeak =
+    /(?:我|本人|自己|本轮我|这把我|底牌|作为|身为)[^。！？；]{0,16}(?:预言家|女巫|猎人|守卫|狼人|白狼王|狼美人|闭眼平民|闭眼好人|闭眼位|平民|民牌|村民)/.test(
+      clean,
+    );
+  if (ownRoleLeak) return true;
+
+  return /(?:我|本人|自己)[^。！？；]{0,20}(?:昨晚|昨夜|首夜|夜里|第一夜|第二晚|第二夜|上一晚)[^。！？；]{0,36}(?:救|毒|验|查|守|刀|杀|魅惑|开药|用药|开枪)/.test(
+    clean,
   );
 }
 

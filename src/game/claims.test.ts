@@ -352,6 +352,27 @@ describe("role claim extraction", () => {
     expect(claim?.strength).toBe("hard");
   });
 
+  it("does not attach public check wording to non-seer role claims", () => {
+    const validSeatIds = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    const hunterClaim = extractRoleClaimFromSpeech({
+      day: 2,
+      claimantSeatId: 5,
+      message: "我是猎人，枪牌在这里。4号豆包查杀2号，2号Claude查杀9号，这两条线我先听。",
+      validSeatIds,
+    });
+    const witchClaim = extractRoleClaimFromSpeech({
+      day: 2,
+      claimantSeatId: 2,
+      message: "我是2号Claude，女巫。4号豆包查杀2号这条线我听到了，昨晚救的是3号。",
+      validSeatIds,
+    });
+
+    expect(hunterClaim?.claimedRole).toBe("HUNTER");
+    expect(hunterClaim?.checks).toEqual([]);
+    expect(witchClaim?.claimedRole).toBe("WITCH");
+    expect(witchClaim?.checks).toEqual([]);
+  });
+
   it("treats seat-name seer reports as hard seer claims", () => {
     const claim = extractRoleClaimFromSpeech({
       day: 1,

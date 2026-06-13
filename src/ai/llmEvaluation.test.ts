@@ -177,6 +177,163 @@ describe("llm evaluation helpers", () => {
     expect(grounded.issueCodes).not.toContain("logic_boundary_error");
   });
 
+  it("allows non-seers to quote checks that belong to public seer claims", () => {
+    const hunterQuote = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        playerRole: "HUNTER",
+        outputText:
+          "我是5号Mimo，猎人。先把身份拍清楚，免得票口散了。我听下来，2号Claude和4号豆包都跳预言家，都报9号查杀。今天先压9号DeepSeek2出人，听他怎么回应这两张查杀。",
+        metadata: {
+          aliveSeats: [
+            { seatId: 2, name: "Claude" },
+            { seatId: 4, name: "豆包" },
+            { seatId: 5, name: "Mimo" },
+            { seatId: 9, name: "DeepSeek2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 2,
+              claimantName: "Claude",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 9, targetName: "DeepSeek2", result: "WEREWOLF" }],
+            },
+            {
+              claimantSeatId: 4,
+              claimantName: "豆包",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 9, targetName: "DeepSeek2", result: "WEREWOLF" }],
+            },
+            {
+              claimantSeatId: 5,
+              claimantName: "Mimo",
+              claimedRole: "HUNTER",
+              checks: [],
+            },
+          ],
+        },
+      }),
+    );
+    const villagerQuote = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        playerRole: "VILLAGER",
+        outputText:
+          "我是7号GLM。9号现在压力确实大，但两张预言家同时报9号查杀，这个同步感反而让我想慢一步。我不急着打死9号。",
+        metadata: {
+          aliveSeats: [
+            { seatId: 2, name: "Claude" },
+            { seatId: 4, name: "豆包" },
+            { seatId: 7, name: "GLM" },
+            { seatId: 9, name: "DeepSeek2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 2,
+              claimantName: "Claude",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 9, targetName: "DeepSeek2", result: "WEREWOLF" }],
+            },
+            {
+              claimantSeatId: 4,
+              claimantName: "豆包",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 9, targetName: "DeepSeek2", result: "WEREWOLF" }],
+            },
+          ],
+        },
+      }),
+    );
+    const priorSpeakerGenericQuote = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        playerRole: "VILLAGER",
+        outputText:
+          "我是7号GLM。9号现在压力确实大，但6号Gemini那句话点到我了——两张预言家同时报9号查杀，这个同步感反而让我想慢一步。我不急着打死9号。",
+        metadata: {
+          aliveSeats: [
+            { seatId: 2, name: "Claude" },
+            { seatId: 4, name: "豆包" },
+            { seatId: 6, name: "Gemini" },
+            { seatId: 7, name: "GLM" },
+            { seatId: 9, name: "DeepSeek2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 2,
+              claimantName: "Claude",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 9, targetName: "DeepSeek2", result: "WEREWOLF" }],
+            },
+            {
+              claimantSeatId: 4,
+              claimantName: "豆包",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 9, targetName: "DeepSeek2", result: "WEREWOLF" }],
+            },
+          ],
+        },
+      }),
+    );
+    const seerFollowupQuote = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        playerRole: "VILLAGER",
+        outputText:
+          "我是11号GPT2。10号Claude2那段我先接一下——他说不站8号，理由是验人心路没听懂。这个点我认同，但我想换一个方向看。2号Claude这轮直接报了8号Kimi查杀，昨天他报过9号DeepSeek2查杀。",
+        metadata: {
+          aliveSeats: [
+            { seatId: 2, name: "Claude" },
+            { seatId: 8, name: "Kimi" },
+            { seatId: 10, name: "Claude2" },
+            { seatId: 11, name: "GPT2" },
+            { seatId: 9, name: "DeepSeek2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 2,
+              claimantName: "Claude",
+              claimedRole: "SEER",
+              checks: [
+                { targetSeatId: 9, targetName: "DeepSeek2", result: "WEREWOLF" },
+                { targetSeatId: 8, targetName: "Kimi", result: "WEREWOLF" },
+              ],
+            },
+            {
+              claimantSeatId: 8,
+              claimantName: "Kimi",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 2, targetName: "Claude", result: "WEREWOLF" }],
+            },
+          ],
+        },
+      }),
+    );
+    const hunterSelfCheck = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        playerRole: "HUNTER",
+        outputText: "我是5号Mimo，猎人。我验了9号DeepSeek2，9号是查杀，今天先出9号。",
+        metadata: {
+          seatNumber: 5,
+          aliveSeats: [
+            { seatId: 5, name: "Mimo" },
+            { seatId: 9, name: "DeepSeek2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 5,
+              claimantName: "Mimo",
+              claimedRole: "HUNTER",
+              checks: [],
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(hunterQuote.issueCodes).not.toContain("logic_boundary_error");
+    expect(villagerQuote.issueCodes).not.toContain("logic_boundary_error");
+    expect(priorSpeakerGenericQuote.issueCodes).not.toContain("logic_boundary_error");
+    expect(seerFollowupQuote.issueCodes).not.toContain("logic_boundary_error");
+    expect(hunterSelfCheck.issueCodes).toContain("logic_boundary_error");
+  });
+
   it("flags day-vote pivots that do not explain why the new public evidence is harder", () => {
     const discontinuous = analyzeLlmCallQuality({
       outputText: "公开证据更清晰，先出5号。",
@@ -312,6 +469,17 @@ describe("llm evaluation helpers", () => {
     });
 
     expect(quoteTailSpeech.map((issue) => issue.code)).toContain("malformed_output_fragment");
+
+    const completeVoteReason = analyzeLlmCallQuality({
+      outputText:
+        "vote 2号 上一轮我发言点过2号Claude，你那句“想从警上选个能打开局面的”然后就报我查杀，这个转折我到现在没听明白。",
+      phase: "DAY_VOTE",
+      task: "action",
+      reasoningCueCount: 1,
+      referencedReasoningCueCount: 1,
+    });
+
+    expect(completeVoteReason.map((issue) => issue.code)).not.toContain("malformed_output_fragment");
 
     const unfinishedDiscomfort = analyzeLlmCallQuality({
       outputText:

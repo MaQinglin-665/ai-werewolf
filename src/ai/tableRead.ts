@@ -1223,27 +1223,42 @@ function buildSpeechTableTask(
     const alternative = alternatives.sort((a, b) => b.suspicion - b.trust - (a.suspicion - a.trust) || a.seatId - b.seatId)[0];
     const variant = (view.mySeatId + spokenThisDay.length) % 3;
     if (variant === 0) {
+      const pressureChainLines = [
+        `${focusTarget.seatId}号这条压力已经被多人跟过，这轮换角度，查谁借焦点改方向。`,
+        `别再复读${focusTarget.seatId}号同一缺口，先看跟压的人里谁给了新理由。`,
+        `${focusTarget.seatId}号压力链已经成形，这轮把问题改成谁在顺势带票。`,
+      ];
       return {
         mode: "inspect-pressure-chain",
         target: toTargetFromSeatRead(focusTarget),
-        line: `桌面已经多人接住${focusTarget.seatId}号压力，这轮必须换角度，不要复读同一处断点；先检查谁公开替焦点改方向。`,
+        line: pressureChainLines[(view.mySeatId + focusTarget.seatId + spokenThisDay.length) % pressureChainLines.length]!,
         directives: ["检查压力链", "找公开改向位", "不要复读"],
       };
     }
     if (variant === 1) {
+      const countercaseLines = [
+        `先替${focusTarget.seatId}号留一条好人解释，再说清什么回应能改判断。`,
+        `${focusTarget.seatId}号不直接打死：先给正面可能，再落一个回头验证点。`,
+        `这轮不把${focusTarget.seatId}号锁死，先说他如果是好人哪一步能自证。`,
+      ];
       return {
         mode: "hold-countercase",
         target: toTargetFromSeatRead(focusTarget),
-        line: `保留${focusTarget.seatId}号好人面，说明他还有哪种正面解释，再给一个可验证标准。`,
+        line: countercaseLines[(view.mySeatId + focusTarget.seatId + spokenThisDay.length) % countercaseLines.length]!,
         directives: ["给反面解释", "保留余地", "落验证点"],
       };
     }
+    const alternativeLines = alternative
+      ? [
+          `从${focusTarget.seatId}号这条压力转看${alternative.seatId}号，重点看谁跟压却没补新理由。`,
+          `${focusTarget.seatId}号先不复读了，我改看${alternative.seatId}号有没有借势带票。`,
+          `这轮从${focusTarget.seatId}号旁边拆一层，先验${alternative.seatId}号跟压是不是空的。`,
+        ]
+      : [`不要复读${focusTarget.seatId}号同一缺口，改成检查压力链是否过度集中。`];
     return {
       mode: "pivot-alternative",
       target: toTargetFromSeatRead(alternative ?? focusTarget),
-      line: alternative
-        ? `从${focusTarget.seatId}号压力链转看${alternative.seatId}号，检查有没有人在跟压但没有新增理由。`
-        : `不要复读${focusTarget.seatId}号同一缺口，改成检查压力链是否过度集中。`,
+      line: alternativeLines[(view.mySeatId + focusTarget.seatId + (alternative?.seatId ?? 0) + spokenThisDay.length) % alternativeLines.length]!,
       directives: ["转向替代观察位", "检查跟压", "保留主焦点"],
     };
   }
@@ -1750,11 +1765,13 @@ function buildRallyInteractionLine(view: AgentView, target: SeatRead): string {
 function buildPivotInteractionLine(view: AgentView, target: SeatRead, sourceSpeaker: { name: string }): string {
   const targetText = `${target.seatId}号`;
   const seed = view.day * 31 + view.mySeatId * 17 + target.seatId * 13 + sourceSpeaker.name.length * 7 + 97;
-  return pickByIndex(seed, [
+  return pickUnusedInteractionLine(view, seed, [
     `${sourceSpeaker.name}那段我先放一下，先回到${targetText}没讲顺的地方`,
     `我不顺着上一位往外铺，先听${targetText}怎么把话说圆`,
-    `上一位先记着，我这票口还在${targetText}身上`,
+    `前面那点只当参考，我这轮还是盯${targetText}的回应`,
     `${sourceSpeaker.name}那点先不照搬，我先问${targetText}怎么接票`,
+    `${targetText}这条线先留着，等他自己把票口说顺`,
+    `我不借上一位的结论，先看${targetText}自己的解释`,
   ]);
 }
 
@@ -1806,10 +1823,6 @@ function normalizeInteractionLineForReuse(text: string): string {
     .replace(/(?:DeepSeek|Claude|Gemini|Kimi|Mimo|GPT|GLM|Human|豆包)\d*/gi, "{name}")
     .replace(/我先把/g, "我把")
     .replace(/[，。！？、,.!?;；:\s]+/g, "");
-}
-
-function pickByIndex(seed: number, options: string[]): string {
-  return options[Math.abs(seed) % options.length] ?? options[0] ?? "";
 }
 
 function buildPublicTrustSpeechPoint(

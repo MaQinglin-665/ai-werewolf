@@ -43,6 +43,72 @@ describe("routed action provider", () => {
     expect(input.constraints.join("\n")).toContain("White wolf king self-explosion is optional");
   });
 
+  it("uses ordinary player texture for sheriff speech candidates instead of a fixed campaign line", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.phase = "SHERIFF_SPEECH";
+    const actor = state.seats.find((seat) => seat.isAi)!;
+    actor.persona = {
+      ...actor.persona!,
+      ordinaryPlayerProfile: defaultOrdinaryPlayerProfile("emotional-reactor"),
+      riskTolerance: 0.72,
+    };
+    const view = buildAgentView(state, actor.seatId);
+    const tableRead = buildAiTableRead(view);
+    const fallbackCommand = createMockCommand(view, tableRead);
+
+    const input = buildConstrainedActionInput(view, { tableRead, fallbackCommand });
+    const sheriffCandidate = input.candidates.find((candidate) => candidate.id === "sheriff:speech");
+
+    expect(sheriffCandidate?.command).toMatchObject({ type: "sheriffSpeech", actorSeatId: actor.seatId });
+    expect(sheriffCandidate?.command.type === "sheriffSpeech" ? sheriffCandidate.command.message : "").not.toBe(
+      "我竞选警长会按公开发言、身份声明和票型来归票，先把警徽给能组织桌面的人。",
+    );
+    expect(sheriffCandidate?.command.type === "sheriffSpeech" ? sheriffCandidate.command.message : "").toMatch(
+      /警徽|警长|警上/,
+    );
+    expect(sheriffCandidate?.reasonHint).toContain("普通局玩家类型");
+    expect(input.constraints.join("\n")).toContain("警长竞选发言也要带普通局玩家口吻");
+  });
+
+  it("rejects sheriff speech messages that expose private wolf strategy", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.phase = "SHERIFF_SPEECH";
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    const view = buildAgentView(state, wolf.seatId);
+    const tableRead = buildAiTableRead(view);
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      fallbackCommand: createMockCommand(view, tableRead),
+    });
+    const sheriffCandidate = input.candidates.find((candidate) => candidate.id === "sheriff:speech");
+    if (!sheriffCandidate || sheriffCandidate.command.type !== "sheriffSpeech") {
+      throw new Error("expected sheriff speech candidate");
+    }
+    const leakyInput = {
+      ...input,
+      candidates: input.candidates.map((candidate) =>
+        candidate.id === sheriffCandidate.id
+          ? {
+              ...candidate,
+              command: {
+                ...sheriffCandidate.command,
+                message:
+                  "Mimo那段我先放一下，先回到2号没讲顺的地方。我会先把公开身份说法和查杀回应摆出来。先隐藏狼队视角，围绕Claude制造分歧。",
+              },
+            }
+          : candidate,
+      ),
+    };
+
+    expect(
+      validateActionDecision(view, leakyInput, {
+        candidateId: sheriffCandidate.id,
+        reason: "警上先看公开身份线怎么落票。",
+        message: "",
+      }),
+    ).toContain("警长发言泄露私有身份或狼队策略");
+  });
+
   it("includes local character role-card guidance in real LLM action input", () => {
     const state = createGame({ seed: 91, humanSeatId: null });
     state.phase = "DAY_VOTE";
@@ -488,6 +554,103 @@ describe("routed action provider", () => {
     expect(reason).not.toContain("这条公开证据更硬");
   });
 
+  it("rejects public action reasons that reveal own role or night action", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.phase = "SHERIFF_NOMINATION";
+    const witch = state.seats.find((seat) => seat.role === "WITCH")!;
+    state.night.witchSavedSeatId = 2;
+    const view = buildAgentView(state, witch.seatId);
+    const tableRead = buildAiTableRead(view);
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      fallbackCommand: createMockCommand(view, tableRead),
+    });
+
+    expect(input.constraints.join("\n")).toContain("公开行动理由");
+
+    expect(
+      validateActionDecision(view, input, {
+        candidateId: "sheriff:stay-down",
+        reason: "第一天信息太少，我作为女巫先不上警，听完警上再站边。",
+        message: "",
+      }),
+    ).toContain("公开行动理由泄露私有身份或夜晚信息");
+
+    const villager = state.seats.find((seat) => seat.role === "VILLAGER")!;
+    const villagerView = buildAgentView(state, villager.seatId);
+    const villagerTableRead = buildAiTableRead(villagerView);
+    const villagerInput = buildConstrainedActionInput(villagerView, {
+      tableRead: villagerTableRead,
+      fallbackCommand: createMockCommand(villagerView, villagerTableRead),
+    });
+
+    expect(
+      validateActionDecision(villagerView, villagerInput, {
+        candidateId: "sheriff:stay-down",
+        reason: "我作为闭眼平民先不上警，听完警上发言再站边。",
+        message: "",
+      }),
+    ).toContain("公开行动理由泄露私有身份或夜晚信息");
+
+    expect(
+      validateActionDecision(villagerView, villagerInput, {
+        candidateId: "sheriff:stay-down",
+        reason: "我作为闭眼位先不上警，听完警上发言再站边。",
+        message: "",
+      }),
+    ).toContain("公开行动理由泄露私有身份或夜晚信息");
+
+    const voteState = { ...state, phase: "DAY_VOTE" as const };
+    const voteView = buildAgentView(voteState, witch.seatId);
+    const voteTableRead = buildAiTableRead(voteView);
+    const voteInput = buildConstrainedActionInput(voteView, {
+      tableRead: voteTableRead,
+      fallbackCommand: createMockCommand(voteView, voteTableRead),
+    });
+    const voteCandidate = voteInput.candidates.find((candidate) => candidate.command.type === "vote" && candidate.command.targetSeatId);
+    if (!voteCandidate) throw new Error("expected vote candidate");
+
+    expect(
+      validateActionDecision(voteView, voteInput, {
+        candidateId: voteCandidate.id,
+        reason: "作为女巫，我首夜救了2号，说明2号身份可信。",
+        message: "",
+      }),
+    ).toContain("公开行动理由泄露私有身份或夜晚信息");
+  });
+
+  it("allows public action reasons to reference another seat's public witch claim", () => {
+    let state = createGame({ boardId: "9p-seer-witch-hunter", seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [2];
+    state.speechIndex = 0;
+    state.seats[1]!.role = "WITCH";
+    state.night.witchSavedSeatId = 4;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "我是女巫，昨晚救的是4号豆包，4号是银水。",
+    });
+    state.phase = "DAY_VOTE";
+    const view = buildAgentView(state, 4);
+    const tableRead = buildAiTableRead(view);
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      fallbackCommand: createMockCommand(view, tableRead),
+    });
+    const candidate = input.candidates.find((item) => item.command.type === "vote" && item.command.targetSeatId === 2);
+    if (!candidate) throw new Error("expected vote candidate against public witch claimant");
+
+    expect(
+      validateActionDecision(view, input, {
+        candidateId: candidate.id,
+        reason: "2号Claude跳女巫说救了我，这条银水链我需要压出解释。",
+        message: "",
+      }),
+    ).not.toContain("公开行动理由泄露私有身份或夜晚信息");
+  });
+
   it("keeps mock vote reasons continuous when voting the previous speech target", () => {
     const state = createGame({ seed: 91, humanSeatId: null });
     state.phase = "DAY_VOTE";
@@ -803,6 +966,43 @@ describe("routed action provider", () => {
       validateActionDecision(groundedView, groundedInput, {
         candidateId: `vote:${gpt.seatId}`,
         reason: "8号Kimi报了GPT查杀，这个公开查验我先接住。",
+        message: "",
+      }),
+    ).not.toContain("凭空引用未公开查验结果");
+  });
+
+  it("accepts grounded public check attribution when a target name ends with a digit", () => {
+    const deepseek2 = target(9, "DeepSeek2");
+    const kimi = target(8, "Kimi");
+    const mimo = target(5, "Mimo");
+    const groundedMemory = emptyTableMemory({
+      claimBoard: [
+        {
+          claimId: "8:SEER",
+          claimant: kimi,
+          claimedRole: "SEER",
+          claimedRoleLabel: "预言家",
+          strength: "hard",
+          checks: [{ day: 2, target: deepseek2, result: "WEREWOLF" }],
+          summary: "Kimi 明确声称自己是预言家，并报出9号DeepSeek2查杀。",
+          lastUpdatedDay: 2,
+        },
+      ],
+    });
+    const view = voteActionView([deepseek2, kimi, mimo], groundedMemory);
+    const tableRead = {
+      ...actionTableRead([seatRead(deepseek2), seatRead(kimi), seatRead(mimo)], groundedMemory),
+      myRole: "VILLAGER" as const,
+    };
+    const input = buildConstrainedActionInput(view, {
+      tableRead,
+      fallbackCommand: { type: "vote", actorSeatId: 1, targetSeatId: deepseek2.seatId, reason: "先投9号。" },
+    });
+
+    expect(
+      validateActionDecision(view, input, {
+        candidateId: `vote:${deepseek2.seatId}`,
+        reason: "8号Kimi报了DeepSeek2查杀，这个公开查验我先接住。",
         message: "",
       }),
     ).not.toContain("凭空引用未公开查验结果");

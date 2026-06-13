@@ -3,7 +3,7 @@ import { applyCommand, applySystemStep, createGame } from "@/game/engine";
 import { defaultOrdinaryPlayerProfile } from "@/game/ordinaryPlayerProfiles";
 import { buildAgentView } from "@/game/projection";
 import type { AiCharacterRoleCard, PublicReasoningCue, Seat, SpeechPlan } from "@/game/types";
-import { advanceWithMockAi } from "./mockAgent";
+import { advanceWithMockAi, createMockCommand } from "./mockAgent";
 import { createSpeechPlan } from "./tableRead";
 import {
   buildConstrainedSpeechInput,
@@ -54,6 +54,109 @@ describe("routed speech provider", () => {
     expect(validateRenderedSpeech(view, plan, "塞蕾丝，你这枚筹码押得很轻。但这里面有个问题。", "guided")).toContain(
       "发言疑似被截断",
     );
+  });
+
+  it("rejects ordinary speech that ends after a previous-speaker pickup", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    const speaker = state.seats[9]!;
+    speaker.name = "Claude2";
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, speaker.seatId);
+    const plan = createSpeechPlan(view);
+
+    expect(validateRenderedSpeech(view, plan, "我是10号Claude2。刚才9号DeepSeek2说的", "guided")).toContain(
+      "普通局发言疑似被截断",
+    );
+  });
+
+  it("does not soft-accept ordinary speech that still ends as a fragment after retries", async () => {
+    process.env.AI_LLM_MAX_RETRIES = "1";
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [10];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 10);
+    const plan = createSpeechPlan(view);
+    const provider = createConstrainedLlmSpeechProvider({
+      providerId: "ordinary-truncated-hard-reject-test",
+      render: async () =>
+        JSON.stringify({
+          speech: "我先说9号DeepSeek2刚才那段。他抓6号Gemini那句",
+        }),
+    });
+
+    const result = await provider.generateSpeech(view, plan);
+
+    expect(result.isFallback).toBe(true);
+    expect(JSON.stringify(result.rawOutput)).toContain("普通局发言疑似被截断");
+    expect(result.speech).not.toContain("他抓6号Gemini那句");
+  });
+
+  it("rejects ordinary speech that ends at an empty rebuttal cue", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [4];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 4);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "今天票口先压2号Claude，外置位要反驳就拿硬身份来对撞，别光说",
+        "guided",
+      ),
+    ).toContain("普通局发言疑似被截断");
+  });
+
+  it("allows ordinary speakers to reference an immediately public Seer check", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    state.seats[1]!.role = "SEER";
+    state.seats[1]!.name = "Claude";
+    state.seats[10]!.name = "GPT2";
+    state.speechQueue = [2, 3];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "我是2号Claude，预言家。昨晚验了11号GPT2，11号GPT2是查杀。今天票先压11号。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [3];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 3);
+    const plan = createSpeechPlan(view);
+
+    expect(view.publicSummary.claimBoard).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          claimedRole: "SEER",
+          claimant: expect.objectContaining({ seatId: 2 }),
+          checks: expect.arrayContaining([
+            expect.objectContaining({
+              target: expect.objectContaining({ seatId: 11 }),
+              result: "WEREWOLF",
+            }),
+          ]),
+        }),
+      ]),
+    );
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "我是3号GPT。接一下上一位2号Claude，他刚才跳预言家报11号GPT2查杀，票压11号。这个信息量我先认，但2号自己还在对跳压力里，所以今天我不替任何人结算。",
+        "guided",
+      ),
+    ).not.toContain("凭空引用未公开查验结果");
   });
 
   it("strips full-width parenthetical stage directions from class-trial speech", async () => {
@@ -157,6 +260,39 @@ describe("routed speech provider", () => {
     expect(result.isFallback).toBe(false);
     expect(result.speech).toBe("我先说我听到的东西，2号这轮只给流程没给票口，我想追问你今天的出人方向是。");
     expect(result.speech).not.toMatch(/[，,;；:：、-]$/);
+  });
+
+  it("dedupes adjacent repeated sheriff claim sentences from LLM speech", async () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.phase = "SHERIFF_SPEECH";
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const target = state.seats.find((seat) => seat.seatId !== seer.seatId && seat.role === "WEREWOLF")!;
+    const provider = createConstrainedLlmSpeechProvider({
+      providerId: "test-speech",
+      render: async () =>
+        JSON.stringify({
+          speech: `我跳预言家，${target.seatId}号是查杀。我跳预言家，${target.seatId}号是查杀。今天票口先压${target.seatId}号。`,
+        }),
+    });
+    state.sheriff = {
+      candidates: [seer.seatId],
+      speechQueue: [seer.seatId],
+      speechIndex: 0,
+      nominationDecisions: {},
+      withdrawalDecisions: {},
+      votes: {},
+      withdrawnSeatIds: [],
+      resolved: false,
+    };
+    state.seerChecks = [{ day: 1, seerSeatId: seer.seatId, targetSeatId: target.seatId, result: "WEREWOLF" }];
+    const view = buildAgentView(state, seer.seatId);
+
+    const result = await provider.generateSpeech(view, createSpeechPlan(view));
+
+    expect(result.isFallback).toBe(false);
+    expect(result.speech.match(/我跳预言家/g)).toHaveLength(1);
+    expect(result.speech).toContain(`${target.seatId}号是查杀`);
+    expect(result.speech).toContain(`今天票口先压${target.seatId}号`);
   });
 
   it("retries with concrete already-spoken seat guidance when a front seat is asked to answer later", async () => {
@@ -4179,6 +4315,60 @@ describe("routed speech provider", () => {
 });
 
 describe("mock speech provider", () => {
+  it("dedupes direct mock command seer-claim lead in 12p sheriff speeches", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    const seer = state.seats.find((seat) => seat.role === "SEER")!;
+    const wolf = state.seats.find((seat) => seat.role === "WEREWOLF")!;
+    state.day = 1;
+    state.phase = "SHERIFF_SPEECH";
+    state.sheriff = {
+      candidates: [seer.seatId],
+      speechQueue: [seer.seatId],
+      speechIndex: 0,
+      nominationDecisions: {},
+      withdrawalDecisions: {},
+      votes: {},
+      withdrawnSeatIds: [],
+      resolved: false,
+    };
+    state.seerChecks = [{ day: 1, seerSeatId: seer.seatId, targetSeatId: wolf.seatId, result: "WEREWOLF" }];
+
+    const command = createMockCommand(buildAgentView(state, seer.seatId));
+
+    expect(command.type).toBe("sheriffSpeech");
+    if (command.type !== "sheriffSpeech") return;
+    expect(command.message.match(/我跳预言家/g)).toHaveLength(1);
+    expect(command.message).toContain(`${wolf.seatId}号是查杀`);
+    expect(command.message).not.toMatch(/我跳预言家，\d+号是查杀。我跳预言家/);
+    expect(command.message).not.toContain("。。");
+  });
+
+  it("keeps direct mock hard-role sheriff speeches free of internal motive text", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    const hunter = state.seats.find((seat) => seat.role === "HUNTER")!;
+    state.day = 1;
+    state.phase = "SHERIFF_PK_SPEECH";
+    state.sheriff = {
+      candidates: [hunter.seatId],
+      speechQueue: [hunter.seatId],
+      speechIndex: 0,
+      nominationDecisions: {},
+      withdrawalDecisions: {},
+      votes: {},
+      withdrawnSeatIds: [],
+      resolved: false,
+    };
+
+    const command = createMockCommand(buildAgentView(state, hunter.seatId));
+
+    expect(command.type).toBe("sheriffSpeech");
+    if (command.type !== "sheriffSpeech") return;
+    expect(command.message).toContain("我拍猎人");
+    expect(command.message.match(/我拍猎人/g)).toHaveLength(1);
+    expect(command.message).not.toMatch(/拍身份是为了|用身份替代推理|底牌不虚但不乱拍身份/);
+    expect(command.message).not.toContain("。。");
+  });
+
   it("keeps ordinary live-intent scaffolding out of spoken mock text", async () => {
     const state = createGame({ seed: 91, humanSeatId: null });
     state.day = 2;
@@ -4405,8 +4595,8 @@ describe("mock speech provider", () => {
     const fourthInput = buildConstrainedSpeechInput(fourthView, createSpeechPlan(fourthView));
     const fifthInput = buildConstrainedSpeechInput(fifthView, createSpeechPlan(fifthView));
 
-    expect(fourthInput.playerSpeechGuide.tableTask?.line).toMatch(/不要复读|借这个焦点|保留.*好人面|转看/);
-    expect(fifthInput.playerSpeechGuide.tableTask?.line).toMatch(/不要复读|借这个焦点|保留.*好人面|转看/);
+    expect(fourthInput.playerSpeechGuide.tableTask?.line).toMatch(/不要复读|借这个焦点|好人解释|不直接打死|哪一步能自证|转看/);
+    expect(fifthInput.playerSpeechGuide.tableTask?.line).toMatch(/不要复读|借这个焦点|好人解释|不直接打死|哪一步能自证|转看/);
     expect(fourthInput.playerSpeechGuide.tableTask?.mode).not.toBe(fifthInput.playerSpeechGuide.tableTask?.mode);
   });
 
@@ -5120,6 +5310,11 @@ describe("mock speech provider", () => {
     expect(director?.playerVoiceCard?.riskHabit).toContain("压");
     expect(guideText).toContain("普通局玩家小传");
     expect(guideText).toContain("口头习惯");
+    expect(guideText).toContain("发言长度档位");
+    expect(guideText).toContain("提问倾向");
+    expect(guideText).toContain("口头填充");
+    expect(guideText).toContain("情绪幅度");
+    expect(guideText).toContain("默认风险姿态");
     expect(guideText).toContain("这不是台词模板");
   });
 
@@ -5138,7 +5333,7 @@ describe("mock speech provider", () => {
     });
     state.day = 2;
     state.phase = "DAY_SPEECH";
-    state.speechQueue = [speaker.seatId];
+    state.speechQueue = [target.seatId, speaker.seatId];
     state.speechIndex = 0;
     state.aiMemories = {
       [String(speaker.seatId)]: {
@@ -5151,6 +5346,11 @@ describe("mock speech provider", () => {
         beliefs: [],
       },
     };
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: target.seatId,
+      message: `${target.seatId}号发言。${speaker.seatId}号你上一轮压我，但投票理由没说满，我要你这轮先回应这个改口压力。`,
+    });
 
     const view = buildAgentView(state, speaker.seatId);
     const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "guided");
@@ -5179,6 +5379,9 @@ describe("mock speech provider", () => {
     expect(promptText).toContain("普通局自我历史");
     expect(promptText).toContain("可以延续，也可以改口");
     expect(promptText).toContain("用第一人称说为什么");
+    expect(promptText).toContain("这轮我被");
+    expect(promptText).toContain(`${target.seatId}号`);
+    expect(promptText).toContain("点过");
   });
 
   it("adds ordinary soft-director action candidates to ordinary speech input", () => {
@@ -5272,6 +5475,57 @@ describe("mock speech provider", () => {
     expect(director?.allowedSpeechMoves).toEqual(expect.arrayContaining(["discomfort", "hold", "voteBoundary"]));
     expect(guideText).toContain("接上一位/我听到了");
     expect(guideText).toContain("这轮要换玩家动作");
+    expect(guideText).toContain("承接不是礼仪");
+    expect(guideText).toContain("可以直接反驳");
+    expect(guideText).toContain("可以不点上一位");
+    expect(guideText).toContain("可以短水");
+    expect(guideText).toContain("可以护人");
+    expect(guideText).toContain("可以换目标");
+  });
+
+  it("warns ordinary speech input away from repeated full-quote propagation", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [9, 1, 2, 3, 4];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 9,
+      message: "我上警不是抢带队，先给一个标准：警徽要给能听完对跳、还能把票口说清的人。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 1,
+      message: "9号刚才那句“警徽要给能听完对跳、还能把票口说清的人”，我抓住了，但我要看他自己票口。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "9号那句“警徽要给能听完对跳、还能把票口说清的人”像在定标准，但落票没出来。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 3,
+      message: "我也听到9号说“警徽要给能听完对跳、还能把票口说清的人”，这句已经被前面反复提了。",
+    });
+    const view = buildAgentView(state, 4);
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "guided");
+    const director = (
+      input as {
+        ordinarySpeechDirector?: {
+          allowedSpeechMoves?: string[];
+          recentSurfaceMoves?: string[];
+          promptLines?: string[];
+        };
+      }
+    ).ordinarySpeechDirector;
+    const promptText = director?.promptLines?.join("\n") ?? "";
+
+    expect(director?.recentSurfaceMoves?.join("\n")).toContain("整句引用重复");
+    expect(director?.allowedSpeechMoves).not.toContain("quoteOneLine");
+    expect(promptText).toContain("前置位已经多次整句引用同一句");
+    expect(promptText).toContain("不要再全文引用");
   });
 
   it("steers ordinary speech input away from over-cited shared pressure targets", () => {
@@ -5321,6 +5575,47 @@ describe("mock speech provider", () => {
     expect(director?.allowedSpeechMoves).toEqual(expect.arrayContaining(["hold", "waterPass", "voteBoundary"]));
     expect(director?.tableObjects?.join("\n")).toContain("1号已被连续点到");
     expect(promptText).toContain("不要继续沿着同一压力轴复读");
+    expect(promptText).toContain("共享压力预算已用完");
+    expect(promptText).toContain("后续座位不要继续追同一个人同一个点");
+  });
+
+  it("diversifies ordinary public-role claim handling instead of one cautious bridge", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "我是2号Claude，预言家，昨晚验了9号DeepSeek2，9号是查杀。今天票先压9号。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 3);
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "guided");
+    const director = (
+      input as {
+        ordinarySpeechDirector?: {
+          currentPressure?: string;
+          allowedSpeechMoves?: string[];
+          promptLines?: string[];
+        };
+      }
+    ).ordinarySpeechDirector;
+    const promptText = director?.promptLines?.join("\n") ?? "";
+
+    expect(director?.currentPressure).toBe("publicRoleClaim");
+    expect(director?.allowedSpeechMoves).toEqual(expect.arrayContaining(["roleHandle", "voteBoundary", "hold"]));
+    expect(director?.allowedSpeechMoves).toEqual(expect.arrayContaining(["changeRead", "discomfort"]));
+    expect(director?.allowedSpeechMoves).not.toContain("quoteOneLine");
+    expect(promptText).toContain("公开身份声明不是单一处理器");
+    expect(promptText).toContain("直接站边");
+    expect(promptText).toContain("质疑跳者动机");
+    expect(promptText).toContain("护被查者");
+    expect(promptText).toContain("要求对跳");
+    expect(promptText).toContain("短水观望");
   });
 
   it("keeps repeated-axis steering active after a public role claim", () => {
@@ -5373,6 +5668,51 @@ describe("mock speech provider", () => {
     expect(director?.allowedSpeechMoves).not.toContain("followPressure");
     expect(director?.allowedSpeechMoves).toEqual(expect.arrayContaining(["hold", "voteBoundary", "waterPass"]));
     expect(director?.tableObjects?.join("\n")).toContain("1号已被连续点到");
+  });
+
+  it("downgrades stale ordinary self-history targets that are no longer alive", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 3;
+    state.phase = "DAY_SPEECH";
+    const speaker = state.seats.find((seat) => seat.isAi && seat.alive)!;
+    const staleTarget = state.seats.find((seat) => seat.alive && seat.seatId !== speaker.seatId)!;
+    staleTarget.alive = false;
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+    state.aiMemories = {
+      [String(speaker.seatId)]: {
+        seatId: speaker.seatId,
+        day: 3,
+        lastSpeechTargetSeatId: staleTarget.seatId,
+        lastSpeechStance: `${staleTarget.seatId}号上一轮我觉得像悍跳`,
+        lastVoteTargetSeatId: staleTarget.seatId,
+        lastVoteReason: `${staleTarget.seatId}号对跳线更硬`,
+        beliefs: [],
+      },
+    };
+
+    const view = buildAgentView(state, speaker.seatId);
+    const input = buildConstrainedSpeechInput(view, createSpeechPlan(view), "guided");
+    const director = (
+      input as {
+        ordinarySpeechDirector?: {
+          selfHistory?: {
+            lastSpeechTarget?: { seatId: number };
+            lastVoteTarget?: { seatId: number };
+            promptLines?: string[];
+          };
+          promptLines?: string[];
+        };
+      }
+    ).ordinarySpeechDirector;
+    const promptText = director?.promptLines?.join("\n") ?? "";
+
+    expect(director?.selfHistory?.lastSpeechTarget).toBeUndefined();
+    expect(director?.selfHistory?.lastVoteTarget).toBeUndefined();
+    expect(promptText).not.toContain(`上一轮我发言主要点过${staleTarget.seatId}号`);
+    expect(promptText).toContain(`${staleTarget.seatId}号`);
+    expect(promptText).toContain("旧线");
+    expect(promptText).toContain("不是当前可处理目标");
   });
 
   it("prioritizes ordinary defense moves when the current speaker is questioned", () => {
@@ -5561,6 +5901,41 @@ describe("mock speech provider", () => {
     expect(result.speech).toContain("我先不压票");
     expect(result.speech).toContain("先听一圈");
     expect(result.validationErrors ?? []).toEqual([]);
+  });
+
+  it("avoids reusing the public-claim fallback bridge already used this game", async () => {
+    process.env.AI_LLM_MAX_RETRIES = "0";
+    const provider = createConstrainedLlmSpeechProvider({
+      providerId: "forced-fallback-speech",
+      render: async () => {
+        throw new Error("forced fallback");
+      },
+    });
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "我是2号Claude，预言家，昨晚验了9号DeepSeek2，9号是查杀。今天票先压9号。",
+    });
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 3,
+      message: "2号Claude报9号DeepSeek2查杀，这条线我先看今天怎么站边，不急着只听一个结论。9号先接查杀。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 4);
+
+    const result = await provider.generateSpeech(view, createSpeechPlan(view));
+
+    expect(result.isFallback).toBe(true);
+    expect(result.speech).not.toContain("这条线我先看今天怎么站边，不急着只听一个结论");
+    expect(result.speech).toMatch(/查杀|预言家|对跳|票口|保/);
   });
 
   it("makes ordinary provider-error fallback answer pressure before table review", async () => {
@@ -7130,6 +7505,60 @@ describe("mock speech provider", () => {
     expect(repairText).toContain("换动作或换焦点");
   });
 
+  it("gives specific retry instructions for ordinary D1 first-check motive attacks", async () => {
+    process.env.AI_LLM_MAX_RETRIES = "1";
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [2, 6, 9];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "我是2号Claude，预言家，昨晚验了9号DeepSeek2，查杀。今天票先压9号，谁保9号就和我的结果对撞。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [6, 9];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 6);
+    const plan = createSpeechPlan(view);
+    let attempts = 0;
+    let retryInput: ReturnType<typeof buildConstrainedSpeechInput> | undefined;
+    const provider = createConstrainedLlmSpeechProvider({
+      providerId: "ordinary-first-check-motive-retry-test",
+      render: async (input) => {
+        attempts += 1;
+        if (attempts === 1) {
+          return JSON.stringify({
+            speech: "我是6号Gemini。2号Claude报9号查杀，但他说不清为什么验9号，这个验人心路太轻，我先压2号。",
+          });
+        }
+        retryInput = input;
+        return JSON.stringify({
+          speech: "我是6号Gemini。2号Claude报9号查杀，我先把结果放桌上。9号还没发言，轮到他先正面接；后面有人对跳再一起看。",
+        });
+      },
+    });
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "我是6号Gemini。2号Claude报9号查杀，但他说不清为什么验9号，这个验人心路太轻，我先压2号。",
+        "guided",
+      ),
+    ).toContain("D1首验理由不是主要攻击点");
+
+    const result = await provider.generateSpeech(view, plan);
+    const repairText = retryInput?.stability?.repairInstructions?.join("\n") ?? "";
+
+    expect(result.isFallback).toBe(false);
+    expect(attempts).toBe(2);
+    expect(retryInput?.stability?.previousIssue).toContain("D1首验理由不是主要攻击点");
+    expect(repairText).toContain("普通局D1首验理由修复");
+    expect(repairText).toContain("查杀位怎么回应");
+  });
+
   it("rejects ordinary non-opening speakers that call themselves the first speaker", () => {
     let state = createGame({ seed: 91, humanSeatId: null });
     state.day = 1;
@@ -7813,6 +8242,33 @@ describe("mock speech provider", () => {
     ).toEqual([]);
   });
 
+  it("does not treat negated witch-boundary criticism as a witch claim attribution", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [10, 4];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 10,
+      message: "女巫牌先不急着跳。保留底牌威慑和挡刀空间，不把软身份边界说成明确拍身份。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [4];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 4);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "10号Claude2刚才那句话我听着有点拧，你像在替女巫划边界，但你又没有拍自己是女巫，我只看你后面怎么落票。",
+        "guided",
+      ),
+    ).not.toEqual(expect.arrayContaining(["把10号的女巫用药表述错当女巫声明"]));
+  });
+
   it("keeps a concise public witch save report visible as a real witch claim for later speakers", () => {
     let state = createGame({ seed: 91, humanSeatId: null });
     state.day = 1;
@@ -7984,6 +8440,98 @@ describe("mock speech provider", () => {
         "guided",
       ),
     ).not.toContain("凭空引用未公开查验结果");
+  });
+
+  it("accepts grounded public check attribution when a target name ends with a digit in speech", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    state.roleClaims.push({
+      id: "8:SEER",
+      day: 2,
+      claimantSeatId: 8,
+      claimedRole: "SEER",
+      strength: "hard",
+      checks: [{ day: 2, claimantSeatId: 8, targetSeatId: 9, result: "WEREWOLF" }],
+      message: "我是8号Kimi，预言家，9号DeepSeek2查杀。",
+    });
+    state.speechQueue = [1];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 1);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "8号Kimi报了DeepSeek2查杀，这个公开查验我先接住，今天先听9号怎么回应。",
+        "guided",
+      ),
+    ).not.toContain("凭空引用未公开查验结果");
+  });
+
+  it("does not cross-read witch silver water and a seer black check as fabricated public checks", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 1;
+    state.phase = "DAY_SPEECH";
+    state.seats[9]!.role = "WITCH";
+    state.roleClaims.push({
+      id: "2:SEER",
+      day: 1,
+      claimantSeatId: 2,
+      claimedRole: "SEER",
+      strength: "hard",
+      checks: [{ day: 1, claimantSeatId: 2, targetSeatId: 9, result: "WEREWOLF" }],
+      message: "我是2号Claude，预言家，9号DeepSeek2查杀。",
+    });
+    state.speechQueue = [10];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 10);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "我是女巫，昨夜救的是2号Claude，银水。今天2号Claude跳预言家报9号DeepSeek2查杀，这条线我先认下。",
+        "guided",
+      ),
+    ).not.toContain("凭空引用未公开查验结果");
+  });
+
+  it("allows generic counterclaim status after a public seer check", () => {
+    let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [2, 5];
+    state.speechIndex = 0;
+    state = applyCommand(state, {
+      type: "speak",
+      actorSeatId: 2,
+      message: "我是2号Claude，预言家，昨晚验了8号Kimi，8号是查杀。今天票口先压8号。",
+    });
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [5];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 5);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "2号Claude跳预言家报8号Kimi查杀，这条线我暂时认下，因为到现在没人对跳预言家。",
+        "guided",
+      ),
+    ).not.toContain("报查验结果等同预言家声明，不能追问是否跳预言家");
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "2号Claude给出8号Kimi查杀，我先把结果放桌面，今天看有没有对跳和8号怎么正面接。",
+        "guided",
+      ),
+    ).not.toContain("报查验结果等同预言家声明，不能追问是否跳预言家");
   });
 
   it("keeps day-one peace-night wording concise and rejects verbose no-kill probability talk", () => {
@@ -9300,6 +9848,55 @@ describe("mock speech provider", () => {
     expect(quoteCarryCount / speeches.length).toBeLessThan(0.7);
   });
 
+  it("naturalizes numbered 12p speech-influence cues before briefing and mock speech", async () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 2;
+    state.phase = "DAY_SPEECH";
+    const speaker = state.seats.find((seat) => seat.seatId === 1)!;
+    state.speechQueue = [speaker.seatId];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, speaker.seatId);
+    const actor = { seatId: 3, name: "GPT" };
+    const target = { seatId: 9, name: "DeepSeek2" };
+    const followup = { seatId: 10, name: "Claude2" };
+    const cue: PublicReasoningCue = {
+      cueId: "speech-influence:41:9:pressure",
+      day: 1,
+      kind: "speech_influence",
+      weight: "strong",
+      summary: "GPT对DeepSeek2的压力被3名后续发言者接住",
+      actor,
+      target,
+      evidence: ["Claude2后续继续施压DeepSeek2"],
+    };
+    view.publicSummary.tableMemory.reasoningCues = [cue];
+    view.publicSummary.tableMemory.speechInfluence = [
+      {
+        sourceSpeechSeq: 41,
+        day: 1,
+        speaker: actor,
+        target,
+        direction: "pressure",
+        summary: cue.summary,
+        followupActors: [followup],
+        followupCount: 1,
+      },
+    ];
+    const plan: SpeechPlan = {
+      ...createSpeechPlan(view),
+      kind: "pressure",
+      target,
+      talkingPoints: ["9号这条线前后有人跟进"],
+    };
+
+    const input = buildConstrainedSpeechInput(view, plan, "guided");
+    const result = await mockSpeechProvider.generateSpeech(view, plan);
+
+    expect(input.tableBriefing.text).toContain("9号DeepSeek2有压力链");
+    expect(input.tableBriefing.text).not.toMatch(/压力被\d+名后续发言者接住|后续继续施压/);
+    expect(result.speech).not.toMatch(/压力被\d+名(?:后续发言者|后面的人)接住|后续继续施压/);
+  });
+
   it("guides model speech toward one concise table thread", () => {
     const state = createGame({ seed: 92, humanSeatId: null });
     state.phase = "DAY_SPEECH";
@@ -9328,7 +9925,8 @@ describe("mock speech provider", () => {
 
     expect(wolfAssignment).toBeDefined();
     expect(wolfAssignment?.nightInstruction).toBeDefined();
-    expect(wolfAssignment!.nightInstruction).toContain("首夜");
+    expect(wolfAssignment!.nightInstruction).toContain("夜间计划不能直接说出口");
+    expect(wolfAssignment!.nightInstruction).not.toMatch(/狼队首夜|狼队视角|制造分歧/);
     expect(goodInput.privateContext.wolfSpeechAssignment).toBeUndefined();
     expect(JSON.stringify(goodInput)).not.toMatch(/狼队首夜|战术|nightInstruction/);
   });

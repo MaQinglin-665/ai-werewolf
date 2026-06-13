@@ -2,23 +2,143 @@
 
 ## Current Objective
 
-- Current objective: Public Alpha consolidation after the ordinary Mimo speech-quality push.
-- Current task card: `docs/tasks/2026-06-public-alpha-consolidation-roadmap.md`.
-- Long-running task id: `lrt-public-alpha-consolidation-roadmap` in `long_running_tasks.json`.
+- Current objective: latest 12p paid proof exposed an empty-rebuttal fragment and then Opus flagged public check / identity-claim boundary pollution; both are fixed, and the claim-boundary guard has now passed one paid bounded proof. Next decision is whether to ask Opus/human review for a `go` judgment or do narrow evaluator calibration.
+- Current task card: `docs/tasks/2026-06-12p-mimo-speech-mechanics.md`.
+- Long-running task id: `lrt-12p-mimo-speech-mechanics` in `long_running_tasks.json`.
+- Current branch: `codex/12p-mimo-speech-mechanics`.
 - Current project checkpoint:
-  - Ordinary Mimo speech-quality work is accepted enough to ship. It is not final-polish quality, but the user chose to stop the long repair loop and submit this version.
-  - Main ordinary Mimo commit: `56c2785 Improve ordinary Mimo speech evaluation and guards`.
-  - Narrow production build blocker fix: `a0c100c Fix AI pool editable friend build blocker`.
-  - Tencent Cloud primary Alpha deployed from `a0c100c` at `https://175.178.199.245`.
-  - Release record commit: `6b79b8f docs: record Tencent deployment`.
-  - Tencent verification passed: production preflight, room SSE smoke, and room vote action smoke.
+  - 9-player ordinary Mimo speech was accepted as basically passable.
+  - User chose to first apply Fable5's underlying mechanism advice, then validate it in `12p-sheriff-seer-witch-hunter-guard`.
+  - Local code now gives ordinary seats stronger voice-card identity, bounded incoming pressure/self-history, stronger shared pressure budget language, and non-ritual opening options.
+  - 12-player paid Mimo validation later ran after the user supplied temporary provider input through a visible PowerShell prompt.
+  - 12p sample files are `tmp/12p-mimo-speech-mechanics-report.json`, `tmp/12p-mimo-speech-mechanics-cases.json`, and `tmp/12p-mimo-speech-mechanics-eval.json`.
+  - Fable5 review pack is `docs/evaluations/2026-06-12-12p-mimo-speech-mechanics-fable5-review.md`.
+  - Fable5 reviewed the sample and said to continue: the mechanism directions are right, but the next narrow fixes are rolePublicAction diversification, sheriff speech action-path texture, stale self-history target downgrade, and fallback claim-bridge de-dup.
+  - Those follow-up fixes are now implemented and locally verified.
+  - Two 72-call post-Fable bounded 12p live reruns have now been run with the temporary provider key supplied only through the safe PowerShell prompt.
+  - First post-Fable rerun evidence: `tmp/12p-mimo-speech-mechanics-post-fable-live-report.json`, `-cases.json`, and `-eval.json`; 72 calls, fallback 12, error 12, validation failures 9.
+  - The first rerun exposed an action-validation bug: names with numeric suffixes such as `DeepSeek2` were parsed by digit extraction before exact name match, so grounded public checks could be misread as fabricated.
+  - The name-suffix attribution fix is implemented and verified in `src/ai/actionProviders.ts` / `src/ai/actionProviders.test.ts`.
+  - Second post-Fable rerun evidence: `tmp/12p-mimo-speech-mechanics-post-fable-namefix-live-report.json`, `-cases.json`, and `-eval.json`; 72 calls, fallback 6, error 6, validation failures 2. Action fallback improved from 8 to 2, but speech fallback remained 4.
+  - Added a focused speech-provider regression covering adjacent duplicate sheriff claim sentences; current normalization collapses exact adjacent duplicates.
+  - Local no-paid follow-up after the second rerun is implemented: speech public-check validation exact-matches full player names before digit extraction, generic `没人对跳/看有没有对跳` status reads are allowed after a public Seer check, and repeated full sheriff-standard quotes steer later seats away from quoting the same sentence whole again.
+  - Final post-localfix rerun evidence: `tmp/12p-mimo-speech-mechanics-post-localfix-live-report.json`, `-cases.json`, and `-eval.json`; 72 calls, fallback 4, error 4, validation failures 1, local eval averageScore 97.5.
+  - The final rerun exposed a hard action-boundary defect: public action reasons could leak the actor's own hidden role or night action, for example `作为女巫，我首夜救了2号...`.
+  - That action-boundary defect is now locally fixed in `src/ai/actionProviders.ts` / `src/ai/actionProviders.test.ts`: public action reasons reject own private role/night-action leaks and can repair to public candidate reason hints; references to another seat's public Witch claim remain allowed.
+  - Post-private-guard rerun evidence: `tmp/12p-mimo-speech-mechanics-post-private-guard-live-report.json`, `-cases.json`, and `-eval.json`; 50 calls, fallback 7, error 7, validation failures 2. The original Witch/night-action leak did not recur, but D1 first-check motive retry failures polluted the sample.
+  - Post-retryfix final rerun evidence: `tmp/12p-mimo-speech-mechanics-post-retryfix-live-report.json`, `-cases.json`, and `-eval.json`; 50 calls, fallback 1, error 1, validation failures 0, local eval averageScore 98.2, highRiskCaseIds empty.
+  - After the final sample, a softer public-action self-label `我作为闭眼位` was covered locally by extending the same private-leak guard to `闭眼位/闭眼好人/闭眼平民/平民/民牌/村民`.
+  - Note: `src/ai/speech/stability.ts` is currently under the untracked `src/ai/speech/` migration directory, but `src/ai/speechProviders.ts` already imports it in this worktree. The ordinary D1 first-check retry repair is in that file and must be kept with the migration files.
+  - The later local full-game mock gate passed, but the approved small paid 12p full-feel live sample found go-blockers. Evidence: `tmp/12p-mimo-fullfeel-small-live-report.json`, `tmp/12p-mimo-fullfeel-small-live-cases.json`, `tmp/12p-mimo-fullfeel-small-live-eval.json`, and `docs/evaluations/2026-06-13-12p-mimo-fullfeel-small-live-review.md`.
+  - Small live summary: 60 calls, reached day 2 `DAY_SPEECH`, 32 public speech-like rows, ordinary day-speech fallback/error 7/23, local eval averageScore 99.5, highRiskCaseIds empty.
+  - Small live hard blockers: 8号 Kimi sheriff speech publicly leaked `隐藏狼队视角`; D2 10号 accepted the fragment `我是10号Claude2。刚才9号DeepSeek2说的`; later same-day speeches often rejected newly public Seer checks as `凭空引用未公开查验结果`.
+  - These two blocker families are now fixed locally:
+    - `sheriffSpeech` action validation rejects public messages that leak private wolf/team strategy.
+    - Sheriff speech action phases are treated as public-output phases.
+    - Wolf private speech context no longer passes raw night-strategy summaries into public speech generation.
+    - Wolf speech-plan strategy text is naturalized away from `先隐藏狼队视角` and `制造分歧`.
+    - Mock/direct public speech filters wolf internal motive points.
+    - Ordinary speech rejects short pickup fragments such as `刚才9号DeepSeek2说的`.
+    - Ordinary public-check validation can accept newly public Seer checks from the claimant's recent public speech when formal claim-board extraction lags.
+  - Post-fix evidence:
+    - `npm.cmd run test -- src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts` passed: 366 tests.
+    - `npx.cmd tsc --noEmit --pretty false` passed.
+    - `npm.cmd run lint` passed.
+    - `tmp/12p-fullgame-lowcost-mock-after-livefix-report.json`: 1/1 full local game, 146 calls, fallback 0, error 0, validationFailure 0.
+    - `tmp/12p-fullgame-lowcost-mock-after-livefix-eval.json`: 80 cases, averageScore 100, issueCount 0, highRiskCaseIds empty.
+    - scan of the post-fix mock report/cases/eval found no `狼队视角`, `隐藏狼队`, `制造分歧`, `狼队首夜`, or `队友`.
+  - Opus 4.8 review prompt was used; Opus chose `bounded-rerun`.
+  - Opus-requested bounded rerun evidence: `tmp/12p-mimo-fullfeel-bounded-rerun-report.json`, `tmp/12p-mimo-fullfeel-bounded-rerun-cases.json`, and `tmp/12p-mimo-fullfeel-bounded-rerun-eval.json`.
+  - Bounded rerun summary: 60 calls, reached day 2 `DAY_SPEECH`, fallback 3, error 3, validationFailure 1, local eval averageScore 97.1, issueCount 8, highRiskCaseIds 3.
+  - Rerun private wolf-strategy scan was clean, but accepted-fragment gate failed: D1 10号 output was `我先说9号DeepSeek2刚才那段。他抓6号Gemini那句`.
+  - The accepted-fragment path is now fixed locally at provider level: ordinary truncation remains retry/repair-capable, but a final unrepaired `普通局发言疑似被截断` can no longer be soft-accepted and instead falls back.
+  - Post-fragment-hardgate evidence:
+    - `npm.cmd run test -- src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts` passed: 367 tests.
+    - `npx.cmd tsc --noEmit --pretty false` passed.
+    - `npm.cmd run lint` passed.
+    - `tmp/12p-fullgame-lowcost-mock-after-fragment-hardgate-report.json`: 1/1 full local game, 146 calls, fallback 0, error 0, validationFailure 0.
+    - `tmp/12p-fullgame-lowcost-mock-after-fragment-hardgate-eval.json`: 80 cases, averageScore 100, issueCount 0, highRiskCaseIds empty.
+  - The user then approved the next bounded paid proof:
+    - `tmp/12p-mimo-fullfeel-final-rerun-report.json`, `tmp/12p-mimo-fullfeel-final-rerun-cases.json`, and `tmp/12p-mimo-fullfeel-final-rerun-eval.json`.
+    - 60 calls, reached day 2 `DAY_SPEECH`, fallback 4, error 4, validationFailure 1, local eval averageScore 97.8, issueCount 6, highRiskCaseIds 2.
+    - Private wolf-strategy scan was clean and the prior `刚才X说的` accepted-fragment class stayed at 0.
+    - New hard gate failure: D1 4号 ended at `别光说`.
+  - Empty-rebuttal tail is now fixed locally in `src/ai/speech/ordinarySurface.ts` and covered by `rejects ordinary speech that ends at an empty rebuttal cue`.
+  - Post-empty-tail evidence:
+    - `npm.cmd run test -- src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts` passed: 368 tests.
+    - `npx.cmd tsc --noEmit --pretty false` passed.
+    - `npm.cmd run lint` passed.
+    - `tmp/12p-fullgame-lowcost-mock-after-empty-rebuttal-tail-report.json`: 1/1 full local game, 146 calls, fallback 0, error 0, validationFailure 0.
+    - `tmp/12p-fullgame-lowcost-mock-after-empty-rebuttal-tail-eval.json`: 80 cases, averageScore 100, issueCount 0, highRiskCaseIds empty.
+  - Opus then chose one more local mechanism fix before another paid proof: public check / identity-claim boundary pollution.
+  - That boundary is now fixed locally:
+    - `extractRoleClaimFromSpeech()`, `upsertRoleClaim()`, and `describeRoleClaim()` retain structured `checks` only when `claimedRole === "SEER"`.
+    - `buildClaimBoard()` filters non-Seer checks for old or manually constructed dirty state.
+    - Seer claims, including wolf counterclaims that publicly claim Seer, still keep checks.
+  - Post-claim-boundary evidence:
+    - `npm.cmd run test -- src/game/claims.test.ts` passed: 28 tests.
+    - `npm.cmd run test -- src/game/tableMemory.test.ts` passed: 7 tests.
+    - `npm.cmd run test -- src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts` passed: 368 tests.
+    - `npm.cmd run test -- src/ai/evalOrdinaryAiUtils.test.ts src/ai/llmEvaluation.test.ts` passed: 44 tests.
+    - `npx.cmd tsc --noEmit --pretty false` passed.
+    - `npm.cmd run lint` passed.
+    - `tmp/12p-fullgame-lowcost-mock-after-claim-boundary-report.json`: 1/1 full local game, 146 calls, fallback 0, error 0, validationFailure 0.
+    - `tmp/12p-fullgame-lowcost-mock-after-claim-boundary-eval.json`: 80 cases, averageScore 100, issueCount 0, highRiskCaseIds empty.
+    - Structure scan of `tmp/12p-fullgame-lowcost-mock-after-claim-boundary-cases.json`: non-Seer claims with checks 0; Seer claims with checks 267.
+  - Post-claim-boundary paid proof evidence:
+    - `tmp/12p-mimo-claim-boundary-paid-preflight-report.json`: 1 real Mimo action call, fallback 0, error 0, validationFailure 0.
+    - `tmp/12p-mimo-claim-boundary-paid-proof-report.json`: 60 calls, reached day 2 `DAY_VOTE`, fallback 2, error 2, validationFailure 1.
+    - `tmp/12p-mimo-claim-boundary-paid-proof-eval.json`: 60 cases, averageScore 97.8, issueCount 6, highRiskCaseIds 2.
+    - Hard-gate scan: non-Seer claimBoard entries with checks 0, non-Seer own-check public statements 0, private leak hits 0, accepted fragment hard-shape hits 0.
+    - The two high-risk local eval rows are legal public-check references: Mimo/HUNTER and GLM/VILLAGER both said claimed Seers reported 9号查杀; neither row owns a check or leaks private info.
 - Historical Mimo evidence: latest v46 same-seed bounded live sample remains at `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-report.json`, `-cases.json`, and `-eval.json`. v46 local eval was averageScore 100 with issueCount 0, but had residual provider fallback/error rows, so do not call it a pure no-fallback transcript.
-- Local note: Do not write or persist API keys. Do not edit `.env`. Any real Mimo check must use temporary process env only and should be bounded unless the user explicitly approves a larger spend.
-- Next-session startup: read `AGENTS.md`, `docs/tasks/2026-06-public-alpha-consolidation-roadmap.md`, `docs/roadmap.md`, `docs/current-release.md`, `progress.md`, and `long_running_tasks.json`.
-- Next concrete action: triage the local dirty frontend/API worktree into small tasks before any further deployment. Then run a small Public Alpha mobile playtest and fix P0/P1 issues.
+- Local note: Do not write or persist API keys. Do not edit `.env`. Any real Mimo check must use temporary process env only and should be bounded to the approved 90-call budget unless the user explicitly approves a larger spend.
+- Next-session startup: read `AGENTS.md`, `docs/tasks/2026-06-12p-mimo-speech-mechanics.md`, `docs/superpowers/plans/2026-06-12p-mimo-speech-mechanics.md`, `progress.md`, and `long_running_tasks.json`.
+- Next concrete action: give the new proof to Opus/human review for a go/no-go judgment, or do a narrow local evaluator calibration so legal public-check references by non-Seer speakers stop surfacing as `logic_boundary_error`.
 
 ## Completed This Session
 
+- [x] Created branch `codex/12p-mimo-speech-mechanics`.
+- [x] Added `docs/tasks/2026-06-12p-mimo-speech-mechanics.md`.
+- [x] Added `docs/superpowers/plans/2026-06-12p-mimo-speech-mechanics.md`.
+- [x] Expanded ordinary player voice-card prompt lines with length lane, question tendency, filler/mouth habit, emotion amplitude, and default risk posture.
+- [x] Expanded ordinary self-history with bounded incoming pressure when another seat has questioned the current seat.
+- [x] Strengthened shared pressure budget prompt text once a target has already absorbed repeated same-axis pressure.
+- [x] Added non-ritual previous-speaker guidance: direct rebuttal, no named pickup, short water-pass, defense, or target shift.
+- [x] Verified locally with focused red/green tests, full speech-provider tests, `src/ai/llmEvaluation.test.ts`, TypeScript, lint, build, task-card, long-task registry, and harness checks.
+- [x] Checked current process/user/machine env without printing values. No Mimo or generic LLM provider env was present, so the paid 12-player sample was skipped.
+- [x] After user approval, launched a visible temporary PowerShell runner, accepted Mimo key/base URL as process env only, and ran the bounded 12p validation.
+- [x] 12p sample completed to files: `tmp/12p-mimo-speech-mechanics-report.json`, `tmp/12p-mimo-speech-mechanics-cases.json`, and `tmp/12p-mimo-speech-mechanics-eval.json`.
+- [x] 12p report summary: 90 calls, 33 speech, 57 action, fallbackCount 10, errorCount 10, validationFailureCount 5, stopped at `max_llm_calls`.
+- [x] 12p local eval summary: 80 evaluated cases, averageScore 99.4, issueCount 2, one high-risk stale follow-up target, and sample warnings for repeated claim-line bridges/action distribution skew.
+- [x] Added `docs/evaluations/2026-06-12-12p-mimo-speech-mechanics-fable5-review.md` for Fable5 review.
+- [x] Recorded Fable5's review result: continue, but fix rolePublicAction collapse, fallback claim bridge reuse, sheriff speech fixed template, and stale self-history target eligibility.
+- [x] Diversified public role-claim handling in `src/ai/speechProviders.ts` into six ordinary player moves: role handling, vote boundary, hold, water-pass, changed read, and discomfort.
+- [x] Changed sheriff speech action candidates in `src/ai/actionProviders.ts` so they use ordinary-player persona/risk texture instead of the fixed campaign line.
+- [x] Downgraded self-history last speech/vote targets that are no longer alive into "旧线 / 不是当前可处理目标" context.
+- [x] Added whole-game used-line avoidance for public-check fallback bridge text.
+- [x] Fable5 follow-up verification passed: focused speech tests, focused sheriff action test, combined speech/action provider tests (350 tests), `src/ai/llmEvaluation.test.ts` (39 tests), `npx tsc --noEmit --pretty false`, `npm run lint`, task-card gate, long-task gate, JSON parse, and `npm run build` with the existing Turbopack NFT trace warning.
+- [x] Ran the first post-Fable bounded 12p live rerun: `tmp/12p-mimo-speech-mechanics-post-fable-live-report.json`, `-cases.json`, and `-eval.json`; 72 calls, 26 speech, 46 action, `fallbackCount 12`, `errorCount 12`, `validationFailureCount 9`.
+- [x] Diagnosed and fixed the main action fallback pollution: public-check target names with digit suffixes such as `DeepSeek2` now exact-match player names before numeric extraction.
+- [x] Verified the name-suffix attribution fix with focused and full action-provider tests, combined speech/action provider tests, TypeScript, and lint.
+- [x] Ran the second post-Fable bounded 12p live rerun after the name-suffix fix: `tmp/12p-mimo-speech-mechanics-post-fable-namefix-live-report.json`, `-cases.json`, and `-eval.json`; 72 calls, 25 speech, 47 action, `fallbackCount 6`, `errorCount 6`, `validationFailureCount 2`.
+- [x] Added a focused speech-provider regression for adjacent duplicate sheriff claim sentences; it passes and proves the current normalization path collapses exact adjacent duplicates.
+- [x] Narrowed the remaining second-rerun speech fallbacks locally without another paid call: speech public-check target names now exact-match before digit extraction, generic counterclaim-status wording after a public Seer check is accepted, and repeated full sheriff-standard quote propagation removes `quoteOneLine` and asks later seats to paraphrase/react/change action.
+- [x] Ran the final post-localfix bounded 12p live rerun: `tmp/12p-mimo-speech-mechanics-post-localfix-live-report.json`, `-cases.json`, and `-eval.json`; 72 calls, 25 speech, 47 action, `fallbackCount 4`, `errorCount 4`, `validationFailureCount 1`, local eval averageScore 97.5.
+- [x] Diagnosed the new hard defect from that rerun: public action reasons could leak own private role/night-action information, especially Witch save information in sheriff/vote reasons.
+- [x] Added public action private-leak guard and repair: action prompts now forbid own hidden role/night-action in public reasons, validation rejects it, and repair can replace a private self-leaking reason with a public candidate hint while preserving public references to another seat's claim.
+- [x] Ran the post-private-guard 50-call bounded rerun. The original Witch/night-action private leak did not recur, but fallback was still 7/50 because ordinary retry lacked a specific repair path for `D1首验理由不是主要攻击点`.
+- [x] Added ordinary retry guidance for D1 first-check motive failures.
+- [x] Ran the final post-retryfix 50-call bounded rerun: fallback 1/50, error 1/50, validation failures 0, local eval averageScore 98.2, highRiskCaseIds empty.
+- [x] Added the final local public-action guard for softer own hidden-card labels such as `闭眼位/闭眼好人/闭眼平民/平民/民牌/村民`.
+- [x] Ran the Opus-requested 12p full-feel bounded rerun: 60 calls, fallback 3, error 3, validationFailure 1, no private wolf-strategy leak hits, but one accepted fragment on D1 10号.
+- [x] Added provider-level fragment hardgate so unrepaired ordinary truncation errors cannot be soft-accepted after retries.
+- [x] Verified the fragment hardgate with focused red/green coverage, combined speech/action provider tests (367 tests), TypeScript, lint, and a clean 12p full-game mock regression.
+- [x] Ran the next user-approved bounded paid proof after the fragment hardgate: 60 calls, fallback 4, error 4, validationFailure 1, private leak 0, prior fragment class 0, but one new empty-rebuttal fragment ending at `别光说`.
+- [x] Added ordinary surface detection for empty rebuttal tails such as `别光说`, `不能光说`, and `别只说`.
+- [x] Verified the empty-tail guard with focused red/green coverage, combined speech/action provider tests (368 tests), TypeScript, lint, and a clean 12p full-game mock regression.
+- [x] Latest 12p mechanism verification passed: action provider tests (51 tests), speech/action provider tests (360 tests), `src/ai/llmEvaluation.test.ts` (39 tests), TypeScript, lint, build, task-card gate, long-task gate, JSON parse, harness check, `git diff --check` with LF/CRLF warnings only, and strict secret scan with no real long token / literal Bearer credential / long literal env key in touched 12p scope.
+- [x] Ran the post-claim-boundary paid bounded proof: 60 calls, fallback 2, error 2, validationFailure 1; hard-gate scan found 0 non-Seer checks, 0 non-Seer own-check public statements, 0 private leaks, and 0 accepted fragment hard-shapes.
 - [x] Committed the ordinary Mimo speech-quality bundle: `56c2785 Improve ordinary Mimo speech evaluation and guards`.
 - [x] Fixed the production build blocker in `src/components/AiPoolClient.tsx`: `a0c100c Fix AI pool editable friend build blocker`.
 - [x] Pushed `origin/codex/class-trial-ui-polish-tomori`.
@@ -1255,6 +1375,176 @@ Remaining risks:
 - The remaining mock warnings should be treated as guardrail evidence, not as a reason for another broad local positive-supply pass.
 - Next engineering action after quota/key state is fixed: run a bounded paid live Mimo Day 1 sample of 6-9 speeches, then review manually plus `sampleMetrics`.
 
-Recommended next step:
+## 2026-06-13 12p Full-Game Low-Cost Follow-Up
+
+Completed:
+- Ran a complete local mock game for `12p-sheriff-seer-witch-hunter-guard` after the bounded paid 12p mechanism gate.
+- Fixed local full-game surface defects in:
+  - direct mock command hard Seer claim dedupe,
+  - direct mock command hard role motive-text filtering,
+  - numbered `speech_influence` cue naturalization,
+  - pressure-chain evidence wording variety.
+- Added focused 12p direct mock command regressions for Seer and Hunter sheriff speeches.
+- Added `docs/evaluations/2026-06-13-12p-fullgame-lowcost-diagnostic.md` and updated `docs/tasks/2026-06-12p-mimo-speech-mechanics.md`.
+
+Changed files:
+- `src/ai/mockAgent.ts`
+- `src/ai/speechProviders.ts`
+- `src/ai/speechProviders.test.ts`
+- `src/ai/reasoningFrame.ts`
+- `src/ai/debateAgenda.ts`
+- `src/ai/tableRead.ts`
+- `docs/evaluations/2026-06-13-12p-fullgame-lowcost-diagnostic.md`
+- `docs/tasks/2026-06-12p-mimo-speech-mechanics.md`
+- `progress.md`
+- `session-handoff.md`
+- `long_running_tasks.json`
+
+Verification:
+- `npm.cmd run test -- src/ai/speechProviders.test.ts` passed: 312 tests.
+- `npm.cmd run test -- src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts` passed: 363 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run harness:task-card -- docs/tasks/2026-06-12p-mimo-speech-mechanics.md` passed.
+- `npm.cmd run harness:long-tasks` passed.
+- `npm.cmd run harness:check` passed.
+- `git diff --check` passed with LF/CRLF conversion warnings only.
+- `npm.cmd run llm:evaluate -- --provider=mock --allow-mock --board=12p-sheriff-seer-witch-hunter-guard --human=none --seed-start=91 --games=1 --max-steps=800 --max-llm-calls=500 --json --out=tmp/12p-fullgame-lowcost-mock-final-pass-report.json --eval-cases-out=tmp/12p-fullgame-lowcost-mock-final-pass-cases.json` passed: 1/1 game completed, day 5 `GAME_OVER`, 146 calls, 40 speech, 106 action, fallback 0, error 0, validationFailure 0, totalQualityIssues 0.
+- `npm.cmd run eval:ordinary-ai -- --source=existing --input=tmp/12p-fullgame-lowcost-mock-final-pass-cases.json --json --out=tmp/12p-fullgame-lowcost-mock-final-pass-eval.json` passed: 80 cases, averageScore 100, issueCount 0, highRiskCaseIds empty.
+
+Remaining risks:
+- This is local mock proof, not a paid Mimo full-game player-feel proof.
+- Final local eval still has two report-only 2/26 warnings: `最卡的反应往回听` and `从{seat}号这条压力转看{seat}号...`.
+- Do not spend another paid sample by default; run one only if the user wants real-model full-game feel proof.
+
+Older v26 recommended next step:
 - Give `docs/evaluations/2026-06-11-ordinary-mimo-v26-fable5-minifix-review.md` to Fable5 now if external review is needed before another paid run.
 - Otherwise, top up/switch the temporary provider key and run the bounded live Mimo sample. Do not start phase 3 token reduction yet.
+
+Current recommended next step:
+- Treat the 12p local full-game hard gate as passed.
+- Do not spend another paid sample by default.
+- If the user wants real-model full-game proof, run one small paid 12p live sample and judge player feel manually plus local `sampleMetrics`.
+
+## 2026-06-13 12p Evaluator Calibration After Paid Claim-Boundary Proof
+
+Completed:
+- Calibrated `logic_boundary_error` so legal references to public claimed-Seer
+  checks by non-Seer speakers are no longer treated as fabricated private
+  knowledge.
+- Added regressions for the two paid-proof false-positive shapes:
+  `6号Gemini那句话点到我了——两张预言家同时报9号查杀` and
+  `2号Claude这轮直接报了8号Kimi查杀，昨天他报过9号DeepSeek2查杀`.
+- Preserved the true hard error where a non-Seer speaker attributes a check to
+  themself (`我验了9号...9号是查杀`).
+- Kept complete vote-reason endings such as `这个转折我到现在没听明白。` out of
+  `malformed_output_fragment`.
+- Re-ran the exact paid proof cases offline:
+  `tmp/12p-mimo-claim-boundary-paid-proof-after-evaluator-calibration-eval.json`.
+
+Changed files:
+- `src/ai/llmEvaluation.ts`
+- `src/ai/llmEvaluation.test.ts`
+- `docs/evaluations/2026-06-13-12p-mimo-fullfeel-small-live-review.md`
+- `docs/tasks/2026-06-12p-mimo-speech-mechanics.md`
+- `progress.md`
+- `session-handoff.md`
+- `long_running_tasks.json`
+
+Verification:
+- Red regression first failed for the real public-check quote false positive.
+- `npm.cmd run test -- src/ai/llmEvaluation.test.ts -t "public seer claims"` passed.
+- `npm.cmd run eval:ordinary-ai -- --source=existing --input=tmp/12p-mimo-claim-boundary-paid-proof-cases.json --json --out=tmp/12p-mimo-claim-boundary-paid-proof-after-evaluator-calibration-eval.json` passed: 60 cases, averageScore 99.1, issueCount 3, `logic_boundary_error` 0, `malformed_output_fragment` 0, highRiskCaseIds empty.
+
+Remaining risks:
+- Remaining sample signals are report-only: repeated sheriff-standard wording
+  and `rolePublicAction` skew.
+- No paid rerun was performed for this evaluator-only change by design.
+- The paid proof is bounded and stops at day 2; it is not a complete paid
+  full-game proof.
+
+Current recommended next step:
+- Treat the 12p hard-gate mechanism as `go` unless the user wants a separate
+  subjective full-game feel run.
+- Do not spend another paid bounded proof for the evaluator calibration.
+- Next engineering work should move to the next 12p feel category or Public
+  Alpha consolidation, not another hard-gate rerun.
+
+## 2026-06-13 12p Full-Game Mock Recheck After Evaluator Calibration
+
+Completed:
+- Reran a complete low-cost local mock game for
+  `12p-sheriff-seer-witch-hunter-guard` after evaluator calibration.
+- Confirmed local full-game hard gates remain clean through day 5 `GAME_OVER`.
+- Reran local ordinary evaluator on the new full-game cases.
+- Updated
+  `docs/evaluations/2026-06-13-12p-fullgame-lowcost-diagnostic.md`.
+
+Changed files:
+- `docs/evaluations/2026-06-13-12p-fullgame-lowcost-diagnostic.md`
+- `progress.md`
+- `session-handoff.md`
+
+Verification:
+- `npm.cmd run llm:evaluate -- --provider=mock --allow-mock --board=12p-sheriff-seer-witch-hunter-guard --human=none --seed-start=91 --games=1 --max-steps=800 --max-llm-calls=500 --json --out=tmp/12p-fullgame-lowcost-mock-after-eval-calibration-report.json --eval-cases-out=tmp/12p-fullgame-lowcost-mock-after-eval-calibration-cases.json` passed: 1/1 game completed, day 5 `GAME_OVER`, 146 calls, 40 speech, 106 action, fallback 0, error 0, validationFailure 0, totalQualityIssues 0.
+- `npm.cmd run eval:ordinary-ai -- --source=existing --input=tmp/12p-fullgame-lowcost-mock-after-eval-calibration-cases.json --json --out=tmp/12p-fullgame-lowcost-mock-after-eval-calibration-eval.json` passed: 80 cases, averageScore 100, issueCount 0, highRiskCaseIds empty.
+
+Remaining risks:
+- This is still local mock proof, not paid Mimo full-game player-feel proof.
+- The evaluator still reports two low-frequency surface warnings:
+  `最卡的反应往回听` 2/26 and
+  `从{seat}号这条压力转看{seat}号...` 2/26.
+- These are report-only and should not trigger local hard-rule work.
+
+Current recommended next step:
+- If continuing 12p full-game read-feel acceptance, run one small paid Mimo
+  full-feel sample focused on cross-day continuity, late-game public information
+  handling, and seat-specific player identity.
+- If cost control is more important, stop here: local complete-game hard gates
+  are clean and there is no free local blocker left.
+
+## 2026-06-13 Tencent Deploy: 12p Hard-Gate Passed Worktree
+
+Completed:
+- Uploaded and deployed the current `codex/12p-mimo-speech-mechanics`
+  hard-gate/evaluator-calibration worktree to the Tencent Cloud primary Alpha.
+- Created a clean source archive from the local dirty tree, excluding `.env*`,
+  `.git`, `.next`, `.local`, `node_modules`, `tmp`, generated DB files, logs,
+  and generated audio caches.
+- Uploaded archive:
+  `/tmp/ai-werewolf-hardgate-20260613-192918.tar.gz`.
+- Replaced `/opt/ai-werewolf/app` with the unpacked archive and rebuilt only the
+  app service.
+- Rollback tree on server:
+  `/opt/ai-werewolf/app-backup-20260613-192918`.
+- Live container image:
+  `sha256:22849e5c5a3cb9ddc5add801cb80dd718241b0fcb125fad233de193404158095`.
+
+Changed files:
+- `docs/current-release.md`
+- `progress.md`
+- `session-handoff.md`
+
+Verification:
+- Server Docker build completed; Next production build passed with the existing
+  Turbopack NFT trace warning.
+- `ai-werewolf-app` reached Docker health `healthy`.
+- `npm.cmd run preflight:production -- --base-url=https://175.178.199.245`
+  passed: `ok=true`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-sse`
+  passed: room `6JTSJC`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-action:vote`
+  passed: room `T95XIB`, covered `wolfKill`, `witchAction`, `speak`, and
+  `vote`, final phase `LAST_WORDS`.
+
+Remaining risks:
+- Deployed from a dirty local archive, not a clean pushed commit.
+- Render mirror was not updated.
+- This makes the hard-gate-passed work visible on Tencent Cloud, but does not
+  replace a future paid Mimo complete-game feel sample.
+
+Current recommended next step:
+- For continued 12p read-feel work, run one small paid Mimo full-feel sample
+  against the current code path and review cross-day continuity.
+- For release hygiene, commit/push the deployed worktree or split it into
+  intentional commits before further public-facing changes.

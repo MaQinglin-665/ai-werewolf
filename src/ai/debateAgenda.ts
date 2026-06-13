@@ -1,5 +1,5 @@
 import { isWolfRole } from "@/game/roleUtils";
-import type { ActionTarget, AgentView, AiTableRead, SpeechPlan, TableMemory } from "@/game/types";
+import type { ActionTarget, AgentView, AiTableRead, PublicReasoningCue, SpeechPlan, TableMemory } from "@/game/types";
 
 export type AiDebateAgenda = {
   crossExamination: string[];
@@ -39,7 +39,7 @@ export function buildDebateAgenda(
           latestShift.toTarget ?? latestShift.target,
         )}的触发点是什么，不能只说听感变了。`
       : undefined,
-    topCue?.target ? buildCueResponseLine(view, topCue.target, topCue.summary) : undefined,
+    topCue?.target ? buildCueResponseLine(view, topCue) : undefined,
     "后置位未发言时不要给全场作业；只选一个最相关位置或一条当前发言链，留下一个具体问题。",
   ]).slice(0, 5);
 
@@ -70,7 +70,7 @@ export function buildDebateAgenda(
     options.plan?.interaction?.line,
     options.plan?.personaCue?.line,
     target ? buildTargetPressureLine(view, target, options.plan) : undefined,
-    topCue ? `把${topCue.summary}从听感升级成可验证问题：谁收益、谁跟票、谁回避回应。` : undefined,
+    topCue ? `把${formatCueForAgenda(topCue)}从听感升级成可验证问题：谁收益、谁跟票、谁回避回应。` : undefined,
     isWolfRole(view.myRole, view.rules.wolfRoles)
       ? "狼人公开压人要像闭眼视角：用票型、对跳和发言顺序包装，不说队友和夜间真实信息。"
       : "好人压人要给同伴可跟的理由：证据硬度、反面解释和今天票口边界都要落桌。",
@@ -144,11 +144,23 @@ function buildTargetPressureLine(view: AgentView, target: ActionTarget, plan: Sp
   return `${targetText}如果想脱焦点，轮到他时先回应当前这一条公开矛盾。`;
 }
 
-function buildCueResponseLine(view: AgentView, target: ActionTarget, summary: string): string {
+function buildCueResponseLine(view: AgentView, cue: PublicReasoningCue): string {
+  const target = cue.target!;
+  const summary = formatCueForAgenda(cue);
   if (hasCurrentDaySpeech(view, target.seatId)) {
     return `回看${seatText(target)}已发言内容对照这条公开线索：${summary}；只评原话能不能闭合。`;
   }
   return `等${seatText(target)}发言时回应这条公开线索：${summary}；要求给出可复述的因果链。`;
+}
+
+function formatCueForAgenda(cue: PublicReasoningCue): string {
+  if (cue.kind === "speech_influence" && cue.target) {
+    const relation = /支持/.test(cue.summary) ? "支持链" : "压力链";
+    const source = cue.actor ? `${seatText(cue.actor)}先开口` : "前置位先开口";
+    const followups = cue.evidence.length > 0 ? `后面还有${cue.evidence.length}个公开跟进` : "后面有人跟进";
+    return `${seatText(cue.target)}的${relation}，${source}，${followups}`;
+  }
+  return cue.summary;
 }
 
 function isLowInfoDayOneOpeningTarget(view: AgentView, target: ActionTarget): boolean {

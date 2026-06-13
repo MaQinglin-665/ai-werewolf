@@ -32,7 +32,7 @@ export function buildReasoningFrame(view: AgentView): AiReasoningFrame {
   const softSignals = uniqueLines([
     ...memory.focus.map((item) => `焦点${seatText(item.seat)}：${item.reasons.join("、")}，分数${item.score}`),
     ...softerCues.map(formatCue),
-    ...memory.speechInfluence.map((item) => item.summary),
+    ...memory.speechInfluence.map(formatSpeechInfluenceItem),
     ...memory.publicSignals.slice(-4),
   ]).slice(0, 6);
 
@@ -92,8 +92,22 @@ export function buildReasoningFrame(view: AgentView): AiReasoningFrame {
 }
 
 function formatCue(cue: TableMemory["reasoningCues"][number]): string {
+  if (cue.kind === "speech_influence" && cue.target) {
+    const relation = /支持/.test(cue.summary) ? "支持链" : "压力链";
+    const source = cue.actor ? `${seatText(cue.actor)}先开口` : "前置位先开口";
+    const followups = cue.evidence.length > 0 ? `后面还有${cue.evidence.length}个公开跟进` : "后面有人跟进";
+    return `${seatText(cue.target)}有${relation}：${source}，${followups}`;
+  }
+
   const evidence = cue.evidence.length > 0 ? `；依据：${cue.evidence.slice(0, 2).join("、")}` : "";
   return `${cue.summary}${evidence}`;
+}
+
+function formatSpeechInfluenceItem(item: TableMemory["speechInfluence"][number]): string {
+  const relation = item.direction === "support" ? "支持链" : "压力链";
+  const source = `${seatText(item.speaker)}先开口`;
+  const followups = item.followupCount > 0 ? `后面还有${item.followupCount}人跟进` : "后面有人跟进";
+  return `${seatText(item.target)}有${relation}：${source}，${followups}`;
 }
 
 function uniqueLines(lines: Array<string | undefined>): string[] {

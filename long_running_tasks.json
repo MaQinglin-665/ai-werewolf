@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-12T18:45:00+08:00",
+  "updated_at": "2026-06-13T19:16:41+08:00",
   "tasks": [
     {
       "id": "lrt-harness-long-running-registry",
@@ -84,6 +84,45 @@
       "last_verified_command": "2026-06-12 18:45 planning/harness checks passed: npm run harness:task-card -- docs/tasks/2026-06-public-alpha-consolidation-roadmap.md; npm run harness:long-tasks; JSON parse for feature_list.json and long_running_tasks.json; npm run harness:check; git diff --check for touched docs/state files.",
       "next_action": "Triage the local dirty frontend/API worktree into small scoped tasks, then run a 5-10 player Public Alpha mobile playtest on the Tencent Cloud primary link and fix P0/P1 issues first.",
       "notes": "This is the next project phase after ordinary Mimo speech-quality acceptance and Tencent deployment. Keep Tencent as the primary public environment, Render as a separately verified backup, and avoid new feature scope until the playtest loop is stable."
+    },
+    {
+      "id": "lrt-12p-mimo-speech-mechanics",
+      "title": "12-player Mimo ordinary speech mechanics validation",
+      "status": "done",
+      "owner": "ai-speech",
+      "scope": [
+        "docs/tasks/2026-06-12p-mimo-speech-mechanics.md",
+        "docs/superpowers/plans/2026-06-12p-mimo-speech-mechanics.md",
+        "docs/evaluations/2026-06-12-12p-mimo-speech-mechanics-fable5-review.md",
+        "docs/evaluations/2026-06-13-12p-fullgame-lowcost-diagnostic.md",
+        "docs/evaluations/2026-06-13-12p-mimo-fullfeel-small-live-review.md",
+        "src/ai/speechProviders.ts",
+        "src/ai/speechProviders.test.ts",
+        "src/ai/mockAgent.ts",
+        "src/ai/reasoningFrame.ts",
+        "src/ai/debateAgenda.ts",
+        "src/ai/tableRead.ts",
+        "src/ai/actionProviders.ts",
+        "src/ai/actionProviders.test.ts",
+        "src/game/claims.ts",
+        "src/game/claims.test.ts",
+        "src/game/tableMemory.ts",
+        "src/game/tableMemory.test.ts",
+        "src/ai/llmEvaluation.ts",
+        "src/ai/llmEvaluation.test.ts",
+        "scripts/evaluate-llm-game.mjs",
+        "scripts/eval-ordinary-ai.mjs",
+        "progress.md",
+        "session-handoff.md",
+        "long_running_tasks.json"
+      ],
+      "started_at": "2026-06-12T21:05:00+08:00",
+      "updated_at": "2026-06-13T19:16:41+08:00",
+      "related_task_card": "docs/tasks/2026-06-12p-mimo-speech-mechanics.md",
+      "handoff_pointer": "session-handoff.md",
+      "last_verified_command": "2026-06-13 19:16 evaluator calibration proof: npm.cmd run test -- src/ai/llmEvaluation.test.ts -t \"public seer claims\" passed; npm.cmd run eval:ordinary-ai -- --source=existing --input=tmp/12p-mimo-claim-boundary-paid-proof-cases.json --json --out=tmp/12p-mimo-claim-boundary-paid-proof-after-evaluator-calibration-eval.json passed with 60 cases, averageScore 99.1, issueCount 3, logic_boundary_error 0, malformed_output_fragment 0, highRiskCaseIds empty.",
+      "next_action": "Closed for 12p hard-gate mechanics. Do not spend another paid bounded proof for evaluator calibration. If the user wants a complete paid full-game feel read, open a separate scoped task.",
+      "notes": "Earlier bounded mechanism gate and local full-game mock gate passed. The later real 12p full-feel sample found hard blockers: sheriff speech leaked `隐藏狼队视角`, an accepted previous-speaker pickup fragment, and immediate public Seer checks could be rejected as fabricated. Post-livefix local proof passed, but Opus chose bounded-rerun. That rerun cleared private-leak scanning but failed on one accepted fragment (`我先说9号DeepSeek2刚才那段。他抓6号Gemini那句`), which is now hardgated. The next paid proof cleared that class but found a new empty-rebuttal fragment ending at `别光说`, now locally guarded and mock-regressed. Opus then flagged public check / identity-claim boundary pollution: non-Seer claims could carry structured checks. That boundary is now locally fixed, mock-regressed, paid-verified, and evaluator-calibrated so legal public-check references no longer surface as high-risk logic_boundary_error. Do not write keys to .env or docs."
     }
   ]
 }
