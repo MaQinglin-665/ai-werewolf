@@ -61,6 +61,7 @@ export function isOrdinaryTruncatedSpeechEnding(clean: string): boolean {
   if (!clean) return false;
   if (hasOrdinaryForwardCommitmentEnding(clean)) return true;
   if (hasOrdinaryForwardCommitmentOnlyRestatement(clean)) return true;
+  if (hasUnfinishedOrdinaryFocusMarker(clean)) return true;
   if (
     /(?:我(?:这轮|现在)?主要想(?:说|聊|点(?:一下)?)|我重点想(?:说|聊|点(?:一下)?))\s*\d{1,2}号?(?:[A-Za-z0-9_\-\u4e00-\u9fa5]{0,16})[。！？!?]?$/.test(
       clean.slice(-72),
@@ -74,6 +75,7 @@ export function isOrdinaryTruncatedSpeechEnding(clean: string): boolean {
   return (
     /(?:我先把|我把|先把|我会把|我想把|我准备把|我这轮把)\s*\d{1,2}(?:号)?$/.test(tail) ||
     /(?:我先把|我把|先把|我会把|我想把|我准备把|我这轮把)\s*\d{1,2}号?[A-Za-z0-9_-]{0,16}$/.test(tail) ||
+    /(?:但|但是|不过|可是|然而)[^。！？；]{0,72}(?:留了|留下|遗留)[^。！？；]{0,28}(?:查杀|金水)$/.test(clean.slice(-120)) ||
     /(?:卡住了|卡在|问题是|重点是|疑问是|我想问|我想听|听不懂的是|没接上的是)[:：,，、；;\s]*\d{1,2}(?:号)?[A-Za-z0-9_-]{0,16}$/.test(tail) ||
     /(?:我倒想知道|倒想知道|我想知道|想知道|我想听听|想听听)$/.test(tail) ||
     /(?:能撑住的)?(?:只有|只剩|剩下的只有|我能认的只有)$/.test(tail) ||
@@ -87,6 +89,11 @@ export function isOrdinaryTruncatedSpeechEnding(clean: string): boolean {
     /(?:别|不要|不能|不是|不该)(?:只|光|空)?(?:说|喊|跟|认|保|压)$/.test(tail) ||
     /(?:但|但是|不过|可是|然而|所以|因为|如果|而且|比如|例如|我想问|我想听|想听|我的问题是|卡我的是|重点是|先把|我先把)[:：,，、；;\s]*$/.test(tail)
   );
+}
+
+export function hasUnfinishedOrdinaryFocusMarker(clean: string): boolean {
+  const tail = clean.slice(-56);
+  return /(?:重点|关键|问题|落点|核心|矛盾|疑点)[^。！？；]{0,16}(?:全在|都在|在于|在)\s*$/.test(tail);
 }
 
 export function hasOrdinaryForwardCommitmentEnding(clean: string): boolean {

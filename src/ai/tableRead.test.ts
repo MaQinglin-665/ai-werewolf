@@ -1125,9 +1125,9 @@ describe("createSpeechPlan", () => {
 
     const plan = createSpeechPlan(view, tableRead);
 
-    expect(plan.tableTask?.line).toContain("必须换角度");
+    expect(plan.tableTask?.line).toContain("别再复读");
     expect(plan.tableTask?.line).not.toContain("检查谁在借这个焦点做收益");
-    expect(plan.tableTask?.line).toContain("谁公开替焦点改方向");
+    expect(plan.tableTask?.line).toContain("新理由");
     expect(plan.talkingPoints.join("\n")).not.toMatch(/1号[^。\n]{0,24}(?:没给|没有).{0,12}(?:站边|票口)/);
   });
 

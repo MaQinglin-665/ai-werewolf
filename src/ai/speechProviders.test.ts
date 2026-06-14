@@ -115,6 +115,25 @@ describe("routed speech provider", () => {
     ).toContain("普通局发言疑似被截断");
   });
 
+  it("rejects ordinary speech that ends after an unfinished focus marker", () => {
+    const state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
+    state.day = 3;
+    state.phase = "DAY_SPEECH";
+    state.speechQueue = [7];
+    state.speechIndex = 0;
+    const view = buildAgentView(state, 7);
+    const plan = createSpeechPlan(view);
+
+    expect(
+      validateRenderedSpeech(
+        view,
+        plan,
+        "说实话，1号DeepSeek，你今天这条查验我先挂着。你报2号Claude查杀，但刚才那段发言的重点全在",
+        "guided",
+      ),
+    ).toContain("普通局发言疑似被截断");
+  });
+
   it("allows ordinary speakers to reference an immediately public Seer check", () => {
     let state = createGame({ boardId: "12p-sheriff-seer-witch-hunter-guard", seed: 91, humanSeatId: null });
     state.day = 2;

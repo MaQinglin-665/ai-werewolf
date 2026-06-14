@@ -305,6 +305,152 @@ describe("llm evaluation helpers", () => {
         },
       }),
     );
+    const legalPublicCheckWithPreCheckQuote = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        id: "legal-public-check-with-pre-check-quote",
+        playerRole: "VILLAGER",
+        outputText:
+          "我先接2号Claude的查验线，他报9号查杀，我暂时认这个身份，今天票口准备跟着走。不过我听9号查杀前那句“警徽要给能听完对跳、还能把票口说清的人”，放在查验之后，确实像在定标准回避焦点，1号也点到了这个缺口，我觉得观察是对的。",
+        metadata: {
+          seatNumber: 3,
+          aliveSeats: [
+            { seatId: 1, name: "DeepSeek" },
+            { seatId: 2, name: "Claude" },
+            { seatId: 3, name: "GPT" },
+            { seatId: 9, name: "DeepSeek2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 2,
+              claimantName: "Claude",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 9, targetName: "DeepSeek2", result: "WEREWOLF" }],
+            },
+          ],
+        },
+      }),
+    );
+    const legalD3PublicSeerQuote = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        id: "legal-d3-public-seer-quote",
+        playerRole: "VILLAGER",
+        outputText:
+          "我先接一下2号Claude。他刚才报了12号豆包2金水，说警徽流看12号昨天投票压了4号豆包，所以去验。这个心路我能听懂，但有一个点我没听明白。上一轮2号吃到4号豆包的查杀，他自己第一天报的也是9号DeepSeek2查杀。",
+        metadata: {
+          seatNumber: 3,
+          aliveSeats: [
+            { seatId: 2, name: "Claude" },
+            { seatId: 3, name: "GPT" },
+            { seatId: 4, name: "豆包" },
+            { seatId: 9, name: "DeepSeek2" },
+            { seatId: 10, name: "Claude2" },
+            { seatId: 12, name: "豆包2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 2,
+              claimantName: "Claude",
+              claimedRole: "SEER",
+              checks: [
+                { targetSeatId: 9, targetName: "DeepSeek2", result: "WEREWOLF" },
+                { targetSeatId: 12, targetName: "豆包2", result: "GOOD" },
+              ],
+            },
+            {
+              claimantSeatId: 4,
+              claimantName: "豆包",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 2, targetName: "Claude", result: "WEREWOLF" }],
+            },
+            {
+              claimantSeatId: 10,
+              claimantName: "Claude2",
+              claimedRole: "WITCH",
+              checks: [],
+            },
+          ],
+        },
+      }),
+    );
+    const legalDirectSaidCheckQuote = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        id: "legal-direct-said-check-quote",
+        playerRole: "VILLAGER",
+        outputText:
+          "2号Claude刚才说验了11号GPT2查杀，票口直接压11号。这个查验我先接着，但我想先对上一下他昨天的票型。",
+        metadata: {
+          seatNumber: 3,
+          aliveSeats: [
+            { seatId: 2, name: "Claude" },
+            { seatId: 3, name: "GPT" },
+            { seatId: 11, name: "GPT2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 2,
+              claimantName: "Claude",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 11, targetName: "GPT2", result: "WEREWOLF" }],
+            },
+          ],
+        },
+      }),
+    );
+    const legalSecondPersonCheckQuote = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        id: "legal-second-person-check-quote",
+        playerRole: "HUNTER",
+        outputText:
+          "3号GPT刚才问2号Claude为什么投9号不是4号，这个问题我也想接一句。我是5号Mimo，猎人，昨天拍过身份。2号Claude你既然今天报11号查杀，那你的警徽流和昨天为什么没跟着豆包走，这两件事得对上。",
+        metadata: {
+          seatNumber: 5,
+          aliveSeats: [
+            { seatId: 2, name: "Claude" },
+            { seatId: 3, name: "GPT" },
+            { seatId: 5, name: "Mimo" },
+            { seatId: 11, name: "GPT2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 2,
+              claimantName: "Claude",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 11, targetName: "GPT2", result: "WEREWOLF" }],
+            },
+            {
+              claimantSeatId: 5,
+              claimantName: "Mimo",
+              claimedRole: "HUNTER",
+              checks: [],
+            },
+          ],
+        },
+      }),
+    );
+    const fabricatedMatchingPublicCheckWording = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        id: "fabricated-matching-public-check-wording",
+        playerRole: "VILLAGER",
+        outputText: "我先接2号Claude的查验线，他报9号查杀，我暂时认这个身份，今天票口准备跟着走。",
+        metadata: {
+          seatNumber: 3,
+          aliveSeats: [
+            { seatId: 2, name: "Claude" },
+            { seatId: 3, name: "GPT" },
+            { seatId: 8, name: "Kimi" },
+            { seatId: 9, name: "DeepSeek2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 2,
+              claimantName: "Claude",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 8, targetName: "Kimi", result: "WEREWOLF" }],
+            },
+          ],
+        },
+      }),
+    );
     const hunterSelfCheck = analyzeOrdinaryAiEvalCase(
       ordinarySpeechCase({
         playerRole: "HUNTER",
@@ -331,6 +477,11 @@ describe("llm evaluation helpers", () => {
     expect(villagerQuote.issueCodes).not.toContain("logic_boundary_error");
     expect(priorSpeakerGenericQuote.issueCodes).not.toContain("logic_boundary_error");
     expect(seerFollowupQuote.issueCodes).not.toContain("logic_boundary_error");
+    expect(legalPublicCheckWithPreCheckQuote.issueCodes).not.toContain("logic_boundary_error");
+    expect(legalD3PublicSeerQuote.issueCodes).not.toContain("logic_boundary_error");
+    expect(legalDirectSaidCheckQuote.issueCodes).not.toContain("logic_boundary_error");
+    expect(legalSecondPersonCheckQuote.issueCodes).not.toContain("logic_boundary_error");
+    expect(fabricatedMatchingPublicCheckWording.issueCodes).toContain("logic_boundary_error");
     expect(hunterSelfCheck.issueCodes).toContain("logic_boundary_error");
   });
 
@@ -491,6 +642,28 @@ describe("llm evaluation helpers", () => {
     });
 
     expect(unfinishedDiscomfort.map((issue) => issue.code)).toContain("malformed_output_fragment");
+
+    const unfinishedFocusMarker = analyzeLlmCallQuality({
+      outputText:
+        "说实话，1号DeepSeek，你今天这条查验我先挂着。你报2号Claude查杀，但刚才那段发言的重点全在",
+      phase: "DAY_SPEECH",
+      task: "speech",
+      reasoningCueCount: 1,
+      referencedReasoningCueCount: 1,
+    });
+
+    expect(unfinishedFocusMarker.map((issue) => issue.code)).toContain("malformed_output_fragment");
+
+    const unfinishedCheckLineContrast = analyzeLlmCallQuality({
+      outputText:
+        "12号，最后一位，我有警徽，我直接说今天的票口。我上一轮从支持Claude改成施压Claude，当时是因为Kimi跳预言家报Claude查杀、豆包遗言也是Claude查杀，两条线压同一个人，我觉得比Claude单方面报查杀硬。但现在Claude夜死留了两条查杀",
+      phase: "DAY_SPEECH",
+      task: "speech",
+      reasoningCueCount: 1,
+      referencedReasoningCueCount: 1,
+    });
+
+    expect(unfinishedCheckLineContrast.map((issue) => issue.code)).toContain("malformed_output_fragment");
   });
 
   it("flags forward commitment speech endings as malformed fragments", () => {

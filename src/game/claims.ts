@@ -23,6 +23,10 @@ const SEAT_NAME_SELF_ROLE_PREFIX = "(?:^|[，,。！？!?；;：:\\s])(?:\\d{1,2
 const CLAIM_TARGET_LABEL = "(?:玩家|位|AI|[A-Za-z0-9_\\-\\u4e00-\\u9fa5]{0,24}?)?";
 const CHECK_RESULT_TEXT = "(查杀(?!位|牌|线|结果)|金水(?!位|牌|线|结果)|狼人|好人|狼)";
 const SELF_CHECK_RESULT_PREFIX = "[，,：:\\s]*(?:是|为|出)?\\s*(?:我(?:昨晚|昨夜|夜里|今晚)?(?:查验|验|查|摸)(?:出来)?的?|我的)?\\s*";
+const OWN_CHECK_VERB_TEXT = "(?:查验|查验的是|查了|验了|验的是|摸了|我验|我查|报验)";
+const REPORT_CHECK_VERB_TEXT =
+  "(?:报过|报了|报出|报的是|报的|报|给过|给了|给出|给的是|给的|留过|留了|留下|留的是|留的|说过|说的是|说的|说|称)";
+const OTHER_SUBJECT_CHECK_VERB_TEXT = `(?:${REPORT_CHECK_VERB_TEXT}|验过|查过|验了|查了|验|查)`;
 const WITCH_DIRECT_ROLE_PATTERN = new RegExp(
   `(?:我是|我拍|(?<!在)我这里是|我底牌是|明牌|我这张|我作为)${ROLE_CLAIM_GAP}(?:女巫|女巫牌)`,
 );
@@ -206,20 +210,36 @@ function extractClaimChecks(params: {
   const checks: ClaimCheck[] = [];
   const patterns = [
     new RegExp(
-      `(?:查验|查验的是|查了|验了|验的是|摸了|我验|我查|报验).{0,12}?(\\d{1,2})\\s*号${CLAIM_TARGET_LABEL}${SELF_CHECK_RESULT_PREFIX}${CHECK_RESULT_TEXT}`,
+      `${OWN_CHECK_VERB_TEXT}.{0,12}?(\\d{1,2})\\s*号${CLAIM_TARGET_LABEL}${SELF_CHECK_RESULT_PREFIX}${CHECK_RESULT_TEXT}`,
       "g",
     ),
     new RegExp(
-      `(?:查验|查验的是|查了|验了|验的是|摸了|我验|我查|报验).{0,18}?(\\d{1,2})\\s*号${CLAIM_TARGET_LABEL}[\\s,，:：\\-—－]{1,8}(?:${CLAIM_TARGET_LABEL}[\\s,，:：\\-—－]{1,8})?(?:他|她|TA|ta|这个位置|这张牌|结果)?\\s*(?:是|为)?\\s*${CHECK_RESULT_TEXT}`,
+      `${OWN_CHECK_VERB_TEXT}.{0,18}?(\\d{1,2})\\s*号${CLAIM_TARGET_LABEL}[\\s,，:：\\-—－]{1,8}(?:${CLAIM_TARGET_LABEL}[\\s,，:：\\-—－]{1,8})?(?:他|她|TA|ta|这个位置|这张牌|结果)?\\s*(?:是|为)?\\s*${CHECK_RESULT_TEXT}`,
       "g",
     ),
     new RegExp(`(\\d{1,2})\\s*号${CLAIM_TARGET_LABEL}${SELF_CHECK_RESULT_PREFIX}${CHECK_RESULT_TEXT}`, "g"),
+    new RegExp(
+      `(\\d{1,2})\\s*号${CLAIM_TARGET_LABEL}[\\s,，:：\\-—－]{1,8}(?:我(?:昨晚|昨夜|夜里|今晚)?(?:查验|验|查|摸)(?:出来)?(?:的是|的)?(?:你|他|她|TA|ta)|(?:昨晚|昨夜|夜里|今晚)?(?:查验|验|查|摸)(?:的是|的)?(?:你|他|她|TA|ta))[\\s,，:：\\-—－]{1,8}${CHECK_RESULT_TEXT}`,
+      "g",
+    ),
   ];
 
   for (const pattern of patterns) {
     for (const match of params.message.matchAll(pattern)) {
       const targetSeatId = Number(match[1]);
       const resultText = match[2];
+      const targetTokenOffset = match[0].indexOf(match[1]);
+      if (
+        isReferencedOtherClaimantCheck({
+          message: params.message,
+          matchIndex: match.index ?? 0,
+          matchedPrefixBeforeTarget: targetTokenOffset >= 0 ? match[0].slice(0, targetTokenOffset) : "",
+          targetSeatId,
+          claimantSeatId: params.claimantSeatId,
+        })
+      ) {
+        continue;
+      }
       if (!params.validSeatIds.has(targetSeatId)) continue;
       if (targetSeatId === params.claimantSeatId) continue;
       checks.push({
@@ -233,6 +253,89 @@ function extractClaimChecks(params: {
   }
 
   return dedupeChecks(checks);
+}
+
+function isReferencedOtherClaimantCheck(params: {
+  message: string;
+  matchIndex: number;
+  matchedPrefixBeforeTarget: string;
+  targetSeatId: number;
+  claimantSeatId: number;
+}): boolean {
+  const sentenceStart = findLastSentenceBoundary(params.message, params.matchIndex);
+  const sentenceEnd = findNextSentenceBoundary(params.message, params.matchIndex);
+  const clauseStart = Math.max(sentenceStart, findLastClaimAttributionClauseBoundary(params.message, params.matchIndex));
+  const sentence = params.message.slice(clauseStart, sentenceEnd);
+  if (
+    sentenceReferencesOtherClaimCheck({
+      sentence,
+      targetSeatId: params.targetSeatId,
+      claimantSeatId: params.claimantSeatId,
+    })
+  ) {
+    return true;
+  }
+
+  const prefix = `${params.message.slice(clauseStart, params.matchIndex)}${params.matchedPrefixBeforeTarget}`;
+  const otherSubjectVerbTail = new RegExp(`${OTHER_SUBJECT_CHECK_VERB_TEXT}\\s*$`);
+  if (!otherSubjectVerbTail.test(prefix)) return false;
+  if (new RegExp(`(?:我|自己|本人)[^。！？!?；;\\n]{0,18}${OWN_CHECK_VERB_TEXT}\\s*$`).test(prefix)) {
+    return false;
+  }
+
+  const explicitSeatIds = [...prefix.matchAll(/(\d{1,2})\s*号/g)].map((match) => Number(match[1]));
+  const lastExplicitSeatId = explicitSeatIds.at(-1);
+  if (lastExplicitSeatId === params.claimantSeatId && !/[他她]|TA|ta/.test(prefix)) return false;
+
+  return new RegExp(`(?:\\d{1,2}\\s*号|他|她|TA|ta)[^。！？!?；;\\n]{0,32}${OTHER_SUBJECT_CHECK_VERB_TEXT}\\s*$`).test(prefix);
+}
+
+function findLastClaimAttributionClauseBoundary(message: string, beforeIndex: number): number {
+  const prefix = message.slice(0, beforeIndex);
+  const boundaries = ["，", ",", "、", "：", ":", "—", "－", "-"];
+  return Math.max(...boundaries.map((boundary) => prefix.lastIndexOf(boundary))) + 1;
+}
+
+function findLastSentenceBoundary(message: string, beforeIndex: number): number {
+  const prefix = message.slice(0, beforeIndex);
+  const boundaries = ["。", "！", "!", "？", "?", "；", ";", "\n"];
+  return Math.max(...boundaries.map((boundary) => prefix.lastIndexOf(boundary))) + 1;
+}
+
+function findNextSentenceBoundary(message: string, fromIndex: number): number {
+  const suffix = message.slice(fromIndex);
+  const boundaries = ["。", "！", "!", "？", "?", "；", ";", "\n"]
+    .map((boundary) => suffix.indexOf(boundary))
+    .filter((index) => index >= 0);
+  if (boundaries.length === 0) return message.length;
+  return fromIndex + Math.min(...boundaries);
+}
+
+function sentenceReferencesOtherClaimCheck(params: {
+  sentence: string;
+  targetSeatId: number;
+  claimantSeatId: number;
+}): boolean {
+  const roleCue = "(?:(?:跳|起跳|拍|悍跳|对跳)[^。！？!?；;\\n]{0,10})?(?:预言家[^。！？!?；;\\n]{0,12})?";
+  const targetCue = `${params.targetSeatId}\\s*号`;
+  if (params.targetSeatId !== params.claimantSeatId) {
+    const targetAsSubjectPattern = new RegExp(
+      `${targetCue}[^。！？!?；;\\n]{0,32}${REPORT_CHECK_VERB_TEXT}[^。！？!?；;\\n]{0,10}${CHECK_RESULT_TEXT}`,
+    );
+    if (targetAsSubjectPattern.test(params.sentence)) return true;
+  }
+
+  const explicitSubjectPattern = new RegExp(
+    `(\\d{1,2})\\s*号[^。！？!?；;\\n]{0,48}${roleCue}${OTHER_SUBJECT_CHECK_VERB_TEXT}[^。！？!?；;\\n]{0,8}${targetCue}`,
+    "g",
+  );
+  for (const match of params.sentence.matchAll(explicitSubjectPattern)) {
+    if (Number(match[1]) !== params.claimantSeatId) return true;
+  }
+
+  return new RegExp(
+    `(?:他|她|TA|ta)[^。！？!?；;\\n]{0,48}${roleCue}${OTHER_SUBJECT_CHECK_VERB_TEXT}[^。！？!?；;\\n]{0,8}${targetCue}`,
+  ).test(params.sentence);
 }
 
 function inferClaimStrength(message: string, role: Role): ClaimStrength {
@@ -290,7 +393,7 @@ function hasSelfCheckCue(message: string): boolean {
 function dedupeChecks(checks: ClaimCheck[]): ClaimCheck[] {
   const seen = new Set<string>();
   return checks.filter((check) => {
-    const key = `${check.claimantSeatId}:${check.targetSeatId}:${check.result}`;
+    const key = `${check.claimantSeatId}:${check.targetSeatId}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

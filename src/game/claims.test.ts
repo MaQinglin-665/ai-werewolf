@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractRoleClaimFromSpeech, isSupportedRoleClaim } from "./claims";
+import { extractRoleClaimFromSpeech, isSupportedRoleClaim, upsertRoleClaim } from "./claims";
 
 describe("role claim extraction", () => {
   it("parses seer checks when a model display name follows the seat number", () => {
@@ -384,6 +384,216 @@ describe("role claim extraction", () => {
     expect(claim?.claimedRole).toBe("SEER");
     expect(claim?.strength).toBe("hard");
     expect(claim?.checks).toEqual([expect.objectContaining({ targetSeatId: 2, result: "WEREWOLF" })]);
+  });
+
+  it("parses self-owned seer checks when the addressed target appears before a pronoun result", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 3,
+      claimantSeatId: 11,
+      message: "我这边拍个身份，我是预言家。1号DeepSeek，我昨晚验的你，查杀。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+    expect(claim?.checks).toEqual([
+      expect.objectContaining({
+        claimantSeatId: 11,
+        targetSeatId: 1,
+        result: "WEREWOLF",
+      }),
+    ]);
+  });
+
+  it("does not attach another seer's referenced old check to the current seer claim", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 3,
+      claimantSeatId: 11,
+      message:
+        "我是11号GPT2，预言家。昨晚验了1号DeepSeek，查杀。今天票口先压1号，不用等他解释。2号昨晚倒牌，他之前报过1号金水——但狼队自刀做金水不是没见过，我验出来的结果比听感硬。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+    expect(claim?.checks).toEqual([
+      expect.objectContaining({
+        claimantSeatId: 11,
+        targetSeatId: 1,
+        result: "WEREWOLF",
+      }),
+    ]);
+  });
+
+  it("does not attach another current seer check quoted inside a counterclaim speech", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 3,
+      claimantSeatId: 8,
+      message:
+        "我是8号Kimi，预言家。昨晚验的1号DeepSeek，查杀。今天2号死了，1号首置位先放死讯，然后说票型能接上，直接盘桌面。这个顺序我听着不太对——他今天跳预言家报2号查杀，但2号已经死了，这个查验没有对今天票口有任何推动。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+    expect(claim?.checks).toEqual([
+      expect.objectContaining({
+        claimantSeatId: 8,
+        targetSeatId: 1,
+        result: "WEREWOLF",
+      }),
+    ]);
+  });
+
+  it("does not let a quoted target's report suppress the claimant's own check", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 2,
+      claimantSeatId: 8,
+      message:
+        "GLM那段我先放一下，他那句“压2号的人够多了”我听着有点怪，先不评价对不对。我现在更在意的是2号Claude刚才报的金水。 我是预言家，昨晚验的2号Claude，查杀。他刚才那套验12号豆包2的说辞，我现在完全不敢信。",
+      validSeatIds: new Set([1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12]),
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+    expect(claim?.checks).toEqual([
+      expect.objectContaining({
+        claimantSeatId: 8,
+        targetSeatId: 2,
+        result: "WEREWOLF",
+      }),
+    ]);
+  });
+
+  it("classifies quoted report verbs separately from self-owned check verbs", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 2,
+      claimantSeatId: 8,
+      message:
+        "我是8号Kimi，预言家。2号Claude给的金水我不认，4号豆包留的2号查杀我也先不机械跟。昨晚验的2号Claude，查杀。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+    expect(claim?.checks).toEqual([
+      expect.objectContaining({
+        claimantSeatId: 8,
+        targetSeatId: 2,
+        result: "WEREWOLF",
+      }),
+    ]);
+  });
+
+  it("keeps a same-sentence self-owned check after quoting another seer check", () => {
+    const claim = extractRoleClaimFromSpeech({
+      day: 1,
+      claimantSeatId: 4,
+      message:
+        "2号Claude跳预言家报9号查杀，我先不听这个，因为我是预言家，昨晚验的2号Claude，查杀。今天票口先压2号。",
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+    expect(claim?.checks).toEqual([
+      expect.objectContaining({
+        claimantSeatId: 4,
+        targetSeatId: 2,
+        result: "WEREWOLF",
+      }),
+    ]);
+  });
+
+  it.each([
+    {
+      name: "referenced dead seer old check",
+      day: 3,
+      claimantSeatId: 11,
+      message:
+        "我是11号GPT2，预言家。昨晚验了1号DeepSeek，查杀。今天票口先压1号，不用等他解释。2号昨晚倒牌，他之前报过1号金水——但狼队自刀做金水不是没见过，我验出来的结果比听感硬。",
+      expectedChecks: [{ claimantSeatId: 11, targetSeatId: 1, result: "WEREWOLF" }],
+    },
+    {
+      name: "target-before-pronoun self check",
+      day: 3,
+      claimantSeatId: 11,
+      message: "我这边拍个身份，我是预言家。1号DeepSeek，我昨晚验的你，查杀。",
+      expectedChecks: [{ claimantSeatId: 11, targetSeatId: 1, result: "WEREWOLF" }],
+    },
+    {
+      name: "target-as-subject quote before self check",
+      day: 2,
+      claimantSeatId: 8,
+      message:
+        "GLM那段我先放一下，他那句“压2号的人够多了”我听着有点怪，先不评价对不对。我现在更在意的是2号Claude刚才报的金水。 我是预言家，昨晚验的2号Claude，查杀。他刚才那套验12号豆包2的说辞，我现在完全不敢信。",
+      expectedChecks: [{ claimantSeatId: 8, targetSeatId: 2, result: "WEREWOLF" }],
+    },
+    {
+      name: "report verbs are not self-owned checks",
+      day: 2,
+      claimantSeatId: 8,
+      message:
+        "我是8号Kimi，预言家。2号Claude给的金水我不认，4号豆包留的2号查杀我也先不机械跟。昨晚验的2号Claude，查杀。",
+      expectedChecks: [{ claimantSeatId: 8, targetSeatId: 2, result: "WEREWOLF" }],
+    },
+    {
+      name: "same-sentence quote then self check",
+      day: 1,
+      claimantSeatId: 4,
+      message:
+        "2号Claude跳预言家报9号查杀，我先不听这个，因为我是预言家，昨晚验的2号Claude，查杀。今天票口先压2号。",
+      expectedChecks: [{ claimantSeatId: 4, targetSeatId: 2, result: "WEREWOLF" }],
+    },
+    {
+      name: "current seer quote after own counterclaim",
+      day: 3,
+      claimantSeatId: 8,
+      message:
+        "我是8号Kimi，预言家。昨晚验的1号DeepSeek，查杀。今天2号死了，1号首置位先放死讯，然后说票型能接上，直接盘桌面。这个顺序我听着不太对——他今天跳预言家报2号查杀，但2号已经死了，这个查验没有对今天票口有任何推动。",
+      expectedChecks: [{ claimantSeatId: 8, targetSeatId: 1, result: "WEREWOLF" }],
+    },
+  ])("keeps live seer-check attribution invariant: $name", ({ day, claimantSeatId, message, expectedChecks }) => {
+    const claim = extractRoleClaimFromSpeech({
+      day,
+      claimantSeatId,
+      message,
+      validSeatIds: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+    });
+
+    expect(claim?.claimedRole).toBe("SEER");
+    expect(claim?.strength).toBe("hard");
+    expect(
+      claim?.checks.map((check) => ({
+        claimantSeatId: check.claimantSeatId,
+        targetSeatId: check.targetSeatId,
+        result: check.result,
+      })),
+    ).toEqual(expectedChecks);
+  });
+
+  it("does not merge contradictory checks for the same claimed seer target", () => {
+    const claims: Parameters<typeof upsertRoleClaim>[0] = [];
+    upsertRoleClaim(claims, {
+      day: 2,
+      claimantSeatId: 11,
+      claimedRole: "SEER",
+      strength: "hard",
+      checks: [{ day: 2, claimantSeatId: 11, targetSeatId: 1, result: "GOOD" }],
+      message: "我是预言家，1号是金水。",
+    });
+
+    const claim = upsertRoleClaim(claims, {
+      day: 3,
+      claimantSeatId: 11,
+      claimedRole: "SEER",
+      strength: "hard",
+      checks: [{ day: 3, claimantSeatId: 11, targetSeatId: 1, result: "WEREWOLF" }],
+      message: "我是预言家，昨晚验了1号，查杀。",
+    });
+
+    expect(claim.checks).toHaveLength(1);
+    expect(claim.checks.map((check) => check.result).sort()).not.toEqual(["GOOD", "WEREWOLF"]);
   });
 
   it("does not treat generic class-trial lead-the-vote wording as a hunter claim", () => {

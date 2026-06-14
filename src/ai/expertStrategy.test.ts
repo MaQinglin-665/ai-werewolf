@@ -38,7 +38,7 @@ describe("expert werewolf strategy notes", () => {
       expect(actionInput.debateAgenda.crossExamination.length, boardId).toBeGreaterThan(0);
       expect(speechInput.reasoningFrame.hardEvidence.length, boardId).toBeGreaterThan(0);
       expect(speechInput.reasoningFrame.validationQuestions.length, boardId).toBeGreaterThan(0);
-      expect(speechInput.advancedReasoning.join("\n"), boardId).toContain("身份坑审计");
+      expect(speechInput.advancedReasoning.join("\n"), boardId).toContain("身份说法");
       expect(speechInput.advancedReasoning.join("\n"), boardId).toContain("证据硬度");
     }
   });
@@ -63,8 +63,8 @@ describe("expert werewolf strategy notes", () => {
     expect(notes).toContain("起票、谁补票、谁最后跟票");
     expect(notes).toContain("验人力度");
     expect(notes).toContain("不要套公式");
-    expect(audit).toContain("身份坑审计");
-    expect(audit).toContain("预言家线审计");
+    expect(audit).toContain("身份说法");
+    expect(audit).toContain("预言家说法");
     expect(audit).toContain("轮次意识");
     expect(audit).toContain("正反逻辑");
     expect(audit).toContain("说服意图");
@@ -80,17 +80,17 @@ describe("expert werewolf strategy notes", () => {
     expect(speechInput.rolePlaybook.reasoningPriorities.join("\n")).toContain("保护未对跳神职");
     expect(speechInput.claimAudit.contestedClaims.join("\n")).toContain("预言家对跳");
     expect(speechInput.claimAudit.checkChains.join("\n")).toContain("查杀");
-    expect(speechInput.claimAudit.followupTests.join("\n")).toContain("为什么验这个人");
+    expect(speechInput.claimAudit.followupTests.join("\n")).toContain("验人/技能心路");
     expect(speechInput.debateAgenda.crossExamination.join("\n")).toContain("查验心路");
     expect(speechInput.debateAgenda.voteCommitments.join("\n")).toContain("预言家对跳局不要散票");
     expect(speechInput.tableBriefing.text).toContain("推理框架-硬证据");
     expect(speechInput.tableBriefing.text).toContain("推理框架-验证问题");
     expect(speechInput.tableBriefing.text).toContain("角色玩法-变体");
     expect(speechInput.tableBriefing.text).toContain("角色玩法-行动分歧");
-    expect(speechInput.tableBriefing.text).toContain("身份审计-对跳");
-    expect(speechInput.tableBriefing.text).toContain("身份审计-查验链");
-    expect(speechInput.tableBriefing.text).toContain("盘问议程-追问");
-    expect(speechInput.tableBriefing.text).toContain("盘问议程-票口");
+    expect(speechInput.tableBriefing.text).toContain("身份材料-对跳");
+    expect(speechInput.tableBriefing.text).toContain("身份材料-查验");
+    expect(speechInput.tableBriefing.text).toContain("本轮追问");
+    expect(speechInput.tableBriefing.text).toContain("投票承诺");
     expect(speechInput.tableBriefing.text).toContain("当前推理清单");
     expect(actionInput.expertStrategy).toEqual(speechInput.expertStrategy);
     expect(actionInput.advancedReasoning).toEqual(speechInput.advancedReasoning);
@@ -164,7 +164,7 @@ describe("expert werewolf strategy notes", () => {
     expect(input.publicContext.rules.sheriffEnabled).toBe(true);
     expect(input.tableBriefing.text).toContain("本局有警上、警下、警徽和警长投票");
     expect(input.tableBriefing.text).not.toContain("没有警上、警下、警徽、警长流程，不要使用这些概念");
-    expect(input.advancedReasoning.join("\n")).toContain("警长审计");
+    expect(input.advancedReasoning.join("\n")).toContain("警长信息");
   });
 
   it("does not mention sheriff flow on no-sheriff boards", async () => {

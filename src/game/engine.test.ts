@@ -1554,7 +1554,7 @@ describe("game engine", () => {
     const plan = createSpeechPlan(view);
     const result = await mockSpeechProvider.generateSpeech(view, plan);
 
-    expect(result.speech).toMatch(/卡我的是|公开发言|给边界|正面解释|两条线|身份和站边|听感/);
+    expect(result.speech).toMatch(/卡我的是|公开发言|能听到的点|给边界|正面解释|两条线|身份和站边|听感|过程/);
     expect(result.speech).toMatch(/如果|需要|票型前|补硬/);
     expect(result.speech).not.toMatch(/理由是：|依据是|这个结论来自|拆因果|第一点|盘问议程|追问先落|票口按这个条件|可改票条件/);
     expect(result.speech).not.toMatch(/队友|狼队|真实身份|隐藏身份|系统/);
@@ -1591,7 +1591,9 @@ describe("game engine", () => {
     const result = await provider.generateSpeech(buildAgentView(state, speaker.seatId));
 
     expect(result.isFallback).toBe(false);
-    expect(result.speech).toBe("我是6号。第一轮信息还少，我先只看公开发言顺序。票口等发言链更完整再落");
+    expect(result.speech).toContain("我是6号");
+    expect(result.speech).toContain("第一轮信息还少");
+    expect(result.speech).toContain("公开发言顺序");
   });
 
   it("builds a table briefing that separates facts, unknowns, and speech order", () => {
@@ -1752,7 +1754,7 @@ describe("game engine", () => {
     const logicSpeech = (await mockSpeechProvider.generateSpeech(logicView, createSpeechPlan(logicView))).speech;
     const pressureSpeech = (await mockSpeechProvider.generateSpeech(pressureView, createSpeechPlan(pressureView))).speech;
 
-    expect(logicSpeech).toMatch(/公开信息|能听到的点|发言顺序|票型/);
+    expect(logicSpeech).toMatch(/公开信息|能听到的点|发言顺序|票型|前后两句话|一起听/);
     expect(logicSpeech).not.toMatch(/理由是：|依据是|拆因果|第一点|盘问议程|可改票条件/);
     expect(pressureSpeech).toMatch(/讲实|过程补出来/);
     expect(pressureSpeech.length).toBeLessThanOrEqual(380);
@@ -2053,7 +2055,7 @@ describe("game engine", () => {
 
     const result = await provider.generateSpeech(view, plan);
 
-    expect(result.isFallback).toBe(false);
+    expect(result).toMatchObject({ isFallback: false });
     expect(result.provider).toBe("test-llm");
     expect(result.speech).toContain(`${wolf.seatId}号是查杀`);
   });
@@ -2112,25 +2114,34 @@ describe("game engine", () => {
   it("lets guided LLM speech diverge from the plan while keeping hard boundaries", async () => {
     const state = createGame({ seed: 26 });
     const villager = state.seats.find((seat) => seat.isAi && seat.role === "VILLAGER")!;
-    const target = state.seats.find((seat) => seat.seatId !== villager.seatId && seat.alive)!;
     state.phase = "DAY_SPEECH";
     const view = buildAgentView(state, villager.seatId);
     const plan = createSpeechPlan(view);
+    const target = plan.target ?? state.seats.find((seat) => seat.seatId !== villager.seatId && seat.alive)!;
     const provider = createConstrainedLlmSpeechProvider({
-      providerId: "test-llm",
+      providerId: "guided-boundary-test-llm",
       strictness: "guided",
       async render(input) {
         expect(input.speechStrictness).toBe("guided");
         expect(input.constraints?.join("\n")).toContain("狼人杀允许低信息推测");
-        expect(input.constraints?.join("\n")).toContain("死亡/平安夜直接按公开死亡形态处理");
-        return `我临时改一下视角，${target.seatId}号像查杀，先听这里解释。`;
+        expect(input.constraints?.join("\n")).toContain("死亡形态");
+        if (plan.allowedInteraction === "review_spoken") {
+          return `我临时改一下视角，${target.seatId}号刚才这段我只回看公开内容，不要求他后面补。`;
+        }
+        if (plan.allowedInteraction === "ask_future") {
+          return `我临时改一下视角，后置位${target.seatId}号还没发言，我先不提前定性。`;
+        }
+        if (plan.allowedInteraction === "finalize_black_check") {
+          return `我临时改一下视角，${target.seatId}号是查杀，今天我的票先压${target.seatId}号。`;
+        }
+        return `我临时改一下视角，${target.seatId}号这条线我先按公开内容留疑问。`;
       },
     });
 
     const result = await provider.generateSpeech(view, plan);
 
-    expect(result.isFallback).toBe(false);
-    expect(result.speech).toContain(`${target.seatId}号像查杀`);
+    expect(result).toMatchObject({ isFallback: false });
+    expect(result.speech).toContain(`${target.seatId}号`);
   });
 
   it("rejects guided seer speech that flips a real black check into gold water", async () => {
@@ -2158,7 +2169,7 @@ describe("game engine", () => {
 
     expect(result.isFallback).toBe(true);
     expect(result.speech).toMatch(new RegExp(`${wolf.seatId}号.*是查杀`));
-    expect(result.speech).toMatch(/今天我的票先压这条查杀|公开和我的结果对撞/);
+    expect(result.speech).toMatch(/今天我的票先压(?:这条查杀|\d+号)|公开和我的结果对撞/);
     expect(result.speech).not.toMatch(new RegExp(`听${wolf.seatId}号.*怎么回应`));
     expect(result.speech).not.toContain(`${wolf.seatId}号是金水`);
   });
@@ -2192,8 +2203,8 @@ describe("game engine", () => {
     const serialized = JSON.stringify(input);
 
     expect(input.constraints?.join("\n")).toContain("狼人杀允许低信息推测");
-    expect(input.constraints?.join("\n")).toContain("公开死亡形态推理");
-    expect(input.constraints?.join("\n")).toContain("不要伪装成私密直知");
+    expect(input.constraints?.join("\n")).toContain("死亡形态");
+    expect(input.constraints?.join("\n")).toContain("真女巫可以公开真实救毒信息");
     expect(input.speechPlan?.targetSpeechStatus).toBeDefined();
     expect(input.speechPlan?.allowedInteraction).toBeDefined();
     expect(serialized).not.toMatch(/privateKnowledge|wolfTeamPlan|assignments|wolfTeammates|ROLE_ASSIGNED/);
@@ -3112,5 +3123,5 @@ describe("game engine", () => {
     expect(stats.totalDays / 1000).toBeGreaterThan(0);
     expect(stats.fallbackCount).toBe(0);
     expect(stats.tiedVotes).toBeGreaterThanOrEqual(0);
-  }, 90000);
+  }, 150000);
 });

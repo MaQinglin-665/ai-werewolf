@@ -2,11 +2,77 @@
 
 ## Current Objective
 
-- Current objective: latest 12p paid proof exposed an empty-rebuttal fragment and then Opus flagged public check / identity-claim boundary pollution; both are fixed, and the claim-boundary guard has now passed one paid bounded proof. Next decision is whether to ask Opus/human review for a `go` judgment or do narrow evaluator calibration.
+- Current objective: the 12p hard-gate mechanics are paid-verified, the paid full-game Mimo sample completed through day 3 `GAME_OVER`, and repeated D3 proofs exposed one bug class: quoted public Seer checks could be attached to the quoting speaker's structured `checks`. The concrete D3-90/fresh failures are fixed locally, the external `continue-local` review has been applied by changing `claims.ts` to bounded check/report verb ownership, and the follow-up DeepSeek proofs exposed the reverse side: self-owned fake-Seer checks could be dropped when phrased as target-before-pronoun or when a same sentence first quoted another Seer check. Both self-check shapes are fixed locally. The latest live proof is stale because it was generated before the same-sentence clause fix, so the next live proof requires explicit user approval/provider input; do not automatically spend another paid run.
 - Current task card: `docs/tasks/2026-06-12p-mimo-speech-mechanics.md`.
 - Long-running task id: `lrt-12p-mimo-speech-mechanics` in `long_running_tasks.json`.
 - Current branch: `codex/12p-mimo-speech-mechanics`.
 - Current project checkpoint:
+  - New full-game paid evidence exists at `docs/evaluations/2026-06-13-12p-mimo-fullgame-paid-after-hardgate-review.md`.
+  - New sample files:
+    - `tmp/12p-mimo-fullfeel-paid-after-hardgate-report.json`
+    - `tmp/12p-mimo-fullfeel-paid-after-hardgate-cases.json`
+    - `tmp/12p-mimo-fullfeel-paid-after-hardgate-eval.json`
+    - `tmp/12p-mimo-fullfeel-paid-after-hardgate-transcript.txt`
+    - `tmp/12p-mimo-fullfeel-paid-after-hardgate-fallbacks.json`
+  - Full-game sample summary: 85 real Mimo calls, 30 speech, 55 action, day 3 `GAME_OVER`, GOOD win, fallback 5, error 5, validationFailure 3, local eval averageScore 99.2, issueCount 3, highRiskCaseIds 1.
+  - Old hard gates were clean in this sample: exact private-strategy leak 0, accepted fragment 0, non-Seer claimBoard checks 0.
+  - New structural issue found in the paid sample: 11号 GPT2 claimed Seer with 1号 DeepSeek both `WEREWOLF` and `GOOD` in `publicClaimBoard`, apparently because the parser attached 2号 Claude's old 1号金水 quote to 11号's new 1号查杀 claim.
+  - Opus review chose `continue`: this is a hard structured-check attribution blocker, not a subjective style issue.
+  - Local fix is now in `src/game/claims.ts` / `src/game/claims.test.ts`: quoted checks attributed to another seat/pronoun such as `他之前报过1号金水` are skipped for the current speaker, and one claimed Seer cannot store both results for the same target.
+  - Verification passed for the exact red/green regressions, full `claims.test.ts`, `tableMemory.test.ts`, speech/action provider tests, ordinary eval tests, TypeScript, and lint.
+  - Bounded paid proof after the local fix:
+    - `tmp/12p-mimo-cross-seer-attribution-preflight-report.json`: 1 real Mimo action call, fallback 0, error 0, validationFailure 0.
+    - `tmp/12p-mimo-cross-seer-attribution-small-report.json`: 60 calls, reached day 2 `DAY_VOTE`, stopped at `max_llm_calls`, fallback 2, error 2, validationFailure 0, totalQualityIssues 0.
+    - `tmp/12p-mimo-cross-seer-attribution-small-eval.json`: 60 cases, averageScore 98.1, issueCount 6, highRiskCaseIds 1.
+    - Hard scan over the proof cases: claimed-Seer same-target contradictions 0, non-Seer claimBoard checks 0, private leak exact hits 0, accepted fragment hard-shape hits 0.
+    - Limitation: the proof did not reach D3, so it did not resample the original 11号 GPT2 quoting 2号 Claude's old 1号金水 while claiming a new 1号查杀.
+  - Opus review of that D2 proof chose `partial-pass / longer-bounded-rerun`.
+  - B-class evaluator calibration is now done locally:
+    - `src/ai/llmEvaluation.ts` no longer treats bare nouny `查` / `验` in `查验线` or `查杀前那句` as a check-report verb.
+    - `src/ai/llmEvaluation.test.ts` covers the real 3号 GPT legal public-check quote and a negative case where the same wording is fabricated if the board lacks 2号 Claude's 9号查杀.
+    - Offline re-eval output: `tmp/12p-mimo-cross-seer-attribution-small-after-b-calibration-eval.json`, 60 cases, averageScore 98.6, issueCount 5, `logic_boundary_error` 0, highRiskCaseIds empty.
+  - Longer D3 paid proof after B calibration:
+    - Evidence: `tmp/12p-mimo-cross-seer-attribution-d3-90-report.json`, `tmp/12p-mimo-cross-seer-attribution-d3-90-cases.json`, `tmp/12p-mimo-cross-seer-attribution-d3-90-eval.json`, and `tmp/12p-mimo-cross-seer-attribution-d3-90-after-localfix-eval.json`.
+    - Summary: 90 calls, 33 speech, 57 action, reached D4 `DAY_SPEECH` after D3 `DAY_SPEECH`/`DAY_VOTE`, stopped at `max_llm_calls`, fallback/error 9/90, validationFailure 6.
+    - Hard result: claimed-Seer same-target contradictions 0 and non-Seer checks 0, but 8号 Kimi's claimed-Seer board incorrectly carried both valid 8->1 `WEREWOLF` and invalid quoted 8->2 `WEREWOLF` after Kimi quoted 1号's public 2号查杀.
+    - Accepted-fragment result: D3 7号 GLM was accepted with `说实话，1号DeepSeek，你今天这条查验我先挂着。你报2号Claude查杀，但刚才那段发言的重点全在`.
+    - Local fix: `src/game/claims.ts` now detects same-sentence explicit other-seat/pronoun subjects before attaching a check to the current speaker, and `src/ai/speech/ordinarySurface.ts` exports `hasUnfinishedOrdinaryFocusMarker()` for provider/evaluator reuse.
+    - Verification after the local fixes: `npm.cmd run test -- src/game/claims.test.ts` passed 31 tests; `npm.cmd run test -- src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts` passed 369 tests; `npm.cmd run test -- src/ai/llmEvaluation.test.ts src/ai/evalOrdinaryAiUtils.test.ts src/game/claims.test.ts src/game/tableMemory.test.ts` passed 83 tests; D3-90 re-eval after localfix passed with 80 cases, averageScore 98.9, issueCount 5, `malformed_output_fragment` 1; `npx.cmd tsc --noEmit --pretty false` and `npm.cmd run lint` passed.
+  - Fresh D3 paid proof after the D3-90 local fixes:
+    - Evidence: `tmp/12p-mimo-cross-seer-attribution-d3-fresh-report.json`, `tmp/12p-mimo-cross-seer-attribution-d3-fresh-cases.json`, `tmp/12p-mimo-cross-seer-attribution-d3-fresh-eval.json`, `tmp/12p-mimo-cross-seer-attribution-d3-fresh-hardscan.json`, and `tmp/12p-mimo-cross-seer-attribution-d3-fresh-status.json`.
+    - Summary: 90 calls, 33 speech, 57 action, reached D4 `DAY_SPEECH`, stopped at `max_llm_calls`, fallback/error 11/90, validationFailure 4, totalQualityIssues 0.
+    - Hard scan: private leak 0, accepted fragment 0, non-Seer checks 0, claimed-Seer same-target contradictions 0.
+    - Hard failure: 8号 Kimi's D2 speech said `我是预言家，昨晚验的2号Claude，查杀`, but `publicClaimBoard` stored 8->2 `GOOD` after misreading `我现在更在意的是2号Claude刚才报的金水`.
+    - Local fix: `src/game/claims.ts` now recognizes target-as-subject quoted reports such as `2号Claude刚才报的金水` and skips them before attaching checks to the current speaker. The rule is limited to explicit report/quote cues so `昨晚验的2号Claude，查杀` still parses.
+    - Verification after the local fix: red regression first failed with 8->2 `GOOD`; focused claims subset passed; full `src/game/claims.test.ts` passed 32 tests; eval/tableMemory tests passed 52 tests; speech/action provider tests passed 369 tests; `npx.cmd tsc --noEmit --pretty false` and `npm.cmd run lint` passed.
+  - External review package/result:
+    - `docs/evaluations/2026-06-14-12p-mimo-fresh-d3-target-subject-review-prompt.md`.
+    - The reviewer chose `continue-local`: the extractor needed a structural ownership rule, not another quoted-phrase patch followed by paid rerun.
+    - Applied follow-up: `src/game/claims.ts` now uses bounded governing verb classes. Owned check verbs with speaker/omitted subject can create speaker `checks`; report/quote verbs (`报/说/称/给/留`) or other-seat/pronoun subjects cannot.
+    - Added regression: `2号Claude给的金水` and `4号豆包留的2号查杀` do not become Kimi checks, while `昨晚验的2号Claude，查杀` remains Kimi's self-owned fake-Seer check.
+    - B evaluator calibration refreshed for the fresh D3 legal public-check quote. Offline re-eval output: `tmp/12p-mimo-cross-seer-attribution-d3-fresh-after-structural-calibration-eval.json`, 80 cases, averageScore 98, issueCount 7, highRiskCaseIds 3. The previous 3号 GPT legal public-check quote is no longer high-risk; remaining logic errors are stale-board derivatives from old metadata, plus one unrelated dead-target follow-up.
+    - Latest verification: `npm.cmd run test -- src/game/claims.test.ts` passed 33 tests; `npm.cmd run test -- src/game/claims.test.ts src/ai/llmEvaluation.test.ts` passed 73 tests; `npm.cmd run test -- src/ai/evalOrdinaryAiUtils.test.ts src/game/tableMemory.test.ts src/ai/speechProviders.test.ts src/ai/actionProviders.test.ts` passed 381 tests; offline re-eval passed; `npx.cmd tsc --noEmit --pretty false` and `npm.cmd run lint` passed.
+  - DeepSeek follow-up proof after structural attribution:
+    - User switched the temporary provider to DeepSeek. Current proof evidence is recorded in `docs/evaluations/2026-06-14-12p-deepseek-d3-after-structural-proof.md`.
+    - DeepSeek-chat preflight: 1 action call, fallback 0, error 0, validationFailure 0.
+    - DeepSeek-chat full run: `tmp/12p-deepseek-chat-cross-seer-attribution-d3-after-fragmentguard-report.json`, completed 85 calls through day 3 `GAME_OVER`, fallback 3, error 3, validationFailure 0.
+    - Local eval: `tmp/12p-deepseek-chat-cross-seer-attribution-d3-after-fragmentguard-eval.json`, 80 cases, averageScore 98.6, issueCount 6, highRiskCaseIds empty.
+    - Hardscan: private leak 0, accepted fragment 0, malformed fragment 0, non-Seer checks 0, claimed-Seer same-target contradictions 0.
+    - Trigger limitation: it did not reproduce the original dead-Seer old-check quote trigger.
+    - New hard local finding: 11号 GPT2 said `我这边拍个身份，我是预言家。1号DeepSeek，我昨晚验的你，查杀。`, but the exported board recorded 11号 GPT2 as claimed Seer with `checks: []`.
+    - Local fix: `src/game/claims.ts` now parses target-before-pronoun self-owned check syntax, covered by `src/game/claims.test.ts` regression `parses self-owned seer checks when the addressed target appears before a pronoun result`.
+    - Latest verification after the pronoun fix: `npm.cmd run test -- src/game/claims.test.ts` passed 34 tests; `npm.cmd run test -- src/game/claims.test.ts src/ai/llmEvaluation.test.ts src/ai/speech/ordinarySurface.test.ts` passed 75 tests; `npx.cmd tsc --noEmit --pretty false`, `npm.cmd run lint`, `npm.cmd run harness:task-card -- docs/tasks/2026-06-12p-mimo-speech-mechanics.md`, `npm.cmd run harness:long-tasks`, and JSON parse for `long_running_tasks.json` passed; `git diff --check` passed with LF/CRLF warnings only; secret-pattern scan over touched source/docs/state found 0 matches.
+    - Decision: not `go`; the DeepSeek proof is now stale for live acceptance because the pronoun fix landed after report generation.
+  - DeepSeek follow-up proof after pronoun fix:
+    - Evidence recorded in `docs/evaluations/2026-06-14-12p-deepseek-d3-after-pronounfix-proof.md`.
+    - The external PowerShell full run completed: `tmp/12p-deepseek-chat-cross-seer-attribution-d3-after-pronounfix-report.json`, 100 calls, 33 speech, 67 action, reached day 4 `DAY_SPEECH`, stopped at `max_llm_calls`, fallback/error 1/100, validationFailureCount 1.
+    - Eval output: `tmp/12p-deepseek-chat-cross-seer-attribution-d3-after-pronounfix-eval.json`, 80 cases, averageScore 97.7, issueCount 8, highRiskCaseIds 3.
+    - Hardscan output: `tmp/12p-deepseek-chat-cross-seer-attribution-d3-after-pronounfix-hardscan.json`, private leak 0, accepted fragment 0, malformed fragment 0, non-Seer checks 0, claimed-Seer same-target contradictions 0.
+    - New hard finding: 4号 豆包 said `2号Claude跳预言家报9号查杀，我先不听这个，因为我是预言家，昨晚验的2号Claude，查杀。`, but exported board recorded 4号 豆包 as claimed Seer with `checks: []`.
+    - Root cause: `isReferencedOtherClaimantCheck()` used whole-sentence quote attribution, so the first quoted-check clause suppressed the later self-owned check clause.
+    - Local fix: quote/report ownership is now scoped to the local attribution clause around the current candidate check; regression `keeps a same-sentence self-owned check after quoting another seer check` first failed with `checks: []` and then passed.
+    - Latest verification after the clause fix: `npm.cmd run test -- src/game/claims.test.ts` passed 35 tests; `npm.cmd run test -- src/game/claims.test.ts src/ai/llmEvaluation.test.ts src/ai/speech/ordinarySurface.test.ts` passed 76 tests; `npx.cmd tsc --noEmit --pretty false`, `npm.cmd run lint`, `npm.cmd run harness:task-card -- docs/tasks/2026-06-12p-mimo-speech-mechanics.md`, `npm.cmd run harness:long-tasks`, and JSON parse for `long_running_tasks.json` passed; `git diff --check` passed with LF/CRLF warnings only; secret-pattern scan over touched source/docs/state found 0 matches.
+    - Decision: not `go`; the latest live proof is stale because this clause fix landed after report generation.
   - 9-player ordinary Mimo speech was accepted as basically passable.
   - User chose to first apply Fable5's underlying mechanism advice, then validate it in `12p-sheriff-seer-witch-hunter-guard`.
   - Local code now gives ordinary seats stronger voice-card identity, bounded incoming pressure/self-history, stronger shared pressure budget language, and non-ritual opening options.
@@ -92,9 +158,10 @@
     - Hard-gate scan: non-Seer claimBoard entries with checks 0, non-Seer own-check public statements 0, private leak hits 0, accepted fragment hard-shape hits 0.
     - The two high-risk local eval rows are legal public-check references: Mimo/HUNTER and GLM/VILLAGER both said claimed Seers reported 9号查杀; neither row owns a check or leaks private info.
 - Historical Mimo evidence: latest v46 same-seed bounded live sample remains at `tmp/ordinary-mimo-v46-post-action-check-live-20260612-173703-report.json`, `-cases.json`, and `-eval.json`. v46 local eval was averageScore 100 with issueCount 0, but had residual provider fallback/error rows, so do not call it a pure no-fallback transcript.
-- Local note: Do not write or persist API keys. Do not edit `.env`. Any real Mimo check must use temporary process env only and should be bounded to the approved 90-call budget unless the user explicitly approves a larger spend.
+- Local note: Do not write or persist API keys. Do not edit `.env`. Any real Mimo/DeepSeek check must use temporary process env only. The latest approved fresh proof has already been spent; paid reruns are now paused for cost control unless the user explicitly asks for one final acceptance proof.
+- Latest local cost-control pass: added a six-case live attribution invariant matrix in `src/game/claims.test.ts` and replayed current extraction over existing paid/live cases. `tmp/12p-claim-attribution-local-rescan.json` scanned 550 cases / 246 speech rows / 30 extracted Seer claims, with `potentialMissingSelfCheckCount` 0 and 4 stale board metadata mismatches from pre-fix samples. Commit/review prep then updated stale broad-test assertions and passed full verification: `npm.cmd run test` 100 files / 1218 tests, `npx.cmd tsc --noEmit --pretty false`, `npm.cmd run lint`, and `npm.cmd run build`; build still has the existing Turbopack NFT trace warning.
 - Next-session startup: read `AGENTS.md`, `docs/tasks/2026-06-12p-mimo-speech-mechanics.md`, `docs/superpowers/plans/2026-06-12p-mimo-speech-mechanics.md`, `progress.md`, and `long_running_tasks.json`.
-- Next concrete action: give the new proof to Opus/human review for a go/no-go judgment, or do a narrow local evaluator calibration so legal public-check references by non-Seer speakers stop surfacing as `logic_boundary_error`.
+- Next concrete action: do not run another paid proof by default. If the user explicitly wants final live acceptance, run one fresh same-seed bounded D3 proof with temporary provider input, about 90-100 calls, covering SHERIFF plus D1/D2/D3 `DAY_SPEECH`/`DAY_VOTE`; count it only if it exercises quoted/reported checks plus self-owned fake-Seer checks. Otherwise pause this line and move to the next product/read-feel decision.
 
 ## Completed This Session
 

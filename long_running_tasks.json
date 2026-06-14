@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-13T19:16:41+08:00",
+  "updated_at": "2026-06-14T13:04:00+08:00",
   "tasks": [
     {
       "id": "lrt-harness-long-running-registry",
@@ -88,7 +88,7 @@
     {
       "id": "lrt-12p-mimo-speech-mechanics",
       "title": "12-player Mimo ordinary speech mechanics validation",
-      "status": "done",
+      "status": "running",
       "owner": "ai-speech",
       "scope": [
         "docs/tasks/2026-06-12p-mimo-speech-mechanics.md",
@@ -96,7 +96,11 @@
         "docs/evaluations/2026-06-12-12p-mimo-speech-mechanics-fable5-review.md",
         "docs/evaluations/2026-06-13-12p-fullgame-lowcost-diagnostic.md",
         "docs/evaluations/2026-06-13-12p-mimo-fullfeel-small-live-review.md",
+        "docs/evaluations/2026-06-13-12p-mimo-fullgame-paid-after-hardgate-review.md",
+        "docs/evaluations/2026-06-14-12p-mimo-fresh-d3-target-subject-review-prompt.md",
+        "docs/evaluations/2026-06-14-12p-deepseek-d3-after-pronounfix-proof.md",
         "src/ai/speechProviders.ts",
+        "src/ai/speech/ordinarySurface.ts",
         "src/ai/speechProviders.test.ts",
         "src/ai/mockAgent.ts",
         "src/ai/reasoningFrame.ts",
@@ -117,12 +121,12 @@
         "long_running_tasks.json"
       ],
       "started_at": "2026-06-12T21:05:00+08:00",
-      "updated_at": "2026-06-13T19:16:41+08:00",
+      "updated_at": "2026-06-14T15:52:00+08:00",
       "related_task_card": "docs/tasks/2026-06-12p-mimo-speech-mechanics.md",
       "handoff_pointer": "session-handoff.md",
-      "last_verified_command": "2026-06-13 19:16 evaluator calibration proof: npm.cmd run test -- src/ai/llmEvaluation.test.ts -t \"public seer claims\" passed; npm.cmd run eval:ordinary-ai -- --source=existing --input=tmp/12p-mimo-claim-boundary-paid-proof-cases.json --json --out=tmp/12p-mimo-claim-boundary-paid-proof-after-evaluator-calibration-eval.json passed with 60 cases, averageScore 99.1, issueCount 3, logic_boundary_error 0, malformed_output_fragment 0, highRiskCaseIds empty.",
-      "next_action": "Closed for 12p hard-gate mechanics. Do not spend another paid bounded proof for evaluator calibration. If the user wants a complete paid full-game feel read, open a separate scoped task.",
-      "notes": "Earlier bounded mechanism gate and local full-game mock gate passed. The later real 12p full-feel sample found hard blockers: sheriff speech leaked `隐藏狼队视角`, an accepted previous-speaker pickup fragment, and immediate public Seer checks could be rejected as fabricated. Post-livefix local proof passed, but Opus chose bounded-rerun. That rerun cleared private-leak scanning but failed on one accepted fragment (`我先说9号DeepSeek2刚才那段。他抓6号Gemini那句`), which is now hardgated. The next paid proof cleared that class but found a new empty-rebuttal fragment ending at `别光说`, now locally guarded and mock-regressed. Opus then flagged public check / identity-claim boundary pollution: non-Seer claims could carry structured checks. That boundary is now locally fixed, mock-regressed, paid-verified, and evaluator-calibrated so legal public-check references no longer surface as high-risk logic_boundary_error. Do not write keys to .env or docs."
+      "last_verified_command": "2026-06-14 15:52 commit/review prep: local attribution invariant suite and 550-case rescan are recorded, and stale broad-test assertions were updated for current prompt/audit labels, mock-speech wording, guided speech contract, and 1000-game timeout. Verification passed: npm.cmd run test -- src/ai/expertStrategy.test.ts src/ai/tableRead.test.ts src/game/engine.test.ts passed 156 tests; npm.cmd run test passed 100 files / 1218 tests; npx.cmd tsc --noEmit --pretty false passed; npm.cmd run lint passed; npm.cmd run build passed with the existing Turbopack NFT trace warning.",
+      "next_action": "Do not run another paid proof by default. The exploratory paid rerun loop is paused for cost control. If the user explicitly asks for final live acceptance and supplies temporary provider input, run one fresh same-seed bounded D3 proof at about 90-100 calls, covering SHERIFF plus D1/D2/D3 DAY_SPEECH/DAY_VOTE, and count it only if it exercises quoted/reported checks plus self-owned fake-Seer checks.",
+      "notes": "Earlier bounded mechanism gate and local full-game mock gate passed. The paid full-game Mimo run completed and old hard gates were clean in exact scans, but Opus review chose continue because 11号 GPT2 carried both 1号 WEREWOLF and 1号 GOOD after quoting 2号 Claude's old gold check while claiming a new black check. The D3-90 proof exposed non-conflicting 8号 Kimi quoted-check pollution and a 7号 GLM focus-marker fragment; both were locally fixed. The fresh Mimo D3 proof failed claim attribution because 2号Claude刚才报的金水 was parsed as Kimi's own 8->2 GOOD and suppressed Kimi's own 8->2 WEREWOLF; external review chose continue-local, and claims.ts now uses bounded owned check verbs versus report/quote verbs. DeepSeek-chat then exposed the reverse side twice: 11号 GPT2 target-before-pronoun self-check was dropped, then 4号 豆包 same-sentence quote plus self-check was dropped. Both local parser fixes are test-backed. A local invariant suite and 550-case extraction rescan now show no known current-extractor self-owned Seer-check miss, so stop spending paid calls to discover more phrasing variants. Do not write keys to .env or docs; do not chase broad phrase bans, action quotas, or vote-reason sameness in this cut."
     }
   ]
 }

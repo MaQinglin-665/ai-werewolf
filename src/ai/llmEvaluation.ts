@@ -1,5 +1,6 @@
 import { getDefaultAiFriends } from "@/game/aiFriends";
 import type { AiFriendConfig, Role } from "@/game/types";
+import { hasUnfinishedOrdinaryFocusMarker, isOrdinaryTruncatedSpeechEnding } from "./speech/ordinarySurface";
 
 export type LlmQualityIssueCode =
   | "absolute_no_kill_claim"
@@ -254,7 +255,7 @@ export function analyzeLlmCallQuality(input: LlmCallQualityInput): LlmQualityIss
     });
   }
 
-  if (hasMalformedOutputFragment(text)) {
+  if (hasMalformedOutputFragment(text, input.task)) {
     issues.push({
       code: "malformed_output_fragment",
       severity: "warn",
@@ -352,7 +353,7 @@ export function analyzeOrdinaryAiEvalCase(input: OrdinaryAiEvalCase): OrdinaryAi
     });
   }
 
-  if (hasMalformedOutputFragment(text)) {
+  if (hasMalformedOutputFragment(text, input.task)) {
     push({
       code: "malformed_output_fragment",
       severity: "warn",
@@ -1255,16 +1256,24 @@ function collectEvalPublicCheckAttributions(
   speakerSeatId?: number,
 ): EvalPublicCheckAttribution[] {
   const attributions: EvalPublicCheckAttribution[] = [];
-  for (const sentence of text.split(/[。！？；]/)) {
+  let previousSentenceTopicClaimantSeatIds: number[] = [];
+  for (const rawSentence of text.split(/[。！？；]/)) {
+    const sentence = rawSentence.trim();
+    if (!sentence) continue;
     if (deniesEvalPublicCheckAttribution(sentence)) continue;
+    const sentenceTopicClaimantSeatIds = inferEvalPublicCheckSentenceTopicClaimants(
+      sentence,
+      seats,
+      previousSentenceTopicClaimantSeatIds,
+    );
     const reportPatterns = [
       {
-        pattern: /(?:报(?:了|出)?|给(?:了|出)?|甩(?:了)?|打(?:出)?|留(?:了)?|查(?:了)?|验(?:了)?)[^。！？；]{0,28}(\d{1,2})\s*号[^。！？；]{0,12}(查杀|金水)/g,
+        pattern: /(?:报(?:了|出)?|给(?:了|出)?|甩(?:了)?|打(?:出)?|留(?:了)?|查(?:了|验了)|验了)[^。！？；]{0,28}?(\d{1,2})\s*号[^。！？；]{0,12}(查杀|金水)/g,
         targetGroup: 1,
         resultGroup: 2,
       },
       {
-        pattern: /(?:报(?:了|出)?|给(?:了|出)?|甩(?:了)?|打(?:出)?|留(?:了)?|查(?:了)?|验(?:了)?)[^。！？；]{0,18}?([A-Za-z][A-Za-z0-9_-]{1,24}|[\u4e00-\u9fa5]{1,12})[^。！？；]{0,4}(查杀|金水)/g,
+        pattern: /(?:报(?:了|出)?|给(?:了|出)?|甩(?:了)?|打(?:出)?|留(?:了)?|查(?:了|验了)|验了)[^。！？；]{0,18}?([A-Za-z][A-Za-z0-9_-]{1,24}|[\u4e00-\u9fa5]{1,12})[^。！？；]{0,4}(查杀|金水)/g,
         targetGroup: 1,
         resultGroup: 2,
       },
@@ -1290,7 +1299,7 @@ function collectEvalPublicCheckAttributions(
       const claimantSeatIds =
         shouldInheritClaimant && previousReportClaimantSeatIds.length > 0
           ? previousReportClaimantSeatIds
-          : inferEvalPublicCheckClaimants(prefix, seats, speakerSeatId);
+          : inferEvalPublicCheckClaimants(prefix, seats, speakerSeatId, sentenceTopicClaimantSeatIds);
       if (claimantSeatIds.length > 0) {
         previousReportClaimantSeatIds = claimantSeatIds;
       }
@@ -1319,6 +1328,11 @@ function collectEvalPublicCheckAttributions(
         attributions.push({ claimantSeatId, targetSeatId, result });
       }
     }
+    if (previousReportClaimantSeatIds.length > 0) {
+      previousSentenceTopicClaimantSeatIds = previousReportClaimantSeatIds;
+    } else if (sentenceTopicClaimantSeatIds.length > 0) {
+      previousSentenceTopicClaimantSeatIds = sentenceTopicClaimantSeatIds;
+    }
   }
   return attributions;
 }
@@ -1327,10 +1341,16 @@ function inferEvalPublicCheckClaimants(
   prefix: string,
   seats: Array<{ seatId: number; name?: string }>,
   speakerSeatId?: number,
+  inheritedClaimantSeatIds: number[] = [],
 ): number[] {
   if (/(?:^|[，,、\s])我(?:是|这边|这里)?[^，,、]{0,12}$/.test(prefix) || /(?:我(?:报|给|甩|打|留|查|验)|我(?:昨晚|夜里)?(?:查|验))/.test(prefix)) {
     return speakerSeatId === undefined ? [] : [speakerSeatId];
   }
+  const inherited = [...new Set(inheritedClaimantSeatIds.filter((seatId) => Number.isFinite(seatId)))];
+  if (inherited.length > 0 && shouldUseInheritedEvalPublicCheckClaimant(prefix)) return inherited;
+
+  const actedOnClaimants = inferEvalActedOnClaimants(prefix);
+  if (actedOnClaimants.length > 0) return actedOnClaimants;
 
   const segments = prefix
     .split(/[，,；;]/)
@@ -1343,6 +1363,55 @@ function inferEvalPublicCheckClaimants(
   if (explicitSeerClaimants !== undefined) return explicitSeerClaimants;
   if (mentioned.length > 1 && /(?:都|同时|一起)\s*$/.test(segment)) return [...new Set(mentioned)];
   return [mentioned[mentioned.length - 1]!];
+}
+
+function inferEvalPublicCheckSentenceTopicClaimants(
+  sentence: string,
+  seats: Array<{ seatId: number; name?: string }>,
+  inheritedClaimantSeatIds: number[],
+): number[] {
+  const discussionCue = sentence.match(
+    /(?:接一下|先接|接住|回到|聊一下|看一下|问一下|点到|提到|说一下)[^。！？；，,]{0,32}/,
+  )?.[0];
+  if (discussionCue) {
+    const mentioned = collectEvalSeatRefsFromText(discussionCue, seats);
+    if (mentioned.length > 0) return [mentioned[0]!];
+  }
+
+  const actedOnClaimants = inferEvalActedOnClaimants(sentence);
+  if (actedOnClaimants.length > 0) return actedOnClaimants;
+  return [...new Set(inheritedClaimantSeatIds.filter((seatId) => Number.isFinite(seatId)))];
+}
+
+function shouldUseInheritedEvalPublicCheckClaimant(prefix: string): boolean {
+  const lastClause = prefix.split(/[，,；;。！？!?]/).pop()?.replace(/\s+/g, "") ?? "";
+  if (!lastClause) return false;
+  if (/^(?:他|她|TA|ta|这张牌|那张牌|这位|那位|这个预言家|那个预言家)(?:自己|刚才|刚刚|之前|前面|这轮|今天|昨天|第一天|直接|又|也)?$/.test(lastClause)) {
+    return true;
+  }
+  return /^(?:昨天|今天|这轮|上一轮|前面|刚才)(?:他|她|TA|ta|这张牌|那张牌|这位|那位|这个预言家|那个预言家)(?:自己)?$/.test(
+    lastClause,
+  );
+}
+
+function inferEvalActedOnClaimants(prefix: string): number[] {
+  const clauses = prefix
+    .split(/[，,；;]/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  if (clauses.length < 2) return [];
+  const pronounClause = clauses.at(-1) ?? "";
+  if (!/(?:他|她|TA|ta|自己|本人|这张牌|那张牌|这位|那位)/.test(pronounClause)) return [];
+
+  const actedOnClause = [...clauses]
+    .slice(0, -1)
+    .reverse()
+    .find((segment) => /(?:吃到|接了|被|挨了)[^，,；;]{0,28}(?:查杀|金水)/.test(segment));
+  if (!actedOnClause) return [];
+
+  const match = actedOnClause.match(/(\d{1,2})\s*号[^，,；;]{0,28}(?:吃到|接了|被|挨了)[^，,；;]{0,28}(?:查杀|金水)/);
+  const claimantSeatId = match ? Number(match[1]) : undefined;
+  return Number.isFinite(claimantSeatId) ? [claimantSeatId!] : [];
 }
 
 function shouldInheritEvalPublicCheckClaimant(prefix: string): boolean {
@@ -1717,12 +1786,14 @@ function hasOvercertainClaimWithoutEvidence(input: LlmCallQualityInput, text: st
   return /(铁狼|必狼|百分百|一定是狼|肯定是狼|确定是狼|坐实狼)/.test(text);
 }
 
-function hasMalformedOutputFragment(text: string): boolean {
+function hasMalformedOutputFragment(text: string, task: "speech" | "action"): boolean {
   return (
     /(^|\s)["']?:["']?/.test(text) ||
     /[，,;；:]$/.test(text) ||
+    (task === "speech" && isOrdinaryTruncatedSpeechEnding(text)) ||
     hasForwardCommitmentEnding(text) ||
     hasForwardCommitmentOnlyRestatement(text) ||
+    hasUnfinishedOrdinaryFocusMarker(text) ||
     /(?:说|提|讲)?(?:[0-9]+号[A-Za-z0-9_\-\u4e00-\u9fa5]{0,16})?(?:那句|这句|那句话|这句话)$/.test(text.slice(-48)) ||
     /(?:^|[，,。！？!?；;\s])(?:你|他|她|它|[0-9]+号[A-Za-z0-9_\-\u4e00-\u9fa5]{0,16})?(?:刚才|前面|后面)?(?:又)?说$/.test(
       text.slice(-48),
