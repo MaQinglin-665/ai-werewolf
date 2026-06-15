@@ -1910,3 +1910,36 @@ Remaining risks:
 - Render mirror was not updated.
 - Current local checkout is still dirty and contains unrelated homepage-lobby
   work. Use explicit file groups for any future commit or deployment.
+
+## 2026-06-15 Tencent Deploy: Game UI And Alpha Feedback Flow
+
+Completed:
+- Committed and pushed `7b188b5` (`Polish game UI and alpha feedback flow`) to
+  `origin/codex/12p-mimo-speech-mechanics`.
+- Deployed `7b188b5` to Tencent Cloud from clean archive
+  `ai-werewolf-ui-alpha-20260615-161651-7b188b5.tar.gz`.
+- Live source is `/opt/ai-werewolf/app`; rollback source tree is
+  `/opt/ai-werewolf/app-backup-20260615-161651`.
+- `ai-werewolf-app` is healthy, image
+  `sha256:affe9d7da4b436875ad5a1fc4bd423d645e3c26285dbded2e474e40d609c9263`.
+
+Verification:
+- Local: `npx.cmd tsc --noEmit --pretty false`, full `npm.cmd run test`,
+  `npm.cmd run lint`, and `npm.cmd run build` passed.
+- Local UI: Playwright desktop 1366x768 and mobile 390x844 checks passed with
+  page overflow `0 x 0`; history and record drawers opened without horizontal
+  overflow.
+- Production: `npm.cmd run preflight:production -- --base-url=https://175.178.199.245`
+  passed.
+- Production: `smoke:room-sse` passed with room `4PE9J3`.
+- Production: `smoke:room-action:vote` passed with room `3YRW3M`, covered
+  `wolfKill`, `speak`, and `vote`.
+- Production: `smoke:main-game` passed with game
+  `50b90a21-7a4a-46ab-b2d1-e87be9c7b9e4`, final phase `DAY_SPEECH`.
+- Production UI: live desktop/mobile Playwright checks against
+  `https://175.178.199.245` passed with page overflow `0 x 0`.
+
+Remaining risks:
+- Render mirror was not updated.
+- UI proof covered the 6p beginner `DAY_SPEECH` state; broader 9p/12p and
+  later-phase visual states remain good candidates for the next spot check.

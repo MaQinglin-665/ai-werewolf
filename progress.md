@@ -3636,3 +3636,48 @@ Remaining risks:
   per-voter historical details are available when the public snapshot exposes
   them. Full per-voter history for every old round would require projection
   support beyond this UI pass.
+
+## 2026-06-15 Tencent Deploy: Game UI And Alpha Feedback Flow
+
+Completed:
+- Committed and pushed `7b188b5` (`Polish game UI and alpha feedback flow`) to
+  `origin/codex/12p-mimo-speech-mechanics`.
+- Deployed that exact source tree to Tencent Cloud from clean archive
+  `ai-werewolf-ui-alpha-20260615-161651-7b188b5.tar.gz`.
+- Switched live source to `/opt/ai-werewolf/app`; rollback source tree is
+  `/opt/ai-werewolf/app-backup-20260615-161651`.
+- Confirmed desktop and mobile ordinary game UI locally and on the live Tencent
+  URL with page-level overflow `0 x 0`; desktop keeps the table, action rail,
+  speech area, and history entry in one viewport, and mobile keeps speech,
+  action, identity/recommendation/vote/record tabs in one viewport.
+
+Verification:
+- Local `npx.cmd tsc --noEmit --pretty false` passed.
+- Local `npm.cmd run test` passed: 103 files / 1239 tests.
+- Local `npm.cmd run lint` passed with the existing 6 `<img>` warnings in
+  `HomepageDesktopLobby.tsx` and `RoomHeader.tsx`.
+- Local `npm.cmd run build` passed with the existing Turbopack NFT trace warning
+  through `next.config.ts -> src/server/roomService.ts -> rooms/debug-cleanup`.
+- Local Playwright desktop/mobile game UI screenshots passed at 1366x768 and
+  390x844; history/record drawers opened without horizontal overflow.
+- Server Docker build passed and `ai-werewolf-app` reached Docker health
+  `healthy`, image
+  `sha256:affe9d7da4b436875ad5a1fc4bd423d645e3c26285dbded2e474e40d609c9263`.
+- `npm.cmd run preflight:production -- --base-url=https://175.178.199.245`
+  passed: `ok=true`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-sse`
+  passed: room `4PE9J3`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-action:vote`
+  passed: room `3YRW3M`, covered `wolfKill`, `speak`, and `vote`, final phase
+  `NIGHT_WOLVES`.
+- `npm.cmd run smoke:main-game -- --base-url=https://175.178.199.245` passed:
+  game `50b90a21-7a4a-46ab-b2d1-e87be9c7b9e4`, final phase `DAY_SPEECH`.
+- Live Playwright desktop/mobile UI smoke against `https://175.178.199.245`
+  passed: both viewports had page overflow `0 x 0`; speech/action/history
+  entry points were visible.
+
+Remaining risks:
+- Render mirror was not updated in this pass.
+- Browser visual proof used a 6-player beginner game at `DAY_SPEECH`; wider
+  9p/12p and late-game states should still be spot-checked before a larger
+  public playtest.

@@ -1,6 +1,6 @@
 # Current Release Status
 
-Last checked: 2026-06-14 18:11 Asia/Shanghai.
+Last checked: 2026-06-15 16:24 Asia/Shanghai.
 
 Use this file as the first stop before sharing the public Alpha link or starting a new deployment. Update it after every public-facing release.
 
@@ -14,8 +14,8 @@ Use this file as the first stop before sharing the public Alpha link or starting
 ## Current Source State
 
 - Working branch: `codex/12p-mimo-speech-mechanics`
-- Current public runtime baseline: `origin/codex/12p-mimo-speech-mechanics@3c6658a` plus the local 12p DeepSeek final acceptance/evaluator patch, single-player sample export endpoint, feedback-id UI, and recent sample-index endpoint archive
-- Local worktree at runtime check: deployed from clean archive `ai-werewolf-feedback-samples-20260614-180534.tar.gz`
+- Current public runtime baseline: `origin/codex/12p-mimo-speech-mechanics@7b188b5` (`Polish game UI and alpha feedback flow`)
+- Local worktree at runtime check: deployed from clean archive `ai-werewolf-ui-alpha-20260615-161651-7b188b5.tar.gz`
 - Render deployment branch at last check: `1cb8eb2 deploy: sync mobile interaction signals`
 
 Render is intentionally tracked through `codex/room-render-production-minimum`. Tencent Cloud is deployed from the current source archive path. When a release should be visible in both public environments, update both lanes and record the two heads here.
@@ -28,9 +28,9 @@ This file may be updated by documentation-only commits after the runtime baselin
 - Compose root: `/opt/ai-werewolf`
 - Live app source: `/opt/ai-werewolf/app`
 - Main service: `ai-werewolf-app`
-- Latest deployed source: `origin/codex/12p-mimo-speech-mechanics@3c6658a` plus local 12p final acceptance/evaluator patch, single-player sample export endpoint, feedback-id UI, and sample-index archive `ai-werewolf-feedback-samples-20260614-180534.tar.gz`
-- Rollback source tree: `/opt/ai-werewolf/app-backup-20260614-180534`
-- Last container status: `ai-werewolf-app` healthy, image `sha256:3209280a5d33b8724201f804ce8359f28da52b234f965813bbcc6170eef27661`, nginx and Postgres running
+- Latest deployed source: `origin/codex/12p-mimo-speech-mechanics@7b188b5`, archive `ai-werewolf-ui-alpha-20260615-161651-7b188b5.tar.gz`
+- Rollback source tree: `/opt/ai-werewolf/app-backup-20260615-161651`
+- Last container status: `ai-werewolf-app` healthy, image `sha256:affe9d7da4b436875ad5a1fc4bd423d645e3c26285dbded2e474e40d609c9263`, nginx and Postgres running
 
 Latest verification:
 
@@ -38,7 +38,7 @@ Latest verification:
 npm run preflight:production -- --base-url=https://175.178.199.245
 ```
 
-Result at 2026-06-14 18:10 Asia/Shanghai: `ok=true`, all production minimum checks passed.
+Result at 2026-06-15 16:20 Asia/Shanghai: `ok=true`, all production minimum checks passed.
 
 Latest room smoke:
 
@@ -46,7 +46,7 @@ Latest room smoke:
 $env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-sse
 ```
 
-Result at 2026-06-14 18:11 Asia/Shanghai: `ok=true`, room `PFU13J`, host seat `1`, guest seat `2`.
+Result at 2026-06-15 16:20 Asia/Shanghai: `ok=true`, room `4PE9J3`, host seat `1`, guest seat `2`.
 
 Latest room action vote smoke:
 
@@ -54,7 +54,7 @@ Latest room action vote smoke:
 $env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-action:vote
 ```
 
-Result at 2026-06-14 18:11 Asia/Shanghai: `ok=true`, room `1KZACA`, covered `witchAction`, `speak`, and `vote`, final phase `LAST_WORDS`.
+Result at 2026-06-15 16:20 Asia/Shanghai: `ok=true`, room `3YRW3M`, covered `wolfKill`, `speak`, and `vote`, final phase `NIGHT_WOLVES`.
 
 Latest main game smoke:
 
@@ -62,7 +62,15 @@ Latest main game smoke:
 npm run smoke:main-game -- --base-url=https://175.178.199.245
 ```
 
-Result at 2026-06-14 18:11 Asia/Shanghai: `ok=true`, board `6p-beginner-seer`, game `07e0a14a-a23b-4126-9e2f-89764b72ff71`, human seat `1`, role `SEER`, submitted `seerCheck`, final phase `DAY_SPEECH`.
+Result at 2026-06-15 16:20 Asia/Shanghai: `ok=true`, board `6p-beginner-seer`, game `50b90a21-7a4a-46ab-b2d1-e87be9c7b9e4`, human seat `1`, role `SEER`, submitted `seerCheck`, final phase `DAY_SPEECH`.
+
+Latest live game UI smoke:
+
+```powershell
+# Headless Chrome against https://175.178.199.245 at 1366x768 desktop and 390x844 mobile.
+```
+
+Result at 2026-06-15 16:22 Asia/Shanghai: desktop and mobile ordinary game UI loaded from game `50b90a21-7a4a-46ab-b2d1-e87be9c7b9e4`; both viewports had page overflow `0 x 0`; speech area, action area, and history/record entry were visible.
 
 Latest single-player sample endpoint probe:
 
