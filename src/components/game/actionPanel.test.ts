@@ -90,6 +90,21 @@ describe("ActionPanel", () => {
     expect(html).toContain("返回主页面");
   });
 
+  it("shows a copyable feedback id during active games", () => {
+    const html = renderToStaticMarkup(
+      createElement(ActionPanel, {
+        game: buildActionGame([{ type: "continue", label: "继续", description: "继续流程" }]),
+        loading: false,
+        onNewGame: async () => undefined,
+        onSubmit: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain("反馈编号");
+    expect(html).toContain("game-action");
+    expect(html).toContain("反馈 AI 发言或流程问题时附上这个编号");
+  });
+
   it("keeps mobile compact target actions out of the old card grids", () => {
     const html = renderToStaticMarkup(
       createElement(ActionPanel, {

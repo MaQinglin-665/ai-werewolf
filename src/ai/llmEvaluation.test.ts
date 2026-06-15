@@ -427,6 +427,100 @@ describe("llm evaluation helpers", () => {
         },
       }),
     );
+    const legalSaidOwnCheckQuote = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        id: "legal-said-own-check-quote",
+        playerRole: "HUNTER",
+        outputText:
+          "3号GPT说先把7号按公开声明处理，票口边界放9号，这个方向我暂时能跟。我是猎人，昨天拍过，今天不重复拍，身份摆在这。但我得说一句——2号Claude今天报7号金水，说自己验了7号，可昨天2号投的是9号，票型跟他的查杀一致，这个动作本身是顺的。",
+        metadata: {
+          seatNumber: 5,
+          aliveSeats: [
+            { seatId: 2, name: "Claude" },
+            { seatId: 5, name: "Mimo" },
+            { seatId: 7, name: "GLM" },
+            { seatId: 9, name: "DeepSeek2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 2,
+              claimantName: "Claude",
+              claimedRole: "SEER",
+              checks: [
+                { targetSeatId: 9, targetName: "DeepSeek2", result: "WEREWOLF" },
+                { targetSeatId: 7, targetName: "GLM", result: "GOOD" },
+              ],
+            },
+            {
+              claimantSeatId: 5,
+              claimantName: "Mimo",
+              claimedRole: "HUNTER",
+              checks: [],
+            },
+          ],
+        },
+      }),
+    );
+    const legalPressureChainQuote = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        id: "legal-pressure-chain-quote",
+        playerRole: "VILLAGER",
+        outputText:
+          "1号DeepSeek和3号GPT这段我先放下，我这轮主要看2号Claude。2号压力链已经成形了——豆包遗言留查杀、今天报7号金水、锁9号票口，三条线叠在一起，他一条都没说圆。",
+        metadata: {
+          seatNumber: 12,
+          aliveSeats: [
+            { seatId: 2, name: "Claude" },
+            { seatId: 4, name: "豆包" },
+            { seatId: 7, name: "GLM" },
+            { seatId: 9, name: "DeepSeek2" },
+            { seatId: 12, name: "豆包2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 2,
+              claimantName: "Claude",
+              claimedRole: "SEER",
+              checks: [
+                { targetSeatId: 9, targetName: "DeepSeek2", result: "WEREWOLF" },
+                { targetSeatId: 7, targetName: "GLM", result: "GOOD" },
+              ],
+            },
+            {
+              claimantSeatId: 4,
+              claimantName: "豆包",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 2, targetName: "Claude", result: "WEREWOLF" }],
+            },
+          ],
+        },
+      }),
+    );
+    const fabricatedPressureChainQuote = analyzeOrdinaryAiEvalCase(
+      ordinarySpeechCase({
+        id: "fabricated-pressure-chain-quote",
+        playerRole: "VILLAGER",
+        outputText:
+          "1号DeepSeek和3号GPT这段我先放下，我这轮主要看2号Claude。2号压力链已经成形了——豆包遗言留查杀、今天报7号金水、锁9号票口，三条线叠在一起，他一条都没说圆。",
+        metadata: {
+          seatNumber: 12,
+          aliveSeats: [
+            { seatId: 2, name: "Claude" },
+            { seatId: 7, name: "GLM" },
+            { seatId: 9, name: "DeepSeek2" },
+            { seatId: 12, name: "豆包2" },
+          ],
+          publicClaimBoard: [
+            {
+              claimantSeatId: 2,
+              claimantName: "Claude",
+              claimedRole: "SEER",
+              checks: [{ targetSeatId: 9, targetName: "DeepSeek2", result: "WEREWOLF" }],
+            },
+          ],
+        },
+      }),
+    );
     const fabricatedMatchingPublicCheckWording = analyzeOrdinaryAiEvalCase(
       ordinarySpeechCase({
         id: "fabricated-matching-public-check-wording",
@@ -481,6 +575,9 @@ describe("llm evaluation helpers", () => {
     expect(legalD3PublicSeerQuote.issueCodes).not.toContain("logic_boundary_error");
     expect(legalDirectSaidCheckQuote.issueCodes).not.toContain("logic_boundary_error");
     expect(legalSecondPersonCheckQuote.issueCodes).not.toContain("logic_boundary_error");
+    expect(legalSaidOwnCheckQuote.issueCodes).not.toContain("logic_boundary_error");
+    expect(legalPressureChainQuote.issueCodes).not.toContain("logic_boundary_error");
+    expect(fabricatedPressureChainQuote.issueCodes).toContain("logic_boundary_error");
     expect(fabricatedMatchingPublicCheckWording.issueCodes).toContain("logic_boundary_error");
     expect(hunterSelfCheck.issueCodes).toContain("logic_boundary_error");
   });

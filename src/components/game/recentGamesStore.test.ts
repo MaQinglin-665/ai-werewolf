@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   clearCurrentGameId,
   getRecentGameIdsServerSnapshot,
+  readCurrentGameId,
   readRecentGameIds,
   rememberRecentGameId,
   subscribeRecentGameIds,
@@ -36,9 +37,12 @@ describe("recentGamesStore", () => {
     withFakeWindow((fakeWindow) => {
       rememberRecentGameId("game-1");
 
+      expect(readCurrentGameId()).toBe("game-1");
+
       clearCurrentGameId();
 
       expect(getRecentGameIdsServerSnapshot()).toEqual([]);
+      expect(readCurrentGameId()).toBe("");
       expect(fakeWindow.localStorage.getItem("ai-werewolf-game-id")).toBeNull();
     });
   });

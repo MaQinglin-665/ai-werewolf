@@ -6,6 +6,13 @@
 - Current task card: `docs/tasks/2026-06-12p-mimo-speech-mechanics.md`.
 - Long-running task id: `lrt-12p-mimo-speech-mechanics` in `long_running_tasks.json`.
 - Current branch: `codex/12p-mimo-speech-mechanics`.
+- Current follow-up: single-player LLM playtest sample collection is deployed
+  on Tencent Cloud. `GET /api/games/:gameId/sample?token=...` exports one
+  owner-token protected sample. Active/finished single-player UI gives players
+  a copyable "反馈编号", `/alpha-report` auto-fills it from localStorage, and
+  owner-token `GET /api/games/samples?token=...` lists recent sample indexes
+  when players do not send the id. Use `gameId`/反馈编号 for single-player games
+  because there is no room code.
 - Current project checkpoint:
   - New full-game paid evidence exists at `docs/evaluations/2026-06-13-12p-mimo-fullgame-paid-after-hardgate-review.md`.
   - New sample files:
@@ -1617,3 +1624,289 @@ Current recommended next step:
   against the current code path and review cross-day continuity.
 - For release hygiene, commit/push the deployed worktree or split it into
   intentional commits before further public-facing changes.
+
+## 2026-06-14 12p DeepSeek Final Acceptance Proof
+
+Completed:
+- Ran one final same-seed bounded live proof with `deepseek-chat`, using the
+  user-level key only as temporary process env.
+- Reached day 3 `DAY_VOTE` at 100 calls; the run stopped at `max_llm_calls`.
+- The D3 trigger occurred: 8号 Kimi claimed Seer, reported a self-owned 1号金水,
+  and referenced Claude/GLM's old 9号查杀 lines.
+- The following board snapshot kept 8号 Kimi with only `8 -> 1 GOOD`; the old
+  Claude/GLM 9号查杀 entries stayed with their original claimed Seers.
+- Hard scan remained clean: non-Seer checks 0, same-target contradictions 0,
+  private leak 0, accepted fragment hard-shape 0.
+- Calibrated evaluator handling for legal public Seer-check references in the
+  same cases, removing the two remaining false-positive high-risk rows.
+- Evidence is recorded in
+  `docs/evaluations/2026-06-14-12p-deepseek-final-acceptance-proof.md`.
+
+Changed files:
+- `src/ai/llmEvaluation.ts`
+- `src/ai/llmEvaluation.test.ts`
+- `docs/evaluations/2026-06-14-12p-deepseek-final-acceptance-proof.md`
+- `docs/tasks/2026-06-12p-mimo-speech-mechanics.md`
+- `progress.md`
+- `session-handoff.md`
+- `long_running_tasks.json`
+
+Verification:
+- DeepSeek preflight: 1 action call, fallback 0, error 0, validationFailure 0.
+- Final proof report: 100 calls, day 3 `DAY_VOTE`, fallback/error 9/100,
+  validationFailure 4/100.
+- Final hard scan: non-Seer checks 0, contradictions 0, private leaks 0,
+  accepted fragments 0.
+- Final eval after calibration: 80 cases, averageScore 99.8, issueCount 1,
+  highRiskCaseIds empty.
+- `npm.cmd run test -- src/ai/llmEvaluation.test.ts` passed: 40 tests.
+- `npx.cmd tsc --noEmit --pretty false` passed.
+- `npm.cmd run lint` passed.
+- `git diff --check` passed with LF/CRLF warnings only.
+- Secret-pattern scan over generated DeepSeek final proof outputs found 0 real
+  key or Bearer token matches.
+
+Remaining risks:
+- Decision is `go-hardgate` for structured Seer-check attribution on this
+  DeepSeek proof.
+- Provider stability is still noisy: fallback/error 9/100 and
+  validationFailure 4/100. Treat it as chain noise, not attribution failure.
+- This does not replace a separate Mimo-specific full-game subjective read-feel
+  proof if the project goal returns to Mimo tone/feel acceptance.
+- Current working tree also contains unrelated homepage-lobby work:
+  local branch ahead by commit `3951647`, plus untracked/modified homepage
+  files. Keep those separate from any 12p attribution commit/review.
+
+Current recommended next step:
+- Stop paid attribution reruns by default.
+- If preparing review, review only the evaluator calibration and final proof
+  docs for this 12p attribution closeout, or explicitly split away the unrelated
+  homepage-lobby work first.
+
+## 2026-06-14 Tencent Deploy: 12p Hard-Gate Go Worktree
+
+Completed:
+- Deployed the 12p Seer-attribution hard-gate go worktree to Tencent Cloud
+  primary Alpha.
+- Used a clean temporary worktree from
+  `origin/codex/12p-mimo-speech-mechanics@3c6658a`, copied only the local 12p
+  final acceptance/evaluator closeout files, and archived that clean source.
+- The unrelated homepage-lobby local commit and dirty homepage files were not
+  included in the server archive.
+- Uploaded archive:
+  `/tmp/ai-werewolf-12p-hardgate-20260614-170123.tar.gz`.
+- Live app source switched at `/opt/ai-werewolf/app`.
+- Rollback source tree:
+  `/opt/ai-werewolf/app-backup-20260614-170123`.
+- Live image:
+  `sha256:fefce9ca22c0e90a4a259ab2752aadd1f7163a8e46bf8e1e89e6920b32d8807e`.
+
+Changed files:
+- `docs/current-release.md`
+- `progress.md`
+- `session-handoff.md`
+- `long_running_tasks.json`
+
+Verification:
+- Server Docker build completed; Next production build passed with the existing
+  Turbopack NFT trace warning.
+- `ai-werewolf-app` reached Docker health `healthy`.
+- `npm.cmd run preflight:production -- --base-url=https://175.178.199.245`
+  passed: `ok=true`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-sse`
+  passed: room `GT2PT4`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-action:vote`
+  passed: room `EFQ9LR`, covered `seerCheck`, `speak`, and `vote`, final phase
+  `LAST_WORDS`.
+
+Remaining risks:
+- Render mirror was not updated.
+- The deployed source is clean of homepage-lobby work, but the current local
+  checkout is still dirty and ahead of origin by unrelated homepage work.
+- Latest local docs/evaluator closeout is deployed but not yet committed from
+  this checkout.
+
+Current recommended next step:
+- Start real-user playtest collection on Tencent Cloud primary URL.
+- Before any GitHub push, split the 12p closeout/deploy docs from unrelated
+  homepage-lobby work.
+
+## 2026-06-14 Single-Player LLM Sample Export
+
+Completed:
+- Implemented `GET /api/games/:gameId/sample?token=...` for owner-token
+  protected single-player sample export.
+- The endpoint uses `gameId`, not a room code, because local/single-player games
+  are stored as main-game records rather than room records.
+- The payload is designed for AI speech/playtest review: game metadata,
+  non-role seat labels, redacted public events, public speeches, public table
+  summary, and public-phase AI call summaries.
+- The export deliberately omits raw prompts, private events, hidden-role fields,
+  wolf teammate knowledge, Seer private checks, and night-phase AI calls.
+- Added API coverage proving unauthorized requests 404, authorized requests
+  export a sample after public AI calls exist, and serialized samples do not
+  include known private/debug field names.
+- Added the endpoint to the README API list.
+
+Changed files:
+- `README.md`
+- `src/server/gameService.ts`
+- `src/app/api/games/[gameId]/sample/route.ts`
+- `src/app/api/games/api.test.ts`
+- `progress.md`
+- `session-handoff.md`
+
+Verification:
+- `npm.cmd run test -- src/app/api/games/api.test.ts` passed: 11 tests.
+- `npx.cmd tsc --noEmit --pretty false` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run harness:check` passed.
+- `git diff --check` passed with LF/CRLF warnings only.
+
+Remaining risks:
+- Not deployed yet. Tencent Cloud currently has the earlier 12p hard-gate go
+  worktree, not this sample endpoint.
+- Current checkout still contains unrelated homepage-lobby code/assets and
+  earlier 12p docs/evaluator changes. Do not stage with `git add .`.
+
+Current recommended next step:
+- If the user wants live sample collection from public testers, deploy only this
+  endpoint/docs file group plus the already-approved 12p closeout source, then
+  run production preflight and room smokes.
+- If staying local, use:
+  `GET http://localhost:3000/api/games/<gameId>/sample?token=<AI_WEREWOLF_METRICS_TOKEN>`.
+
+## 2026-06-14 Tencent Deploy: Single-Player Sample Export
+
+Completed:
+- Deployed the sample export endpoint to Tencent Cloud primary Alpha.
+- Built from a clean temporary worktree rooted at
+  `origin/codex/12p-mimo-speech-mechanics@3c6658a`, then overlaid only the
+  intended 12p closeout/evaluator files and sample endpoint files.
+- Verified the deployment package excluded unrelated homepage-lobby files.
+- Uploaded archive:
+  `/tmp/ai-werewolf-sample-endpoint-20260614-173244.tar.gz`.
+- Switched `/opt/ai-werewolf/app`.
+- Rollback source tree:
+  `/opt/ai-werewolf/app-backup-20260614-173244`.
+- Live image:
+  `sha256:683bb08e694d6f808f713fd6d4f46340ca5786b5acb8c4a49327969d40a93a4e`.
+
+Verification:
+- Candidate Docker build passed and included `/api/games/[gameId]/sample` in
+  the Next route table.
+- `ai-werewolf-app` reached Docker health `healthy`.
+- `npm.cmd run preflight:production -- --base-url=https://175.178.199.245`
+  passed: `ok=true`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-sse`
+  passed: room `29AYAN`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-action:vote`
+  passed: room `FIS4FU`, covered `wolfKill`, `speak`, and `vote`, final phase
+  `LAST_WORDS`.
+- `npm.cmd run smoke:main-game -- --base-url=https://175.178.199.245`
+  passed: game `617c1185-e977-4fb8-9ebe-466d54fd68de`, final phase
+  `DAY_SPEECH`.
+- Remote container-internal sample endpoint probe passed using
+  `AI_WEREWOLF_METRICS_TOKEN` without printing the token: game
+  `f82cd7c8-773a-43f3-a3b1-64f44f466e30`, unauthorized sample request 404,
+  total AI calls 3, public AI calls 1, public speeches 1, exported night AI
+  calls 0.
+
+Remaining risks:
+- Render mirror was not updated.
+- Current local checkout is still dirty and contains unrelated homepage-lobby
+  code/assets plus earlier 12p docs/evaluator changes. Use explicit file groups
+  for any future commit or deployment.
+
+Current recommended next step:
+- Start collecting real-user single-player samples from Tencent Cloud. Players
+  can send the feedback number; if they do not, use the owner-token sample
+  index to recover recent sample paths.
+
+## 2026-06-14 Single-Player Feedback ID And Sample Index
+
+Completed:
+- Added player-visible "反馈编号" copy UI in `ActionPanel` and `ReviewPanel`,
+  so active and finished single-player games expose the collection key without
+  teaching testers the internal `gameId` term.
+- Added `readCurrentGameId()` to `recentGamesStore` and used it in
+  `/alpha-report` so the feedback template auto-fills the latest single-player
+  feedback id. Multiplayer feedback still keeps the room-code field.
+- Added owner-token protected `GET /api/games/samples?token=...` for recent
+  single-player sample indexes. It starts from persisted `AiCallLog` rows,
+  returns only metadata/sample paths, and keeps raw prompts/private events/night
+  private knowledge out of the list.
+- Updated README plus Alpha feedback/playtest docs with the feedback-number and
+  owner recovery flow.
+
+Changed files:
+- `README.md`
+- `docs/alpha-feedback-ops.md`
+- `docs/alpha-playtest.md`
+- `src/app/alpha-report/FeedbackTemplateClient.tsx`
+- `src/app/alpha-report/FeedbackTemplateClient.test.ts`
+- `src/app/api/games/samples/route.ts`
+- `src/app/api/games/api.test.ts`
+- `src/components/game/ActionPanel.tsx`
+- `src/components/game/FeedbackIdCopy.tsx`
+- `src/components/game/ReviewPanel.tsx`
+- `src/components/game/actionPanel.test.ts`
+- `src/components/game/recentGamesStore.ts`
+- `src/components/game/recentGamesStore.test.ts`
+- `src/components/game/reviewPanel.test.ts`
+- `src/server/gameService.ts`
+
+Verification:
+- `npm.cmd run test -- src/components/game/recentGamesStore.test.ts src/components/game/actionPanel.test.ts src/components/game/reviewPanel.test.ts src/app/alpha-report/FeedbackTemplateClient.test.ts` passed: 4 files / 11 tests.
+- `npm.cmd run test -- src/app/api/games/api.test.ts` passed: 12 tests.
+- `npx.cmd tsc --noEmit --pretty false` passed.
+- `npm.cmd run lint` passed.
+
+Remaining risks:
+- This follow-up is deployed to Tencent Cloud but not Render.
+- Browser click-level visual verification was not run; current UI proof is
+  static render coverage plus live `/alpha-report` HTML marker.
+- The working tree still contains unrelated homepage-lobby changes. If
+  deploying, build a clean package with only the sample/feedback file group and
+  existing approved 12p closeout files.
+
+## 2026-06-14 Tencent Deploy: Feedback ID And Sample Index
+
+Completed:
+- Deployed the feedback-id UI, `/alpha-report` autofill, and
+  `/api/games/samples` owner sample-index route to Tencent Cloud primary Alpha.
+- Built from a clean temporary worktree rooted at
+  `origin/codex/12p-mimo-speech-mechanics@3c6658a`, then overlaid only the
+  intended 12p closeout/evaluator files and sample/feedback files.
+- Confirmed the clean deploy package excluded homepage-lobby files.
+- Uploaded archive:
+  `/tmp/ai-werewolf-feedback-samples-20260614-180534.tar.gz`.
+- Rollback source tree:
+  `/opt/ai-werewolf/app-backup-20260614-180534`.
+- Live image:
+  `sha256:3209280a5d33b8724201f804ce8359f28da52b234f965813bbcc6170eef27661`.
+
+Verification:
+- Server Docker build passed and showed `/api/games/samples` in the Next route
+  table.
+- `ai-werewolf-app` reached Docker health `healthy`.
+- `npm.cmd run preflight:production -- --base-url=https://175.178.199.245`
+  passed: `ok=true`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-sse`
+  passed: room `PFU13J`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-action:vote`
+  passed: room `1KZACA`, final phase `LAST_WORDS`.
+- `npm.cmd run smoke:main-game -- --base-url=https://175.178.199.245`
+  passed: game `07e0a14a-a23b-4126-9e2f-89764b72ff71`, final phase
+  `DAY_SPEECH`.
+- Live `/alpha-report` HTML contains `反馈编号`.
+- Remote container-internal sample index probe passed using
+  `AI_WEREWOLF_METRICS_TOKEN` without printing the token: unauthorized 404,
+  authorized `sampleCount` 5, first sample path
+  `/api/games/07e0a14a-a23b-4126-9e2f-89764b72ff71/sample`, private field scan
+  false.
+
+Remaining risks:
+- Render mirror was not updated.
+- Current local checkout is still dirty and contains unrelated homepage-lobby
+  work. Use explicit file groups for any future commit or deployment.

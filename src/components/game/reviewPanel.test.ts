@@ -62,4 +62,11 @@ describe("ReviewPanel", () => {
     expect(html).not.toContain('id="review"');
     expect(html).not.toContain('id="review-events"');
   });
+
+  it("shows the feedback id in the endgame review", () => {
+    const html = renderToStaticMarkup(createElement(ReviewPanel, { game: buildReviewedGame() }));
+
+    expect(html).toContain("反馈编号");
+    expect(html).toContain("game-review");
+  });
 });

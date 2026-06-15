@@ -8,8 +8,16 @@ import { ROLE_CARD_IMAGES, formatSystemMessage } from "./viewHelpers";
 
 type AuxiliaryInfoTab = "private" | "notes" | "log";
 
-export function AuxiliaryInfoPanel({ game, events }: { game: HumanGameView; events: HumanGameView["publicEvents"] }) {
-  const [activeTab, setActiveTab] = useState<AuxiliaryInfoTab>("private");
+export function AuxiliaryInfoPanel({
+  game,
+  events,
+  initialTab = "private",
+}: {
+  game: HumanGameView;
+  events: HumanGameView["publicEvents"];
+  initialTab?: AuxiliaryInfoTab;
+}) {
+  const [activeTab, setActiveTab] = useState<AuxiliaryInfoTab>(initialTab);
   const eventCount = events.length;
   const tabs: Array<{ key: AuxiliaryInfoTab; label: string; meta: string }> = [
     { key: "private", label: "私密", meta: game.myRoleLabel ?? "观战" },

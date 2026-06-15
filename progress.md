@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Last Updated:** 2026-06-14 15:52 Asia/Shanghai
-**Session ID:** 12p-mimo-speech-mechanics
-**Active Feature:** 12p-mimo-speech-mechanics - Apply Fable5's player-identity/private-motivation speech mechanics before 12-player Mimo validation.
+**Last Updated:** 2026-06-15 15:00 Asia/Shanghai
+**Session ID:** ai-pool-mobile-redesign
+**Active Feature:** AI pool desktop/mobile UI redesign.
 
 ## Status
 
@@ -45,6 +45,8 @@
 - The latest live proof is stale after the local clause fix, so this is not a live `go`; however, another paid proof should only be one final explicit-approval acceptance proof, not continued exploratory probing.
 - Commit/review prep is now done locally: stale broad-test assertions were updated, full `npm.cmd run test` passed 100 files / 1218 tests, `tsc`, `lint`, and `build` passed. Build still reports the existing Turbopack NFT trace warning.
 - Do not write or persist API keys. Do not edit `.env`. The latest paid proof authorization has been spent; another live acceptance proof requires explicit user approval/provider input.
+- The owner-token protected single-player sample export endpoint is now deployed on Tencent Cloud: `GET /api/games/:gameId/sample?token=...`. It uses `gameId` because single-player games do not have room codes, exports public view events/table summaries/speeches plus public-phase AI call summaries, and omits raw prompts/private events/night private knowledge.
+- The player-facing `gameId` problem is now addressed and deployed on Tencent Cloud: active/finished single-player UI shows a copyable "反馈编号", `/alpha-report` auto-fills the latest local single-player feedback id, and `GET /api/games/samples?token=...` lists recent owner-protected single-player sample indexes so the owner can recover samples even when testers do not send an id.
 
 ### 2026-06-13 Cross-Seer Check Attribution Guard
 
@@ -3252,3 +3254,385 @@ Remaining risks:
 - Render was not updated; Tencent Cloud remains the primary public Alpha path.
 - The deployed 12p hard-gate work still needs a separate paid full-game feel
   sample if the goal is subjective complete-game read-feel acceptance.
+
+## 2026-06-14 12p DeepSeek Final Acceptance Proof
+
+Completed:
+- Ran the final same-seed bounded live proof with `deepseek-chat` using only the
+  user-level temporary process environment; no key was written to `.env`.
+- Reached day 3 `DAY_VOTE` at 100 calls and exercised the important D3 shape:
+  8号 Kimi claimed Seer, kept its self-owned 1号金水, and quoted Claude/GLM's
+  old 9号查杀 lines without absorbing them into 8号's structured `checks`.
+- Hard scan stayed clean: non-Seer checks 0, same-target contradictions 0,
+  private leak 0, accepted fragment hard-shape 0.
+- Calibrated the local evaluator for two legal public-check quote false
+  positives on the same DeepSeek cases.
+- Recorded evidence in
+  `docs/evaluations/2026-06-14-12p-deepseek-final-acceptance-proof.md`.
+
+Changed files:
+- `src/ai/llmEvaluation.ts`
+- `src/ai/llmEvaluation.test.ts`
+- `docs/evaluations/2026-06-14-12p-deepseek-final-acceptance-proof.md`
+- `docs/tasks/2026-06-12p-mimo-speech-mechanics.md`
+- `progress.md`
+- `session-handoff.md`
+- `long_running_tasks.json`
+
+Verification:
+- DeepSeek preflight passed: 1 real action call, fallback 0, error 0,
+  validationFailure 0.
+- `tmp/12p-deepseek-chat-final-acceptance-report.json`: 100 calls, day 3
+  `DAY_VOTE`, fallback 9, error 9, validationFailure 4.
+- `tmp/12p-deepseek-chat-final-acceptance-hardscan.json`: non-Seer checks 0,
+  contradictions 0, private leaks 0, accepted fragments 0.
+- `npm.cmd run eval:ordinary-ai -- --source=existing --input=tmp/12p-deepseek-chat-final-acceptance-cases.json --json --out=tmp/12p-deepseek-chat-final-acceptance-after-eval-calibration-eval.json`
+  passed after evaluator calibration: 80 cases, averageScore 99.8,
+  issueCount 1, highRiskCaseIds empty.
+- `npm.cmd run test -- src/ai/llmEvaluation.test.ts` passed: 40 tests.
+- `npx.cmd tsc --noEmit --pretty false` passed.
+- `npm.cmd run lint` passed.
+- `git diff --check` passed with LF/CRLF warnings only.
+- Secret-pattern scan over generated DeepSeek final proof outputs found 0 real
+  key or Bearer token matches.
+
+Remaining risks:
+- DeepSeek provider stability was noisy: fallback/error 9/100 and
+  validationFailure 4/100. This is not a hard attribution failure, but the run
+  should not be described as a no-noise provider proof.
+- This is a DeepSeek mechanics proof, not a Mimo-specific full-game subjective
+  read-feel proof.
+- The local branch is ahead of `origin/codex/12p-mimo-speech-mechanics` by an
+  unrelated homepage-lobby commit, and untracked/modified homepage files are
+  present. Do not mix them into a 12p attribution review unless intentionally
+  requested.
+
+## 2026-06-14 Tencent Deploy: 12p Hard-Gate Go Worktree
+
+Completed:
+- Deployed the 12p Seer-attribution hard-gate go worktree to Tencent Cloud
+  primary Alpha at `https://175.178.199.245`.
+- Built the server package from a clean temporary worktree rooted at
+  `origin/codex/12p-mimo-speech-mechanics@3c6658a`, then copied only the local
+  12p final acceptance/evaluator closeout files into that worktree.
+- Excluded the unrelated local homepage-lobby commit and dirty homepage files
+  from the deployment archive.
+- Uploaded archive:
+  `/tmp/ai-werewolf-12p-hardgate-20260614-170123.tar.gz`.
+- Switched `/opt/ai-werewolf/app` and kept rollback source tree:
+  `/opt/ai-werewolf/app-backup-20260614-170123`.
+- Confirmed live image:
+  `sha256:fefce9ca22c0e90a4a259ab2752aadd1f7163a8e46bf8e1e89e6920b32d8807e`.
+
+Changed files:
+- `docs/current-release.md`
+- `progress.md`
+- `session-handoff.md`
+- `long_running_tasks.json`
+
+Verification:
+- Server Docker build completed; Next production build passed with the existing
+  Turbopack NFT trace warning.
+- `ai-werewolf-app` reached Docker health `healthy`.
+- `npm.cmd run preflight:production -- --base-url=https://175.178.199.245`
+  passed: `ok=true`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-sse`
+  passed: room `GT2PT4`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-action:vote`
+  passed: room `EFQ9LR`, covered `seerCheck`, `speak`, and `vote`, final phase
+  `LAST_WORDS`.
+
+Remaining risks:
+- Render mirror was not updated.
+- The clean deployment source is reproducible from `3c6658a` plus the local
+  12p final acceptance/evaluator patch, but these latest local docs/evaluator
+  changes have not been committed from this dirty checkout.
+- Current local checkout still contains unrelated homepage-lobby work and
+  should be split before any GitHub push.
+
+## 2026-06-14 Single-Player LLM Sample Export
+
+Completed:
+- Added an owner-token protected single-player sample export endpoint:
+  `GET /api/games/:gameId/sample?token=...`.
+- Used `gameId` as the collection key for local/single-player games, because
+  these games do not have multiplayer room codes.
+- Reused the existing `AI_WEREWOLF_METRICS_TOKEN` access check pattern from
+  owner metrics routes. Unauthorized sample requests return 404.
+- Exported only review-safe sample fields: game metadata, non-role seat labels,
+  already-redacted public events, public speeches, public table summaries, and
+  public-phase AI output summaries.
+- Kept raw `promptJson`, private events, hidden roles, wolf teammates,
+  Seer private checks, and night-phase AI calls out of the sample payload.
+- Documented the endpoint in `README.md`.
+
+Changed files:
+- `README.md`
+- `src/server/gameService.ts`
+- `src/app/api/games/[gameId]/sample/route.ts`
+- `src/app/api/games/api.test.ts`
+- `progress.md`
+- `session-handoff.md`
+
+Verification:
+- `npm.cmd run test -- src/app/api/games/api.test.ts` passed: 11 tests.
+- `npx.cmd tsc --noEmit --pretty false` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run harness:check` passed.
+- `git diff --check` passed with LF/CRLF warnings only.
+
+Remaining risks:
+- This endpoint is local-only in the current checkout; it has not been deployed
+  to Tencent Cloud or Render.
+- The worktree still contains unrelated homepage-lobby edits and untracked
+  assets. Stage/deploy this sample endpoint as an explicit file group only.
+- The endpoint is intentionally owner/admin-facing. It is not a player-visible
+  feedback UI.
+
+## 2026-06-14 Tencent Deploy: Single-Player Sample Export
+
+Completed:
+- Deployed the single-player LLM sample export endpoint to Tencent Cloud
+  primary Alpha at `https://175.178.199.245`.
+- Built a clean temporary worktree from
+  `origin/codex/12p-mimo-speech-mechanics@3c6658a`, then copied only the
+  intended 12p closeout/evaluator files and sample endpoint files into it.
+- Confirmed the clean deploy worktree did not include homepage-lobby files such
+  as `HomepageDesktopLobby.tsx` or homepage preview images.
+- Uploaded archive:
+  `/tmp/ai-werewolf-sample-endpoint-20260614-173244.tar.gz`.
+- Built the candidate Docker image before switching the live app source.
+- Switched `/opt/ai-werewolf/app` and kept rollback source tree:
+  `/opt/ai-werewolf/app-backup-20260614-173244`.
+- Confirmed live image:
+  `sha256:683bb08e694d6f808f713fd6d4f46340ca5786b5acb8c4a49327969d40a93a4e`.
+
+Changed files:
+- `docs/current-release.md`
+- `progress.md`
+- `session-handoff.md`
+- `long_running_tasks.json`
+
+Verification:
+- Candidate Docker build passed and showed `/api/games/[gameId]/sample` in the
+  Next route table.
+- `ai-werewolf-app` reached Docker health `healthy`.
+- `npm.cmd run preflight:production -- --base-url=https://175.178.199.245`
+  passed: `ok=true`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-sse`
+  passed: room `29AYAN`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-action:vote`
+  passed: room `FIS4FU`, covered `wolfKill`, `speak`, and `vote`, final phase
+  `LAST_WORDS`.
+- `npm.cmd run smoke:main-game -- --base-url=https://175.178.199.245`
+  passed: game `617c1185-e977-4fb8-9ebe-466d54fd68de`, final phase
+  `DAY_SPEECH`.
+- Remote container-internal sample probe passed using
+  `AI_WEREWOLF_METRICS_TOKEN` without printing the token: game
+  `f82cd7c8-773a-43f3-a3b1-64f44f466e30`, unauthorized sample request 404,
+  total AI calls 3, public AI calls 1, public speeches 1, exported night AI
+  calls 0.
+
+Remaining risks:
+- Render mirror was not updated.
+- The current local checkout is still dirty and contains unrelated
+  homepage-lobby work. Do not stage/deploy with `git add .`.
+- The sample export is admin/owner-facing; public players still need to share
+  their `gameId` or let the owner retrieve samples server-side.
+
+## 2026-06-14 Single-Player Feedback ID And Sample Index
+
+Completed:
+- Added a reusable `FeedbackIdCopy` UI strip and showed it in active game
+  action panels and endgame review panels. Players now see a copyable
+  "反馈编号" instead of needing to understand `gameId`.
+- Added `readCurrentGameId()` to the recent-game localStorage helper and used
+  it in `/alpha-report`, so the feedback template auto-fills the latest
+  single-player feedback id while still keeping room codes for multiplayer
+  feedback.
+- Added owner-token protected `GET /api/games/samples?token=...`, which lists
+  recent single-player sample indexes from persisted `AiCallLog` records. The
+  list returns sample metadata and sample paths only; single-game details still
+  go through `GET /api/games/:gameId/sample?token=...`.
+- Optimized the sample index to start from recent AI call logs instead of a
+  Prisma relation filter over all games, avoiding slow scans in a history-heavy
+  local database.
+- Updated README and Alpha feedback docs with the feedback-number and owner
+  recovery flow.
+
+Changed files:
+- `README.md`
+- `docs/alpha-feedback-ops.md`
+- `docs/alpha-playtest.md`
+- `src/app/alpha-report/FeedbackTemplateClient.tsx`
+- `src/app/alpha-report/FeedbackTemplateClient.test.ts`
+- `src/app/api/games/samples/route.ts`
+- `src/app/api/games/api.test.ts`
+- `src/components/game/ActionPanel.tsx`
+- `src/components/game/FeedbackIdCopy.tsx`
+- `src/components/game/ReviewPanel.tsx`
+- `src/components/game/actionPanel.test.ts`
+- `src/components/game/recentGamesStore.ts`
+- `src/components/game/recentGamesStore.test.ts`
+- `src/components/game/reviewPanel.test.ts`
+- `src/server/gameService.ts`
+- `progress.md`
+- `session-handoff.md`
+- `long_running_tasks.json`
+
+Verification:
+- `npm.cmd run test -- src/components/game/recentGamesStore.test.ts src/components/game/actionPanel.test.ts src/components/game/reviewPanel.test.ts src/app/alpha-report/FeedbackTemplateClient.test.ts` passed: 4 files / 11 tests.
+- `npm.cmd run test -- src/app/api/games/api.test.ts` passed: 12 tests.
+- `npx.cmd tsc --noEmit --pretty false` passed.
+- `npm.cmd run lint` passed.
+
+Remaining risks:
+- Browser visual verification was not run; current coverage is static render
+  tests plus API tests and a live `/alpha-report` HTML marker check.
+- The working tree still contains unrelated homepage-lobby changes. Keep this
+  sample-collection file group separate from homepage work when staging or
+  deploying.
+
+## 2026-06-14 Tencent Deploy: Feedback ID And Sample Index
+
+Completed:
+- Deployed the feedback-id UI, `/alpha-report` autofill, and
+  `/api/games/samples` sample-index route to Tencent Cloud primary Alpha at
+  `https://175.178.199.245`.
+- Built from a clean temporary worktree rooted at
+  `origin/codex/12p-mimo-speech-mechanics@3c6658a`, then overlaid only the
+  intended 12p closeout/evaluator files plus sample/feedback files.
+- Confirmed the deploy archive excluded homepage-lobby files.
+- Uploaded archive:
+  `/tmp/ai-werewolf-feedback-samples-20260614-180534.tar.gz`.
+- Switched `/opt/ai-werewolf/app` and kept rollback source tree:
+  `/opt/ai-werewolf/app-backup-20260614-180534`.
+- Confirmed live image:
+  `sha256:3209280a5d33b8724201f804ce8359f28da52b234f965813bbcc6170eef27661`.
+
+Changed files:
+- `docs/current-release.md`
+- `progress.md`
+- `session-handoff.md`
+- `long_running_tasks.json`
+
+Verification:
+- Server Docker build passed and showed `/api/games/samples` in the Next route
+  table.
+- `ai-werewolf-app` reached Docker health `healthy`.
+- `npm.cmd run preflight:production -- --base-url=https://175.178.199.245`
+  passed: `ok=true`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-sse`
+  passed: room `PFU13J`.
+- `$env:ROOM_SMOKE_BASE_URL='https://175.178.199.245'; npm.cmd run smoke:room-action:vote`
+  passed: room `1KZACA`, final phase `LAST_WORDS`.
+- `npm.cmd run smoke:main-game -- --base-url=https://175.178.199.245`
+  passed: game `07e0a14a-a23b-4126-9e2f-89764b72ff71`, final phase
+  `DAY_SPEECH`.
+- Live `/alpha-report` HTML contains `反馈编号`.
+- Remote container-internal sample index probe passed using
+  `AI_WEREWOLF_METRICS_TOKEN` without printing the token: unauthorized request
+  404, authorized `sampleCount` 5, first sample path
+  `/api/games/07e0a14a-a23b-4126-9e2f-89764b72ff71/sample`, private field scan
+  false.
+
+Remaining risks:
+- Render mirror was not updated.
+- Browser click-level visual verification was not run; live UI marker and
+  static render tests cover the feedback-number surface.
+- Current local checkout is still dirty and contains unrelated homepage-lobby
+  work. Do not stage/deploy with `git add .`.
+
+## 2026-06-15 AI Pool Mobile Redesign
+
+Completed:
+- Added a mobile-specific AI pool information architecture with `角色总览`,
+  `当前阵容`, and `配置` modes while keeping the existing desktop editor flow.
+- Added a compact mobile role overview with search, category filters, an
+  always-visible lineup rail, and a bottom inspector for the focused AI.
+- Added mobile inspector tabs for overview, role readout, LLM, TTS, and batch
+  configuration; LLM/TTS shortcuts open the existing full edit dialog directly
+  on the matching tab.
+- Kept ordinary player type tuning values read-only in the mobile inspector and
+  preserved the full editable role/type panel inside the existing editor.
+- Fixed the follow-up mobile interaction bugs: tapping a role card now only
+  focuses the role instead of opening a clipped editor; `当前阵容` and `配置`
+  render distinct mode panels; selecting another role while on `配置` keeps the
+  user on the config page.
+- Confirmed the mobile standalone editor's `批量配置` page uses the real LLM/TTS
+  preset cards and exposes copy/fill/overwrite actions for the selected AI
+  lineup.
+- Added editable role name and avatar controls to `角色信息`. Saving an internal
+  default AI creates/updates a local editable config and keeps the mobile editor
+  on the saved AI instead of bouncing back to the lineup.
+
+Changed files:
+- `src/components/AiPoolClient.tsx`
+- `src/app/globals.css`
+- `src/components/AiPoolClient.mobile.test.ts`
+- `progress.md`
+
+Verification:
+- `npm run test -- src/components/AiPoolClient.mobile.test.ts` passed: 13
+  tests.
+- `npx tsc --noEmit` passed.
+- `npm run lint` passed with the existing 6 `<img>` warnings in
+  `HomepageDesktopLobby.tsx` and `RoomHeader.tsx`.
+- `npm run build` passed with the existing Turbopack NFT trace warning through
+  `next.config.ts -> src/server/roomService.ts -> rooms/debug-cleanup`.
+- Chrome mobile viewport check at 390x844 on `http://127.0.0.1:3010/ai-pool`
+  passed: page overflow 0, role grid in two columns, side panel hidden on
+  phone, mode card 52px, role grid 227px, inspector 206px, and 8 role cards
+  intersecting the viewport.
+- Mobile interaction check passed: tapping `当前阵容` switches the mobile view
+  to `lineup`; tapping the bottom inspector `LLM` shortcut opens the full edit
+  dialog with active section `llm`.
+- Follow-up Chrome mobile verification passed: tapping a role card leaves
+  native details closed; `当前阵容` displays the lineup board with 8 visible rows;
+  `配置` displays the config role list; selecting roles from config or the
+  lineup rail keeps `data-mobile-ai-view="config"`; the `LLM` shortcut opens the
+  standalone mobile editor with the LLM tab active.
+- Latest in-app browser mobile verification passed: `角色总览` / `当前阵容` /
+  `配置` switch `data-mobile-ai-view` correctly; `角色信息` shows `角色名称`,
+  `保存名称`, `上传头像`, type cards, and read-only meters; `批量配置` shows LLM
+  and TTS preset cards plus copy/fill/overwrite actions and expandable preset
+  panels.
+
+Remaining risks:
+- The mobile custom-AI quick-add side panel is hidden on phone to keep the AI
+  pool overview usable without page scrolling; custom creation still needs a
+  dedicated mobile design if it must be first-class on small screens.
+- Desktop layout was kept on the existing editor/card system; this pass focused
+  on mobile AI pool information density and configuration access.
+
+## 2026-06-15 Ordinary Desktop Game History Drawer
+
+Completed:
+- Added a compact desktop history entry in the ordinary in-game `局势摘要`
+  panel for quick access to public speech and vote records.
+- Added a portal-backed `发言与投票历史` overlay with tabs for speech history
+  and vote history, keeping the default desktop board layout uncluttered.
+- Aggregated speech history from public events and recent speeches; aggregated
+  vote history from table memory plus the current public vote snapshots.
+
+Changed files:
+- `src/components/game/GameClientLoadedSurface.tsx`
+- `src/app/globals.css`
+- `src/components/game/GameClientLoadedSurface.test.ts`
+- `progress.md`
+
+Verification:
+- `npx.cmd tsc --noEmit --pretty false` passed.
+- `npm.cmd run test -- src/components/game/GameClientLoadedSurface.test.ts`
+  passed: 5 tests.
+- `npm.cmd run lint` passed with the existing 6 `<img>` warnings in
+  `HomepageDesktopLobby.tsx` and `RoomHeader.tsx`.
+- Chrome desktop verification at 1366x768 on `http://127.0.0.1:3010` passed:
+  history entry displayed `发言 6 · 投票 1`, overlay stayed inside viewport,
+  and page overflow was 0 x 0.
+
+Remaining risks:
+- Older completed vote rounds currently show tally/resolution from table memory;
+  per-voter historical details are available when the public snapshot exposes
+  them. Full per-voter history for every old round would require projection
+  support beyond this UI pass.

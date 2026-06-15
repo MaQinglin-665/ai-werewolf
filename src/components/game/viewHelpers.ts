@@ -86,39 +86,49 @@ export function getNightRoleTrackSteps(board: Pick<HumanGameView["board"], "role
 export type SeatOrbitStyle = React.CSSProperties & Record<"--seat-x" | "--seat-y", string>;
 
 const SEAT_ORBIT_POINTS: SeatOrbitStyle[] = [
-  { "--seat-x": "50%", "--seat-y": "13%" },
-  { "--seat-x": "73%", "--seat-y": "15%" },
-  { "--seat-x": "88%", "--seat-y": "38%" },
-  { "--seat-x": "82%", "--seat-y": "66%" },
-  { "--seat-x": "61%", "--seat-y": "82%" },
-  { "--seat-x": "39%", "--seat-y": "82%" },
-  { "--seat-x": "18%", "--seat-y": "66%" },
-  { "--seat-x": "12%", "--seat-y": "38%" },
-  { "--seat-x": "27%", "--seat-y": "15%" },
+  { "--seat-x": "50%", "--seat-y": "10%" },
+  { "--seat-x": "77%", "--seat-y": "14%" },
+  { "--seat-x": "92%", "--seat-y": "37%" },
+  { "--seat-x": "87%", "--seat-y": "65%" },
+  { "--seat-x": "66%", "--seat-y": "86%" },
+  { "--seat-x": "34%", "--seat-y": "86%" },
+  { "--seat-x": "13%", "--seat-y": "65%" },
+  { "--seat-x": "8%", "--seat-y": "37%" },
+  { "--seat-x": "23%", "--seat-y": "14%" },
+];
+
+const SIX_SEAT_ORBIT_POINTS: SeatOrbitStyle[] = [
+  { "--seat-x": "50%", "--seat-y": "18%" },
+  { "--seat-x": "81%", "--seat-y": "32%" },
+  { "--seat-x": "79%", "--seat-y": "68%" },
+  { "--seat-x": "50%", "--seat-y": "82%" },
+  { "--seat-x": "21%", "--seat-y": "68%" },
+  { "--seat-x": "19%", "--seat-y": "32%" },
 ];
 
 const TWELVE_SEAT_ORBIT_POINTS: SeatOrbitStyle[] = [
-  { "--seat-x": "50%", "--seat-y": "9%" },
-  { "--seat-x": "75%", "--seat-y": "14%" },
-  { "--seat-x": "90%", "--seat-y": "32%" },
-  { "--seat-x": "91%", "--seat-y": "50%" },
-  { "--seat-x": "90%", "--seat-y": "68%" },
-  { "--seat-x": "75%", "--seat-y": "86%" },
-  { "--seat-x": "50%", "--seat-y": "91%" },
-  { "--seat-x": "25%", "--seat-y": "86%" },
-  { "--seat-x": "10%", "--seat-y": "68%" },
-  { "--seat-x": "9%", "--seat-y": "50%" },
-  { "--seat-x": "10%", "--seat-y": "32%" },
-  { "--seat-x": "25%", "--seat-y": "14%" },
+  { "--seat-x": "50%", "--seat-y": "7%" },
+  { "--seat-x": "74%", "--seat-y": "11%" },
+  { "--seat-x": "91%", "--seat-y": "26%" },
+  { "--seat-x": "94%", "--seat-y": "47%" },
+  { "--seat-x": "91%", "--seat-y": "68%" },
+  { "--seat-x": "74%", "--seat-y": "87%" },
+  { "--seat-x": "50%", "--seat-y": "94%" },
+  { "--seat-x": "26%", "--seat-y": "87%" },
+  { "--seat-x": "9%", "--seat-y": "68%" },
+  { "--seat-x": "6%", "--seat-y": "47%" },
+  { "--seat-x": "9%", "--seat-y": "26%" },
+  { "--seat-x": "26%", "--seat-y": "11%" },
 ];
 
 export function getSeatOrbitStyle(seatId: number, seatCount: number): SeatOrbitStyle {
+  if (seatCount === SIX_SEAT_ORBIT_POINTS.length) return SIX_SEAT_ORBIT_POINTS[(seatId - 1) % SIX_SEAT_ORBIT_POINTS.length];
   if (seatCount === SEAT_ORBIT_POINTS.length) return SEAT_ORBIT_POINTS[(seatId - 1) % SEAT_ORBIT_POINTS.length];
   if (seatCount === TWELVE_SEAT_ORBIT_POINTS.length) return TWELVE_SEAT_ORBIT_POINTS[(seatId - 1) % TWELVE_SEAT_ORBIT_POINTS.length];
   const angle = -90 + ((seatId - 1) / seatCount) * 360;
   const radians = (angle * Math.PI) / 180;
-  const radiusX = 39;
-  const radiusY = 35;
+  const radiusX = 42;
+  const radiusY = 38;
   return {
     "--seat-x": `${50 + Math.cos(radians) * radiusX}%`,
     "--seat-y": `${50 + Math.sin(radians) * radiusY}%`,

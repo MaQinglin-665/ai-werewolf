@@ -1,4 +1,4 @@
-const CURRENT_GAME_KEY = "ai-werewolf-game-id";
+export const CURRENT_GAME_KEY = "ai-werewolf-game-id";
 const RECENT_GAMES_KEY = "ai-werewolf-recent-game-ids";
 const RECENT_GAMES_CHANGED_EVENT = "ai-werewolf-recent-games-changed";
 const EMPTY_RECENT_GAME_IDS: string[] = [];
@@ -31,6 +31,18 @@ export function readRecentGameIds(): string[] {
 
 export function getRecentGameIdsServerSnapshot(): string[] {
   return EMPTY_RECENT_GAME_IDS;
+}
+
+export function readCurrentGameId(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  try {
+    return window.localStorage.getItem(CURRENT_GAME_KEY)?.trim() ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export function subscribeRecentGameIds(onStoreChange: () => void): () => void {

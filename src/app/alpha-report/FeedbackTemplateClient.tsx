@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { readCurrentGameId } from "@/components/game/recentGamesStore";
 
 const phaseOptions = [
   "打开链接",
@@ -25,6 +26,7 @@ const inputClass =
 const textareaClass = `${inputClass} min-h-24 resize-y leading-6`;
 
 export function FeedbackTemplateClient() {
+  const [feedbackId, setFeedbackId] = useState(() => readCurrentGameId());
   const [roomCode, setRoomCode] = useState("");
   const [seat, setSeat] = useState("");
   const [phase, setPhase] = useState(phaseOptions[0]);
@@ -43,6 +45,7 @@ export function FeedbackTemplateClient() {
         "AI 狼人杀 Alpha 试玩反馈",
         "",
         `严重程度：${severity}`,
+        `反馈编号：${feedbackId.trim() || "未记录"}`,
         `房间码：${roomCode.trim() || "未记录"}`,
         `玩家座位：${seat.trim() || "未记录"}`,
         `发生阶段：${phase}`,
@@ -61,7 +64,7 @@ export function FeedbackTemplateClient() {
         "最短复现步骤：",
         steps.trim() || "未填写",
       ].join("\n"),
-    [actual, browser, device, expected, phase, recovery, roomCode, seat, severity, steps],
+    [actual, browser, device, expected, feedbackId, phase, recovery, roomCode, seat, severity, steps],
   );
 
   async function copyReport() {
@@ -79,6 +82,15 @@ export function FeedbackTemplateClient() {
         <h2 className="text-lg font-black text-white">填写问题</h2>
         <div className="mt-4 grid gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="反馈编号">
+              <input
+                className={inputClass}
+                maxLength={80}
+                onChange={(event) => setFeedbackId(event.target.value)}
+                placeholder="单人局会自动填入"
+                value={feedbackId}
+              />
+            </Field>
             <Field label="房间码">
               <input
                 className={inputClass}

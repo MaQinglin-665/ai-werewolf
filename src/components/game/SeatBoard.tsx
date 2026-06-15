@@ -4,7 +4,6 @@ import type * as React from "react";
 import { DEATH_LABELS } from "@/game/labels";
 import type { HumanGameView } from "@/game/types";
 import type { AiSpeechAudioStatus, LiveAiSpeech, SeatVoiceActivity, SeatVoiceState } from "./clientTypes";
-import { StatusPill } from "./PanelPrimitives";
 import { SpeechFeed } from "./TablePanels";
 import { CustomAvatarCardArt } from "./CustomAvatarCardArt";
 import { MODEL_CARD_IMAGES, getSeatCardImage, getSeatOrbitStyle } from "./viewHelpers";
@@ -22,6 +21,7 @@ export function SeatBoard({
   const aliveCount = game.seats.filter((seat) => seat.alive).length;
   const deadCount = game.seats.length - aliveCount;
   const compactSeats = game.seats.length >= 12;
+  const currentSeatId = game.currentSpeakerSeatId ?? game.currentActorSeatId;
   const activeVoice: SeatVoiceActivity | undefined = aiSpeechAudioStatus
     ? { seatId: aiSpeechAudioStatus.speaker.seatId, state: aiSpeechAudioStatus.state }
     : liveAiSpeech
@@ -34,6 +34,7 @@ export function SeatBoard({
         "table-stage relative overflow-hidden rounded-[30px] border border-[#f1c76e]/25 bg-[#120b09]/70 bg-cover bg-center p-4 shadow-2xl shadow-black/45",
         compactSeats ? "lg:min-h-[820px] xl:min-h-[840px]" : "lg:min-h-[780px] xl:min-h-[820px]",
       ].join(" ")}
+      data-seat-count={game.seats.length}
       style={{
         backgroundImage:
           "linear-gradient(180deg, rgba(8,6,5,0.20), rgba(8,6,5,0.78)), url('/images/werewolf-table-bg.jpg')",
@@ -56,20 +57,20 @@ export function SeatBoard({
           compactSeats ? "lg:min-h-[590px] xl:min-h-[610px]" : "lg:min-h-[560px] xl:min-h-[580px]",
         ].join(" ")}
       >
-        <div className={["hidden lg:absolute lg:grid lg:place-items-center", compactSeats ? "lg:inset-[29%]" : "lg:inset-[21%]"].join(" ")}>
+        <div className={["table-phase-anchor hidden lg:absolute lg:grid lg:place-items-center", compactSeats ? "lg:inset-[29%]" : "lg:inset-[21%]"].join(" ")}>
           <div
             className={[
-              "table-phase-core grid aspect-square w-full place-items-center rounded-full border border-[#f1c76e]/30 bg-[#130d0b]/70 text-center shadow-2xl shadow-black/45 backdrop-blur-sm",
-              compactSeats ? "max-w-[250px] p-5" : "max-w-[340px] p-8",
+              "table-phase-core grid w-full place-items-center border border-[#f1c76e]/30 bg-[#130d0b]/70 text-center shadow-2xl shadow-black/45 backdrop-blur-sm",
+              compactSeats ? "max-w-[220px] p-4" : "max-w-[280px] p-5",
             ].join(" ")}
           >
-            <div>
-              <div className="text-xs uppercase tracking-[0.26em] text-[#ad9c7d]">Room Phase</div>
-              <div className={["mt-3 font-semibold text-[#f1d796]", compactSeats ? "text-3xl" : "text-4xl"].join(" ")}>第 {game.day} 天</div>
-              <div className={["mt-3 text-[#f7ead5]", compactSeats ? "text-base" : "text-lg"].join(" ")}>{game.phaseLabel}</div>
-              <div className="mt-5 flex justify-center gap-2 text-xs">
-                <StatusPill tone="green">存活 {aliveCount}</StatusPill>
-                <StatusPill tone="red">出局 {deadCount}</StatusPill>
+            <div className="table-phase-copy">
+              <div className="table-phase-kicker">第 {game.day} 天</div>
+              <div className="table-phase-title">{game.phaseLabel}</div>
+              <div className="table-phase-meta">
+                {currentSeatId && <span>当前 {currentSeatId}号</span>}
+                <span>存活 {aliveCount}/{game.seats.length}</span>
+                {deadCount > 0 && <span>出局 {deadCount}</span>}
               </div>
             </div>
           </div>
@@ -87,7 +88,7 @@ export function SeatBoard({
         ))}
       </div>
 
-      <div className="relative z-20 mt-4 lg:mt-7 xl:mt-8">
+      <div className="table-speech-slot relative z-20 mt-4 lg:mt-7 xl:mt-8">
         <SpeechFeed game={game} liveAiSpeech={liveAiSpeech} variant="table" />
       </div>
     </section>
@@ -179,9 +180,9 @@ function SeatToken({
         </div>
         <div className={["min-w-0 flex-1", compact ? "text-left" : "text-center lg:w-full"].join(" ")}>
           <div className={["flex items-center", compact ? "justify-start gap-1" : "justify-center gap-2"].join(" ")}>
-            <span className={["rounded-full bg-black/35 py-0.5 text-[#f1d796]", compact ? "px-1.5 text-[10px]" : "px-2 text-[11px]"].join(" ")}>{seat.seatId}号</span>
+            <span className={["seat-number-chip rounded-full bg-black/35 py-0.5 text-[#f1d796]", compact ? "px-1.5 text-[10px]" : "px-2 text-[11px]"].join(" ")}>{seat.seatId}号</span>
             {seat.isHuman && (
-              <span className={["rounded-full bg-[#b74332] py-0.5 text-white", compact ? "px-1.5 text-[10px]" : "px-2 text-[11px]"].join(" ")}>我</span>
+              <span className={["seat-human-chip rounded-full bg-[#b74332] py-0.5 text-white", compact ? "px-1.5 text-[10px]" : "px-2 text-[11px]"].join(" ")}>我</span>
             )}
             {isSheriffBadgeHolder && (
               <span className={["rounded-full bg-[#f1c76e] py-0.5 text-[#2b1608]", compact ? "px-1.5 text-[10px]" : "px-2 text-[11px]"].join(" ")}>
@@ -190,13 +191,13 @@ function SeatToken({
             )}
           </div>
           <div className={["flex flex-wrap items-center gap-1", compact ? "mt-1 justify-start" : "mt-2 justify-center"].join(" ")}>
-            <span className={["min-w-0 truncate font-semibold text-[#f7ead5]", compact ? "max-w-[86px] text-[11px]" : "max-w-[132px] text-sm"].join(" ")}>
+            <span className={["seat-name min-w-0 truncate font-semibold text-[#f7ead5]", compact ? "max-w-[86px] text-[11px]" : "max-w-[132px] text-sm"].join(" ")}>
               {seat.name}
             </span>
             {seat.personaModelLabel && (
               <span
                 className={[
-                  "max-w-full truncate rounded-full border border-[#7da8e3]/18 bg-[#0d1623]/58 text-[#b8d6ff]",
+                  "seat-model-label max-w-full truncate rounded-full border border-[#7da8e3]/18 bg-[#0d1623]/58 text-[#b8d6ff]",
                   compact ? "px-1 py-0.5 text-[8px]" : "px-2 py-0.5 text-[10px]",
                 ].join(" ")}
                 title={seat.personaModelLabel}
@@ -205,7 +206,7 @@ function SeatToken({
               </span>
             )}
           </div>
-          <div className={["flex flex-wrap gap-1 leading-4", compact ? "mt-0.5 justify-start text-[9px]" : "mt-1 justify-center text-[11px]"].join(" ")}>
+          <div className={["seat-state-row flex flex-wrap gap-1 leading-4", compact ? "mt-0.5 justify-start text-[9px]" : "mt-1 justify-center text-[11px]"].join(" ")}>
             <span className={seat.alive ? "text-[#9fe0a4]" : "text-[#ffb1a4]"}>{seat.alive ? "存活" : "出局"}</span>
             {seat.roleLabel && <span className="text-[#f1d796]">{seat.roleLabel}</span>}
             {seat.deathReason && <span className="text-[#c8b99a]">{DEATH_LABELS[seat.deathReason]}</span>}

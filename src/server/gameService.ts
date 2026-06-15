@@ -6,6 +6,7 @@ import { getBoardPreset, listBoardPresets } from "@/game/boards";
 import { applyCommand, applySystemStep, createGame, hydrateGameState } from "@/game/engine";
 import type { RuntimeAiProviderMode } from "@/game/llmConfig";
 import { buildHumanView } from "@/game/projection";
+import { isPublicActorPhase } from "@/game/phaseSemantics";
 import { PHASES } from "@/game/types";
 import type {
   AiFriendConfig,
@@ -39,6 +40,86 @@ type PersistedAiCallLog = {
   outputJson: unknown;
   isFallback: boolean;
   createdAt?: Date | string;
+};
+
+export type MainGameSampleAiCall = {
+  id: string;
+  day: number;
+  phase: Phase;
+  seat: ReviewSeat;
+  provider: string;
+  actionType?: Command["type"];
+  outputText?: string;
+  outputSummary?: string;
+  decisionReason?: string;
+  target?: ReviewSeat;
+  isFallback: boolean;
+  validationErrors: string[];
+  error?: string;
+};
+
+export type MainGameSample = {
+  version: 1;
+  sampleId: string;
+  mode: "single-player";
+  generatedAt: string;
+  game: {
+    id: string;
+    boardId: string;
+    boardName: string;
+    day: number;
+    phase: Phase;
+    humanSeatId: number | null;
+    seatCount: number;
+    result?: GameState["result"];
+  };
+  metrics: {
+    totalAiCallCount: number;
+    publicAiCallCount: number;
+    fallbackCount: number;
+    errorCount: number;
+    validationFailureCount: number;
+    providers: string[];
+  };
+  seats: Array<{
+    seatId: number;
+    name: string;
+    isAi: boolean;
+    alive: boolean;
+    personaLabel?: string;
+    personaName?: string;
+    personaModelLabel?: string;
+  }>;
+  publicEvents: HumanGameView["publicEvents"];
+  publicSpeeches: Array<{
+    seq: number;
+    day: number;
+    phase: Phase;
+    speaker?: ReviewSeat;
+    message: string;
+  }>;
+  tableSummary: Pick<HumanGameView["tableSummary"], "claimBoard" | "recentSpeeches" | "voteSnapshot" | "sheriffVoteSnapshot">;
+  aiCalls: MainGameSampleAiCall[];
+};
+
+export type MainGameSampleListEntry = {
+  sampleId: string;
+  samplePath: string;
+  updatedAt: string;
+  game: {
+    id: string;
+    boardId: string;
+    boardName: string;
+    day: number;
+    phase: Phase;
+    status: "ACTIVE" | "GAME_OVER";
+    humanSeatId: number | null;
+    seatCount: number;
+    result?: GameState["result"];
+  };
+  metrics: MainGameSample["metrics"] & {
+    publicSpeechCount: number;
+  };
 };
 
 const POSTGRES_MAIN_GAME_TABLE = "ai_werewolf_main_games";
@@ -109,6 +190,124 @@ export async function getGameState(gameId: string): Promise<GameState | null> {
 export async function getGameView(gameId: string): Promise<HumanGameView | null> {
   const state = await loadGameState(gameId);
   return state ? buildServerHumanView(state) : null;
+}
+
+export async function getMainGameSample(gameId: string): Promise<MainGameSample | null> {
+  const state = await loadGameState(gameId);
+  if (!state) return null;
+
+  const view = buildHumanView(state);
+  const logs = await loadAiCallLogs(state.id);
+  const parsedLogs = logs.map((log) => ({
+    log,
+    prompt: parseJsonRecord(log.promptJson),
+    output: parseJsonRecord(log.outputJson),
+  }));
+  const aiCalls = parsedLogs
+    .map(({ log, prompt, output }) => buildPublicSampleAiCall(state, log, prompt, output))
+    .filter((call): call is MainGameSampleAiCall => Boolean(call));
+  const providers = Array.from(new Set(parsedLogs.map(({ prompt }) => readString(prompt, "provider") ?? "unknown"))).sort();
+
+  return {
+    version: 1,
+    sampleId: `main:${state.id}`,
+    mode: "single-player",
+    generatedAt: new Date().toISOString(),
+    game: {
+      id: state.id,
+      boardId: state.board.id,
+      boardName: state.board.name,
+      day: state.day,
+      phase: state.phase,
+      humanSeatId: state.humanSeatId,
+      seatCount: state.seats.length,
+      result: state.result,
+    },
+    metrics: {
+      totalAiCallCount: logs.length,
+      publicAiCallCount: aiCalls.length,
+      fallbackCount: parsedLogs.filter(({ log, output }) => readBoolean(output, "isFallback") ?? log.isFallback).length,
+      errorCount: parsedLogs.filter(({ output }) => Boolean(readString(output, "error"))).length,
+      validationFailureCount: parsedLogs.filter(({ output }) => readStringArray(output.validationErrors).length > 0).length,
+      providers,
+    },
+    seats: state.seats.map((seat) => ({
+      seatId: seat.seatId,
+      name: seat.name,
+      isAi: seat.isAi,
+      alive: seat.alive,
+      personaLabel: seat.isAi ? seat.persona?.label : undefined,
+      personaName: seat.isAi ? seat.persona?.name : undefined,
+      personaModelLabel: seat.isAi ? seat.persona?.modelLabel : undefined,
+    })),
+    publicEvents: view.publicEvents,
+    publicSpeeches: state.events
+      .filter((event) => event.visibility === "public" && (event.type === "SPEECH_CREATED" || event.type === "LAST_WORDS_CREATED"))
+      .map((event) => {
+        const speakerSeatId = readNumber(event.payload, "seatId") ?? event.actorSeatId;
+        const speaker = speakerSeatId ? state.seats.find((seat) => seat.seatId === speakerSeatId) : undefined;
+        return {
+          seq: event.seq,
+          day: event.day,
+          phase: event.phase,
+          speaker: speaker ? { seatId: speaker.seatId, name: speaker.name } : undefined,
+          message: readString(event.payload, "message") ?? event.message,
+        };
+      }),
+    tableSummary: {
+      claimBoard: view.tableSummary.claimBoard,
+      recentSpeeches: view.tableSummary.recentSpeeches,
+      voteSnapshot: view.tableSummary.voteSnapshot,
+      sheriffVoteSnapshot: view.tableSummary.sheriffVoteSnapshot,
+    },
+    aiCalls,
+  };
+}
+
+export async function listRecentMainGameSamples(limit = 20): Promise<MainGameSampleListEntry[]> {
+  const take = Math.max(1, Math.min(50, Math.trunc(limit)));
+  if (isPostgresMainGameStoreEnabled()) {
+    return listRecentPostgresMainGameSamples(take);
+  }
+
+  const recentLogRows = await prisma.aiCallLog.findMany({
+    select: { gameId: true },
+    orderBy: { createdAt: "desc" },
+    take: take * 50,
+  });
+  const gameIds = Array.from(new Set(recentLogRows.map((log) => log.gameId))).slice(0, take);
+  if (gameIds.length === 0) return [];
+
+  const [games, logs] = await Promise.all([
+    prisma.game.findMany({
+      where: { id: { in: gameIds } },
+      select: { id: true, stateJson: true, updatedAt: true },
+    }),
+    prisma.aiCallLog.findMany({
+      where: { gameId: { in: gameIds } },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    }),
+  ]);
+  const gamesById = new Map(games.map((game) => [game.id, game]));
+  const logsByGameId = new Map<string, PersistedAiCallLog[]>();
+  for (const log of logs) {
+    const nextLogs = logsByGameId.get(log.gameId) ?? [];
+    nextLogs.push(log);
+    logsByGameId.set(log.gameId, nextLogs);
+  }
+
+  return gameIds
+    .map((gameId) => {
+      const game = gamesById.get(gameId);
+      if (!game) return undefined;
+      try {
+        const state = hydrateGameState(JSON.parse(game.stateJson) as GameState);
+        return buildMainGameSampleListEntry(state, logsByGameId.get(game.id) ?? [], game.updatedAt);
+      } catch {
+        return undefined;
+      }
+    })
+    .filter((entry): entry is MainGameSampleListEntry => Boolean(entry));
 }
 
 export async function submitHumanCommand(
@@ -274,6 +473,92 @@ async function buildReviewDebugInfo(state: GameState): Promise<ReviewDebugInfo |
     publicFactBasisCount: aiCalls.reduce((total, call) => total + call.publicFactBasis.length, 0),
     matchedPublicLogicCount: aiCalls.reduce((total, call) => total + call.matchedPublicLogic.length, 0),
   };
+}
+
+function buildPublicSampleAiCall(
+  state: GameState,
+  log: PersistedAiCallLog,
+  prompt: Record<string, unknown>,
+  output: Record<string, unknown>,
+): MainGameSampleAiCall | undefined {
+  const phase = coercePhase(log.phase);
+  if (!isPublicActorPhase(phase)) return undefined;
+
+  const promptView = isRecord(prompt.view) ? prompt.view : undefined;
+  const outputCommand = isRecord(output.output) ? output.output : undefined;
+  const seat = state.seats.find((item) => item.seatId === log.seatNumber);
+  const actionType = coerceCommandType(readString(outputCommand, "type"));
+  const decisionReason = readString(outputCommand, "reason");
+  const message = readString(outputCommand, "message");
+  const target = readCommandTarget(state, outputCommand);
+
+  return {
+    id: log.id,
+    day: readNumber(promptView, "day") ?? state.day,
+    phase,
+    seat: {
+      seatId: log.seatNumber,
+      name: seat?.name ?? `${log.seatNumber}号`,
+    },
+    provider: readString(prompt, "provider") ?? "unknown",
+    actionType,
+    outputText: message ?? decisionReason ?? buildCommandSummary(state, outputCommand),
+    outputSummary: buildCommandSummary(state, outputCommand),
+    decisionReason,
+    target,
+    isFallback: readBoolean(output, "isFallback") ?? log.isFallback,
+    validationErrors: readStringArray(output.validationErrors),
+    error: readString(output, "error"),
+  };
+}
+
+function buildMainGameSampleListEntry(
+  state: GameState,
+  logs: PersistedAiCallLog[],
+  updatedAt: Date | string | undefined,
+): MainGameSampleListEntry {
+  const parsedLogs = logs.map((log) => ({
+    log,
+    prompt: parseJsonRecord(log.promptJson),
+    output: parseJsonRecord(log.outputJson),
+  }));
+  const aiCalls = parsedLogs
+    .map(({ log, prompt, output }) => buildPublicSampleAiCall(state, log, prompt, output))
+    .filter((call): call is MainGameSampleAiCall => Boolean(call));
+  const providers = Array.from(new Set(parsedLogs.map(({ prompt }) => readString(prompt, "provider") ?? "unknown"))).sort();
+
+  return {
+    sampleId: `main:${state.id}`,
+    samplePath: `/api/games/${encodeURIComponent(state.id)}/sample`,
+    updatedAt: formatIsoDate(updatedAt),
+    game: {
+      id: state.id,
+      boardId: state.board.id,
+      boardName: state.board.name,
+      day: state.day,
+      phase: state.phase,
+      status: state.result ? "GAME_OVER" : "ACTIVE",
+      humanSeatId: state.humanSeatId,
+      seatCount: state.seats.length,
+      result: state.result,
+    },
+    metrics: {
+      totalAiCallCount: logs.length,
+      publicAiCallCount: aiCalls.length,
+      fallbackCount: parsedLogs.filter(({ log, output }) => readBoolean(output, "isFallback") ?? log.isFallback).length,
+      errorCount: parsedLogs.filter(({ output }) => Boolean(readString(output, "error"))).length,
+      validationFailureCount: parsedLogs.filter(({ output }) => readStringArray(output.validationErrors).length > 0).length,
+      providers,
+      publicSpeechCount: state.events.filter(
+        (event) => event.visibility === "public" && (event.type === "SPEECH_CREATED" || event.type === "LAST_WORDS_CREATED"),
+      ).length,
+    },
+  };
+}
+
+function formatIsoDate(value: Date | string | undefined): string {
+  const date = value instanceof Date ? value : value ? new Date(value) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
 }
 
 const PUBLIC_LOGIC_TERMS = [
@@ -518,6 +803,41 @@ async function loadAiCallLogs(gameId: string): Promise<PersistedAiCallLog[]> {
     where: { gameId },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
+}
+
+async function listRecentPostgresMainGameSamples(take: number): Promise<MainGameSampleListEntry[]> {
+  await ensurePostgresMainGameStoreReady();
+  const result = await getPostgresMainGameStorePool().query<{
+    id: string;
+    state_json: unknown;
+    updated_at: Date | string;
+  }>(
+    `
+      select id, state_json, updated_at
+      from ${POSTGRES_MAIN_GAME_TABLE}
+      where exists (
+        select 1
+        from ${POSTGRES_MAIN_GAME_AI_CALL_LOG_TABLE}
+        where ${POSTGRES_MAIN_GAME_AI_CALL_LOG_TABLE}.game_id = ${POSTGRES_MAIN_GAME_TABLE}.id
+      )
+      order by updated_at desc
+      limit $1
+    `,
+    [take],
+  );
+
+  const entries: MainGameSampleListEntry[] = [];
+  for (const row of result.rows) {
+    try {
+      const rawState = typeof row.state_json === "string" ? (JSON.parse(row.state_json) as GameState) : (row.state_json as GameState);
+      const state = hydrateGameState(rawState);
+      const logs = await loadAiCallLogs(row.id);
+      entries.push(buildMainGameSampleListEntry(state, logs, row.updated_at));
+    } catch {
+      // A malformed persisted snapshot should not block the owner sample index.
+    }
+  }
+  return entries;
 }
 
 function parseJsonRecord(raw: unknown): Record<string, unknown> {

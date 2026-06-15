@@ -10,6 +10,24 @@ import {
   type GameClientLoadedSurfaceProps,
 } from "./GameClientLoadedSurface";
 
+function buildTableMemory(day = 1): HumanGameView["tableSummary"]["tableMemory"] {
+  return {
+    day,
+    claimBoard: [],
+    stanceBoard: [],
+    stanceShifts: [],
+    seerLegacies: [],
+    speechInfluence: [],
+    reasoningCues: [],
+    counterclaims: [],
+    focus: [],
+    seats: [],
+    voteHistory: [],
+    deathAnnouncements: [],
+    publicSignals: [],
+  };
+}
+
 function buildGame(overrides: Partial<HumanGameView> = {}): HumanGameView {
   return {
     id: "game-surface",
@@ -33,7 +51,7 @@ function buildGame(overrides: Partial<HumanGameView> = {}): HumanGameView {
       recentSpeeches: [],
       voteSnapshot: { votes: [], tally: [], leaders: [], pendingSeatIds: [], revealed: false, abstainCount: 0 },
       claimBoard: [],
-      tableMemory: {} as HumanGameView["tableSummary"]["tableMemory"],
+      tableMemory: buildTableMemory(),
       aiReasonHighlights: [],
       phaseSteps: [],
     },
@@ -83,7 +101,7 @@ describe("GameClientLoadedSurface", () => {
     const html = renderToStaticMarkup(createElement(GameClientLoadedSurface, buildProps()));
 
     expect(html).toContain("mobile-game-table");
-    expect(html).toContain("hidden gap-4 sm:grid");
+    expect(html).toContain("ordinary-desktop-match hidden sm:grid");
     expect(html).toContain("mobile-action-panel");
   });
 
@@ -105,6 +123,45 @@ describe("GameClientLoadedSurface", () => {
 
     expect(buildOrdinarySurfaceEventFeed(game, true)).toEqual([]);
     expect(buildOrdinarySurfaceEventFeed(game, false)).toHaveLength(1);
+  });
+
+  it("shows a compact history entry for public speech and vote records", () => {
+    const base = buildGame();
+    const game = buildGame({
+      publicEvents: [
+        {
+          seq: 11,
+          day: 1,
+          phase: "DAY_SPEECH",
+          actorSeatId: 2,
+          type: "SPEECH_CREATED",
+          message: "2号发言",
+          payload: { seatId: 2, message: "我认为1号的发言偏好。" },
+        },
+      ] as HumanGameView["publicEvents"],
+      tableSummary: {
+        ...base.tableSummary,
+        recentSpeeches: [{ seq: 11, day: 1, speaker: { seatId: 2, name: "DeepSeek" }, message: "我认为1号的发言偏好。" }],
+        tableMemory: {
+          ...buildTableMemory(),
+          voteHistory: [
+            {
+              day: 1,
+              tally: [{ target: { seatId: 3, name: "Claude" }, count: 2 }],
+              leaders: [{ seatId: 3, name: "Claude" }],
+              exiled: { seatId: 3, name: "Claude" },
+              tiedSeatIds: [],
+            },
+          ],
+        },
+      },
+    });
+
+    const html = renderToStaticMarkup(createElement(GameClientLoadedSurface, buildProps({ game })));
+
+    expect(html).toContain("历史记录");
+    expect(html).toContain("快速回看");
+    expect(html).toContain("发言 1 · 投票 1");
   });
 
   it("shows the class-trial intro wait surface before the themed table", () => {

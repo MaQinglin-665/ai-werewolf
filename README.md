@@ -170,6 +170,8 @@ npm run simulate:ai
 
 - `POST /api/games` 创建新局。
 - `GET /api/games/:gameId` 获取当前真人玩家的脱敏视角。
+- `GET /api/games/samples?token=...` 列出 owner-token 保护的最近单机局公开样本索引，用于不知道反馈编号时按时间找回样本。
+- `GET /api/games/:gameId/sample?token=...` 导出 owner-token 保护的单机局公开复盘样本，用于收集真实 LLM 发言和公开行动读数。
 - `POST /api/games/:gameId/commands` 提交当前动作。
 - `POST /api/games/:gameId/voice-input` 将真人语音转写整理为发言或遗言草稿，不推进游戏状态。
 - `POST /api/rooms` 创建公网房间。

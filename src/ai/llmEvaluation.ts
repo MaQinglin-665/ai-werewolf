@@ -1268,12 +1268,12 @@ function collectEvalPublicCheckAttributions(
     );
     const reportPatterns = [
       {
-        pattern: /(?:报(?:了|出)?|给(?:了|出)?|甩(?:了)?|打(?:出)?|留(?:了)?|查(?:了|验了)|验了)[^。！？；]{0,28}?(\d{1,2})\s*号[^。！？；]{0,12}(查杀|金水)/g,
+        pattern: /(?:报(?:了|出)?|给(?:了|出)?|甩(?:了)?|打(?:出)?|留(?:了)?|查(?:了|验了)|验了)[^。！？；，,、]{0,28}?(\d{1,2})\s*号[^。！？；]{0,12}(查杀|金水)/g,
         targetGroup: 1,
         resultGroup: 2,
       },
       {
-        pattern: /(?:报(?:了|出)?|给(?:了|出)?|甩(?:了)?|打(?:出)?|留(?:了)?|查(?:了|验了)|验了)[^。！？；]{0,18}?([A-Za-z][A-Za-z0-9_-]{1,24}|[\u4e00-\u9fa5]{1,12})[^。！？；]{0,4}(查杀|金水)/g,
+        pattern: /(?:报(?:了|出)?|给(?:了|出)?|甩(?:了)?|打(?:出)?|留(?:了)?|查(?:了|验了)|验了)[^。！？；，,、]{0,18}?([A-Za-z][A-Za-z0-9_-]{1,24}|[\u4e00-\u9fa5]{1,12})[^。！？；]{0,4}(查杀|金水)/g,
         targetGroup: 1,
         resultGroup: 2,
       },
@@ -1371,7 +1371,7 @@ function inferEvalPublicCheckSentenceTopicClaimants(
   inheritedClaimantSeatIds: number[],
 ): number[] {
   const discussionCue = sentence.match(
-    /(?:接一下|先接|接住|回到|聊一下|看一下|问一下|点到|提到|说一下)[^。！？；，,]{0,32}/,
+    /(?:接一下|先接|接住|回到|聊一下|看一下|主要看|问一下|点到|提到|说一下)[^。！？；，,]{0,32}/,
   )?.[0];
   if (discussionCue) {
     const mentioned = collectEvalSeatRefsFromText(discussionCue, seats);
@@ -1384,8 +1384,9 @@ function inferEvalPublicCheckSentenceTopicClaimants(
 }
 
 function shouldUseInheritedEvalPublicCheckClaimant(prefix: string): boolean {
-  const lastClause = prefix.split(/[，,；;。！？!?]/).pop()?.replace(/\s+/g, "") ?? "";
+  const lastClause = prefix.split(/[，,、；;。！？!?—-]/).pop()?.replace(/\s+/g, "") ?? "";
   if (!lastClause) return false;
+  if (/^(?:昨天|今天|这轮|上一轮|前面|刚才|刚刚|第一天|直接|又|也)$/.test(lastClause)) return true;
   if (/^(?:他|她|TA|ta|这张牌|那张牌|这位|那位|这个预言家|那个预言家)(?:自己|刚才|刚刚|之前|前面|这轮|今天|昨天|第一天|直接|又|也)?$/.test(lastClause)) {
     return true;
   }

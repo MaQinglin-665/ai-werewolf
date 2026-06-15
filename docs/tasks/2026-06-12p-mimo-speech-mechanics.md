@@ -1225,3 +1225,52 @@ Current decision:
 - Remaining sample findings are report-only surface warnings:
   repeated sheriff-standard wording and `rolePublicAction` skew.
 - Do not spend another paid bounded proof by default.
+
+### 2026-06-14 DeepSeek Final Acceptance Proof
+
+After the local Seer-check attribution invariant suite and extractor fixes, one
+same-seed bounded live proof was run with `deepseek-chat` as the requested
+provider. The proof reached day 3 `DAY_VOTE` at 100 calls and exercised the
+important D3 shape: 8号 Kimi claimed Seer, reported a self-owned 1号金水, and
+referenced Claude/GLM's old 9号查杀 lines without absorbing those lines into
+8号's own structured checks.
+
+Evidence:
+
+- `docs/evaluations/2026-06-14-12p-deepseek-final-acceptance-proof.md`
+- `tmp/12p-deepseek-chat-final-acceptance-report.json`
+- `tmp/12p-deepseek-chat-final-acceptance-hardscan.json`
+- `tmp/12p-deepseek-chat-final-acceptance-after-eval-calibration-eval.json`
+
+Hard scan:
+
+- non-Seer claimBoard checks: 0
+- claimed-Seer same-target contradictions: 0
+- private leak hits: 0
+- accepted fragment hard-shape hits: 0
+- D3 speech rows scanned: 9
+- trigger text rows scanned: 64
+
+Offline evaluator calibration removed two legal-public-check false positives on
+the same cases. Final eval: 80 cases, averageScore 99.8, issueCount 1,
+highRiskCaseIds empty.
+
+Verification:
+
+- `npm.cmd run test -- src/ai/llmEvaluation.test.ts` passed: 40 tests.
+- `npx.cmd tsc --noEmit --pretty false` passed.
+- `npm.cmd run lint` passed.
+- `git diff --check` passed with LF/CRLF warnings only.
+- Secret-pattern scan over generated DeepSeek final proof outputs found 0 real
+  key or Bearer token matches.
+
+Decision:
+
+- `go-hardgate` for structured Seer-check attribution on the DeepSeek final
+  proof.
+- Do not run another paid attribution proof by default.
+- Caveat: the live provider path was noisy, with fallback/error 9/100 and
+  validationFailure 4/100. This is provider stability noise, not a hard-gate
+  attribution failure.
+- Caveat: this is DeepSeek proof, not a Mimo-specific full-game subjective
+  read-feel proof.

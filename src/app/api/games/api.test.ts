@@ -1,14 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as submitCommand } from "./[gameId]/commands/route";
+import { GET as getGameSample } from "./[gameId]/sample/route";
 import { POST as submitStreamingCommand } from "./[gameId]/stream-command/route";
 import { GET as getGame } from "./[gameId]/route";
 import { POST as submitVoiceInput } from "./[gameId]/voice-input/route";
+import { GET as listGameSamples } from "./samples/route";
 import { POST as recordSiteAnalyticsEvent } from "../analytics/events/route";
 import { GET as getBoards } from "./boards/route";
 import { POST as createGame } from "./route";
 import { clearRoomAnalyticsForTests, getRoomAnalyticsHistorySnapshot } from "@/server/roomAnalytics";
 import { GET as getRoomMetrics } from "../rooms/metrics/route";
 import type { AvailableHumanAction, HumanGameView } from "@/game/types";
+import { prisma } from "@/lib/prisma";
 
 describe("game api routes", () => {
   const originalMainGameStoreAdapter = process.env.AI_WEREWOLF_MAIN_GAME_STORE_ADAPTER;
@@ -309,6 +312,135 @@ describe("game api routes", () => {
     expect(analytics.mainGamesFinished).toBe(1);
     expect(analytics.mainCompletionRate).toBe(100);
   });
+
+  it("exports owner-protected single-player samples by game id", async () => {
+    const previousMetricsToken = process.env.AI_WEREWOLF_METRICS_TOKEN;
+    process.env.AI_WEREWOLF_METRICS_TOKEN = "test-owner-token";
+
+    try {
+      const createResponse = await createGame(
+        new Request("http://localhost/api/games", {
+          method: "POST",
+          body: JSON.stringify({ boardId: "6p-beginner-seer", humanSeatId: null }),
+        }),
+      );
+      expect(createResponse.status).toBe(200);
+      let view = (await createResponse.json()) as HumanGameView;
+
+      type MainGameSampleResponse = {
+        mode: string;
+        game: { id: string; boardId: string };
+        metrics: { publicAiCallCount: number; totalAiCallCount: number };
+        publicEvents: Array<{ type: string; visibility?: string }>;
+        publicSpeeches: Array<{ message: string }>;
+        aiCalls: Array<{ phase: string; outputText?: string; provider: string }>;
+      };
+      let sample: MainGameSampleResponse | null = null;
+
+      for (let step = 0; step < 80; step += 1) {
+        const sampleResponse = await getGameSample(new Request(`http://localhost/api/games/${view.id}/sample?token=test-owner-token`), {
+          params: Promise.resolve({ gameId: view.id }),
+        });
+        expect(sampleResponse.status).toBe(200);
+        sample = (await sampleResponse.json()) as MainGameSampleResponse;
+        if (sample && sample.metrics.publicAiCallCount > 0 && sample.publicSpeeches.length > 0) break;
+
+        const action = view.availableActions[0];
+        if (!action) break;
+        const response = await submitCommand(
+          new Request(`http://localhost/api/games/${view.id}/commands`, {
+            method: "POST",
+            body: JSON.stringify({ ...commandFromAction(action), aiRuntimeMode: "mock" }),
+          }),
+          { params: Promise.resolve({ gameId: view.id }) },
+        );
+        expect(response.status).toBe(200);
+        view = (await response.json()) as HumanGameView;
+      }
+
+      const blockedResponse = await getGameSample(new Request(`http://localhost/api/games/${view.id}/sample`), {
+        params: Promise.resolve({ gameId: view.id }),
+      });
+      expect(blockedResponse.status).toBe(404);
+
+      expect(sample).toBeTruthy();
+      expect(sample?.mode).toBe("single-player");
+      expect(sample?.game).toMatchObject({ id: view.id, boardId: "6p-beginner-seer" });
+      expect(sample?.metrics.totalAiCallCount).toBeGreaterThan(0);
+      expect(sample?.metrics.publicAiCallCount).toBeGreaterThan(0);
+      expect(sample?.publicSpeeches.length).toBeGreaterThan(0);
+      expect(sample?.aiCalls.every((call) => !call.phase.startsWith("NIGHT"))).toBe(true);
+
+      const serialized = JSON.stringify(sample);
+      expect(serialized).not.toMatch(/ROLE_ASSIGNED|privateKnowledge|wolfTeammates|seerChecks|promptJson/);
+    } finally {
+      if (previousMetricsToken === undefined) {
+        delete process.env.AI_WEREWOLF_METRICS_TOKEN;
+      } else {
+        process.env.AI_WEREWOLF_METRICS_TOKEN = previousMetricsToken;
+      }
+    }
+  });
+
+  it("lists recent owner-protected single-player samples without requiring players to share an id", async () => {
+    const previousMetricsToken = process.env.AI_WEREWOLF_METRICS_TOKEN;
+    process.env.AI_WEREWOLF_METRICS_TOKEN = "test-owner-token";
+
+    try {
+      const createResponse = await createGame(
+        new Request("http://localhost/api/games", {
+          method: "POST",
+          body: JSON.stringify({ boardId: "6p-beginner-seer", humanSeatId: null }),
+        }),
+      );
+      expect(createResponse.status).toBe(200);
+      const view = (await createResponse.json()) as HumanGameView;
+      await prisma.aiCallLog.create({
+        data: {
+          gameId: view.id,
+          seatNumber: 2,
+          phase: "DAY_SPEECH",
+          promptJson: JSON.stringify({ provider: "mock-speech", view: { day: 1 } }),
+          outputJson: JSON.stringify({
+            output: { type: "speak", message: "我先按公开发言给一段测试样本。" },
+            validationErrors: [],
+            isFallback: false,
+          }),
+          isFallback: false,
+        },
+      });
+
+      const blockedResponse = await listGameSamples(new Request("http://localhost/api/games/samples"));
+      expect(blockedResponse.status).toBe(404);
+
+      const response = await listGameSamples(new Request("http://localhost/api/games/samples?token=test-owner-token&limit=10"));
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as {
+        samples: Array<{
+          sampleId: string;
+          samplePath: string;
+          game: { id: string; boardId: string };
+          metrics: { publicAiCallCount: number; totalAiCallCount: number; publicSpeechCount: number };
+        }>;
+      };
+      const sample = payload.samples.find((item) => item.game.id === view.id);
+
+      expect(sample).toBeTruthy();
+      expect(sample?.sampleId).toBe(`main:${view.id}`);
+      expect(sample?.samplePath).toBe(`/api/games/${view.id}/sample`);
+      expect(sample?.game.boardId).toBe("6p-beginner-seer");
+      expect(sample?.metrics.totalAiCallCount).toBeGreaterThan(0);
+      expect(sample?.metrics.publicAiCallCount).toBeGreaterThan(0);
+      expect(sample?.metrics.publicSpeechCount).toBeGreaterThanOrEqual(0);
+      expect(JSON.stringify(sample)).not.toMatch(/ROLE_ASSIGNED|privateKnowledge|wolfTeammates|seerChecks|promptJson|rawOutput/);
+    } finally {
+      if (previousMetricsToken === undefined) {
+        delete process.env.AI_WEREWOLF_METRICS_TOKEN;
+      } else {
+        process.env.AI_WEREWOLF_METRICS_TOKEN = previousMetricsToken;
+      }
+    }
+  }, 15000);
 });
 
 async function createGameAtHumanAction(targetType: AvailableHumanAction["type"]): Promise<HumanGameView> {

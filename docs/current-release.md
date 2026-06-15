@@ -1,6 +1,6 @@
 # Current Release Status
 
-Last checked: 2026-06-13 19:35 Asia/Shanghai.
+Last checked: 2026-06-14 18:11 Asia/Shanghai.
 
 Use this file as the first stop before sharing the public Alpha link or starting a new deployment. Update it after every public-facing release.
 
@@ -14,8 +14,8 @@ Use this file as the first stop before sharing the public Alpha link or starting
 ## Current Source State
 
 - Working branch: `codex/12p-mimo-speech-mechanics`
-- Current public runtime baseline: `a214e67 Stabilize 12p Mimo hard gate`
-- Local worktree at runtime check: pushed to `origin/codex/12p-mimo-speech-mechanics`
+- Current public runtime baseline: `origin/codex/12p-mimo-speech-mechanics@3c6658a` plus the local 12p DeepSeek final acceptance/evaluator patch, single-player sample export endpoint, feedback-id UI, and recent sample-index endpoint archive
+- Local worktree at runtime check: deployed from clean archive `ai-werewolf-feedback-samples-20260614-180534.tar.gz`
 - Render deployment branch at last check: `1cb8eb2 deploy: sync mobile interaction signals`
 
 Render is intentionally tracked through `codex/room-render-production-minimum`. Tencent Cloud is deployed from the current source archive path. When a release should be visible in both public environments, update both lanes and record the two heads here.
@@ -28,9 +28,9 @@ This file may be updated by documentation-only commits after the runtime baselin
 - Compose root: `/opt/ai-werewolf`
 - Live app source: `/opt/ai-werewolf/app`
 - Main service: `ai-werewolf-app`
-- Latest deployed source: `a214e67 Stabilize 12p Mimo hard gate`
-- Rollback source tree: `/opt/ai-werewolf/app-backup-20260613-192918`
-- Last container status: `ai-werewolf-app` healthy, image `sha256:22849e5c5a3cb9ddc5add801cb80dd718241b0fcb125fad233de193404158095`, nginx and Postgres running
+- Latest deployed source: `origin/codex/12p-mimo-speech-mechanics@3c6658a` plus local 12p final acceptance/evaluator patch, single-player sample export endpoint, feedback-id UI, and sample-index archive `ai-werewolf-feedback-samples-20260614-180534.tar.gz`
+- Rollback source tree: `/opt/ai-werewolf/app-backup-20260614-180534`
+- Last container status: `ai-werewolf-app` healthy, image `sha256:3209280a5d33b8724201f804ce8359f28da52b234f965813bbcc6170eef27661`, nginx and Postgres running
 
 Latest verification:
 
@@ -38,7 +38,7 @@ Latest verification:
 npm run preflight:production -- --base-url=https://175.178.199.245
 ```
 
-Result at 2026-06-13 19:34 Asia/Shanghai: `ok=true`, all production minimum checks passed.
+Result at 2026-06-14 18:10 Asia/Shanghai: `ok=true`, all production minimum checks passed.
 
 Latest room smoke:
 
@@ -46,7 +46,7 @@ Latest room smoke:
 $env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-sse
 ```
 
-Result at 2026-06-13 19:35 Asia/Shanghai: `ok=true`, room `6JTSJC`, host seat `1`, guest seat `2`.
+Result at 2026-06-14 18:11 Asia/Shanghai: `ok=true`, room `PFU13J`, host seat `1`, guest seat `2`.
 
 Latest room action vote smoke:
 
@@ -54,7 +54,7 @@ Latest room action vote smoke:
 $env:ROOM_SMOKE_BASE_URL="https://175.178.199.245"; npm run smoke:room-action:vote
 ```
 
-Result at 2026-06-13 19:35 Asia/Shanghai: `ok=true`, room `T95XIB`, covered `wolfKill`, `witchAction`, `speak`, and `vote`, final phase `LAST_WORDS`.
+Result at 2026-06-14 18:11 Asia/Shanghai: `ok=true`, room `1KZACA`, covered `witchAction`, `speak`, and `vote`, final phase `LAST_WORDS`.
 
 Latest main game smoke:
 
@@ -62,7 +62,25 @@ Latest main game smoke:
 npm run smoke:main-game -- --base-url=https://175.178.199.245
 ```
 
-Result at 2026-06-12 19:19 Asia/Shanghai: `ok=true`, board `6p-beginner-seer`, human seat `1`, role `SEER`, submitted `seerCheck`, final phase `DAY_SPEECH`.
+Result at 2026-06-14 18:11 Asia/Shanghai: `ok=true`, board `6p-beginner-seer`, game `07e0a14a-a23b-4126-9e2f-89764b72ff71`, human seat `1`, role `SEER`, submitted `seerCheck`, final phase `DAY_SPEECH`.
+
+Latest single-player sample endpoint probe:
+
+```powershell
+# Remote container-internal probe using AI_WEREWOLF_METRICS_TOKEN without printing the token.
+GET /api/games/:gameId/sample with x-ai-werewolf-metrics-token
+```
+
+Result at 2026-06-14 17:39 Asia/Shanghai: `ok=true`, game `f82cd7c8-773a-43f3-a3b1-64f44f466e30`, unauthorized request returned 404, total AI calls 3, public AI calls 1, public speeches 1, night AI calls exported 0.
+
+Latest single-player sample index probe:
+
+```powershell
+# Remote container-internal probe using AI_WEREWOLF_METRICS_TOKEN without printing the token.
+GET /api/games/samples with x-ai-werewolf-metrics-token
+```
+
+Result at 2026-06-14 18:12 Asia/Shanghai: `ok=true`, unauthorized request returned 404, sampleCount 5, first sample path `/api/games/07e0a14a-a23b-4126-9e2f-89764b72ff71/sample`, private field scan false.
 
 Latest local production browser DOM smoke:
 

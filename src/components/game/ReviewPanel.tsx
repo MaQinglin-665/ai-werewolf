@@ -5,6 +5,7 @@ import { buildReviewCredibilityHighlights } from "@/game/reviewHighlights";
 import { isWolfRole } from "@/game/roleUtils";
 import type { HumanGameView } from "@/game/types";
 import { SectionTitle } from "./PanelPrimitives";
+import { FeedbackIdCopy } from "./FeedbackIdCopy";
 import { ROLE_CARD_IMAGES, formatSystemMessage } from "./viewHelpers";
 import { ReviewAnalysisDrawer } from "./ReviewAnalysisPanels";
 import { ReviewCredibilityStrip, PlayerFeedbackPanel, ReviewVoteImpactPanel } from "./ReviewSummaryPanels";
@@ -32,12 +33,15 @@ export function ReviewPanel({
             {review.result?.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜 · {review.result?.reason}
           </p>
         </div>
-        <a
-          href={`#${reviewEventsId}`}
-          className="rounded-full border border-[#f1c76e]/30 px-4 py-2 text-sm text-[#f1d796] transition hover:bg-[#f1c76e]/10"
-        >
-          查看关键事件
-        </a>
+        <div className="grid gap-2 sm:min-w-[320px]">
+          <FeedbackIdCopy gameId={game.id} />
+          <a
+            href={`#${reviewEventsId}`}
+            className="rounded-full border border-[#f1c76e]/30 px-4 py-2 text-center text-sm text-[#f1d796] transition hover:bg-[#f1c76e]/10"
+          >
+            查看关键事件
+          </a>
+        </div>
       </div>
 
       {credibilityHighlights.length > 0 && <ReviewCredibilityStrip highlights={credibilityHighlights} />}

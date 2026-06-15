@@ -4,6 +4,7 @@ import type { AvailableHumanAction, HumanGameView } from "@/game/types";
 import type { CommandPayload } from "./clientTypes";
 import { buildActionGuidance, type ActionGuidance } from "./actionGuidance";
 import { ActionControl } from "./ActionTargetControls";
+import { FeedbackIdCopy } from "./FeedbackIdCopy";
 
 export function ActionPanel({
   game,
@@ -33,6 +34,7 @@ export function ActionPanel({
         <p className="mt-2 text-sm text-[#dcc9a7]">
           {game.result.winner === "GOOD" ? "好人阵营" : "狼人阵营"}获胜：{game.result.reason}
         </p>
+        <FeedbackIdCopy className="mt-4" compact={mobileCompact} gameId={game.id} />
         <div className="mt-4 flex flex-wrap gap-2">
           <a
             href={reviewHref}
@@ -64,7 +66,8 @@ export function ActionPanel({
   if (game.availableActions.length === 0) {
     return (
       <section className={getActionPanelClassName(mobileCompact, "rounded-[24px] border border-[#f1c76e]/25 bg-[#130d0b]/88 p-4 text-sm text-[#dcc9a7] shadow-2xl shadow-black/35 backdrop-blur-md")}>
-        {loading ? "结算中" : "等待 AI 行动"}
+        <div>{loading ? "结算中" : "等待 AI 行动"}</div>
+        <FeedbackIdCopy className="mt-3" compact={mobileCompact} gameId={game.id} />
       </section>
     );
   }
@@ -85,6 +88,7 @@ export function ActionPanel({
           </div>
           {!mobileCompact && <ActionGuidanceStrip guidance={guidance} />}
           {game.wolfStrategy && <WolfStrategyPanel strategy={game.wolfStrategy} />}
+          <FeedbackIdCopy compact={mobileCompact} gameId={game.id} />
           <div className="mobile-action-panel-controls flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-[#77d898]/25 bg-[#14311f]/55 px-3 py-2 text-xs text-[#a8f0b6]">
               <span className="h-2 w-2 rounded-full bg-[#77d898]" />
@@ -119,6 +123,7 @@ export function ActionPanel({
       </div>
       {!mobileCompact && <ActionGuidanceStrip guidance={guidance} />}
       {game.wolfStrategy && <WolfStrategyPanel strategy={game.wolfStrategy} />}
+      <FeedbackIdCopy className="mb-4" compact={mobileCompact} gameId={game.id} />
       <div className="mobile-action-panel-controls grid gap-3">
         {game.availableActions.map((action) => (
           <ActionControl

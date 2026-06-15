@@ -62,7 +62,7 @@
     {
       "id": "lrt-public-alpha-consolidation-roadmap",
       "title": "Public Alpha consolidation roadmap",
-      "status": "planned",
+      "status": "running",
       "owner": "main",
       "scope": [
         "docs/tasks/2026-06-public-alpha-consolidation-roadmap.md",
@@ -72,18 +72,28 @@
         "docs/alpha-feedback-ops.md",
         "docs/promotion/social-playtest-kit.md",
         "docs/harness-state.md",
+        "README.md",
+        "src/server/gameService.ts",
+        "src/app/api/games/[gameId]/sample/route.ts",
+        "src/app/api/games/samples/route.ts",
+        "src/app/alpha-report/FeedbackTemplateClient.tsx",
+        "src/components/game/ActionPanel.tsx",
+        "src/components/game/FeedbackIdCopy.tsx",
+        "src/components/game/ReviewPanel.tsx",
+        "src/components/game/recentGamesStore.ts",
+        "src/app/api/games/api.test.ts",
         "progress.md",
         "session-handoff.md",
         "long_running_tasks.json",
         "feature_list.json"
       ],
       "started_at": "2026-06-12T18:45:00+08:00",
-      "updated_at": "2026-06-12T18:45:00+08:00",
+      "updated_at": "2026-06-14T18:12:00+08:00",
       "related_task_card": "docs/tasks/2026-06-public-alpha-consolidation-roadmap.md",
       "handoff_pointer": "session-handoff.md",
-      "last_verified_command": "2026-06-12 18:45 planning/harness checks passed: npm run harness:task-card -- docs/tasks/2026-06-public-alpha-consolidation-roadmap.md; npm run harness:long-tasks; JSON parse for feature_list.json and long_running_tasks.json; npm run harness:check; git diff --check for touched docs/state files.",
-      "next_action": "Triage the local dirty frontend/API worktree into small scoped tasks, then run a 5-10 player Public Alpha mobile playtest on the Tencent Cloud primary link and fix P0/P1 issues first.",
-      "notes": "This is the next project phase after ordinary Mimo speech-quality acceptance and Tencent deployment. Keep Tencent as the primary public environment, Render as a separately verified backup, and avoid new feature scope until the playtest loop is stable."
+      "last_verified_command": "2026-06-14 18:12 Tencent feedback-id/sample-index deploy: clean archive ai-werewolf-feedback-samples-20260614-180534.tar.gz was uploaded and switched into /opt/ai-werewolf/app with rollback /opt/ai-werewolf/app-backup-20260614-180534; Docker build passed with /api/games/samples in the Next route table; production checks passed preflight:production ok=true, smoke:room-sse room PFU13J, smoke:room-action:vote room 1KZACA final LAST_WORDS, smoke:main-game game 07e0a14a-a23b-4126-9e2f-89764b72ff71 final DAY_SPEECH; live alpha-report contained 反馈编号; container-internal sample-index probe passed with unauthorized 404, sampleCount 5, privatePatternHit false.",
+      "next_action": "Start collecting real-user single-player samples on Tencent Cloud. Players can copy the feedback number; if they do not send it, use the owner-token sample index to recover recent sample paths. Do not run new paid attribution proofs by default, and do not bundle unrelated homepage-lobby work into sample collection commits.",
+      "notes": "Public Alpha consolidation has a deployed admin sample export and no-gameId collection loop for single-player LLM games on Tencent Cloud. Single-player games do not have room codes, so samples are addressed by gameId/反馈编号. The endpoints reuse AI_WEREWOLF_METRICS_TOKEN access, export/list redacted public sample fields, and omit raw prompts/private events/night private knowledge. Player UI now exposes a copyable feedback number and alpha-report auto-fills the latest local single-player id. Render was not updated."
     },
     {
       "id": "lrt-12p-mimo-speech-mechanics",
@@ -99,6 +109,7 @@
         "docs/evaluations/2026-06-13-12p-mimo-fullgame-paid-after-hardgate-review.md",
         "docs/evaluations/2026-06-14-12p-mimo-fresh-d3-target-subject-review-prompt.md",
         "docs/evaluations/2026-06-14-12p-deepseek-d3-after-pronounfix-proof.md",
+        "docs/evaluations/2026-06-14-12p-deepseek-final-acceptance-proof.md",
         "src/ai/speechProviders.ts",
         "src/ai/speech/ordinarySurface.ts",
         "src/ai/speechProviders.test.ts",
@@ -121,12 +132,12 @@
         "long_running_tasks.json"
       ],
       "started_at": "2026-06-12T21:05:00+08:00",
-      "updated_at": "2026-06-14T15:52:00+08:00",
+      "updated_at": "2026-06-14T17:08:00+08:00",
       "related_task_card": "docs/tasks/2026-06-12p-mimo-speech-mechanics.md",
       "handoff_pointer": "session-handoff.md",
-      "last_verified_command": "2026-06-14 15:52 commit/review prep: local attribution invariant suite and 550-case rescan are recorded, and stale broad-test assertions were updated for current prompt/audit labels, mock-speech wording, guided speech contract, and 1000-game timeout. Verification passed: npm.cmd run test -- src/ai/expertStrategy.test.ts src/ai/tableRead.test.ts src/game/engine.test.ts passed 156 tests; npm.cmd run test passed 100 files / 1218 tests; npx.cmd tsc --noEmit --pretty false passed; npm.cmd run lint passed; npm.cmd run build passed with the existing Turbopack NFT trace warning.",
-      "next_action": "Do not run another paid proof by default. The exploratory paid rerun loop is paused for cost control. If the user explicitly asks for final live acceptance and supplies temporary provider input, run one fresh same-seed bounded D3 proof at about 90-100 calls, covering SHERIFF plus D1/D2/D3 DAY_SPEECH/DAY_VOTE, and count it only if it exercises quoted/reported checks plus self-owned fake-Seer checks.",
-      "notes": "Earlier bounded mechanism gate and local full-game mock gate passed. The paid full-game Mimo run completed and old hard gates were clean in exact scans, but Opus review chose continue because 11号 GPT2 carried both 1号 WEREWOLF and 1号 GOOD after quoting 2号 Claude's old gold check while claiming a new black check. The D3-90 proof exposed non-conflicting 8号 Kimi quoted-check pollution and a 7号 GLM focus-marker fragment; both were locally fixed. The fresh Mimo D3 proof failed claim attribution because 2号Claude刚才报的金水 was parsed as Kimi's own 8->2 GOOD and suppressed Kimi's own 8->2 WEREWOLF; external review chose continue-local, and claims.ts now uses bounded owned check verbs versus report/quote verbs. DeepSeek-chat then exposed the reverse side twice: 11号 GPT2 target-before-pronoun self-check was dropped, then 4号 豆包 same-sentence quote plus self-check was dropped. Both local parser fixes are test-backed. A local invariant suite and 550-case extraction rescan now show no known current-extractor self-owned Seer-check miss, so stop spending paid calls to discover more phrasing variants. Do not write keys to .env or docs; do not chase broad phrase bans, action quotas, or vote-reason sameness in this cut."
+      "last_verified_command": "2026-06-14 17:08 Tencent deploy from clean 12p archive: origin/codex/12p-mimo-speech-mechanics@3c6658a plus local 12p final acceptance/evaluator patch was archived as ai-werewolf-12p-hardgate-20260614-170123.tar.gz, uploaded to /tmp, built, switched into /opt/ai-werewolf/app, and verified healthy. Production checks passed: npm.cmd run preflight:production -- --base-url=https://175.178.199.245 ok=true; ROOM_SMOKE_BASE_URL=https://175.178.199.245 npm.cmd run smoke:room-sse ok=true room GT2PT4; ROOM_SMOKE_BASE_URL=https://175.178.199.245 npm.cmd run smoke:room-action:vote ok=true room EFQ9LR final phase LAST_WORDS.",
+      "next_action": "Stop paid attribution reruns and start collecting real-user playtest samples on Tencent Cloud primary URL. Before any GitHub push, split the 12p closeout/deploy docs from unrelated homepage-lobby work.",
+      "notes": "Earlier bounded mechanism gate and local full-game mock gate passed. The paid full-game Mimo run completed and old hard gates were clean in exact scans, but Opus review chose continue because 11号 GPT2 carried both 1号 WEREWOLF and 1号 GOOD after quoting 2号 Claude's old gold check while claiming a new black check. The D3-90 proof exposed non-conflicting 8号 Kimi quoted-check pollution and a 7号 GLM focus-marker fragment; both were locally fixed. The fresh Mimo D3 proof failed claim attribution because 2号Claude刚才报的金水 was parsed as Kimi's own 8->2 GOOD and suppressed Kimi's own 8->2 WEREWOLF; external review chose continue-local, and claims.ts now uses bounded owned check verbs versus report/quote verbs. DeepSeek-chat then exposed the reverse side twice: 11号 GPT2 target-before-pronoun self-check was dropped, then 4号 豆包 same-sentence quote plus self-check was dropped. Both local parser fixes are test-backed. A local invariant suite and 550-case extraction rescan showed no known current-extractor self-owned Seer-check miss. The final DeepSeek proof exercised D3 quoted/reported Seer checks plus a fake-Seer self-owned check and hardscan stayed clean. The go-hardgate source is now deployed to Tencent Cloud from a clean archive that excluded unrelated homepage-lobby work. Render was not updated. Provider stability was noisy at fallback/error 9/100 and validationFailure 4/100 in the final DeepSeek proof, but this is not an attribution hard-gate failure. Do not write keys to .env or docs; do not chase broad phrase bans, action quotas, or vote-reason sameness in this cut."
     }
   ]
 }
