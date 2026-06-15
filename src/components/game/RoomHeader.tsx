@@ -35,6 +35,56 @@ export function RoomHeader({
       : `${game.board.name} · ${game.humanSeatId}号位 · 你是${game.myRoleLabel ?? "未知身份"} · AI ${game.setup?.aiFriends.length ?? game.seats.filter((seat) => seat.isAi).length}位`
     : "选择板子后可指定真人座位或观战 AI 对局";
 
+  if (!game) {
+    return (
+      <header className="mobile-home-header mobile-home-lobby-header flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f1c76e]/25 bg-[#130d0b]/75 px-4 py-3 shadow-2xl shadow-black/25 backdrop-blur-md">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="mobile-home-logo grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#f1c76e]/45 bg-[#2a1712] text-lg font-semibold text-[#f1c76e] shadow-inner">
+            狼
+          </div>
+          <div className="mobile-home-brand min-w-0">
+            <h1 className="truncate text-xl font-semibold tracking-normal sm:text-2xl">AI 狼人杀</h1>
+            <p className="mt-1 text-xs text-[#cab995] sm:text-sm">
+              {gameMeta}
+            </p>
+          </div>
+        </div>
+
+        <nav className="mobile-home-header-actions mobile-home-lobby-nav flex flex-wrap items-center gap-2" aria-label="手机首页功能入口">
+          <span className="mobile-home-quick-action mobile-home-quick-action-current rounded-full border border-[#f1c76e]/35 bg-[#2b2114]/78 px-4 py-2 text-sm font-semibold text-[#f1d796]">
+            <MobileHomeToolContent iconSrc="/icons/ant-home-filled.svg" label="首页" />
+          </span>
+          <Link
+            href="/rooms"
+            className="mobile-home-quick-action rounded-full border border-[#77d898]/35 bg-[#12301f]/70 px-4 py-2 text-sm font-semibold text-[#a8f0b6] transition hover:bg-[#1d4e33]/75"
+          >
+            <MobileHomeToolContent iconSrc="/icons/ant-team-outlined.svg" label="房间" />
+          </Link>
+          <Link
+            href="/ai-pool"
+            className="mobile-home-quick-action rounded-full border border-[#f1c76e]/25 bg-black/15 px-4 py-2 text-sm font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10"
+          >
+            <MobileHomeToolContent iconSrc="/icons/ant-robot-outlined.svg" label="AI池" />
+          </Link>
+          <button
+            type="button"
+            onClick={onOpenIdentityBook}
+            className="mobile-home-quick-action rounded-full border border-[#f1c76e]/25 bg-black/15 px-4 py-2 text-sm font-semibold text-[#f1d796] transition hover:bg-[#f1c76e]/10"
+          >
+            <MobileHomeToolContent iconSrc="/icons/ant-book-outlined.svg" label="角色书" />
+          </button>
+          <button
+            type="button"
+            onClick={onOpenGlossary}
+            className="mobile-home-quick-action rounded-full border border-[#7da8e3]/25 bg-black/15 px-4 py-2 text-sm font-semibold text-[#b8d6ff] transition hover:bg-[#7da8e3]/10"
+          >
+            <MobileHomeToolContent iconSrc="/icons/ant-question-circle-outlined.svg" label="术语" />
+          </button>
+        </nav>
+      </header>
+    );
+  }
+
   return (
     <header className="mobile-home-header flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f1c76e]/25 bg-[#130d0b]/75 px-4 py-3 shadow-2xl shadow-black/25 backdrop-blur-md">
       <div className="flex min-w-0 items-center gap-3">
@@ -131,11 +181,11 @@ export function RoomHeader({
   );
 }
 
-function MobileHomeToolContent({ icon, label }: { icon: string; label: string }) {
+function MobileHomeToolContent({ icon, iconSrc, label }: { icon?: string; iconSrc?: string; label: string }) {
   return (
     <>
       <span className="mobile-home-tool-icon" aria-hidden="true">
-        {icon}
+        {iconSrc ? <img src={iconSrc} alt="" draggable={false} /> : icon}
       </span>
       <span className="mobile-home-tool-label">{label}</span>
     </>

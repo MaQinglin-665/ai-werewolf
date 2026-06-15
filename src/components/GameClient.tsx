@@ -1571,7 +1571,7 @@ export function GameClient() {
       }
     >
       <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-4 px-3 py-3 sm:px-5 lg:px-7">
-        <div className={game ? (classTrialThemeActive ? "hidden" : "hidden sm:block") : ""}>
+        <div className={game ? "hidden" : "lg:hidden"}>
           <RoomHeader
             game={game}
             loading={loading}
@@ -1616,6 +1616,8 @@ export function GameClient() {
             classTrialPackMessage={classTrialStatusMessage}
             classTrialIntroMessage={classTrialThemeMode === "class-trial" ? classTrialIntroMessage : undefined}
             onSelectClassTrialThemeMode={selectClassTrialThemeMode}
+            onOpenIdentityBook={() => setIdentityBookOpen(true)}
+            onOpenGlossary={() => setGlossaryOpen(true)}
           />
         ) : (
           <GameClientLoadedSurface

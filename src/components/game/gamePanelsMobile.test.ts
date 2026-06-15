@@ -103,6 +103,9 @@ describe("mobile game panels", () => {
     expect(html).not.toContain("mobile-home-ai-pool-action");
     expect(html).toContain("mobile-dock-ai-pool-action");
     expect(html).toContain("AI阵容");
+    expect(html).toContain("mobile-dock-more-board-action");
+    expect(html).toContain("更多对局");
+    expect(html).not.toContain("mobile-board-picker-list");
     expect(html).not.toContain("mobile-home-config-strip");
     expect(html).toContain("mobile-board-strip");
     expect(html).toContain("mobile-board-chip");
@@ -113,8 +116,9 @@ describe("mobile game panels", () => {
     expect(html).toContain("mobile-home-dock");
     expect(html).toContain("mobile-lobby-table-glow");
     expect(html).toContain("mobile-dock-board-console");
-    expect(html).toContain("mobile-seat-console");
-    expect(html).toContain("真人模式");
+    expect(html).not.toContain("mobile-seat-console");
+    expect(html).toContain("mobile-current-selection-card");
+    expect(html).toContain("mobile-current-metrics-row");
     expect(html).not.toContain("随机座位");
     expect(html).toContain("mobile-cta-console");
   });
@@ -284,13 +288,55 @@ describe("mobile game panels", () => {
     );
 
     expect(html).toContain("学级裁判主题局");
-    expect(html).toContain("本地限定");
+    expect(html).toContain("素材未就绪");
     expect(html).toContain("真实 LLM");
     expect(html).toContain("Mimo-v2.5");
     expect(html).toContain("未找到本地主题素材包");
     expect(html).toContain("未找到本地角色卡");
     expect(html).toContain("开场片头音频准备中：7 / 9");
     expect(html).toContain("/rooms");
+  });
+
+  it("renders the desktop game lobby shell with recommended board cards and no fake economy navigation", () => {
+    const boards = getDefaultBoardOptions();
+    const html = renderToStaticMarkup(
+      createElement(LandingPanel, {
+        loading: false,
+        boards,
+        selectedBoardId: "6p-beginner-seer",
+        onSelectBoard: () => undefined,
+        humanSeatMode: "fixed",
+        selectedHumanSeatId: 1,
+        onSelectRandomHumanSeat: () => undefined,
+        onSelectFixedHumanSeat: () => undefined,
+        onSelectNoHumanSeat: () => undefined,
+        selectedAiFriendCount: 8,
+        customAiFriendCount: 0,
+        aiLineupPreview: [],
+        recentGameIds: [],
+        onLoadGame: async () => undefined,
+        onStartGame: async () => undefined,
+      }),
+    );
+
+    expect(html).toContain("homepage-game-lobby");
+    expect(html.match(/class="homepage-board-card(?:\s|")/g) ?? []).toHaveLength(4);
+    expect(html).toContain("查看更多");
+    expect(html).toContain("homepage-announcement-trigger");
+    expect(html).toContain("/icons/ant-home-filled.svg");
+    expect(html).toContain("/icons/ant-team-outlined.svg");
+    expect(html).toContain("/icons/ant-book-outlined.svg");
+    expect(html).toContain("/icons/ant-question-circle-outlined.svg");
+    expect(html).not.toContain(">公告</button>");
+    expect(html).not.toContain("<a href=\"/ai-pool\">AI池</a>");
+    expect(html).toContain("角色书");
+    expect(html).toContain("术语");
+    expect(html).toContain("进入联机房间");
+    expect(html).toContain("进入牌桌");
+    expect(html).not.toContain("homepage-mini-seat-row");
+    expect(html).not.toContain("金币");
+    expect(html).not.toContain("排行榜");
+    expect(html).not.toContain("成就");
   });
 
   it("keeps the duplicate top start action off the home header", () => {
