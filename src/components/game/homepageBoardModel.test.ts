@@ -26,10 +26,10 @@ describe("homepage board model", () => {
       "12 人白狼王骑士局",
     ]);
     expect(cards.map((card) => card.art.src)).toEqual([
-      "/images/home-board-6p-beginner-seer.png",
-      "/images/home-board-9p-seer-witch-hunter.png",
-      "/images/home-board-12p-standard-sheriff.png",
-      "/images/home-board-12p-white-wolf-king-knight.png",
+      "/images/home-board-6p-beginner-seer.webp",
+      "/images/home-board-9p-seer-witch-hunter.webp",
+      "/images/home-board-12p-standard-sheriff.webp",
+      "/images/home-board-12p-white-wolf-king-knight.webp",
     ]);
     expect(cards.map((card) => card.badge)).toEqual(["新手友好", "进阶标准", "平衡推荐", "高压进阶"]);
   });

@@ -25,19 +25,19 @@ export type HomepageBoardCard = {
 
 export const HOME_BOARD_ART_BY_ID: Record<RecommendedHomeBoardId, BoardArt> = {
   "6p-beginner-seer": {
-    src: "/images/home-board-6p-beginner-seer.png",
+    src: "/images/home-board-6p-beginner-seer.webp",
     alt: "月夜村庄新手狼人杀牌板场景",
   },
   "9p-seer-witch-hunter": {
-    src: "/images/home-board-9p-seer-witch-hunter.png",
+    src: "/images/home-board-9p-seer-witch-hunter.webp",
     alt: "阴森庄园九人预女猎牌板场景",
   },
   "12p-sheriff-seer-witch-hunter-guard": {
-    src: "/images/home-board-12p-standard-sheriff.png",
+    src: "/images/home-board-12p-standard-sheriff.webp",
     alt: "警长圆桌十二人标准局牌板场景",
   },
   "12p-sheriff-white-wolf-king-knight": {
-    src: "/images/home-board-12p-white-wolf-king-knight.png",
+    src: "/images/home-board-12p-white-wolf-king-knight.webp",
     alt: "白狼王骑士高压进阶牌板场景",
   },
 };

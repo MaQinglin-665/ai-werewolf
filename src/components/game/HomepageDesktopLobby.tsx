@@ -215,7 +215,7 @@ export function HomepageDesktopLobby({
                 <span
                   className="homepage-selected-board-thumb"
                   aria-hidden="true"
-                  style={{ backgroundImage: `url(${recommendedCards.find((card) => card.board.id === selectedBoard?.id)?.art.src ?? "/images/home-board-6p-beginner-seer.png"})` }}
+                  style={{ backgroundImage: `url(${recommendedCards.find((card) => card.board.id === selectedBoard?.id)?.art.src ?? "/images/home-board-6p-beginner-seer.webp"})` }}
                 />
                 <div>
                   <span>已选牌板</span>
